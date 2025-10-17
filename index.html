@@ -248,27 +248,38 @@
 
 
   /**************** KEYBOARD-WEDGE LISTENER ****************/
-  window.addEventListener('keydown', (e)=>{
-    keepFocus();
+window.addEventListener('keydown', (e)=>{
+  keepFocus();
 
-    const now = performance.now();
-    if (lastTs && (now - lastTs) > SCAN_CHAR_MS) buffer = "";
-    lastTs = now;
+  const now = performance.now();
+  // if gap is big, this is a new sequence
+  const isNewSeq = !lastTs || (now - lastTs) > SCAN_CHAR_MS;
+  lastTs = now;
 
-    if (e.key === 'Enter'){
-      const finished = buffer; buffer = "";
-      if (finished){ 
-        onScan(finished);
-        manualInput.value = '';
-        e.preventDefault();
-      }
-      return;
+  if (e.key === 'Enter'){
+    const finished = buffer; buffer = "";
+    if (finished){
+      onScan(finished);
+      manualInput.value = '';                      // clear after scan
+      e.preventDefault();
     }
-    if (e.key.length === 1){ buffer += e.key; }
+    return;
+  }
 
-    clearTimeout(resetTimer);
-    resetTimer = setTimeout(()=> buffer="", 200);
-  }, true);
+  if (e.key.length === 1){
+    const likelyScanner = !isNewSeq || buffer.length > 0;  // chars arriving quickly
+    if (likelyScanner){
+      e.preventDefault();                      // don't let wedge print into the input
+      buffer += e.key;
+    } else {
+      // human typing: let it appear and also keep our buffer in sync
+      buffer += e.key;
+    }
+  }
+
+  clearTimeout(resetTimer);
+  resetTimer = setTimeout(()=> buffer="", 200);
+}, true);
 
   /**************** MANUAL ENTRY FORM ****************/
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
