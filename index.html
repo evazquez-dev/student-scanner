@@ -46,6 +46,7 @@
     input[type=text] {
       flex:1; padding:10px 12px; font-size:18px; border-radius:12px; border:1px solid #cfd7e3; outline:none;
     }
+    .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:6px;border:1px solid #ccd3de}
     button {
       cursor:pointer; border:none; border-radius:12px; padding:10px 14px; font-weight:600; background:var(--brand); color:#fff;
     }
@@ -80,7 +81,14 @@
         <div class="panel">
           <div class="muted" style="margin-bottom:8px">Recent scans (local)</div>
           <table id="historyTbl" aria-label="Scan history">
-            <thead><tr><th style="width:38%">Name</th><th style="width:26%">Code</th><th style="width:36%">Time</th></tr></thead>
+            <thead>
+              <tr>
+                <th style="width:30%">Name</th>
+                <th style="width:20%">Code</th>
+                <th style="width:22%">Locker</th>
+                <th style="width:28%">Time</th>
+                </tr>
+              </thead>
             <tbody id="historyBody"></tbody>
           </table>
         </div>
@@ -189,14 +197,15 @@
        <div class="name">${esc(name || 'Unknown')}</div>
        <div class="code">${esc(code)} — Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})</div>
        <div class="muted">${fmtTime(when)}</div>`;
-    pushHistoryRow(name || 'Unknown', code, when);
+    pushHistoryRow(name || 'Unknown', code, lockerNum, lockerColor, when);
     setStatus('Ready. Scan next card…');
   }
 
   function showNotFound(code, when){
     resultEl.innerHTML =
-      `<div class="err">Not found</div>
-       <div class="code">${esc(code)}</div>
+      `<div class="ok">OK</div>
+       <div class="name">${esc(name || 'Unknown')}</div>
+       <div class="code">${esc(code)} — Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})</div>
        <div class="muted">${fmtTime(when)}</div>`;
     pushHistoryRow('— Not found —', code, when);
     setStatus('Ready.');
@@ -210,15 +219,33 @@
     setStatus('Ready.');
   }
 
-  function pushHistoryRow(name, code, when){
+  function pushHistoryRow(name, code, lockerNum, lockerColor, when){
     const tr = document.createElement('tr');
+    const color = String(lockerColor||'').trim();
+    const num   = String(lockerNum||'').trim();
+  
+    // try to map common color names to CSS colors; fallback to text
+    const cssColor = ({
+      red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
+      purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
+      grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
+    })[color.toLowerCase()] || null;
+  
+    const lockerHtml = (num || color)
+      ? (cssColor
+          ? `<span class="swatch" style="background:${cssColor}"></span>${esc(num)} <span class="muted">(${esc(color)})</span>`
+          : `${esc(num)} <span class="muted">(${esc(color)})</span>`)
+      : '—';
+  
     tr.innerHTML =
       `<td class="name">${esc(name)}</td>
        <td class="code">${esc(code)}</td>
+       <td>${lockerHtml}</td>
        <td>${fmtTime(when)}</td>`;
     historyBody.prepend(tr);
     while (historyBody.children.length > HISTORY_SIZE) historyBody.lastChild.remove();
   }
+
 
   /**************** KEYBOARD-WEDGE LISTENER ****************/
   window.addEventListener('keydown', (e)=>{
