@@ -257,7 +257,11 @@
 
     if (e.key === 'Enter'){
       const finished = buffer; buffer = "";
-      if (finished){ onScan(finished); e.preventDefault(); }
+      if (finished){ 
+        onScan(finished);
+        manualInput.value = '';
+        e.preventDefault();
+      }
       return;
     }
     if (e.key.length === 1){ buffer += e.key; }
