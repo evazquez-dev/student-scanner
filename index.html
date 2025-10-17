@@ -125,8 +125,13 @@
   async function apiLookup(code){
     const body = new URLSearchParams({ action:'lookup', code });
     const r = await fetch(API_BASE, { method:'POST', body });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json(); // {found, name, osis, locker_number, locker_color}
+    const ct = r.headers.get('content-type') || '';
+    const bodyText = await r.text();
+    if (!ct.includes('application/json')) {
+      throw new Error('Upstream HTML: ' + bodyText.slice(0, 200));
+    }
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${bodyText}`);
+    return JSON.parse(bodyText);
   }
 
   // optional log (enable later by uncommenting the call after successful lookup)
