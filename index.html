@@ -123,7 +123,7 @@
 
   /**************** API ****************/
   async function apiLookup(code){
-    const body = new URLSearchParams({ action:'lookup', code, secret: SHARED_SECRET });
+    const body = new URLSearchParams({ action:'lookup', code });
     const r = await fetch(API_BASE, { method:'POST', body });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return r.json(); // {found, name, osis, locker_number, locker_color}
@@ -133,7 +133,6 @@
   async function apiLog(entry){
     const body = new URLSearchParams({
       action:'log',
-      secret: SHARED_SECRET,
       whenISO: entry.whenISO || new Date().toISOString(),
       code: entry.code || '',
       source: entry.source || 'pwa',
