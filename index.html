@@ -1,2 +1,272 @@
-<link rel="manifest" href="./manifest.webmanifest">
-<script>if('serviceWorker'in navigator){navigator.serviceWorker.register('./sw.js');}</script>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Student Scanner</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <meta name="theme-color" content="#0b57d0" />
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
+  </script>
+
+  <style>
+    :root { --fg:#0b1320; --muted:#5e6b7a; --brand:#0b57d0; --bg:#f6f8fb; }
+    html,body { height:100%; }
+    body {
+      margin:0; font:16px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:var(--fg); background:var(--bg);
+      display:flex; align-items:center; justify-content:center; min-height:100dvh;
+    }
+    .card {
+      width:min(920px, 96vw); background:#fff; border-radius:18px; padding:20px 20px 16px;
+      box-shadow:0 10px 30px rgba(0,0,0,.06);
+    }
+    h1 { margin:0 0 4px 0; font-size:22px; }
+    .muted { color:var(--muted); font-size:13px; }
+    .row { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
+    .col { flex:1 1 320px; }
+    .panel {
+      background:#fafbff; border:1px solid #eef1f7; border-radius:14px; padding:14px;
+    }
+    #status { font-weight:600; }
+    #result { font-size:17px; margin-top:6px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th,td { padding:8px 6px; border-bottom:1px solid #edf1f6; text-align:left; }
+    th { font-weight:600; color:#667; background:#f8f9fc; }
+    .ok { color:#0a7c2f; font-weight:600; }
+    .err { color:#b00020; font-weight:600; }
+    .name { font-weight:700; }
+    .code { color:#556; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .input-wrap { display:flex; gap:8px; align-items:center; }
+    input[type=text] {
+      flex:1; padding:10px 12px; font-size:18px; border-radius:12px; border:1px solid #cfd7e3; outline:none;
+    }
+    button {
+      cursor:pointer; border:none; border-radius:12px; padding:10px 14px; font-weight:600; background:var(--brand); color:#fff;
+    }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eaf7ea; color:#0a7c2f; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Student Scanner <span class="pill" id="onlinePill">Online</span></h1>
+    <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter. Shows Name, Locker #/Color, and scan time.</div>
+
+    <div class="row" style="margin-top:14px">
+      <!-- Left: Live status + last result + manual entry -->
+      <div class="col">
+        <div class="panel">
+          <div id="status">Ready. Scan a card…</div>
+          <div id="result"></div>
+
+          <hr style="border:none;border-top:1px solid #edf1f6; margin:12px -14px" />
+
+          <div class="muted" style="margin-bottom:6px">Manual entry (keypad or typing):</div>
+          <form id="manualForm" class="input-wrap" autocomplete="off">
+            <input id="manualInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Type OSIS or RFID and press Enter" />
+            <button type="submit">Enter</button>
+          </form>
+          <div class="muted" style="margin-top:6px">Tip: The field keeps focus—good for external keypads.</div>
+        </div>
+      </div>
+
+      <!-- Right: Recent scans -->
+      <div class="col">
+        <div class="panel">
+          <div class="muted" style="margin-bottom:8px">Recent scans (local)</div>
+          <table id="historyTbl" aria-label="Scan history">
+            <thead><tr><th style="width:38%">Name</th><th style="width:26%">Code</th><th style="width:36%">Time</th></tr></thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="muted" style="margin-top:10px">
+      Configure <span class="code">API_BASE</span> + <span class="code">SHARED_SECRET</span> in the script below.
+    </div>
+  </div>
+
+  <script>
+  /**************** CONFIG — EDIT ME ****************/
+  // Apps Script Web App /exec URL
+  const API_BASE = 'https://script.google.com/macros/s/REPLACE_WITH_EXEC_ID/exec';
+  // Value printed by setupSecret() in Apps Script
+  const SHARED_SECRET = 'REPLACE_WITH_SHARED_SECRET';
+
+  // Keyboard-wedge behavior
+  const REQUIRED_PREFIX = '';     // set if your scanners add a prefix; else leave ''
+  const STRIP_PREFIX = true;
+  const UPPERCASE = true;
+  const SCAN_CHAR_MS = 30;        // max ms between chars to treat input as "scanner"
+  const MIN_LEN = 4;
+  const DEDUPE_MS = 1000;
+  const HISTORY_SIZE = 25;
+
+  /**************** STATE ****************/
+  let buffer = "", lastTs = 0, resetTimer = null;
+  let lastScanValue = "", lastScanAt = 0;
+
+  const statusEl = document.getElementById('status');
+  const resultEl = document.getElementById('result');
+  const historyBody = document.getElementById('historyBody');
+  const manualInput = document.getElementById('manualInput');
+  const onlinePill = document.getElementById('onlinePill');
+
+  function setStatus(t){ statusEl.textContent = t; }
+  function vibrate(){ try{ navigator.vibrate?.(30); }catch{} }
+  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function fmtTime(d){ try{ return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d);}catch{return d.toLocaleString();} }
+
+  /**************** API ****************/
+  async function apiLookup(code){
+    const body = { action:'lookup', code, secret: SHARED_SECRET };
+    const r = await fetch(API_BASE, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Accept':'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json(); // {found, name, osis, locker_number, locker_color}
+  }
+
+  // optional log (enable later by uncommenting the call after successful lookup)
+  async function apiLog(entry){
+    try{
+      const r = await fetch(API_BASE, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'Accept':'application/json' },
+        body: JSON.stringify({ action:'log', secret:SHARED_SECRET, ...entry })
+      });
+      await r.json().catch(()=>{});
+    }catch{}
+  }
+
+  /**************** SCAN FLOW ****************/
+  function normalize(raw){
+    let v = String(raw).trim();
+    if (UPPERCASE) v = v.toUpperCase();
+    if (REQUIRED_PREFIX){
+      if (!v.startsWith(REQUIRED_PREFIX)) return '';
+      if (STRIP_PREFIX) v = v.slice(REQUIRED_PREFIX.length);
+    }
+    return v;
+  }
+
+  async function onScan(rawCode){
+    const code = normalize(rawCode);
+    if (!code || code.length < MIN_LEN) return;
+
+    // de-dupe quick repeats
+    const now = performance.now();
+    if (code === lastScanValue && (now - lastScanAt) < DEDUPE_MS) return;
+    lastScanValue = code; lastScanAt = now;
+
+    const when = new Date();
+    setStatus(`Scanned: ${code} — looking up…`); vibrate();
+
+    try{
+      const res = await apiLookup(code);
+      if (res.found){
+        showSuccess(res.name, code, res.locker_number, res.locker_color, when);
+        // Uncomment to log back to Sheets:
+        // apiLog({ whenISO: when.toISOString(), code, source:'pwa', resolved:{ name:res.name, osis:res.osis, locker_number:res.locker_number, locker_color:res.locker_color } });
+      }else{
+        showNotFound(code, when);
+      }
+      keepFocus();
+    }catch(err){
+      showError(err, code, when);
+      keepFocus();
+    }
+  }
+
+  function showSuccess(name, code, lockerNum, lockerColor, when){
+    resultEl.innerHTML =
+      `<div class="ok">OK</div>
+       <div class="name">${esc(name || 'Unknown')}</div>
+       <div class="code">${esc(code)} — Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})</div>
+       <div class="muted">${fmtTime(when)}</div>`;
+    pushHistoryRow(name || 'Unknown', code, when);
+    setStatus('Ready. Scan next card…');
+  }
+
+  function showNotFound(code, when){
+    resultEl.innerHTML =
+      `<div class="err">Not found</div>
+       <div class="code">${esc(code)}</div>
+       <div class="muted">${fmtTime(when)}</div>`;
+    pushHistoryRow('— Not found —', code, when);
+    setStatus('Ready.');
+  }
+
+  function showError(err, code, when){
+    resultEl.innerHTML =
+      `<div class="err">Lookup error</div>
+       <div class="code">${esc(code||'')}</div>
+       <div class="muted">${fmtTime(when)} — ${esc(err.message||String(err))}</div>`;
+    setStatus('Ready.');
+  }
+
+  function pushHistoryRow(name, code, when){
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td class="name">${esc(name)}</td>
+       <td class="code">${esc(code)}</td>
+       <td>${fmtTime(when)}</td>`;
+    historyBody.prepend(tr);
+    while (historyBody.children.length > HISTORY_SIZE) historyBody.lastChild.remove();
+  }
+
+  /**************** KEYBOARD-WEDGE LISTENER ****************/
+  window.addEventListener('keydown', (e)=>{
+    keepFocus();
+
+    const now = performance.now();
+    if (lastTs && (now - lastTs) > SCAN_CHAR_MS) buffer = "";
+    lastTs = now;
+
+    if (e.key === 'Enter'){
+      const finished = buffer; buffer = "";
+      if (finished){ onScan(finished); e.preventDefault(); }
+      return;
+    }
+    if (e.key.length === 1){ buffer += e.key; }
+
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(()=> buffer="", 200);
+  }, true);
+
+  /**************** MANUAL ENTRY FORM ****************/
+  document.getElementById('manualForm').addEventListener('submit', (e)=>{
+    e.preventDefault();
+    const v = manualInput.value.trim();
+    if (v) onScan(v);
+    manualInput.value = '';
+    keepFocus();
+  });
+
+  function keepFocus(){
+    if (document.activeElement !== manualInput) manualInput.focus({preventScroll:true});
+    manualInput.setSelectionRange(manualInput.value.length, manualInput.value.length);
+  }
+  keepFocus(); setInterval(keepFocus, 1000);
+
+  /**************** ONLINE/OFFLINE INDICATOR ****************/
+  function updateOnlinePill(){
+    const on = navigator.onLine;
+    onlinePill.textContent = on ? 'Online' : 'Offline';
+    onlinePill.style.background = on ? '#eaf7ea' : '#fff3e0';
+    onlinePill.style.color = on ? '#0a7c2f' : '#8a5a00';
+  }
+  window.addEventListener('online', updateOnlinePill);
+  window.addEventListener('offline', updateOnlinePill);
+  updateOnlinePill();
+  </script>
+</body>
+</html>
