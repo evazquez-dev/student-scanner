@@ -143,7 +143,7 @@
       action:'log',
       whenISO: entry.whenISO || new Date().toISOString(),
       code: entry.code || '',
-      source: 'pwa',
+      source: entry.source || 'pwa',
       resolved_name:  entry.resolved?.name  || '',
       resolved_osis:  entry.resolved?.osis  || '',
       resolved_lnum:  entry.resolved?.locker_number || '',
@@ -180,7 +180,7 @@
       if (res.found){
         showSuccess(res.name, code, res.locker_number, res.locker_color, when);
         // Uncomment to log back to Sheets:
-        // apiLog({ whenISO: when.toISOString(), code, source:'pwa', resolved:{ name:res.name, osis:res.osis, locker_number:res.locker_number, locker_color:res.locker_color } });
+        apiLog({ whenISO: when.toISOString(), code, source:'pwa', resolved:{ name:res.name, osis:res.osis, locker_number:res.locker_number, locker_color:res.locker_color } });
       }else{
         showNotFound(code, when);
       }
