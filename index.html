@@ -160,16 +160,34 @@
   /**************** API ****************/
   async function apiLookup(code){
     const body = new URLSearchParams({ action:'lookup', code });
-    const t0 = performance.now();
+  
+    // show "Waking server…" only if it's actually slow
     const wakeTimer = setTimeout(() => setStatus('Waking server…'), 700);
+  
+    // hard timeout so we don't hang forever
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 8000);
+  
     try {
-      const r = await fetch(API_BASE, { method:'POST', body });
+      const r = await fetch(API_BASE, { method:'POST', body, signal: controller.signal });
+  
+      // read once; decide based on content-type
+      const ct = r.headers.get('content-type') || '';
+      const text = await r.text();
+  
+      if (!r.ok) throw new Error(`HTTP ${r.status} ${text.slice(0,120)}`);
+  
+      if (!ct.includes('application/json')) {
+        // Worker will pass HTML on upstream errors; surface that
+        throw new Error('Upstream HTML (not JSON): ' + text.slice(0,120));
+      }
+  
+      return JSON.parse(text);
+    } finally {
       clearTimeout(wakeTimer);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      return r.json();
-    } catch (e) {
-      clearTimeout(wakeTimer);
-      throw e;
+      clearTimeout(abortTimer);
+      // don't leave "Waking server…" hanging if an error occurred before UI updates
+      if (statusEl.textContent.includes('Waking server')) setStatus('Ready.');
     }
   }
 
