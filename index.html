@@ -71,6 +71,7 @@
     /* slightly tighter table so 10 fit nicely */
     #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
     .bad { color:#b00020; font-weight:600; }
+    .queued { color:#8a5a00; font-weight:600; }
   </style>
 </head>
 <body>
@@ -152,6 +153,40 @@
   const manualInput = document.getElementById('manualInput');
   const onlinePill = document.getElementById('onlinePill');
 
+  const QUEUE_KEY = 'scanQueueV1';
+  function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
+  function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+  async function flushQueue(){
+    if (!navigator.onLine) return;
+    const q = loadQueue();
+    if (!q.length) return;
+    const remain = [];
+    for (const item of q){
+      try{
+        const res = await apiLookup(item.code);
+        if (res.found){
+          // update the existing row if we kept a DOM id; else just inject a “resolved” row
+          updateRowToSuccess(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)), {
+            name: res.name, code: item.code,
+            lockerNum: res.locker_number, lockerColor: res.locker_color,
+            when: new Date(item.whenISO)
+          });
+          apiLog({ whenISO:item.whenISO, code:item.code, source:'pwa', resolved:res });
+        } else {
+          updateRowToNotFound(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)),
+            item.code, new Date(item.whenISO), res.error, res.reason);
+        }
+      } catch {
+        // still offline or error → keep it
+        remain.push(item);
+      }
+    }
+    saveQueue(remain);
+  }
+  window.addEventListener('online', flushQueue);
+  // Try once on load too
+  flushQueue();
+
   function setStatus(t){ statusEl.textContent = t; }
   function vibrate(){ try{ navigator.vibrate?.(30); }catch{} }
   function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -213,30 +248,44 @@
   function onScan(code){
     const when = new Date();
     const seq = ++scanSeq;
-  
-    // 1) create a placeholder row in order
     const row = pushPendingRow(seq, code, when);
   
-    // 2) kick off lookup (async)
+    // If offline, queue and mark row
+    if (!navigator.onLine){
+      markRowQueued(row);
+      const q = loadQueue();
+      q.push({ seq, code, whenISO: when.toISOString() });
+      saveQueue(q);
+      setStatus('Offline — queued');
+      return;
+    }
+  
+    // Otherwise do the normal async lookup
     void (async () => {
       try {
-        const res = await apiLookup(code);           // calls Worker -> GAS
+        const res = await apiLookup(code); // with timeout/abort inside
         if (res.found) {
-          updateRowToSuccess(row, {
-            name: res.name, code,
-            lockerNum: res.locker_number,
-            lockerColor: res.locker_color,
-            when
-          });
-          // fire-and-forget log
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: res.locker_number, lockerColor: res.locker_color, when });
           apiLog({ whenISO: when.toISOString(), code, source: 'pwa', resolved: res });
         } else {
           updateRowToNotFound(row, code, when, res.error, res.reason);
         }
       } catch (err) {
-        updateRowToError(row, code, when, err);
+        // Treat network aborts/timeouts as offline-queue
+        if (!navigator.onLine || (err.name === 'AbortError')){
+          markRowQueued(row);
+          const q = loadQueue(); q.push({ seq, code, whenISO: when.toISOString() }); saveQueue(q);
+          setStatus('Offline — queued');
+        } else {
+          updateRowToError(row, code, when, err);
+        }
       }
     })();
+  }
+  
+  function markRowQueued(tr){
+    const first = tr.querySelector('.name');
+    if (first) first.innerHTML = '<span class="queued">Queued (offline)</span>';
   }
 
   function showSuccess(name, code, lockerNum, lockerColor, when){
