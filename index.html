@@ -76,7 +76,23 @@
 </head>
 <body>
   <div class="card">
-    <h1>Student Scanner <span class="pill" id="onlinePill">Online</span></h1>
+    <div id="locModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:9999;">
+      <div style="background:#fff; width:min(360px, 92vw); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2)">
+        <div style="font-weight:700; margin-bottom:8px;">Select your location</div>
+        <div class="muted" style="margin-bottom:12px">This will be saved and attached to each scan.</div>
+        <select id="locSelect" style="width:100%; padding:10px; border:1px solid #cfd7e3; border-radius:10px; margin-bottom:12px">
+          <option value="">Loading…</option>
+        </select>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button id="locCancelBtn" style="background:#e5e9f2; color:#333">Cancel</button>
+          <button id="locSaveBtn">Save</button>
+        </div>
+      </div>
+    </div>
+    <h1>Student Scanner 
+      <span class="pill" id="onlinePill">Online</span>
+      <span class="pill" id="locationPill" style="margin-left:6px; cursor:pointer;" title="Click to change location">Set location</span>
+    </h1>
     <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter. Shows Name, Locker #/Color, and scan time.</div>
 
     <div class="row" style="margin-top:14px">
@@ -152,8 +168,66 @@
   const historyBody = document.getElementById('historyBody');
   const manualInput = document.getElementById('manualInput');
   const onlinePill = document.getElementById('onlinePill');
+  const locationPill = document.getElementById('locationPill');
 
   const QUEUE_KEY = 'scanQueueV1';
+  const LOC_KEY = 'scannerLocationV1';
+
+  function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
+  function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
+  
+  async function apiGetLocations(){
+    const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'locations' }) });
+    const ct = r.headers.get('content-type')||'';
+    const text = await r.text();
+    if (!r.ok) throw new Error(`HTTP ${r.status} ${text.slice(0,120)}`);
+    if (!ct.includes('application/json')) throw new Error('Bad content-type for locations');
+    const data = JSON.parse(text);
+    if (!data.ok) throw new Error(data.error || 'locations_error');
+    return data.locations || [];
+  }
+  
+  async function promptForLocation(force=false){
+    if (!force && getLocation()) { updateLocationPill(); return; }
+  
+    const modal = document.getElementById('locModal');
+    const sel   = document.getElementById('locSelect');
+    const btnOK = document.getElementById('locSaveBtn');
+    const btnX  = document.getElementById('locCancelBtn');
+  
+    // Populate list
+    sel.innerHTML = `<option value="">Loading…</option>`;
+    modal.style.display = 'flex';
+    try {
+      const list = await apiGetLocations();
+      sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
+      const saved = getLocation();
+      if (saved) sel.value = saved;
+    } catch (e) {
+      sel.innerHTML = `<option value="">(Couldn’t load locations)</option>`;
+    }
+  
+    return new Promise(resolve=>{
+      const close = (val) => { modal.style.display = 'none'; resolve(val); };
+      btnOK.onclick = () => {
+        const val = sel.value.trim();
+        if (val) { setLocation(val); close(val); } else { alert('Please choose a location.'); }
+      };
+      btnX.onclick = () => close(getLocation()); // keep existing value or none
+      // close on backdrop click
+      modal.addEventListener('click', (ev)=>{ if (ev.target === modal) close(getLocation()); }, { once:true });
+    });
+  }
+  
+  function updateLocationPill(){
+    const pill = document.getElementById('locationPill');
+    const v = getLocation();
+    pill.textContent = v ? `Location: ${v}` : 'Set location';
+    pill.style.background = v ? '#e7f0fe' : '#fff3e0';
+    pill.style.color = v ? '#0b57d0' : '#8a5a00';
+  }
+
+    
   function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
   function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
   async function flushQueue(){
@@ -236,7 +310,8 @@
       resolved_name:  entry.resolved?.name  || '',
       resolved_osis:  entry.resolved?.osis  || '',
       resolved_lnum:  entry.resolved?.locker_number || '',
-      resolved_lcol:  entry.resolved?.locker_color  || ''
+      resolved_lcol:  entry.resolved?.locker_color  || '',
+      location: getLocation() || ''                 // <-- NEW
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
@@ -475,6 +550,14 @@
   window.addEventListener('online', updateOnlinePill);
   window.addEventListener('offline', updateOnlinePill);
   updateOnlinePill();
+  // Ask for location on load (once)
+  promptForLocation(false);
+  
+  // Allow changing later
+  document.getElementById('locationPill').addEventListener('click', () => {
+    promptForLocation(true);
+  });
+
   </script>
 </body>
 </html>
