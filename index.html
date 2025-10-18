@@ -104,7 +104,15 @@
   /**************** CONFIG — EDIT ME ****************/
   // Apps Script Web App /exec URL
   const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/';
-
+  (async () => {
+    try {
+      await fetch(API_BASE, {
+        method: 'POST',
+        body: new URLSearchParams({ action: 'ping' })
+      });
+    } catch (_) {}
+  })();
+    
   // Keyboard-wedge behavior
   const REQUIRED_PREFIX = '';     // set if your scanners add a prefix; else leave ''
   const STRIP_PREFIX = true;
@@ -132,9 +140,17 @@
   /**************** API ****************/
   async function apiLookup(code){
     const body = new URLSearchParams({ action:'lookup', code });
-    const r = await fetch(API_BASE, { method:'POST', body });
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    return r.json();
+    const t0 = performance.now();
+    const wakeTimer = setTimeout(() => setStatus('Waking server…'), 700);
+    try {
+      const r = await fetch(API_BASE, { method:'POST', body });
+      clearTimeout(wakeTimer);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    } catch (e) {
+      clearTimeout(wakeTimer);
+      throw e;
+    }
   }
 
   // (optional) logging
