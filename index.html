@@ -162,6 +162,7 @@
   /**************** STATE ****************/
   let buffer = "", lastTs = 0, resetTimer = null;
   let lastScanValue = "", lastScanAt = 0;
+  let IS_MODAL_OPEN = false;
 
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
@@ -198,6 +199,7 @@
     // Populate list
     sel.innerHTML = `<option value="">Loading…</option>`;
     modal.style.display = 'flex';
+    setModalOpen(true);
     try {
       const list = await apiGetLocations();
       sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
@@ -208,7 +210,7 @@
     }
   
     return new Promise(resolve=>{
-      const close = (val) => { modal.style.display = 'none'; resolve(val); };
+      const close = (val) => { modal.style.display = 'none'; setModalOpen(false); resolve(val); };
       btnOK.onclick = () => {
         const val = sel.value.trim();
         if (val) { setLocation(val); close(val); } else { alert('Please choose a location.'); }
@@ -227,6 +229,13 @@
     pill.style.color = v ? '#0b57d0' : '#8a5a00';
   }
 
+  function isModalVisible() {
+    const m = document.getElementById('locModal');
+    return !!m && m.style.display === 'flex';
+  }
+  function setModalOpen(v){
+    IS_MODAL_OPEN = !!v;
+  }
     
   function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
   function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
@@ -487,6 +496,7 @@
   let wedgeResetTimer = null;
   
   window.addEventListener('keydown', (e)=>{
+    if (IS_MODAL_OPEN || isModalVisible()) return;
     keepFocus();
   
     const now = performance.now();
@@ -528,6 +538,7 @@
   /**************** MANUAL ENTRY FORM ****************/
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault();
+    if (IS_MODAL_OPEN || isModalVisible()) return;
     const v = manualInput.value.trim();
     if (v) onScan(v);          // human path uses the field value
     manualInput.value = '';
@@ -535,6 +546,7 @@
   });
 
   function keepFocus(){
+    if (IS_MODAL_OPEN || isModalVisible()) return;  // ⬅️ do nothing while modal open
     if (document.activeElement !== manualInput) manualInput.focus({preventScroll:true});
     manualInput.setSelectionRange(manualInput.value.length, manualInput.value.length);
   }
