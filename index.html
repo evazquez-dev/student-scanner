@@ -406,44 +406,55 @@
 
 
   /**************** KEYBOARD-WEDGE LISTENER ****************/
-window.addEventListener('keydown', (e)=>{
-  keepFocus();
-
-  const now = performance.now();
-  // if gap is big, this is a new sequence
-  const isNewSeq = !lastTs || (now - lastTs) > SCAN_CHAR_MS;
-  lastTs = now;
-
-  if (e.key === 'Enter'){
-    const finished = buffer; buffer = "";
-    if (finished){
-      onScan(finished);
-      manualInput.value = '';                      // clear after scan
-      e.preventDefault();
+  const SCAN_GAP_MS = 10;   // <=18ms between keys => scanner. Humans are usually >40–60ms
+  let lastKeyTs = 0;
+  let wedgeBuf = "";
+  let wedgeResetTimer = null;
+  
+  window.addEventListener('keydown', (e)=>{
+    keepFocus();
+  
+    const now = performance.now();
+    const gap = now - (lastKeyTs || now);
+    lastKeyTs = now;
+  
+    // Handle Enter: prefer scanner buffer if present; else use the input value via form submit
+    if (e.key === 'Enter'){
+      const finished = wedgeBuf;
+      wedgeBuf = "";
+      if (finished){
+        e.preventDefault();            // consume Enter for scanner flows
+        onScan(finished);
+        manualInput.value = '';        // keep the box clean after scans
+      }
+      return;
     }
-    return;
-  }
-
-  if (e.key.length === 1){
-    const likelyScanner = !isNewSeq || buffer.length > 0;  // chars arriving quickly
-    if (likelyScanner){
-      e.preventDefault();                      // don't let wedge print into the input
-      buffer += e.key;
-    } else {
-      // human typing: let it appear and also keep our buffer in sync
-      buffer += e.key;
+  
+    // Printable characters
+    if (e.key.length === 1){
+      const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
+  
+      if (looksLikeScanner){
+        // Confident it's a scanner burst: build our own buffer and keep the box clean
+        e.preventDefault();
+        wedgeBuf += e.key;
+      } else {
+        // Let humans type normally into the field; DON'T build wedgeBuf here.
+        // We'll read manualInput.value on submit.
+      }
     }
-  }
-
-  clearTimeout(resetTimer);
-  resetTimer = setTimeout(()=> buffer="", 200);
-}, true);
-
+  
+    // Reset wedge buffer if typing pauses
+    clearTimeout(wedgeResetTimer);
+    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
+  }, true);
+  
+  
   /**************** MANUAL ENTRY FORM ****************/
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault();
     const v = manualInput.value.trim();
-    if (v) onScan(v);
+    if (v) onScan(v);          // human path uses the field value
     manualInput.value = '';
     keepFocus();
   });
