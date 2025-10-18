@@ -170,6 +170,7 @@
   const manualInput = document.getElementById('manualInput');
   const onlinePill = document.getElementById('onlinePill');
   const locationPill = document.getElementById('locationPill');
+  const cardEl = document.querySelector('.card');
 
   const QUEUE_KEY = 'scanQueueV1';
   const LOC_KEY = 'scannerLocationV1';
@@ -200,6 +201,9 @@
     sel.innerHTML = `<option value="">Loading…</option>`;
     modal.style.display = 'flex';
     setModalOpen(true);
+    manualInput.blur();
+    cardEl?.setAttribute?.('inert', '');   // block focus/interaction outside (Chromium supports this)
+    setTimeout(() => sel.focus({ preventScroll: true }), 0);
     try {
       const list = await apiGetLocations();
       sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
@@ -210,7 +214,14 @@
     }
   
     return new Promise(resolve=>{
-      const close = (val) => { modal.style.display = 'none'; setModalOpen(false); resolve(val); };
+      const close = (val) => {
+        modal.style.display = 'none';
+        setModalOpen(false);
+        cardEl?.removeAttribute?.('inert');
+        // restore focus to input after the modal fully hides
+        setTimeout(() => { keepFocus(); }, 0);
+        resolve(val);
+      };
       btnOK.onclick = () => {
         const val = sel.value.trim();
         if (val) { setLocation(val); close(val); } else { alert('Please choose a location.'); }
@@ -231,8 +242,10 @@
 
   function isModalVisible() {
     const m = document.getElementById('locModal');
-    return !!m && m.style.display === 'flex';
+    if (!m) return false;
+    return getComputedStyle(m).display !== 'none';
   }
+  
   function setModalOpen(v){
     IS_MODAL_OPEN = !!v;
   }
@@ -556,7 +569,7 @@
   });
 
   function keepFocus(){
-    if (IS_MODAL_OPEN || isModalVisible()) return;  // ⬅️ do nothing while modal open
+    if (IS_MODAL_OPEN || isModalVisible()) return;
     if (document.activeElement !== manualInput) manualInput.focus({preventScroll:true});
     manualInput.setSelectionRange(manualInput.value.length, manualInput.value.length);
   }
