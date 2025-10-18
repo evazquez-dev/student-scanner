@@ -308,19 +308,29 @@
       if (statusEl.textContent.includes('Waking server')) setStatus('Ready.');
     }
   }
-
-  // (optional) logging
+  function makeLogId({ whenISO, code }) {
+    // simple stable key; good enough for one school day
+    return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`;
+  }
+  
+  const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
+    (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
+  
   async function apiLog(entry){
+    const whenISO = entry.whenISO || new Date().toISOString();
+    const log_id = makeLogId({ whenISO, code: entry.code || '' });
     const body = new URLSearchParams({
       action:'log',
-      whenISO: entry.whenISO || new Date().toISOString(),
+      log_id,                                 // <-- NEW
+      whenISO,
       code: entry.code || '',
       source: entry.source || 'pwa',
       resolved_name:  entry.resolved?.name  || '',
       resolved_osis:  entry.resolved?.osis  || '',
       resolved_lnum:  entry.resolved?.locker_number || '',
       resolved_lcol:  entry.resolved?.locker_color  || '',
-      location: getLocation() || ''                 // <-- NEW
+      location: getLocation() || '',
+      device_id: DEVICE_ID                    // <-- optional, useful for audits
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
