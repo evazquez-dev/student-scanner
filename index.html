@@ -179,32 +179,35 @@
     return v;
   }
 
-  async function onScan(rawCode){
-    const code = normalize(rawCode);
-    if (!code || code.length < MIN_LEN) return;
-
-    // de-dupe quick repeats
-    const now = performance.now();
-    if (code === lastScanValue && (now - lastScanAt) < DEDUPE_MS) return;
-    lastScanValue = code; lastScanAt = now;
-
+  let scanSeq = 0;
+  
+  function onScan(code){
     const when = new Date();
-    setStatus(`Scanned: ${code} — looking up…`); vibrate();
-
-    try{
-      const res = await apiLookup(code);
-      if (res.found){
-        showSuccess(res.name, code, res.locker_number, res.locker_color, when);
-        // Uncomment to log back to Sheets:
-        apiLog({ whenISO: when.toISOString(), code, source:'pwa', resolved:{ name:res.name, osis:res.osis, locker_number:res.locker_number, locker_color:res.locker_color } });
-      }else{
-        showNotFound(code, when);
+    const seq = ++scanSeq;
+  
+    // 1) create a placeholder row in order
+    const row = pushPendingRow(seq, code, when);
+  
+    // 2) kick off lookup (async)
+    void (async () => {
+      try {
+        const res = await apiLookup(code);           // calls Worker -> GAS
+        if (res.found) {
+          updateRowToSuccess(row, {
+            name: res.name, code,
+            lockerNum: res.locker_number,
+            lockerColor: res.locker_color,
+            when
+          });
+          // fire-and-forget log
+          apiLog({ whenISO: when.toISOString(), code, source: 'pwa', resolved: res });
+        } else {
+          updateRowToNotFound(row, code, when, res.error, res.reason);
+        }
+      } catch (err) {
+        updateRowToError(row, code, when, err);
       }
-      keepFocus();
-    }catch(err){
-      showError(err, code, when);
-      keepFocus();
-    }
+    })();
   }
 
   function showSuccess(name, code, lockerNum, lockerColor, when){
@@ -261,6 +264,66 @@
     historyBody.prepend(tr);
     while (historyBody.children.length > HISTORY_SIZE) historyBody.lastChild.remove();
   }
+
+  function pushPendingRow(seq, code, when){
+    const tr = document.createElement('tr');
+    tr.dataset.seq = String(seq);
+    tr.innerHTML =
+      `<td class="name"><em>…looking up…</em></td>
+       <td class="code">${esc(code)}</td>
+       <td>—</td>
+       <td>${fmtTime(when)}</td>`;
+    historyBody.prepend(tr); // newest at top, still preserves input order because we insert on scan
+    trimHistory();
+    return tr;
+  }
+  
+  function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, when}){
+    const color = (lockerColor||'').trim();
+    const cssColor = ({
+      red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
+      purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
+      grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
+    })[color.toLowerCase()] || null;
+  
+    const lockerHtml = (lockerNum || color)
+      ? (cssColor
+          ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
+          : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
+      : '—';
+  
+    tr.innerHTML =
+      `<td class="name">${esc(name||'Unknown')}</td>
+       <td class="code">${esc(code)}</td>
+       <td>${lockerHtml}</td>
+       <td>${fmtTime(when)}</td>`;
+  }
+  
+  function updateRowToNotFound(tr, code, when, error, reason){
+    const msg = error === 'invalid_input'
+      ? (reason === 'leading_zero_osis'
+          ? 'Leading-zero OSIS — scan card.'
+          : 'Digits only.')
+      : 'Not found';
+    tr.innerHTML =
+      `<td class="name"><span class="bad">${esc(msg)}</span></td>
+       <td class="code">${esc(code)}</td>
+       <td>—</td>
+       <td>${fmtTime(when)}</td>`;
+  }
+  
+  function updateRowToError(tr, code, when, err){
+    tr.innerHTML =
+      `<td class="name"><span class="bad">Lookup error</span></td>
+       <td class="code">${esc(code)}</td>
+       <td>—</td>
+       <td>${fmtTime(when)}</td>`;
+  }
+  
+  function trimHistory(){
+    while (historyBody.children.length > HISTORY_SIZE) historyBody.lastChild.remove();
+  }
+
 
 
   /**************** KEYBOARD-WEDGE LISTENER ****************/
