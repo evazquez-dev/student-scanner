@@ -1,9 +1,9 @@
 {
+  "start_url": "/student-scanner/",
+  "scope": "/student-scanner/",
+  "display": "standalone",
   "name": "Student Scanner",
   "short_name": "Scanner",
-  "start_url": "./",
-  "scope": "./",
-  "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0b57d0",
   "icons": [
