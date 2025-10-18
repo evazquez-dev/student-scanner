@@ -51,6 +51,26 @@
       cursor:pointer; border:none; border-radius:12px; padding:10px 14px; font-weight:600; background:var(--brand); color:#fff;
     }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eaf7ea; color:#0a7c2f; font-size:12px; }
+    .scans-pane{
+      max-height: 360px;     /* ~10 rows */
+      overflow-y: auto;
+      border: 1px solid #e5e9f2;
+      border-radius: 8px;
+      background: #fff;
+    }
+    
+    /* keep header visible while scrolling */
+    .scans-pane thead th{
+      position: sticky;
+      top: 0;
+      background: #f7f9fc;
+      z-index: 1;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.06);
+    }
+    
+    /* slightly tighter table so 10 fit nicely */
+    #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
+    .bad { color:#b00020; font-weight:600; }
   </style>
 </head>
 <body>
@@ -80,23 +100,25 @@
       <div class="col">
         <div class="panel">
           <div class="muted" style="margin-bottom:8px">Recent scans (local)</div>
-          <table id="historyTbl" aria-label="Scan history">
-            <thead>
-              <tr>
-                <th style="width:30%">Name</th>
-                <th style="width:20%">Code</th>
-                <th style="width:22%">Locker</th>
-                <th style="width:28%">Time</th>
+          <div id="scansPane" class="scans-pane">
+            <table id="historyTbl" aria-label="Scan history">
+              <thead>
+                <tr>
+                  <th style="width:30%">Name</th>
+                  <th style="width:20%">Code</th>
+                  <th style="width:22%">Locker</th>
+                  <th style="width:28%">Time</th>
                 </tr>
               </thead>
-            <tbody id="historyBody"></tbody>
-          </table>
+              <tbody id="historyBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="muted" style="margin-top:10px">
-      Configure <span class="code">API_BASE</span> + <span class="code">SHARED_SECRET</span> in the script below.
+      Configure <span class="code">API_BASE</span> in the script below.
     </div>
   </div>
 
@@ -114,13 +136,11 @@
   })();
     
   // Keyboard-wedge behavior
-  const REQUIRED_PREFIX = '';     // set if your scanners add a prefix; else leave ''
   const STRIP_PREFIX = true;
-  const UPPERCASE = true;
   const SCAN_CHAR_MS = 30;        // max ms between chars to treat input as "scanner"
-  const MIN_LEN = 4;
   const DEDUPE_MS = 1000;
-  const HISTORY_SIZE = 25;
+  const HISTORY_VISIBLE = 10;   // ~10 rows visible in the pane
+  const HISTORY_MAX = 1000;     // keep up to 1000 rows in memory for scrolling
 
   /**************** STATE ****************/
   let buffer = "", lastTs = 0, resetTimer = null;
@@ -169,15 +189,6 @@
   }
 
   /**************** SCAN FLOW ****************/
-  function normalize(raw){
-    let v = String(raw).trim();
-    if (UPPERCASE) v = v.toUpperCase();
-    if (REQUIRED_PREFIX){
-      if (!v.startsWith(REQUIRED_PREFIX)) return '';
-      if (STRIP_PREFIX) v = v.slice(REQUIRED_PREFIX.length);
-    }
-    return v;
-  }
 
   let scanSeq = 0;
   
@@ -222,11 +233,9 @@
 
   function showNotFound(code, when){
     resultEl.innerHTML =
-      `<div class="ok">OK</div>
-       <div class="name">${esc(name || 'Unknown')}</div>
-       <div class="code">${esc(code)} — Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})</div>
+      `<div class="err">Not found</div>
+       <div class="code">${esc(code)}</div>
        <div class="muted">${fmtTime(when)}</div>`;
-    pushHistoryRow('— Not found —', code, when);
     setStatus('Ready.');
   }
 
@@ -262,7 +271,7 @@
        <td>${lockerHtml}</td>
        <td>${fmtTime(when)}</td>`;
     historyBody.prepend(tr);
-    while (historyBody.children.length > HISTORY_SIZE) historyBody.lastChild.remove();
+    trimHistory();
   }
 
   function pushPendingRow(seq, code, when){
@@ -321,8 +330,11 @@
   }
   
   function trimHistory(){
-    while (historyBody.children.length > HISTORY_SIZE) historyBody.lastChild.remove();
+    while (historyBody.children.length > HISTORY_MAX) {
+      historyBody.lastChild.remove();
+    }
   }
+
 
 
 
