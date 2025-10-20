@@ -72,6 +72,9 @@
     #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
     .bad { color:#b00020; font-weight:600; }
     .queued { color:#8a5a00; font-weight:600; }
+    .not-allowed-row { background:#fdecea; } /* soft red */
+    .allowed-badge { color:#0a7c2f; font-weight:700; }
+    .not-allowed-badge { color:#b00020; font-weight:700; }
   </style>
 </head>
 <body>
@@ -196,6 +199,16 @@
     const sel   = document.getElementById('locSelect');
     const btnOK = document.getElementById('locSaveBtn');
     const btnX  = document.getElementById('locCancelBtn');
+    const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
+    function updateHeaderForLocation(){
+      const loc = getLocation();
+      if (isLunchLocation(loc)) {
+        // headers: Name | Code | Allowed? | Time
+        if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Allowed?';
+      } else {
+        if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Locker';
+      }
+    }
   
     // Populate list
     sel.innerHTML = `<option value="">Loading…</option>`;
@@ -238,6 +251,7 @@
     pill.textContent = v ? `Location: ${v}` : 'Set location';
     pill.style.background = v ? '#e7f0fe' : '#fff3e0';
     pill.style.color = v ? '#0b57d0' : '#8a5a00';
+    updateHeaderForLocation();
   }
 
   function isModalVisible() {
@@ -372,8 +386,12 @@
       try {
         const res = await apiLookup(code); // with timeout/abort inside
         if (res.found) {
+          // stash lunch for this last response so renderers can decide
+          window.__lastLunchValue = res.lunch || '';
           updateRowToSuccess(row, { name: res.name, code, lockerNum: res.locker_number, lockerColor: res.locker_color, when });
-          apiLog({ whenISO: when.toISOString(), code, source: 'pwa', resolved: res });
+          apiLog({ whenISO: when.toISOString(), code, source: 'pwa', resolved: res
+          , allowed: (isLunchLocation(getLocation()) ? String(isAllowedForLunch(getLocation(), res.lunch||'')) : '')
+          });
         } else {
           updateRowToNotFound(row, code, when, res.error, res.reason);
         }
@@ -396,10 +414,19 @@
   }
 
   function showSuccess(name, code, lockerNum, lockerColor, when){
+    const loc = getLocation();
+    let extra = `Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})`;
+    if (isLunchLocation(loc)) {
+      const allowed = isAllowedForLunch(loc, window.__lastLunchValue||'');
+      extra = allowed
+        ? `<span class="allowed-badge">Allowed</span>`
+        : `<span class="not-allowed-badge">Not allowed</span>`;
+    }
     resultEl.innerHTML =
       `<div class="ok">OK</div>
        <div class="name">${esc(name || 'Unknown')}</div>
        <div class="code">${esc(code)} — Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})</div>
+       <div class="code">${esc(code)} - ${extra}</div>
        <div class="muted">${fmtTime(when)}</div>`;
     pushHistoryRow(name || 'Unknown', code, lockerNum, lockerColor, when);
     setStatus('Ready. Scan next card…');
@@ -433,7 +460,7 @@
       grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
     })[color.toLowerCase()] || null;
   
-    const lockerHtml = (num || color)
+    const lockerHtml = (isLunchLocation(getLocation()) ? '—' :
       ? (cssColor
           ? `<span class="swatch" style="background:${cssColor}"></span>${esc(num)} <span class="muted">(${esc(color)})</span>`
           : `${esc(num)} <span class="muted">(${esc(color)})</span>`)
@@ -469,16 +496,31 @@
       grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
     })[color.toLowerCase()] || null;
   
-    const lockerHtml = (lockerNum || color)
-      ? (cssColor
-          ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
-          : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
-      : '—';
+    const loc = getLocation();
+    let thirdCellHtml = '';
+    let rowClass = '';
   
+    if (isLunchLocation(loc)) {
+      const allowed = isAllowedForLunch(loc, window.__lastLunchValue||'');
+      thirdCellHtml = allowed
+        ? `<span class="allowed-badge">✅ Allowed</span>`
+        : `<span class="not-allowed-badge">❌ Not allowed</span>`;
+      rowClass = allowed ? '' : 'not-allowed-row';
+      if (!allowed) beepBad();
+    } else {
+      const lockerHtml = (lockerNum || color)
+        ? (cssColor
+            ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
+            : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
+        : '—';
+      thirdCellHtml = lockerHtml;
+    }
+  
+    tr.className = rowClass;
     tr.innerHTML =
       `<td class="name">${esc(name||'Unknown')}</td>
        <td class="code">${esc(code)}</td>
-       <td>${lockerHtml}</td>
+       <td>${thirdCellHtml}</td>
        <td>${fmtTime(when)}</td>`;
   }
   
@@ -556,7 +598,40 @@
     clearTimeout(wedgeResetTimer);
     wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
   }, true);
-  
+
+    function isLunchLocation(loc){
+      const v = String(loc||'').toLowerCase().trim();
+      return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
+    }
+    function lunchSlotFromLocation(loc){
+      const v = String(loc||'').toLowerCase();
+      return v.includes('2') ? 2 : 1; // default to 1 when plain "Lunch"
+    }
+    function normalizeLunchValue(s){
+      // Accept "1", "2", "Lunch 1", "Lunch2", "L1", "Group 1", etc.
+      const v = String(s||'').toLowerCase().replace(/\s+/g,'').replace('lunch','').replace('group','').replace('l','');
+      // Extract first digit
+      const m = v.match(/([12])/);
+      return m ? Number(m[1]) : null;
+    }
+    function isAllowedForLunch(location, lunchValue){
+      const need = lunchSlotFromLocation(location);
+      const have = normalizeLunchValue(lunchValue);
+      return have === need;
+    }
+
+    function beepBad(){
+      try{
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.type = 'square'; o.frequency.value = 220; // A3
+        g.gain.setValueAtTime(0.001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.26);
+      }catch{}
+    }
+
   
   /**************** MANUAL ENTRY FORM ****************/
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
