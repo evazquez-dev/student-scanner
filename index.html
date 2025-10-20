@@ -168,6 +168,7 @@
   let buffer = "", lastTs = 0, resetTimer = null;
   let lastScanValue = "", lastScanAt = 0;
   let IS_MODAL_OPEN = false;
+  let IS_LOCATION_LOCKED = false;
 
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
@@ -228,6 +229,7 @@
   }
 
   async function promptForLocation(force=false){
+    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     if (!force && getLocation()) { updateLocationPill(); return; }
 
     const modal = document.getElementById('locModal');
@@ -273,9 +275,11 @@
   function updateLocationPill(){
     const pill = document.getElementById('locationPill');
     const v = getLocation();
-    pill.textContent = v ? `Location: ${v}` : 'Set location';
+    pill.textContent = v ? `Location: ${v}${IS_LOCATION_LOCKED ? ' (locked)' : ''}` : 'Set location';
     pill.style.background = v ? '#e7f0fe' : '#fff3e0';
     pill.style.color = v ? '#0b57d0' : '#8a5a00';
+    pill.style.cursor = IS_LOCATION_LOCKED ? 'not-allowed' : 'pointer';
+    pill.title = IS_LOCATION_LOCKED ? 'This device is locked to this location' : 'Click to change location';
     updateHeaderForLocation();
   }
 
@@ -365,6 +369,21 @@
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
+  
+  async function checkDeviceLock(){
+    try{
+      const r = await fetch(API_BASE, {
+        method:'POST',
+        body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID })
+      });
+      const data = await r.json();
+      if (data.ok && data.locked && data.location) {
+        IS_LOCATION_LOCKED = true;
+        setLocation(data.location);       // updates pill + header
+      }
+    } catch (_) {}
+  }
+
 
   /**************** SCAN FLOW ****************/
   let scanSeq = 0;
@@ -431,7 +450,6 @@
        <div class="name">${esc(name || 'Unknown')}</div>
        <div class="code">${esc(code)} — ${extra}</div>
        <div class="muted">${fmtTime(when)}</div>`;
-    pushHistoryRow(name || 'Unknown', code, lockerNum, lockerColor, when);
     setStatus('Ready. Scan next card…');
   }
 
@@ -637,10 +655,14 @@
   updateOnlinePill();
 
   // Ask for location on load (once)
-  promptForLocation(false);
+  (async () => {
+    await checkDeviceLock();
+    promptForLocation(false);
+  })();
 
   // Allow changing later
   document.getElementById('locationPill').addEventListener('click', () => {
+    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     promptForLocation(true);
   });
 
@@ -649,6 +671,7 @@
     const t = e.target;
     if (t && (t.id === 'locationPill' || t.closest?.('#locationPill'))) {
       e.preventDefault();
+    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
       promptForLocation(true);
     }
   });
