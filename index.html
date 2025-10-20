@@ -393,7 +393,8 @@
             allowed: (isLunchLocation(getLocation()) ? String(isAllowedForLunch(getLocation(), res.lunch||'')) : '')
           });
         } else {
-          updateRowToNotFound(row, code, when, res.error, res.reason);
+          updateRowToNotFound(row, code, when, res.error, res.reason); //Table
+          showNotFound(code, when); // <-- result panel message + (with beepBad if you added it)
         }
       } catch (err) {
         if (!navigator.onLine || (err.name === 'AbortError')){
@@ -440,6 +441,7 @@
   }
 
   function showError(err, code, when){
+    beepBad();
     resultEl.innerHTML =
       `<div class="err">Lookup error</div>
        <div class="code">${esc(code||'')}</div>
@@ -525,7 +527,7 @@
   }
 
   function updateRowToNotFound(tr, code, when, error, reason){
-    badBeep();
+    beepBad();
     const msg = error === 'invalid_input'
       ? (reason === 'leading_zero_osis'
           ? 'Leading-zero OSIS — scan card.'
@@ -539,6 +541,7 @@
   }
 
   function updateRowToError(tr, code, when, err){
+    beepBad();
     tr.innerHTML =
       `<td class="name"><span class="bad">Lookup error</span></td>
        <td class="code">${esc(code)}</td>
