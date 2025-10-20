@@ -431,6 +431,7 @@
   }
 
   function showNotFound(code, when){
+    beepBad();
     resultEl.innerHTML =
       `<div class="err">Not found</div>
        <div class="code">${esc(code)}</div>
@@ -524,6 +525,7 @@
   }
 
   function updateRowToNotFound(tr, code, when, error, reason){
+    badBeep();
     const msg = error === 'invalid_input'
       ? (reason === 'leading_zero_osis'
           ? 'Leading-zero OSIS — scan card.'
