@@ -643,6 +643,40 @@
       promptForLocation(true);
     }
   });
+  
+  // Kick off the wake lock once on load (will retry on visibility/focus/first input)
+  requestWakeLock();
+
+  /**************** KEEP SCREEN AWAKE (Wake Lock) ****************/
+  let wakeLock = null;
+  
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return; // not supported (rare on ChromeOS)
+    try {
+      // Request or re-request if previously released
+      wakeLock = await navigator.wakeLock.request('screen');
+      // If the lock gets released (tab lost visibility, etc.), try to reacquire
+      wakeLock.addEventListener('release', () => {
+        // Attempt to re-acquire when visible again
+        if (document.visibilityState === 'visible') {
+          requestWakeLock();
+        }
+      });
+    } catch (err) {
+      // Usually happens if not in a visible tab or without a user gesture—retry later
+      // console.warn('WakeLock error:', err);
+    }
+  }
+  
+  // Reacquire on visibility/focus returns (Chromium quirk)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') requestWakeLock();
+  });
+  window.addEventListener('focus', requestWakeLock);
+  
+  // Helpful: first user interaction guarantees a gesture-backed call
+  window.addEventListener('keydown', requestWakeLock, { once: true });
+  window.addEventListener('pointerdown', requestWakeLock, { once: true });
   </script>
 </body>
 </html>
