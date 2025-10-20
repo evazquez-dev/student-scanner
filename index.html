@@ -387,6 +387,7 @@
         if (res.found) {
           window.__lastLunchValue = res.lunch || '';
           updateRowToSuccess(row, { name: res.name, code, lockerNum: res.locker_number, lockerColor: res.locker_color, when });
+          showSuccess(res.name, code, res.locker_number, res.locker_color, when); // <-- update result panel
           apiLog({
             whenISO: when.toISOString(),
             code, source: 'pwa', resolved: res,
@@ -394,15 +395,18 @@
           });
         } else {
           updateRowToNotFound(row, code, when, res.error, res.reason); //Table
-          showNotFound(code, when); // <-- result panel message + (with beepBad if you added it)
+          showNotFound(code, when, res.error, res.reason);  // <-- keep panel in sync
         }
       } catch (err) {
         if (!navigator.onLine || (err.name === 'AbortError')){
           markRowQueued(row);
           const q = loadQueue(); q.push({ seq, code, whenISO: when.toISOString() }); saveQueue(q);
           setStatus('Offline — queued');
+          // Optional: reflect in panel if you want
+          resultEl.innerHTML = `<div class="err">Queued (offline)</div><div class="code">${esc(code)}</div><div class="muted">${fmtTime(when)}</div>`;
         } else {
           updateRowToError(row, code, when, err);
+          showError(err, code, when); // <-- update result panel on errors too
         }
       }
     })();
