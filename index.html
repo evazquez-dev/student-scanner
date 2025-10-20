@@ -58,7 +58,6 @@
       border-radius: 8px;
       background: #fff;
     }
-    
     /* keep header visible while scrolling */
     .scans-pane thead th{
       position: sticky;
@@ -67,18 +66,23 @@
       z-index: 1;
       box-shadow: 0 1px 0 rgba(0,0,0,0.06);
     }
-    
     /* slightly tighter table so 10 fit nicely */
     #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
     .bad { color:#b00020; font-weight:600; }
     .queued { color:#8a5a00; font-weight:600; }
+
+    /* Lunch UI */
     .not-allowed-row { background:#fdecea; } /* soft red */
     .allowed-badge { color:#0a7c2f; font-weight:700; }
     .not-allowed-badge { color:#b00020; font-weight:700; }
+
+    /* Modal topmost + inert safety */
+    #locModal { position:fixed; inset:0; z-index: 2147483000; }
+    .card[inert] { pointer-events: none; }
   </style>
 </head>
 <body>
-    <div id="locModal" style="position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:9999;">
+  <div id="locModal" style="background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
     <div style="background:#fff; width:min(360px, 92vw); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2)">
       <div style="font-weight:700; margin-bottom:8px;">Select your location</div>
       <div class="muted" style="margin-bottom:12px">This will be saved and attached to each scan.</div>
@@ -91,6 +95,7 @@
       </div>
     </div>
   </div>
+
   <div class="card">
     <h1>Student Scanner 
       <span class="pill" id="onlinePill">Online</span>
@@ -144,25 +149,22 @@
 
   <script>
   /**************** CONFIG — EDIT ME ****************/
-  // Apps Script Web App /exec URL
+  // Worker URL (not GAS): it should forward lookup/log/locations to GAS
   const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/';
   (async () => {
     try {
-      await fetch(API_BASE, {
-        method: 'POST',
-        body: new URLSearchParams({ action: 'ping' })
-      });
+      await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
     } catch (_) {}
   })();
-    
+
   // Keyboard-wedge behavior
   const STRIP_PREFIX = true;
   const SCAN_CHAR_MS = 30;        // max ms between chars to treat input as "scanner"
   const DEDUPE_MS = 1000;
-  const HISTORY_VISIBLE = 10;   // ~10 rows visible in the pane
-  const HISTORY_MAX = 1000;     // keep up to 1000 rows in memory for scrolling
+  const HISTORY_VISIBLE = 10;     // ~10 rows visible in the pane
+  const HISTORY_MAX = 1000;       // keep up to 1000 rows in memory for scrolling
 
-  /**************** STATE ****************/
+  /**************** STATE + DOM ****************/
   let buffer = "", lastTs = 0, resetTimer = null;
   let lastScanValue = "", lastScanAt = 0;
   let IS_MODAL_OPEN = false;
@@ -180,7 +182,40 @@
 
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
   function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
-  
+
+  /**************** Lunch helpers ****************/
+  function isLunchLocation(loc){
+    const v = String(loc||'').toLowerCase().trim();
+    return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
+  }
+  function lunchSlotFromLocation(loc){
+    const v = String(loc||'').toLowerCase();
+    return v.includes('2') ? 2 : 1; // default 1 when plain "Lunch"
+  }
+  function normalizeLunchValue(s){
+    // Accept "1", "2", "Lunch 1", "Lunch2", "L1", "Group 1", etc.
+    const v = String(s||'').toLowerCase().replace(/\s+/g,'').replace('lunch','').replace('group','').replace('l','');
+    const m = v.match(/([12])/);
+    return m ? Number(m[1]) : null;
+  }
+  function isAllowedForLunch(location, lunchValue){
+    const need = lunchSlotFromLocation(location);
+    const have = normalizeLunchValue(lunchValue);
+    return have === need;
+  }
+
+  /**************** Header toggle (Locker ⇄ Allowed?) ****************/
+  const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
+  function updateHeaderForLocation(){
+    const loc = getLocation();
+    if (isLunchLocation(loc)) {
+      if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Allowed?';
+    } else {
+      if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Locker';
+    }
+  }
+
+  /**************** Modal + locations ****************/
   async function apiGetLocations(){
     const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'locations' }) });
     const ct = r.headers.get('content-type')||'';
@@ -191,32 +226,23 @@
     if (!data.ok) throw new Error(data.error || 'locations_error');
     return data.locations || [];
   }
-  
+
   async function promptForLocation(force=false){
     if (!force && getLocation()) { updateLocationPill(); return; }
-  
+
     const modal = document.getElementById('locModal');
     const sel   = document.getElementById('locSelect');
     const btnOK = document.getElementById('locSaveBtn');
     const btnX  = document.getElementById('locCancelBtn');
-    const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
-    function updateHeaderForLocation(){
-      const loc = getLocation();
-      if (isLunchLocation(loc)) {
-        // headers: Name | Code | Allowed? | Time
-        if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Allowed?';
-      } else {
-        if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Locker';
-      }
-    }
-  
-    // Populate list
+
+    // Open first, then fetch
     sel.innerHTML = `<option value="">Loading…</option>`;
     modal.style.display = 'flex';
     setModalOpen(true);
     manualInput.blur();
-    cardEl?.setAttribute?.('inert', '');   // block focus/interaction outside (Chromium supports this)
+    cardEl?.setAttribute?.('inert', '');
     setTimeout(() => sel.focus({ preventScroll: true }), 0);
+
     try {
       const list = await apiGetLocations();
       sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
@@ -225,26 +251,25 @@
     } catch (e) {
       sel.innerHTML = `<option value="">(Couldn’t load locations)</option>`;
     }
-  
+
     return new Promise(resolve=>{
       const close = (val) => {
         modal.style.display = 'none';
         setModalOpen(false);
         cardEl?.removeAttribute?.('inert');
-        // restore focus to input after the modal fully hides
         setTimeout(() => { keepFocus(); }, 0);
         resolve(val);
       };
       btnOK.onclick = () => {
         const val = sel.value.trim();
-        if (val) { setLocation(val); close(val); } else { alert('Please choose a location.'); }
+        if (val) { setLocation(val); updateHeaderForLocation(); close(val); }
+        else { alert('Please choose a location.'); }
       };
-      btnX.onclick = () => close(getLocation()); // keep existing value or none
-      // close on backdrop click
+      btnX.onclick = () => close(getLocation());
       modal.addEventListener('click', (ev)=>{ if (ev.target === modal) close(getLocation()); }, { once:true });
     });
   }
-  
+
   function updateLocationPill(){
     const pill = document.getElementById('locationPill');
     const v = getLocation();
@@ -259,11 +284,9 @@
     if (!m) return false;
     return getComputedStyle(m).display !== 'none';
   }
-  
-  function setModalOpen(v){
-    IS_MODAL_OPEN = !!v;
-  }
-    
+  function setModalOpen(v){ IS_MODAL_OPEN = !!v; }
+
+  /**************** Offline queue ****************/
   function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
   function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
   async function flushQueue(){
@@ -275,7 +298,6 @@
       try{
         const res = await apiLookup(item.code);
         if (res.found){
-          // update the existing row if we kept a DOM id; else just inject a “resolved” row
           updateRowToSuccess(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)), {
             name: res.name, code: item.code,
             lockerNum: res.locker_number, lockerColor: res.locker_color,
@@ -287,16 +309,15 @@
             item.code, new Date(item.whenISO), res.error, res.reason);
         }
       } catch {
-        // still offline or error → keep it
         remain.push(item);
       }
     }
     saveQueue(remain);
   }
   window.addEventListener('online', flushQueue);
-  // Try once on load too
   flushQueue();
 
+  /**************** Utils ****************/
   function setStatus(t){ statusEl.textContent = t; }
   function vibrate(){ try{ navigator.vibrate?.(30); }catch{} }
   function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -305,50 +326,33 @@
   /**************** API ****************/
   async function apiLookup(code){
     const body = new URLSearchParams({ action:'lookup', code });
-  
-    // show "Waking server…" only if it's actually slow
     const wakeTimer = setTimeout(() => setStatus('Waking server…'), 700);
-  
-    // hard timeout so we don't hang forever
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), 8000);
-  
     try {
       const r = await fetch(API_BASE, { method:'POST', body, signal: controller.signal });
-  
-      // read once; decide based on content-type
       const ct = r.headers.get('content-type') || '';
       const text = await r.text();
-  
       if (!r.ok) throw new Error(`HTTP ${r.status} ${text.slice(0,120)}`);
-  
-      if (!ct.includes('application/json')) {
-        // Worker will pass HTML on upstream errors; surface that
-        throw new Error('Upstream HTML (not JSON): ' + text.slice(0,120));
-      }
-  
+      if (!ct.includes('application/json')) throw new Error('Upstream HTML (not JSON): ' + text.slice(0,120));
       return JSON.parse(text);
     } finally {
       clearTimeout(wakeTimer);
       clearTimeout(abortTimer);
-      // don't leave "Waking server…" hanging if an error occurred before UI updates
       if (statusEl.textContent.includes('Waking server')) setStatus('Ready.');
     }
   }
   function makeLogId({ whenISO, code }) {
-    // simple stable key; good enough for one school day
     return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`;
   }
-  
   const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
     (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
-  
   async function apiLog(entry){
     const whenISO = entry.whenISO || new Date().toISOString();
     const log_id = makeLogId({ whenISO, code: entry.code || '' });
     const body = new URLSearchParams({
       action:'log',
-      log_id,                                 // <-- NEW
+      log_id,
       whenISO,
       code: entry.code || '',
       source: entry.source || 'pwa',
@@ -357,46 +361,41 @@
       resolved_lnum:  entry.resolved?.locker_number || '',
       resolved_lcol:  entry.resolved?.locker_color  || '',
       location: getLocation() || '',
-      device_id: DEVICE_ID                    // <-- optional, useful for audits
+      device_id: DEVICE_ID
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
 
   /**************** SCAN FLOW ****************/
-
   let scanSeq = 0;
-  
+
   function onScan(code){
     const when = new Date();
     const seq = ++scanSeq;
     const row = pushPendingRow(seq, code, when);
-  
-    // If offline, queue and mark row
+
     if (!navigator.onLine){
       markRowQueued(row);
-      const q = loadQueue();
-      q.push({ seq, code, whenISO: when.toISOString() });
-      saveQueue(q);
+      const q = loadQueue(); q.push({ seq, code, whenISO: when.toISOString() }); saveQueue(q);
       setStatus('Offline — queued');
       return;
     }
-  
-    // Otherwise do the normal async lookup
+
     void (async () => {
       try {
-        const res = await apiLookup(code); // with timeout/abort inside
+        const res = await apiLookup(code);
         if (res.found) {
-          // stash lunch for this last response so renderers can decide
           window.__lastLunchValue = res.lunch || '';
           updateRowToSuccess(row, { name: res.name, code, lockerNum: res.locker_number, lockerColor: res.locker_color, when });
-          apiLog({ whenISO: when.toISOString(), code, source: 'pwa', resolved: res
-          , allowed: (isLunchLocation(getLocation()) ? String(isAllowedForLunch(getLocation(), res.lunch||'')) : '')
+          apiLog({
+            whenISO: when.toISOString(),
+            code, source: 'pwa', resolved: res,
+            allowed: (isLunchLocation(getLocation()) ? String(isAllowedForLunch(getLocation(), res.lunch||'')) : '')
           });
         } else {
           updateRowToNotFound(row, code, when, res.error, res.reason);
         }
       } catch (err) {
-        // Treat network aborts/timeouts as offline-queue
         if (!navigator.onLine || (err.name === 'AbortError')){
           markRowQueued(row);
           const q = loadQueue(); q.push({ seq, code, whenISO: when.toISOString() }); saveQueue(q);
@@ -407,7 +406,7 @@
       }
     })();
   }
-  
+
   function markRowQueued(tr){
     const first = tr.querySelector('.name');
     if (first) first.innerHTML = '<span class="queued">Queued (offline)</span>';
@@ -425,8 +424,7 @@
     resultEl.innerHTML =
       `<div class="ok">OK</div>
        <div class="name">${esc(name || 'Unknown')}</div>
-       <div class="code">${esc(code)} — Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})</div>
-       <div class="code">${esc(code)} - ${extra}</div>
+       <div class="code">${esc(code)} — ${extra}</div>
        <div class="muted">${fmtTime(when)}</div>`;
     pushHistoryRow(name || 'Unknown', code, lockerNum, lockerColor, when);
     setStatus('Ready. Scan next card…');
@@ -452,20 +450,21 @@
     const tr = document.createElement('tr');
     const color = String(lockerColor||'').trim();
     const num   = String(lockerNum||'').trim();
-  
-    // try to map common color names to CSS colors; fallback to text
+
     const cssColor = ({
       red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
       purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
       grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
     })[color.toLowerCase()] || null;
-  
-    const lockerHtml = (isLunchLocation(getLocation()) ? '—' :
-      ? (cssColor
-          ? `<span class="swatch" style="background:${cssColor}"></span>${esc(num)} <span class="muted">(${esc(color)})</span>`
-          : `${esc(num)} <span class="muted">(${esc(color)})</span>`)
-      : '—';
-  
+
+    const lockerHtml = isLunchLocation(getLocation())
+      ? '—'
+      : ((num || color)
+          ? (cssColor
+              ? `<span class="swatch" style="background:${cssColor}"></span>${esc(num)} <span class="muted">(${esc(color)})</span>`
+              : `${esc(num)} <span class="muted">(${esc(color)})</span>`)
+          : '—');
+
     tr.innerHTML =
       `<td class="name">${esc(name)}</td>
        <td class="code">${esc(code)}</td>
@@ -483,11 +482,11 @@
        <td class="code">${esc(code)}</td>
        <td>—</td>
        <td>${fmtTime(when)}</td>`;
-    historyBody.prepend(tr); // newest at top, still preserves input order because we insert on scan
+    historyBody.prepend(tr);
     trimHistory();
     return tr;
   }
-  
+
   function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, when}){
     const color = (lockerColor||'').trim();
     const cssColor = ({
@@ -495,11 +494,11 @@
       purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
       grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
     })[color.toLowerCase()] || null;
-  
+
     const loc = getLocation();
     let thirdCellHtml = '';
     let rowClass = '';
-  
+
     if (isLunchLocation(loc)) {
       const allowed = isAllowedForLunch(loc, window.__lastLunchValue||'');
       thirdCellHtml = allowed
@@ -515,7 +514,7 @@
         : '—';
       thirdCellHtml = lockerHtml;
     }
-  
+
     tr.className = rowClass;
     tr.innerHTML =
       `<td class="name">${esc(name||'Unknown')}</td>
@@ -523,7 +522,7 @@
        <td>${thirdCellHtml}</td>
        <td>${fmtTime(when)}</td>`;
   }
-  
+
   function updateRowToNotFound(tr, code, when, error, reason){
     const msg = error === 'invalid_input'
       ? (reason === 'leading_zero_osis'
@@ -536,7 +535,7 @@
        <td>—</td>
        <td>${fmtTime(when)}</td>`;
   }
-  
+
   function updateRowToError(tr, code, when, err){
     tr.innerHTML =
       `<td class="name"><span class="bad">Lookup error</span></td>
@@ -544,101 +543,68 @@
        <td>—</td>
        <td>${fmtTime(when)}</td>`;
   }
-  
+
   function trimHistory(){
     while (historyBody.children.length > HISTORY_MAX) {
       historyBody.lastChild.remove();
     }
   }
 
-
-
-
   /**************** KEYBOARD-WEDGE LISTENER ****************/
-  const SCAN_GAP_MS = 10;   // <=18ms between keys => scanner. Humans are usually >40–60ms
+  const SCAN_GAP_MS = 10;   // <=18ms between keys => scanner
   let lastKeyTs = 0;
   let wedgeBuf = "";
   let wedgeResetTimer = null;
-  
+
   window.addEventListener('keydown', (e)=>{
     if (IS_MODAL_OPEN || isModalVisible()) return;
     keepFocus();
-  
+
     const now = performance.now();
     const gap = now - (lastKeyTs || now);
     lastKeyTs = now;
-  
-    // Handle Enter: prefer scanner buffer if present; else use the input value via form submit
+
     if (e.key === 'Enter'){
       const finished = wedgeBuf;
       wedgeBuf = "";
       if (finished){
-        e.preventDefault();            // consume Enter for scanner flows
+        e.preventDefault();
         onScan(finished);
-        manualInput.value = '';        // keep the box clean after scans
+        manualInput.value = '';
       }
       return;
     }
-  
-    // Printable characters
+
     if (e.key.length === 1){
       const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
-  
       if (looksLikeScanner){
-        // Confident it's a scanner burst: build our own buffer and keep the box clean
         e.preventDefault();
         wedgeBuf += e.key;
-      } else {
-        // Let humans type normally into the field; DON'T build wedgeBuf here.
-        // We'll read manualInput.value on submit.
       }
     }
-  
-    // Reset wedge buffer if typing pauses
+
     clearTimeout(wedgeResetTimer);
     wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
   }, true);
 
-    function isLunchLocation(loc){
-      const v = String(loc||'').toLowerCase().trim();
-      return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
-    }
-    function lunchSlotFromLocation(loc){
-      const v = String(loc||'').toLowerCase();
-      return v.includes('2') ? 2 : 1; // default to 1 when plain "Lunch"
-    }
-    function normalizeLunchValue(s){
-      // Accept "1", "2", "Lunch 1", "Lunch2", "L1", "Group 1", etc.
-      const v = String(s||'').toLowerCase().replace(/\s+/g,'').replace('lunch','').replace('group','').replace('l','');
-      // Extract first digit
-      const m = v.match(/([12])/);
-      return m ? Number(m[1]) : null;
-    }
-    function isAllowedForLunch(location, lunchValue){
-      const need = lunchSlotFromLocation(location);
-      const have = normalizeLunchValue(lunchValue);
-      return have === need;
-    }
+  function beepBad(){
+    try{
+      const ctx = new (window.AudioContext||window.webkitAudioContext)();
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type = 'square'; o.frequency.value = 220; // A3
+      g.gain.setValueAtTime(0.001, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.26);
+    }catch{}
+  }
 
-    function beepBad(){
-      try{
-        const ctx = new (window.AudioContext||window.webkitAudioContext)();
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.type = 'square'; o.frequency.value = 220; // A3
-        g.gain.setValueAtTime(0.001, ctx.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-        o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.26);
-      }catch{}
-    }
-
-  
   /**************** MANUAL ENTRY FORM ****************/
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault();
     if (IS_MODAL_OPEN || isModalVisible()) return;
     const v = manualInput.value.trim();
-    if (v) onScan(v);          // human path uses the field value
+    if (v) onScan(v);
     manualInput.value = '';
     keepFocus();
   });
@@ -650,7 +616,7 @@
   }
   keepFocus(); setInterval(keepFocus, 1000);
 
-  /**************** ONLINE/OFFLINE INDICATOR ****************/
+  /**************** Online/offline indicator + location init ****************/
   function updateOnlinePill(){
     const on = navigator.onLine;
     onlinePill.textContent = on ? 'Online' : 'Offline';
@@ -660,14 +626,23 @@
   window.addEventListener('online', updateOnlinePill);
   window.addEventListener('offline', updateOnlinePill);
   updateOnlinePill();
+
   // Ask for location on load (once)
   promptForLocation(false);
-  
+
   // Allow changing later
   document.getElementById('locationPill').addEventListener('click', () => {
     promptForLocation(true);
   });
 
+  // Safety net: delegated click handler in case of re-render
+  document.body.addEventListener('click', (e)=>{
+    const t = e.target;
+    if (t && (t.id === 'locationPill' || t.closest?.('#locationPill'))) {
+      e.preventDefault();
+      promptForLocation(true);
+    }
+  });
   </script>
 </body>
 </html>
