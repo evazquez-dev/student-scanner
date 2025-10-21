@@ -52,27 +52,13 @@
     }
     .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eaf7ea; color:#0a7c2f; font-size:12px; }
     .scans-pane{
-      max-height: 360px;     /* ~10 rows */
-      overflow-y: auto;
-      border: 1px solid #e5e9f2;
-      border-radius: 8px;
-      background: #fff;
+      max-height: 360px; overflow-y: auto; border: 1px solid #e5e9f2; border-radius: 8px; background: #fff;
     }
-    /* keep header visible while scrolling */
-    .scans-pane thead th{
-      position: sticky;
-      top: 0;
-      background: #f7f9fc;
-      z-index: 1;
-      box-shadow: 0 1px 0 rgba(0,0,0,0.06);
-    }
-    /* slightly tighter table so 10 fit nicely */
+    .scans-pane thead th{ position: sticky; top: 0; background: #f7f9fc; z-index: 1; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
     #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
     .bad { color:#b00020; font-weight:600; }
     .queued { color:#8a5a00; font-weight:600; }
-
-    /* Lunch UI */
-    .not-allowed-row { background:#fdecea; } /* soft red */
+    .not-allowed-row { background:#fdecea; }
     .allowed-badge { color:#0a7c2f; font-weight:700; }
     .not-allowed-badge { color:#b00020; font-weight:700; }
 
@@ -82,6 +68,7 @@
   </style>
 </head>
 <body>
+  <!-- Location modal -->
   <div id="locModal" style="background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
     <div style="background:#fff; width:min(360px, 92vw); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2)">
       <div style="font-weight:700; margin-bottom:8px;">Select your location</div>
@@ -104,7 +91,7 @@
     <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter. Shows Name, Locker #/Color, and scan time.</div>
 
     <div class="row" style="margin-top:14px">
-      <!-- Left: Live status + last result + manual entry -->
+      <!-- Left -->
       <div class="col">
         <div class="panel">
           <div id="status">Ready. Scan a card…</div>
@@ -121,7 +108,7 @@
         </div>
       </div>
 
-      <!-- Right: Recent scans -->
+      <!-- Right -->
       <div class="col">
         <div class="panel">
           <div class="muted" style="margin-bottom:8px">Recent scans (local)</div>
@@ -148,27 +135,29 @@
   </div>
 
   <script>
-  /**************** CONFIG — EDIT ME ****************/
-  // Worker URL (not GAS): it should forward lookup/log/locations to GAS
+  /************** CONFIG **************/
   const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/';
-  (async () => {
-    try {
-      await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
-    } catch (_) {}
-  })();
 
-  // Keyboard-wedge behavior
-  const STRIP_PREFIX = true;
-  const SCAN_CHAR_MS = 30;        // max ms between chars to treat input as "scanner"
+  // optional wake-up ping (Worker may not implement "ping"; that's fine)
+  (async () => { try {
+    await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
+  } catch (_) {} })();
+
+  // Static fallback locations (used if Worker doesn't serve `locations`)
+  const STATIC_LOCATIONS = [
+    'Front Desk','Main Entrance','Cafeteria','Gym','Security','Room 302'
+  ];
+
+  // Keyboard-wedge timing + history
+  const SCAN_GAP_MS = 10;
   const DEDUPE_MS = 1000;
-  const HISTORY_VISIBLE = 10;     // ~10 rows visible in the pane
-  const HISTORY_MAX = 1000;       // keep up to 1000 rows in memory for scrolling
+  const HISTORY_VISIBLE = 10;
+  const HISTORY_MAX = 1000;
 
-  /**************** STATE + DOM ****************/
-  let buffer = "", lastTs = 0, resetTimer = null;
-  let lastScanValue = "", lastScanAt = 0;
+  /************** STATE + DOM **************/
   let IS_MODAL_OPEN = false;
   let IS_LOCATION_LOCKED = false;
+  let lastKeyTs = 0, wedgeBuf = "", wedgeResetTimer = null;
 
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
@@ -180,24 +169,24 @@
 
   const QUEUE_KEY = 'scanQueueV1';
   const LOC_KEY = 'scannerLocationV1';
+  const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
+    (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
 
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
   function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
 
-  /**************** Lunch helpers ****************/
+  /************** Lunch helpers **************/
   function isLunchLocation(loc){
     const v = String(loc||'').toLowerCase().trim();
     return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
   }
   function lunchSlotFromLocation(loc){
     const v = String(loc||'').toLowerCase();
-    return v.includes('2') ? 2 : 1; // default 1 when plain "Lunch"
+    return v.includes('2') ? 2 : 1;
   }
   function normalizeLunchValue(s){
-    // Accept "1", "2", "Lunch 1", "Lunch2", "L1", "Group 1", etc.
     const v = String(s||'').toLowerCase().replace(/\s+/g,'').replace('lunch','').replace('group','').replace('l','');
-    const m = v.match(/([12])/);
-    return m ? Number(m[1]) : null;
+    const m = v.match(/([12])/); return m ? Number(m[1]) : null;
   }
   function isAllowedForLunch(location, lunchValue){
     const need = lunchSlotFromLocation(location);
@@ -205,20 +194,38 @@
     return have === need;
   }
 
-  /************* SOUND: 4-beep “bad” pattern (overlapping cadence) *************/
+  /************** Audio (bad beep) **************/
   let AUDIO_CTX;
   function getAudioCtx(){
     if (!AUDIO_CTX) AUDIO_CTX = new (window.AudioContext || window.webkitAudioContext)();
     if (AUDIO_CTX.state === 'suspended') AUDIO_CTX.resume().catch(()=>{});
     return AUDIO_CTX;
   }
-  
-  // Prime AudioContext on first user interaction (Chrome requires a gesture)
   ['pointerdown','keydown'].forEach(evt =>
     window.addEventListener(evt, ()=>getAudioCtx(), { once:true })
   );
 
-  /**************** Header toggle (Locker ⇄ Allowed?) ****************/
+  function beepPattern(pattern){ pattern.forEach(p => beepOnce(p)); }
+  function beepOnce({freq=440, dur=0.2, when=0}){
+    const ctx = getAudioCtx(); const t = ctx.currentTime + when;
+    const osc = ctx.createOscillator(); const g = ctx.createGain();
+    osc.type = 'square'; osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.2, t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t); osc.stop(t+dur+0.05);
+  }
+  function beepBad(){
+    beepPattern([
+      { freq: 260, dur: 0.51, when: 0.00 },
+      { freq: 220, dur: 0.51, when: 0.10 },
+      { freq: 260, dur: 0.51, when: 0.20 },
+      { freq: 220, dur: 0.51, when: 0.30 }
+    ]);
+  }
+
+  /************** Header tweak for Lunch **************/
   const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
   function updateHeaderForLocation(){
     const loc = getLocation();
@@ -229,121 +236,19 @@
     }
   }
 
-  /**************** Modal + locations ****************/
-  async function apiGetLocations(){
-    const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'locations' }) });
-    const ct = r.headers.get('content-type')||'';
-    const text = await r.text();
-    if (!r.ok) throw new Error(`HTTP ${r.status} ${text.slice(0,120)}`);
-    if (!ct.includes('application/json')) throw new Error('Bad content-type for locations');
-    const data = JSON.parse(text);
-    if (!data.ok) throw new Error(data.error || 'locations_error');
-    return data.locations || [];
+  /************** Normalization **************/
+  function normalizeForLookup(raw) {
+    const s = String(raw || '').trim();
+    if (!/^\d+$/.test(s)) return { ok:false, reason:'non_digit', norm:'' };
+    const norm = s.replace(/^0+/, '');
+    if (!norm) return { ok:false, reason:'all_zeros', norm:'' };
+    return { ok:true, norm };
   }
 
-  async function promptForLocation(force=false){
-    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
-    if (!force && getLocation()) { updateLocationPill(); return; }
-
-    const modal = document.getElementById('locModal');
-    const sel   = document.getElementById('locSelect');
-    const btnOK = document.getElementById('locSaveBtn');
-    const btnX  = document.getElementById('locCancelBtn');
-
-    // Open first, then fetch
-    sel.innerHTML = `<option value="">Loading…</option>`;
-    modal.style.display = 'flex';
-    setModalOpen(true);
-    manualInput.blur();
-    cardEl?.setAttribute?.('inert', '');
-    setTimeout(() => sel.focus({ preventScroll: true }), 0);
-
-    try {
-      const list = await apiGetLocations();
-      sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
-      const saved = getLocation();
-      if (saved) sel.value = saved;
-    } catch (e) {
-      sel.innerHTML = `<option value="">(Couldn’t load locations)</option>`;
-    }
-
-    return new Promise(resolve=>{
-      const close = (val) => {
-        modal.style.display = 'none';
-        setModalOpen(false);
-        cardEl?.removeAttribute?.('inert');
-        setTimeout(() => { keepFocus(); }, 0);
-        resolve(val);
-      };
-      btnOK.onclick = () => {
-        const val = sel.value.trim();
-        if (val) { setLocation(val); updateHeaderForLocation(); close(val); }
-        else { alert('Please choose a location.'); }
-      };
-      btnX.onclick = () => close(getLocation());
-      modal.addEventListener('click', (ev)=>{ if (ev.target === modal) close(getLocation()); }, { once:true });
-    });
-  }
-
-  function updateLocationPill(){
-    const pill = document.getElementById('locationPill');
-    const v = getLocation();
-    pill.textContent = v ? `Location: ${v}${IS_LOCATION_LOCKED ? ' (locked)' : ''}` : 'Set location';
-    pill.style.background = v ? '#e7f0fe' : '#fff3e0';
-    pill.style.color = v ? '#0b57d0' : '#8a5a00';
-    pill.style.cursor = IS_LOCATION_LOCKED ? 'not-allowed' : 'pointer';
-    pill.title = IS_LOCATION_LOCKED ? 'This device is locked to this location' : 'Click to change location';
-    updateHeaderForLocation();
-  }
-
-  function isModalVisible() {
-    const m = document.getElementById('locModal');
-    if (!m) return false;
-    return getComputedStyle(m).display !== 'none';
-  }
-  function setModalOpen(v){ IS_MODAL_OPEN = !!v; }
-
-  /**************** Offline queue ****************/
-  function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
-  function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
-  async function flushQueue(){
-    if (!navigator.onLine) return;
-    const q = loadQueue();
-    if (!q.length) return;
-    const remain = [];
-    for (const item of q){
-      try{
-        const res = await apiLookup(item.code);
-        if (res.found){
-          updateRowToSuccess(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)), {
-            name: res.name, code: item.code,
-            lockerNum: res.locker_number, lockerColor: res.locker_color,
-            when: new Date(item.whenISO)
-          });
-          apiLog({ whenISO:item.whenISO, code:item.code, source:'pwa', resolved:res });
-        } else {
-          updateRowToNotFound(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)),
-            item.code, new Date(item.whenISO), res.error, res.reason);
-        }
-      } catch {
-        remain.push(item);
-      }
-    }
-    saveQueue(remain);
-  }
-  window.addEventListener('online', flushQueue);
-  flushQueue();
-
-  /**************** Utils ****************/
-  function setStatus(t){ statusEl.textContent = t; }
-  function vibrate(){ try{ navigator.vibrate?.(30); }catch{} }
-  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function fmtTime(d){ try{ return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d);}catch{return d.toLocaleString();} }
-
-  /**************** API ****************/
+  /************** API **************/
   async function apiLookup(code){
     const body = new URLSearchParams({ action:'lookup', code });
-    const wakeTimer = setTimeout(() => setStatus('Waking server…'), 700);
+    const wakeTimer = setTimeout(() => setStatus('Waking server…'), 800);
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), 8000);
     try {
@@ -354,16 +259,13 @@
       if (!ct.includes('application/json')) throw new Error('Upstream HTML (not JSON): ' + text.slice(0,120));
       return JSON.parse(text);
     } finally {
-      clearTimeout(wakeTimer);
-      clearTimeout(abortTimer);
+      clearTimeout(wakeTimer); clearTimeout(abortTimer);
       if (statusEl.textContent.includes('Waking server')) setStatus('Ready.');
     }
   }
   function makeLogId({ whenISO, code }) {
     return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`;
   }
-  const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
-    (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
   async function apiLog(entry){
     const whenISO = entry.whenISO || new Date().toISOString();
     const log_id = makeLogId({ whenISO, code: entry.code || '' });
@@ -382,27 +284,84 @@
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
-  
+
+  async function apiGetLocations(){
+    // Try Worker first; if it fails, return static list.
+    try{
+      const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'locations' }) });
+      const ct = r.headers.get('content-type')||''; const text = await r.text();
+      if (r.ok && ct.includes('application/json')) {
+        const data = JSON.parse(text);
+        if (data && data.ok && Array.isArray(data.locations)) return data.locations;
+      }
+    } catch(_){}
+    return STATIC_LOCATIONS;
+  }
+
   async function checkDeviceLock(){
     try{
       const r = await fetch(API_BASE, {
         method:'POST',
         body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID })
       });
+      const ct = r.headers.get('content-type')||'';
+      if (!r.ok || !ct.includes('application/json')) return;
       const data = await r.json();
       if (data.ok && data.locked && data.location) {
         IS_LOCATION_LOCKED = true;
-        setLocation(data.location);       // updates pill + header
+        setLocation(data.location);
       }
-    } catch (_) {}
+    } catch(_) {}
   }
 
+  /************** Queue **************/
+  function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
+  function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+  async function flushQueue(){
+    if (!navigator.onLine) return;
+    const q = loadQueue(); if (!q.length) return;
+    const remain = [];
+    for (const item of q){
+      try{
+        const res = await apiLookup(item.code); // item.code already normalized
+        if (res.found){
+          updateRowToSuccess(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)), {
+            name: res.name, code: item.code,
+            lockerNum: res.locker_number, lockerColor: res.locker_color,
+            when: new Date(item.whenISO)
+          });
+          apiLog({ whenISO:item.whenISO, code:item.code, source:'pwa', resolved:res });
+        } else {
+          updateRowToNotFound(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)),
+            item.code, new Date(item.whenISO), res.error, res.reason);
+        }
+      } catch { remain.push(item); }
+    }
+    saveQueue(remain);
+  }
+  window.addEventListener('online', flushQueue);
+  flushQueue();
 
-  /**************** SCAN FLOW ****************/
+  /************** Utils **************/
+  function setStatus(t){ statusEl.textContent = t; }
+  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function fmtTime(d){ try{ return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d);}catch{return d.toLocaleString();} }
+
+  /************** Scan flow **************/
   let scanSeq = 0;
 
-  function onScan(code){
+  function onScan(scanned){
     const when = new Date();
+    const v = normalizeForLookup(scanned);
+    if (!v.ok){
+      beepBad();
+      const msg = v.reason === 'non_digit' ? 'Digits only' : 'All zeros is not valid';
+      resultEl.innerHTML = `<div class="err">${esc(msg)}</div><div class="code">${esc(scanned)}</div><div class="muted">${fmtTime(when)}</div>`;
+      setStatus('Ready.');
+      return;
+    }
+
+    const code = v.norm; // normalized (no leading zeros)
     const seq = ++scanSeq;
     const row = pushPendingRow(seq, code, when);
 
@@ -413,32 +372,28 @@
       return;
     }
 
-    void (async () => {
+    (async () => {
       try {
         const res = await apiLookup(code);
         if (res.found) {
           window.__lastLunchValue = res.lunch || '';
           updateRowToSuccess(row, { name: res.name, code, lockerNum: res.locker_number, lockerColor: res.locker_color, when });
-          showSuccess(res.name, code, res.locker_number, res.locker_color, when); // <-- update result panel
-          apiLog({
-            whenISO: when.toISOString(),
-            code, source: 'pwa', resolved: res,
-            allowed: (isLunchLocation(getLocation()) ? String(isAllowedForLunch(getLocation(), res.lunch||'')) : '')
-          });
+          showSuccess(res.name, code, res.locker_number, res.locker_color, when);
+          apiLog({ whenISO: when.toISOString(), code, source: 'pwa', resolved: res,
+                   allowed: (isLunchLocation(getLocation()) ? String(isAllowedForLunch(getLocation(), res.lunch||'')) : '') });
         } else {
-          updateRowToNotFound(row, code, when, res.error, res.reason); //Table
-          showNotFound(code, when, res.error, res.reason);  // <-- keep panel in sync
+          updateRowToNotFound(row, code, when, res.error, res.reason);
+          showNotFound(code, when, res.error, res.reason);
         }
       } catch (err) {
         if (!navigator.onLine || (err.name === 'AbortError')){
           markRowQueued(row);
           const q = loadQueue(); q.push({ seq, code, whenISO: when.toISOString() }); saveQueue(q);
           setStatus('Offline — queued');
-          // Optional: reflect in panel if you want
           resultEl.innerHTML = `<div class="err">Queued (offline)</div><div class="code">${esc(code)}</div><div class="muted">${fmtTime(when)}</div>`;
         } else {
           updateRowToError(row, code, when, err);
-          showError(err, code, when); // <-- update result panel on errors too
+          showError(err, code, when);
         }
       }
     })();
@@ -454,9 +409,8 @@
     let extra = `Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})`;
     if (isLunchLocation(loc)) {
       const allowed = isAllowedForLunch(loc, window.__lastLunchValue||'');
-      extra = allowed
-        ? `<span class="allowed-badge">Allowed</span>`
-        : `<span class="not-allowed-badge">Not allowed</span>`;
+      extra = allowed ? `<span class="allowed-badge">Allowed</span>`
+                      : `<span class="not-allowed-badge">Not allowed</span>`;
     }
     resultEl.innerHTML =
       `<div class="ok">OK</div>
@@ -488,15 +442,13 @@
     const tr = document.createElement('tr');
     const color = String(lockerColor||'').trim();
     const num   = String(lockerNum||'').trim();
-
     const cssColor = ({
       red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
       purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
       grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
     })[color.toLowerCase()] || null;
 
-    const lockerHtml = isLunchLocation(getLocation())
-      ? '—'
+    const lockerHtml = isLunchLocation(getLocation()) ? '—'
       : ((num || color)
           ? (cssColor
               ? `<span class="swatch" style="background:${cssColor}"></span>${esc(num)} <span class="muted">(${esc(color)})</span>`
@@ -564,9 +516,7 @@
   function updateRowToNotFound(tr, code, when, error, reason){
     beepBad();
     const msg = error === 'invalid_input'
-      ? (reason === 'leading_zero_osis'
-          ? 'Leading-zero OSIS — scan card.'
-          : 'Digits only.')
+      ? (reason === 'leading_zero_osis' ? 'Leading-zero OSIS — scan card.' : 'Digits only.')
       : 'Not found';
     tr.innerHTML =
       `<td class="name"><span class="bad">${esc(msg)}</span></td>
@@ -590,12 +540,7 @@
     }
   }
 
-  /**************** KEYBOARD-WEDGE LISTENER ****************/
-  const SCAN_GAP_MS = 10;   // <=18ms between keys => scanner
-  let lastKeyTs = 0;
-  let wedgeBuf = "";
-  let wedgeResetTimer = null;
-
+  /************** Keyboard wedge **************/
   window.addEventListener('keydown', (e)=>{
     if (IS_MODAL_OPEN || isModalVisible()) return;
     keepFocus();
@@ -627,25 +572,7 @@
     wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
   }, true);
 
-  function beepPattern(pattern){
-    // Supports overlapping beeps via the `when` offsets
-    pattern.forEach(p => beepOnce(p));
-  }
-  
-  /** Replace all existing calls with this function name (same name as before) */
-  function beepBad(){
-    // Your chosen pattern:
-    // long-ish beeps (0.51s) starting every 0.10s with alternating 260/220 Hz
-    // This creates a dense “attention” sound with intentional overlap.
-    beepPattern([
-      { freq: 260, dur: 0.51, when: 0.00 },
-      { freq: 220, dur: 0.51, when: 0.10 },
-      { freq: 260, dur: 0.51, when: 0.20 },
-      { freq: 220, dur: 0.51, when: 0.30 }
-    ]);
-  }
-
-  /**************** MANUAL ENTRY FORM ****************/
+  /************** Manual form **************/
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault();
     if (IS_MODAL_OPEN || isModalVisible()) return;
@@ -662,7 +589,7 @@
   }
   keepFocus(); setInterval(keepFocus, 1000);
 
-  /**************** Online/offline indicator + location init ****************/
+  /************** Online/offline pill + location init **************/
   function updateOnlinePill(){
     const on = navigator.onLine;
     onlinePill.textContent = on ? 'Online' : 'Offline';
@@ -673,61 +600,103 @@
   window.addEventListener('offline', updateOnlinePill);
   updateOnlinePill();
 
-  // Ask for location on load (once)
-  (async () => {
-    await checkDeviceLock();
-    promptForLocation(false);
-  })();
+  function isModalVisible() {
+    const m = document.getElementById('locModal');
+    if (!m) return false;
+    return getComputedStyle(m).display !== 'none';
+  }
+  function setModalOpen(v){ IS_MODAL_OPEN = !!v; }
+
+  // Location pill UI
+  function updateLocationPill(){
+    const pill = document.getElementById('locationPill');
+    const v = getLocation();
+    pill.textContent = v ? `Location: ${v}${IS_LOCATION_LOCKED ? ' (locked)' : ''}` : 'Set location';
+    pill.style.background = v ? '#e7f0fe' : '#fff3e0';
+    pill.style.color = v ? '#0b57d0' : '#8a5a00';
+    pill.style.cursor = IS_LOCATION_LOCKED ? 'not-allowed' : 'pointer';
+    pill.title = IS_LOCATION_LOCKED ? 'This device is locked to this location' : 'Click to change location';
+    updateHeaderForLocation();
+  }
+
+  async function promptForLocation(force=false){
+    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
+    if (!force && getLocation()) { updateLocationPill(); return; }
+
+    const modal = document.getElementById('locModal');
+    const sel   = document.getElementById('locSelect');
+    const btnOK = document.getElementById('locSaveBtn');
+    const btnX  = document.getElementById('locCancelBtn');
+
+    sel.innerHTML = `<option value="">Loading…</option>`;
+    modal.style.display = 'flex';
+    setModalOpen(true);
+    manualInput.blur();
+    cardEl?.setAttribute?.('inert', '');
+    setTimeout(() => sel.focus({ preventScroll: true }), 0);
+
+    try {
+      const list = await apiGetLocations();
+      sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
+      const saved = getLocation(); if (saved) sel.value = saved;
+    } catch {
+      // Shouldn't happen with static fallback, but keep a friendly message
+      sel.innerHTML = `<option value="">(Using defaults)</option>` + STATIC_LOCATIONS.map(v=>`<option>${esc(v)}</option>`).join('');
+    }
+
+    return new Promise(resolve=>{
+      const close = (val) => {
+        modal.style.display = 'none';
+        setModalOpen(false);
+        cardEl?.removeAttribute?.('inert');
+        setTimeout(() => { keepFocus(); }, 0);
+        resolve(val);
+      };
+      btnOK.onclick = () => {
+        const val = sel.value.trim();
+        if (val) { setLocation(val); updateHeaderForLocation(); close(val); }
+        else { alert('Please choose a location.'); }
+      };
+      btnX.onclick = () => close(getLocation());
+      modal.addEventListener('click', (ev)=>{ if (ev.target === modal) close(getLocation()); }, { once:true });
+    });
+  }
+
+  // Device lock (safe if Worker doesn't implement it)
+  (async () => { await checkDeviceLock(); updateLocationPill(); promptForLocation(false); })();
 
   // Allow changing later
   document.getElementById('locationPill').addEventListener('click', () => {
     if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     promptForLocation(true);
   });
-
-  // Safety net: delegated click handler in case of re-render
   document.body.addEventListener('click', (e)=>{
     const t = e.target;
     if (t && (t.id === 'locationPill' || t.closest?.('#locationPill'))) {
       e.preventDefault();
-    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
+      if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
       promptForLocation(true);
     }
   });
-  
-  // Kick off the wake lock once on load (will retry on visibility/focus/first input)
-  requestWakeLock();
 
-  /**************** KEEP SCREEN AWAKE (Wake Lock) ****************/
+  /************** Wake Lock **************/
   let wakeLock = null;
-  
   async function requestWakeLock() {
-    if (!('wakeLock' in navigator)) return; // not supported (rare on ChromeOS)
+    if (!('wakeLock' in navigator)) return;
     try {
-      // Request or re-request if previously released
       wakeLock = await navigator.wakeLock.request('screen');
-      // If the lock gets released (tab lost visibility, etc.), try to reacquire
       wakeLock.addEventListener('release', () => {
-        // Attempt to re-acquire when visible again
-        if (document.visibilityState === 'visible') {
-          requestWakeLock();
-        }
+        if (document.visibilityState === 'visible') requestWakeLock();
       });
-    } catch (err) {
-      // Usually happens if not in a visible tab or without a user gesture—retry later
-      // console.warn('WakeLock error:', err);
-    }
+    } catch {}
   }
-  
-  // Reacquire on visibility/focus returns (Chromium quirk)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') requestWakeLock();
   });
   window.addEventListener('focus', requestWakeLock);
-  
-  // Helpful: first user interaction guarantees a gesture-backed call
   window.addEventListener('keydown', requestWakeLock, { once: true });
   window.addEventListener('pointerdown', requestWakeLock, { once: true });
+
   </script>
 </body>
 </html>
