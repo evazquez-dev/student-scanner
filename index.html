@@ -205,6 +205,19 @@
     return have === need;
   }
 
+  /************* SOUND: 4-beep “bad” pattern (overlapping cadence) *************/
+  let AUDIO_CTX;
+  function getAudioCtx(){
+    if (!AUDIO_CTX) AUDIO_CTX = new (window.AudioContext || window.webkitAudioContext)();
+    if (AUDIO_CTX.state === 'suspended') AUDIO_CTX.resume().catch(()=>{});
+    return AUDIO_CTX;
+  }
+  
+  // Prime AudioContext on first user interaction (Chrome requires a gesture)
+  ['pointerdown','keydown'].forEach(evt =>
+    window.addEventListener(evt, ()=>getAudioCtx(), { once:true })
+  );
+
   /**************** Header toggle (Locker ⇄ Allowed?) ****************/
   const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
   function updateHeaderForLocation(){
@@ -614,16 +627,22 @@
     wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
   }, true);
 
+  function beepPattern(pattern){
+    // Supports overlapping beeps via the `when` offsets
+    pattern.forEach(p => beepOnce(p));
+  }
+  
+  /** Replace all existing calls with this function name (same name as before) */
   function beepBad(){
-    try{
-      const ctx = new (window.AudioContext||window.webkitAudioContext)();
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.type = 'square'; o.frequency.value = 220; // A3
-      g.gain.setValueAtTime(0.001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-      o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.26);
-    }catch{}
+    // Your chosen pattern:
+    // long-ish beeps (0.51s) starting every 0.10s with alternating 260/220 Hz
+    // This creates a dense “attention” sound with intentional overlap.
+    beepPattern([
+      { freq: 260, dur: 0.51, when: 0.00 },
+      { freq: 220, dur: 0.51, when: 0.10 },
+      { freq: 260, dur: 0.51, when: 0.20 },
+      { freq: 220, dur: 0.51, when: 0.30 }
+    ]);
   }
 
   /**************** MANUAL ENTRY FORM ****************/
