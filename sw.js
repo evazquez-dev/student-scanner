@@ -1,5 +1,5 @@
 // Minimal app-shell cache; NEVER cache API (PII) calls
-const CACHE = 'scanner-v5';
+const CACHE = 'scanner-v6';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
