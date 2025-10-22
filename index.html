@@ -65,6 +65,8 @@
     /* Modal topmost + inert safety */
     #locModal { position:fixed; inset:0; z-index: 2147483000; }
     .card[inert] { pointer-events: none; }
+    .pill--bad { background:#fdecea !important; color:#b00020 !important; }
+    .pill--warn{ background:#fff3e0 !important; color:#8a5a00 !important; }
   </style>
 </head>
 <body>
@@ -87,6 +89,8 @@
     <h1>Student Scanner 
       <span class="pill" id="onlinePill">Online</span>
       <span class="pill" id="locationPill" style="margin-left:6px; cursor:pointer;" title="Click to change location">Set location</span>
+      <span class="pill" id="batteryPill" style="margin-left:6px">🔋 --%</span>
+      <span class="pill" id="netPill" style="margin-left:6px">Wi-Fi …</span>
     </h1>
     <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter. Shows Name, Locker #/Color, and scan time.</div>
 
@@ -589,6 +593,121 @@
   }
   keepFocus(); setInterval(keepFocus, 1000);
 
+/************** Battery indicator (Chromebook/Chrome) **************/
+  async function initBatteryPill(){
+    const pill = document.getElementById('batteryPill');
+    if (!pill || !navigator.getBattery) { 
+      // Hide if unsupported
+      pill && (pill.style.display = 'none'); 
+      return; 
+    }
+    try {
+      const batt = await navigator.getBattery();
+  
+      function fmt(b){
+        const pct = Math.round((b.level || 0) * 100);
+        const charging = b.charging;
+        // Choose an icon
+        let ico = '🔋';
+        if (charging) ico = '⚡';
+        else if (pct <= 10) ico = '🪫';
+        else if (pct <= 30) ico = '🔋'; // could swap for different glyphs if desired
+  
+        // Optional time remaining (minutes)
+        let extra = '';
+        if (!charging && Number.isFinite(b.dischargingTime) && b.dischargingTime > 0) {
+          const mins = Math.round(b.dischargingTime / 60);
+          extra = ` • ${mins}m left`;
+        } else if (charging && Number.isFinite(b.chargingTime) && b.chargingTime > 0) {
+          const mins = Math.round(b.chargingTime / 60);
+          extra = ` • ${mins}m to full`;
+        }
+  
+        pill.textContent = `${ico} ${pct}%${extra}`;
+        // color state
+        pill.classList.remove('pill--bad','pill--warn');
+        if (!charging && pct <= 10) pill.classList.add('pill--bad');
+        else if (!charging && pct <= 25) pill.classList.add('pill--warn');
+      }
+  
+      fmt(batt);
+      batt.addEventListener('levelchange',     ()=>fmt(batt));
+      batt.addEventListener('chargingchange',  ()=>fmt(batt));
+      batt.addEventListener('dischargingtimechange', ()=>fmt(batt));
+      batt.addEventListener('chargingtimechange',    ()=>fmt(batt));
+    } catch {
+      // If anything throws, hide it quietly
+      pill.style.display = 'none';
+    }
+  }
+
+/************** Network indicator (no true signal bars in web) **************/
+  function initNetworkPill(){
+    const pill = document.getElementById('netPill');
+    if (!pill) return;
+  
+    const navConn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+  
+    function fmt(){
+      // Basic online state
+      const online = navigator.onLine;
+  
+      // Defaults
+      let type = 'unknown';
+      let eff  = '';
+      let mbps = '';
+      let rtt  = '';
+  
+      if (navConn) {
+        // type: 'wifi' | 'ethernet' | 'cellular' | etc (may be undefined on some devices)
+        type = navConn.type || (online ? 'online' : 'offline');
+        // effectiveType: '4g'|'3g'|'2g'|'slow-2g'
+        eff  = navConn.effectiveType ? ` ${navConn.effectiveType}` : '';
+        if (typeof navConn.downlink === 'number') {
+          mbps = ` • ${Math.round(navConn.downlink)} Mbps`;
+        }
+        if (typeof navConn.rtt === 'number' && navConn.rtt > 0) {
+          rtt = ` • ${navConn.rtt} ms`;
+        }
+      } else {
+        type = online ? 'online' : 'offline';
+      }
+  
+      pill.classList.remove('pill--bad','pill--warn');
+  
+      if (!online) {
+        pill.textContent = 'Offline';
+        pill.classList.add('pill--bad');
+        return;
+      }
+  
+      // Heuristic coloring
+      if (navConn) {
+        if (navConn.effectiveType === 'slow-2g' || navConn.effectiveType === '2g') {
+          pill.classList.add('pill--bad');
+        } else if (navConn.effectiveType === '3g') {
+          pill.classList.add('pill--warn');
+        }
+      }
+  
+      // Show “Wi-Fi” label for type=wifi
+      const label = (type === 'wifi') ? 'Wi-Fi' : (type === 'ethernet' ? 'Ethernet' : type);
+      pill.textContent = `${label}${eff}${mbps}${rtt}`;
+    }
+  
+    fmt();
+  
+    // Live updates
+    window.addEventListener('online', fmt);
+    window.addEventListener('offline', fmt);
+    if (navConn && typeof navConn.addEventListener === 'function') {
+      navConn.addEventListener('change', fmt);
+    } else if (navConn) {
+      // Older implementations use onchange
+      navConn.onchange = fmt;
+    }
+  }
+
   /************** Online/offline pill + location init **************/
   function updateOnlinePill(){
     const on = navigator.onLine;
@@ -696,6 +815,9 @@
   window.addEventListener('focus', requestWakeLock);
   window.addEventListener('keydown', requestWakeLock, { once: true });
   window.addEventListener('pointerdown', requestWakeLock, { once: true });
+
+  initBatteryPill();
+  initNetworkPill();
 
   </script>
 </body>
