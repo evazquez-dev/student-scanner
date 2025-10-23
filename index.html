@@ -130,6 +130,22 @@
             </table>
           </div>
         </div>
+        <!-- Current OUT list (only visible for Senior Lunch (out-in)) -->
+        <div class="panel" id="outPanel" style="margin-top:10px; display:none">
+          <div class="muted" style="margin-bottom:8px">Currently OUT — Senior Lunch</div>
+          <div id="outPane" class="scans-pane" style="max-height: 240px">
+            <table id="outTbl" aria-label="Currently OUT">
+              <thead>
+                <tr>
+                  <th style="width:40%">Name</th>
+                  <th style="width:20%">OSIS</th>
+                  <th style="width:40%">Since</th>
+                </tr>
+              </thead>
+              <tbody id="outBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -149,7 +165,7 @@
 
   // Static fallback locations (used if Worker doesn't serve `locations`)
   const STATIC_LOCATIONS = [
-    'Front Desk','Main Entrance','Cafeteria','Gym','Security','Room 302'
+    'Front Desk','Main Entrance','Cafeteria','Gym','Security','Room 302','Senior Lunch (out-in)'
   ];
 
   // Keyboard-wedge timing + history
@@ -178,6 +194,75 @@
 
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
   function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
+
+  const SPECIAL_LOCATION = 'Senior Lunch (out-in)';  // exact match, case-insensitive ok
+  const OUT_KEY = 'seniorOutV1';
+  
+  function todayKey() {
+    // YYYY-MM-DD (local date)
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function outBucketKey() {
+    // bucket by DATE + LOCATION so each day is independent
+    return `${todayKey()}|${(getLocation()||'').toLowerCase()}`;
+  }
+  function loadOutMap(){
+    try { return JSON.parse(localStorage.getItem(OUT_KEY) || '{}'); } catch { return {}; }
+  }
+  function saveOutMap(map){
+    localStorage.setItem(OUT_KEY, JSON.stringify(map));
+  }
+  function getOutSet(){
+    const map = loadOutMap();
+    const bucket = outBucketKey();
+    return map[bucket] || []; // array of { osis, name, sinceISO }
+  }
+  function setOutSet(list){
+    const map = loadOutMap();
+    const bucket = outBucketKey();
+    map[bucket] = list;
+    saveOutMap(map);
+  }
+  function isOutNow(osis){
+    osis = String(osis||'').trim();
+    if (!osis) return false;
+    return getOutSet().some(x => x.osis === osis);
+  }
+  function addOut(osis, name, when=new Date()){
+    osis = String(osis||'').trim(); if (!osis) return;
+    const list = getOutSet();
+    if (!list.some(x => x.osis === osis)) {
+      list.unshift({ osis, name: String(name||'').trim(), sinceISO: when.toISOString() });
+      setOutSet(list);
+    }
+  }
+  function removeOut(osis){
+    osis = String(osis||'').trim(); if (!osis) return;
+    const list = getOutSet().filter(x => x.osis !== osis);
+    setOutSet(list);
+  }
+  function renderOutList(){
+    const outPanel = document.getElementById('outPanel');
+    const outBody  = document.getElementById('outBody');
+    const loc = getLocation();
+    const show = String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
+    outPanel.style.display = show ? '' : 'none';
+    if (!show) return;
+  
+    const rows = getOutSet();
+    outBody.innerHTML = rows.map(r => {
+      const when = new Date(r.sinceISO);
+      return `<tr>
+        <td class="name">${esc(r.name || '—')}</td>
+        <td class="code">${esc(r.osis || '')}</td>
+        <td>${fmtTime(when)}</td>
+      </tr>`;
+    }).join('');
+  }
 
   /************** Lunch helpers **************/
   function isLunchLocation(loc){
@@ -233,11 +318,19 @@
   const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
   function updateHeaderForLocation(){
     const loc = getLocation();
-    if (isLunchLocation(loc)) {
-      if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Allowed?';
+    const col = historyHeaderCells[2];
+    if (!col) return;
+  
+    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
+      col.textContent = 'In/Out';
+    } else if (isLunchLocation(loc)) {
+      col.textContent = 'Allowed?';
     } else {
-      if (historyHeaderCells[2]) historyHeaderCells[2].textContent = 'Locker';
+      col.textContent = 'Locker';
     }
+  
+    // Also (re)render OUT list panel visibility
+    renderOutList();
   }
 
   /************** Normalization **************/
@@ -284,7 +377,8 @@
       resolved_lnum:  entry.resolved?.locker_number || '',
       resolved_lcol:  entry.resolved?.locker_color  || '',
       location: getLocation() || '',
-      device_id: DEVICE_ID
+      device_id: DEVICE_ID,
+      allowed: entry.allowed || ''                // 👈 add this line
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
@@ -378,14 +472,71 @@
 
     (async () => {
       try {
-        const res = await apiLookup(code);
-        if (res.found) {
-          window.__lastLunchValue = res.lunch || '';
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: res.locker_number, lockerColor: res.locker_color, when });
-          showSuccess(res.name, code, res.locker_number, res.locker_color, when);
-          apiLog({ whenISO: when.toISOString(), code, source: 'pwa', resolved: res,
-                   allowed: (isLunchLocation(getLocation()) ? String(isAllowedForLunch(getLocation(), res.lunch||'')) : '') });
-        } else {
+          const res = await apiLookup(code);
+    if (res.found) {
+      const loc = getLocation();
+      window.__lastLunchValue = res.lunch || '';
+      const whenISO = when.toISOString();
+    
+      // SPECIAL: Senior Lunch (out-in) toggling
+      if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
+        const osis = String(res.osis || '').trim();
+        const allowedSenior = !!res.allowed_senior;
+      
+        if (!allowedSenior) {
+          // Not allowed to go out: show red, no toggle, log as not_allowed
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
+          showSuccess(res.name, code, 'NOT ALLOWED', '', when);
+          beepBad();
+      
+          apiLog({
+            whenISO,
+            code,
+            source: 'pwa',
+            resolved: res,
+            allowed: 'not_allowed'
+          });
+      
+          setStatus('Ready. Scan next card…');
+          return;
+        }
+      
+        // Allowed: toggle OUT/IN as before
+        const wasOut = isOutNow(osis);
+        if (wasOut) removeOut(osis); else addOut(osis, res.name || '', when);
+        renderOutList();
+      
+        const statusText = wasOut ? 'IN' : 'OUT';
+        updateRowToSuccess(row, { name: res.name, code, lockerNum: statusText, lockerColor: '', when });
+        showSuccess(res.name, code, statusText, '', when);
+      
+        apiLog({
+          whenISO,
+          code,
+          source: 'pwa',
+          resolved: res,
+          allowed: wasOut ? 'in' : 'out'
+        });
+      
+        setStatus('Ready. Scan next card…');
+        return; // done for special mode
+      }
+    
+      // ----- normal paths (lunch allowed, or regular locker) -----
+      updateRowToSuccess(row, { name: res.name, code,
+        lockerNum: res.locker_number, lockerColor: res.locker_color, when });
+      showSuccess(res.name, code, res.locker_number, res.locker_color, when);
+    
+      // For normal “Lunch 1/2” locations you already send allowed/not-allowed.
+      apiLog({
+        whenISO,
+        code,
+        source: 'pwa',
+        resolved: res,
+        allowed: (isLunchLocation(loc) ? String(isAllowedForLunch(loc, res.lunch||'')) : '')
+      });
+    
+    } else {
           updateRowToNotFound(row, code, when, res.error, res.reason);
           showNotFound(code, when, res.error, res.reason);
         }
@@ -411,10 +562,19 @@
   function showSuccess(name, code, lockerNum, lockerColor, when){
     const loc = getLocation();
     let extra = `Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})`;
-    if (isLunchLocation(loc)) {
+    
+    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
+      // here lockerNum is a status label: 'OUT' | 'IN' | 'NOT ALLOWED'
+      const isOut = lockerNum === 'OUT';
+      const isNotAllowed = lockerNum === 'NOT ALLOWED';
+      extra = isNotAllowed
+        ? `<span class="not-allowed-badge">NOT ALLOWED</span>`
+        : (isOut
+            ? `<span class="not-allowed-badge">OUT</span>`
+            : `<span class="allowed-badge">IN</span>`);
+    } else if (isLunchLocation(loc)) {
       const allowed = isAllowedForLunch(loc, window.__lastLunchValue||'');
-      extra = allowed ? `<span class="allowed-badge">Allowed</span>`
-                      : `<span class="not-allowed-badge">Not allowed</span>`;
+      extra = allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`;
     }
     resultEl.innerHTML =
       `<div class="ok">OK</div>
@@ -493,7 +653,20 @@
     let thirdCellHtml = '';
     let rowClass = '';
 
-    if (isLunchLocation(loc)) {
+    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
+      // here lockerNum carries 'OUT' or 'IN'
+        const label = String(lockerNum||'').toUpperCase(); // 'OUT' | 'IN' | 'NOT ALLOWED'
+        if (label === 'NOT ALLOWED') {
+          thirdCellHtml = `<span class="not-allowed-badge">❌ NOT ALLOWED</span>`;
+          rowClass = 'not-allowed-row';
+        } else if (label === 'OUT') {
+          thirdCellHtml = `<span class="not-allowed-badge">❌ OUT</span>`;
+          rowClass = 'not-allowed-row';
+        } else {
+          thirdCellHtml = `<span class="allowed-badge">✅ IN</span>`;
+          rowClass = '';
+        }
+    } else if (isLunchLocation(loc)) {
       const allowed = isAllowedForLunch(loc, window.__lastLunchValue||'');
       thirdCellHtml = allowed
         ? `<span class="allowed-badge">✅ Allowed</span>`
@@ -501,6 +674,14 @@
       rowClass = allowed ? '' : 'not-allowed-row';
       if (!allowed) beepBad();
     } else {
+      // existing locker display (unchanged)
+      const color = (lockerColor||'').trim();
+      const cssColor = ({
+        red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
+        purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
+        grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
+      })[color.toLowerCase()] || null;
+    
       const lockerHtml = (lockerNum || color)
         ? (cssColor
             ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
