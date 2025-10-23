@@ -184,6 +184,8 @@
   const DEDUPE_MS = 1000;
   const HISTORY_VISIBLE = 10;
   const HISTORY_MAX = 1000;
+  const HISTORY_VISIBLE_DEFAULT = 10;
+  const HISTORY_VISIBLE_SENIOR  = 4;
 
   /************** STATE + DOM **************/
   let IS_MODAL_OPEN = false;
@@ -256,6 +258,9 @@
     const list = getOutSet().filter(x => x.osis !== osis);
     setOutSet(list);
   }
+  function isSeniorOutIn(){
+    return String(getLocation()||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
+  }
   function renderOutList(){
     const outPanel = document.getElementById('outPanel');
     const outBody  = document.getElementById('outBody');
@@ -300,6 +305,12 @@
     const need = lunchSlotFromLocation(location);
     const have = normalizeLunchValue(lunchValue);
     return have === need;
+  }
+  function updateHistoryPaneForLocation(){
+    const pane = document.getElementById('scansPane');
+    if (!pane) return;
+    // Tighten height for 3–4 rows + header
+    pane.style.maxHeight = isSeniorOutIn() ? '140px' : '360px';
   }
 
   /************** Audio (bad beep) **************/
@@ -350,6 +361,8 @@
   
     // Also (re)render OUT list panel visibility
     renderOutList();
+    updateHistoryPaneForLocation();
+    trimHistory(); // re-trim to new visible count immediately
   }
 
   /************** Normalization **************/
@@ -837,9 +850,12 @@
   }
 
   function trimHistory(){
-    while (historyBody.children.length > HISTORY_MAX) {
+    const maxVisible = isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR : HISTORY_VISIBLE_DEFAULT;
+    // keep only the top N most recent rows in the DOM
+    while (historyBody.children.length > maxVisible) {
       historyBody.lastChild.remove();
     }
+    // you can still keep HISTORY_MAX if you later add off-DOM storage; for now DOM == visible
   }
 
   /************** Keyboard wedge **************/
@@ -1080,7 +1096,7 @@
   }
 
   // Device lock (safe if Worker doesn't implement it)
-  (async () => { await checkDeviceLock(); updateLocationPill(); promptForLocation(false); })();
+  (async () => { await checkDeviceLock(); updateLocationPill(); updateHistoryPaneForLocation(); trimHistory(); promptForLocation(false); })();
 
   // Allow changing later
   document.getElementById('locationPill').addEventListener('click', () => {
