@@ -132,7 +132,12 @@
         </div>
         <!-- Current OUT list (only visible for Senior Lunch (out-in)) -->
         <div class="panel" id="outPanel" style="margin-top:10px; display:none">
-          <div class="muted" style="margin-bottom:8px">Currently OUT — Senior Lunch</div>
+          <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+            <span>Currently OUT — Senior Lunch</span>
+            <button id="refreshRosterBtn" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">
+              Refresh roster
+            </button>
+          </div>
           <div id="outPane" class="scans-pane" style="max-height: 240px">
             <table id="outTbl" aria-label="Currently OUT">
               <thead>
@@ -265,6 +270,14 @@
   }
 
   /************** Lunch helpers **************/
+  function setUpdating(on){
+    if (on) {
+      setStatus('Updating roster… wait…');
+    } else {
+      setStatus('Ready. Scan a card…');
+    }
+  }
+
   function isLunchLocation(loc){
     const v = String(loc||'').toLowerCase().trim();
     return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
@@ -410,6 +423,57 @@
         setLocation(data.location);
       }
     } catch(_) {}
+  }
+
+  async function apiRefreshRoster(){
+    // Calls Worker to reload MEM from KV
+    const r = await fetch(API_BASE, {
+      method:'POST',
+      body: new URLSearchParams({ action:'refresh_mem' })
+    });
+    const ct = r.headers.get('content-type')||'';
+    if (!r.ok || !ct.includes('application/json')) {
+      throw new Error(`Refresh failed (HTTP ${r.status})`);
+    }
+    return r.json(); // { ok:true, ts, counts:{...} }
+  }
+  
+  // attach after DOM is ready (you’re already at end of body, so this is fine)
+  document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Refreshing…';
+    setUpdating(true);
+    try {
+      const res = await apiRefreshRoster();
+      // Optional: toast in status line with counts
+      setStatus(`Roster updated — ${res?.counts?.osis ?? '?'} students`);
+    } catch (err) {
+      setStatus(`Update failed — ${err.message || err}`);
+    } finally {
+      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+      btn.textContent = original;
+      btn.disabled = false;
+    }
+  });
+
+  let IS_REFRESHING = false;
+
+  async function apiRefreshRoster(){
+    IS_REFRESHING = true;
+    try {
+      const r = await fetch(API_BASE, { method:'POST', body:new URLSearchParams({action:'refresh_mem'}) });
+      const data = await r.json();
+      return data;
+    } finally {
+      IS_REFRESHING = false;
+    }
+  }
+  
+  function onScan(scanned){
+    if (IS_REFRESHING) { beepBad(); setStatus('Updating roster… wait…'); return; }
+    // continue with existing onScan…
   }
 
   /************** Queue **************/
