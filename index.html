@@ -443,19 +443,6 @@
       }
     } catch(_) {}
   }
-
-  async function apiRefreshRoster(){
-    // Calls Worker to reload MEM from KV
-    const r = await fetch(API_BASE, {
-      method:'POST',
-      body: new URLSearchParams({ action:'refresh_mem' })
-    });
-    const ct = r.headers.get('content-type')||'';
-    if (!r.ok || !ct.includes('application/json')) {
-      throw new Error(`Refresh failed (HTTP ${r.status})`);
-    }
-    return r.json(); // { ok:true, ts, counts:{...} }
-  }
   
   // attach after DOM is ready (you’re already at end of body, so this is fine)
   document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
@@ -617,12 +604,13 @@
   
         // === Normal paths (non-senior-out-in) ===
         const isLunch = isLunchLocation(loc);
-        if (isLunch){
-          const allowed = isAllowedForLunch(loc, res.lunch || '');
-          // history row shows Allowed/Not allowed pill; beep on not allowed
-          updateRowToSuccess(row, {
-            name: res.name, code, lockerNum: '', lockerColor: '', when
-          });
+         if (isLunch){
+           const allowed = isAllowedForLunch(loc, res.lunch || '');
+           updateRowToSuccess(row, {
+             name: res.name, code, lockerNum: '', lockerColor: '',
+             lunchValue: res.lunch || '',       // 👈 pass it
+             when
+           });
           showSuccess(res.name, code, '', '', when);
           if (!allowed) beepBad();
   
@@ -777,7 +765,7 @@
     return tr;
   }
 
-  function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, when}){
+  function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
     const loc = getLocation();
   
     if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
@@ -802,6 +790,22 @@
         `<td class="name">${esc(name||'Unknown')}</td>
          <td class="code">${esc(code)}</td>
          <td>${pill} ${allowBox}</td>
+         <td>${fmtTime(when)}</td>`;
+      return;
+    }
+
+    // --- Lunch locations: replace the 3rd cell with Allowed / Not allowed ---
+    if (isLunchLocation(loc)) {
+      const allowed = isAllowedForLunch(loc, lunchValue ?? window.__lastLunchValue ?? '');
+      const thirdCellHtml = allowed
+        ? `<span class="allowed-badge">✅ Allowed</span>`
+        : `<span class="not-allowed-badge">❌ Not allowed</span>`;
+  
+      tr.className = '';
+      tr.innerHTML =
+        `<td class="name">${esc(name||'Unknown')}</td>
+         <td class="code">${esc(code)}</td>
+         <td>${thirdCellHtml}</td>
          <td>${fmtTime(when)}</td>`;
       return;
     }
