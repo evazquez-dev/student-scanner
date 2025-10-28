@@ -157,6 +157,28 @@
             </table>
           </div>
         </div>
+        <!-- Current IN list (only visible for Bathroom locations) -->
+        <div class="panel" id="bathPanel" style="margin-top:10px; display:none">
+          <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+            <span id="bathPanelTitle">Currently IN — Bathroom</span>
+            <button id="bathRefreshBtn" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">
+              Refresh roster
+            </button>
+          </div>
+          <div id="bathPane" class="scans-pane" style="max-height: 240px">
+            <table id="bathTbl" aria-label="Currently IN (Bathroom)">
+              <thead>
+                <tr>
+                  <th style="width:40%">Name</th>
+                  <th style="width:20%">OSIS</th>
+                  <th style="width:20%">Since</th>
+                  <th style="width:20%">Capacity</th>
+                </tr>
+              </thead>
+              <tbody id="bathBody"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -313,6 +335,111 @@
     pane.style.maxHeight = isSeniorOutIn() ? '140px' : '360px';
   }
 
+  /************** Bathroom helpers **************/
+  const BATHROOM_PREFIX = 'Bathroom (';               // exact labels: 'Bathroom (First Floor)', etc.
+  const BATH_KEY = 'bathroomInV1';                    // localStorage map of present students
+  const BATH_CAP_KEY = 'bathroomCapV1';               // per-location capacity map
+  const BATHROOM_CAPACITY_DEFAULT = 2;                // default; can be changed per location
+  
+  function isBathroomLocation(loc){
+    const v = String(loc||'').toLowerCase().trim();
+    return v.startsWith('bathroom (');
+  }
+  
+  // date-scoped + location-scoped bucket key for bathroom
+  function bathBucketKey() {
+    return `${todayKey()}|${(getLocation()||'').toLowerCase()}`;
+  }
+  
+  function loadBathMap(){
+    try { return JSON.parse(localStorage.getItem(BATH_KEY) || '{}'); } catch { return {}; }
+  }
+  function saveBathMap(map){
+    localStorage.setItem(BATH_KEY, JSON.stringify(map));
+  }
+  function getBathSet(){
+    const map = loadBathMap();
+    const bucket = bathBucketKey();
+    return map[bucket] || []; // array of { osis, name, sinceISO }
+  }
+  function setBathSet(list){
+    const map = loadBathMap();
+    const bucket = bathBucketKey();
+    map[bucket] = list;
+    saveBathMap(map);
+  }
+  function isInBathroom(osis){
+    osis = String(osis||'').trim();
+    if (!osis) return false;
+    return getBathSet().some(x => x.osis === osis);
+  }
+  function addInBathroom(osis, name, when=new Date()){
+    osis = String(osis||'').trim(); if (!osis) return;
+    const list = getBathSet();
+    if (!list.some(x => x.osis === osis)) {
+      list.unshift({ osis, name: String(name||'').trim(), sinceISO: when.toISOString() });
+      setBathSet(list);
+    }
+  }
+  function removeFromBathroom(osis){
+    osis = String(osis||'').trim(); if (!osis) return;
+    const list = getBathSet().filter(x => x.osis !== osis);
+    setBathSet(list);
+  }
+  
+  function loadBathCapMap(){
+    try { return JSON.parse(localStorage.getItem(BATH_CAP_KEY) || '{}'); } catch { return {}; }
+  }
+  function saveBathCapMap(map){
+    localStorage.setItem(BATH_CAP_KEY, JSON.stringify(map));
+  }
+  /** Get capacity for current bathroom location. */
+  function getBathroomCapacity(loc){
+    const map = loadBathCapMap();
+    const key = String(loc||'').toLowerCase();
+    const n = Number(map[key]);
+    return Number.isFinite(n) && n > 0 ? n : BATHROOM_CAPACITY_DEFAULT;
+  }
+  /** Optional helper you can call from console to change capacity for the current bathroom. */
+  function setBathroomCapacity(loc, n){
+    const map = loadBathCapMap();
+    map[String(loc||'').toLowerCase()] = Math.max(1, Number(n)||BATHROOM_CAPACITY_DEFAULT);
+    saveBathCapMap(map);
+  }
+  
+  function renderBathList(){
+    const bathPanel = document.getElementById('bathPanel');
+    const bathBody  = document.getElementById('bathBody');
+    const titleEl   = document.getElementById('bathPanelTitle');
+    const loc = getLocation();
+  
+    const show = isBathroomLocation(loc);
+    bathPanel.style.display = show ? '' : 'none';
+    if (!show) return;
+  
+    const cap = getBathroomCapacity(loc);
+    if (titleEl) titleEl.textContent = `Currently IN — ${loc} (cap ${cap})`;
+  
+    const rows = getBathSet();
+    bathBody.innerHTML = rows.map(r => {
+      const when = new Date(r.sinceISO);
+      return `<tr>
+        <td class="name">${esc(r.name || '—')}</td>
+        <td class="code">${esc(r.osis || '')}</td>
+        <td>${fmtTime(when)}</td>
+        <td>${rows.length}/${cap}</td>
+      </tr>`;
+    }).join('');
+  }
+  
+  // Optional: quick “refresh” button keeps parity with your other panel
+  document.getElementById('bathRefreshBtn')?.addEventListener('click', ()=>{
+    renderBathList();
+    setStatus('Bathroom list refreshed');
+    setTimeout(()=> setStatus('Ready. Scan a card…'), 900);
+  });
+
+
   /************** Audio (bad beep) **************/
   let AUDIO_CTX;
   function getAudioCtx(){
@@ -351,7 +478,7 @@
     const col = historyHeaderCells[2];
     if (!col) return;
   
-    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
+    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase() || isBathroomLocation(loc)) {
       col.textContent = 'In/Out';
     } else if (isLunchLocation(loc)) {
       col.textContent = 'Allowed?';
@@ -361,6 +488,7 @@
   
     // Also (re)render OUT list panel visibility
     renderOutList();
+    renderBathList();
     updateHistoryPaneForLocation();
     trimHistory(); // re-trim to new visible count immediately
   }
@@ -601,6 +729,44 @@
           setStatus('Ready. Scan next card…');
           return;
         }
+
+         // === Special: Bathroom IN/OUT with capacity ===
+         if (isBathroomLocation(loc)) {
+           const osis = String(res.osis || '').trim();
+           const wasIn = isInBathroom(osis);
+           const cap   = getBathroomCapacity(loc);
+           const list  = getBathSet();
+        
+           if (wasIn) {
+             // Toggle OUT
+             removeFromBathroom(osis);
+             renderBathList();
+             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when }); // row shows IN/OUT in 3rd col
+             showSuccess(res.name, code, 'IN', '', when);  // panel says IN
+             apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
+             setStatus('Ready. Scan next card…');
+             return;
+           } else {
+             // Want to go IN — check capacity
+             if (list.length >= cap) {
+               // Deny entry
+               beepBad();
+               updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
+               showSuccess(res.name, code, 'NOT ALLOWED', '', when);
+               apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'full' });
+               setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
+               return;
+             }
+             // Allow IN
+             addInBathroom(osis, res.name || '', when);
+             renderBathList();
+             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when }); // row shows IN/OUT in 3rd col
+             showSuccess(res.name, code, 'OUT', '', when); // panel says OUT/IN label; for bathroom we show OUT to mean "just entered"?
+             apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'in' });
+             setStatus('Ready. Scan next card…');
+             return;
+           }
+         }
   
         // === Normal paths (non-senior-out-in) ===
         const isLunch = isLunchLocation(loc);
@@ -665,7 +831,7 @@
     const loc = getLocation();
   
     // Senior Lunch (out-in): only the "OUT" pill is red, add "Allowed" checkbox if applicable
-    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
+    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase() || isBathroomLocation(loc)) {
       const label = String(lockerNum||'').toUpperCase(); // 'OUT' | 'IN' | 'NOT ALLOWED'
       const isOut = label === 'OUT';
       const isIn  = label === 'IN';
@@ -768,7 +934,7 @@
   function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
     const loc = getLocation();
   
-    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) {
+    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase() || isBathroomLocation(loc)) {
       // Here lockerNum carries the status 'OUT' | 'IN' | 'NOT ALLOWED'
       const label = String(lockerNum||'').toUpperCase();
       const isOut = label === 'OUT';
@@ -779,11 +945,12 @@
         ? `<span class="badge badge--out">🫥 OUT</span>`
         : (isIn ? `<span class="badge badge--in">😐 IN</span>`
                 : `<span class="badge badge--na">NOT ALLOWED</span>`);
-  
-      const canGoOut = !!window.__lastAllowedSenior;
+      // Only Senior Lunch shows the "Allowed to go out" checkbox
+      const canGoOut = (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) && !!window.__lastAllowedSenior;
       const allowBox = (canGoOut && !isNA)
-        ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
-        : '';
+       ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
+       : '';
+      
   
       tr.className = ''; // no row-level coloring
       tr.innerHTML =
@@ -1100,7 +1267,7 @@
   }
 
   // Device lock (safe if Worker doesn't implement it)
-  (async () => { await checkDeviceLock(); updateLocationPill(); updateHistoryPaneForLocation(); trimHistory(); promptForLocation(false); })();
+  (async () => { await checkDeviceLock(); updateLocationPill(); updateHistoryPaneForLocation(); trimHistory(); promptForLocation(false);renderBathList(); })();
 
   // Allow changing later
   document.getElementById('locationPill').addEventListener('click', () => {
