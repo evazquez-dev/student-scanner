@@ -63,12 +63,11 @@
     .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
     .badge--out{background:#eaf7ea;color:#b00020}  /* red ONLY for OUT */
     .badge--in{background:#eaf7ea;color:#0a7c2f}   /* green for IN */
-    .badge--na{background:#fdecea;color:#b00020}      /* neutral for NOT ALLOWED */
-    
+    .badge--na{background:#fdecea;color:#b00020}   /* neutral for NOT ALLOWED */
     .flag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334;user-select:none}
     .flag input{accent-color:#0b57d0}
 
-    /* Modal topmost + inert safety */
+    /* Modal + UI states */
     #locModal { position:fixed; inset:0; z-index: 2147483000; }
     .card[inert] { pointer-events: none; }
     .pill--bad { background:#fdecea !important; color:#b00020 !important; }
@@ -76,7 +75,7 @@
   </style>
 </head>
 <body>
-  <!-- Location modal -->
+  <!-- ============ LOCATION MODAL ============ -->
   <div id="locModal" style="background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
     <div style="background:#fff; width:min(360px, 92vw); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2)">
       <div style="font-weight:700; margin-bottom:8px;">Select your location</div>
@@ -91,6 +90,7 @@
     </div>
   </div>
 
+  <!-- ============ MAIN CARD ============ -->
   <div class="card">
     <h1>Student Scanner 
       <span class="pill" id="onlinePill">Online</span>
@@ -98,7 +98,7 @@
       <span class="pill" id="batteryPill" style="margin-left:6px">🔋 --%</span>
       <span class="pill" id="netPill" style="margin-left:6px">Wi-Fi …</span>
     </h1>
-    <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter. Shows Name, Locker #/Color, and scan time.</div>
+    <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter.</div>
 
     <div class="row" style="margin-top:14px">
       <!-- Left -->
@@ -109,17 +109,18 @@
 
           <hr style="border:none;border-top:1px solid #edf1f6; margin:12px -14px" />
 
-          <div class="muted" style="margin-bottom:6px">Manual entry (keypad or typing):</div>
+          <div class="muted" style="margin-bottom:6px">Manual entry:</div>
           <form id="manualForm" class="input-wrap" autocomplete="off">
             <input id="manualInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Type OSIS or RFID and press Enter" />
             <button type="submit">Enter</button>
           </form>
-          <div class="muted" style="margin-top:6px">Tip: The field keeps focus—good for external keypads.</div>
+          <div class="muted" style="margin-top:6px">Tip: field keeps focus—great for external keypads.</div>
         </div>
       </div>
 
       <!-- Right -->
       <div class="col">
+        <!-- History -->
         <div class="panel">
           <div class="muted" style="margin-bottom:8px">Recent scans (local)</div>
           <div id="scansPane" class="scans-pane">
@@ -136,7 +137,8 @@
             </table>
           </div>
         </div>
-        <!-- Current OUT list (only visible for Senior Lunch (out-in)) -->
+
+        <!-- Senior Lunch OUT list -->
         <div class="panel" id="outPanel" style="margin-top:10px; display:none">
           <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
             <span>Currently OUT — Senior Lunch</span>
@@ -157,7 +159,8 @@
             </table>
           </div>
         </div>
-        <!-- Current IN list (only visible for Bathroom locations) -->
+
+        <!-- Bathroom IN list -->
         <div class="panel" id="bathPanel" style="margin-top:10px; display:none">
           <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
             <span id="bathPanelTitle">Currently IN — Bathroom</span>
@@ -188,32 +191,42 @@
   </div>
 
   <script>
-  /************** CONFIG **************/
-  const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/';
+  /* ============================================================
+   * CONFIG + CONSTANTS
+   * ============================================================ */
+  const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/'; // ← set your Worker URL
 
-  // optional wake-up ping (Worker may not implement "ping"; that's fine)
+  // Optional wake-up ping
   (async () => { try {
     await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
   } catch (_) {} })();
 
-  // Static fallback locations (used if Worker doesn't serve `locations`)
   const STATIC_LOCATIONS = [
-    'Front Desk','Main Entrance','Cafeteria','Gym','Security','Room 302','Senior Lunch (out-in)'
+    'Front Desk','Main Entrance','Cafeteria','Gym','Security','Room 302','Senior Lunch (out-in)',
+    'Bathroom (First Floor)','Bathroom (Second Floor)','Bathroom (Third Floor)'
   ];
 
-  // Keyboard-wedge timing + history
+  // Keyboard wedge timing + history sizing
   const SCAN_GAP_MS = 10;
-  const DEDUPE_MS = 1000;
-  const HISTORY_VISIBLE = 10;
-  const HISTORY_MAX = 1000;
   const HISTORY_VISIBLE_DEFAULT = 10;
   const HISTORY_VISIBLE_SENIOR  = 4;
 
-  /************** STATE + DOM **************/
-  let IS_MODAL_OPEN = false;
-  let IS_LOCATION_LOCKED = false;
-  let lastKeyTs = 0, wedgeBuf = "", wedgeResetTimer = null;
+  // Location constants
+  const SPECIAL_LOCATION = 'Senior Lunch (out-in)';
+  const BATHROOM_PREFIX  = 'Bathroom (';
 
+  // Local storage keys
+  const QUEUE_KEY = 'scanQueueV1';
+  const LOC_KEY   = 'scannerLocationV1';
+  const OUT_KEY   = 'seniorOutV1';
+  const BATH_KEY  = 'bathroomInV1';
+
+  // Bathroom capacity (canonical in Worker; default if Worker unreachable)
+  const BATHROOM_CAPACITY_DEFAULT = 2;
+  let __LOCATIONS_CAPS = null;               // If Worker enriches /locations with caps
+  const BATH_CAP_CACHE = Object.create(null); // client-side memo by location
+
+  // DOM handles
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
   const historyBody = document.getElementById('historyBody');
@@ -222,103 +235,40 @@
   const locationPill = document.getElementById('locationPill');
   const cardEl = document.querySelector('.card');
 
-  const QUEUE_KEY = 'scanQueueV1';
-  const LOC_KEY = 'scannerLocationV1';
+  // Runtime state
+  let IS_MODAL_OPEN = false;
+  let IS_LOCATION_LOCKED = false;
+  let IS_REFRESHING = false;
+  let lastKeyTs = 0, wedgeBuf = "", wedgeResetTimer = null;
+
+  // Device fingerprint (stable)
   const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
     (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
 
+  /* ============================================================
+   * SMALL HELPERS
+   * ============================================================ */
+  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function setStatus(t){ statusEl.textContent = t; }
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
   function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
-
-  const SPECIAL_LOCATION = 'Senior Lunch (out-in)';  // exact match, case-insensitive ok
-  const OUT_KEY = 'seniorOutV1';
-  
   function todayKey() {
-    // YYYY-MM-DD (local date)
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth()+1).padStart(2,'0');
     const day = String(d.getDate()).padStart(2,'0');
     return `${y}-${m}-${day}`;
   }
-  function outBucketKey() {
-    // bucket by DATE + LOCATION so each day is independent
-    return `${todayKey()}|${(getLocation()||'').toLowerCase()}`;
-  }
-  function loadOutMap(){
-    try { return JSON.parse(localStorage.getItem(OUT_KEY) || '{}'); } catch { return {}; }
-  }
-  function saveOutMap(map){
-    localStorage.setItem(OUT_KEY, JSON.stringify(map));
-  }
-  function getOutSet(){
-    const map = loadOutMap();
-    const bucket = outBucketKey();
-    return map[bucket] || []; // array of { osis, name, sinceISO }
-  }
-  function setOutSet(list){
-    const map = loadOutMap();
-    const bucket = outBucketKey();
-    map[bucket] = list;
-    saveOutMap(map);
-  }
-  function isOutNow(osis){
-    osis = String(osis||'').trim();
-    if (!osis) return false;
-    return getOutSet().some(x => x.osis === osis);
-  }
-  function addOut(osis, name, when=new Date()){
-    osis = String(osis||'').trim(); if (!osis) return;
-    const list = getOutSet();
-    if (!list.some(x => x.osis === osis)) {
-      list.unshift({ osis, name: String(name||'').trim(), sinceISO: when.toISOString() });
-      setOutSet(list);
-    }
-  }
-  function removeOut(osis){
-    osis = String(osis||'').trim(); if (!osis) return;
-    const list = getOutSet().filter(x => x.osis !== osis);
-    setOutSet(list);
-  }
-  function isSeniorOutIn(){
-    return String(getLocation()||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
-  }
-  function renderOutList(){
-    const outPanel = document.getElementById('outPanel');
-    const outBody  = document.getElementById('outBody');
-    const loc = getLocation();
-    const show = String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
-    outPanel.style.display = show ? '' : 'none';
-    if (!show) return;
-  
-    const rows = getOutSet();
-    outBody.innerHTML = rows.map(r => {
-      const when = new Date(r.sinceISO);
-      return `<tr>
-        <td class="name">${esc(r.name || '—')}</td>
-        <td class="code">${esc(r.osis || '')}</td>
-        <td>${fmtTime(when)}</td>
-      </tr>`;
-    }).join('');
-  }
+  function fmtTime(d){ try { return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d); } catch { return d.toLocaleString(); } }
+  function isSeniorOutIn(){ return String(getLocation()||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase(); }
+  function isBathroomLocation(loc){ return String(loc||getLocation()||'').toLowerCase().startsWith(BATHROOM_PREFIX.toLowerCase()); }
 
-  /************** Lunch helpers **************/
-  function setUpdating(on){
-    if (on) {
-      setStatus('Updating roster… wait…');
-    } else {
-      setStatus('Ready. Scan a card…');
-    }
-  }
-
+  // Lunch helpers
   function isLunchLocation(loc){
     const v = String(loc||'').toLowerCase().trim();
     return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
   }
-  function lunchSlotFromLocation(loc){
-    const v = String(loc||'').toLowerCase();
-    return v.includes('2') ? 2 : 1;
-  }
+  function lunchSlotFromLocation(loc){ return String(loc||'').toLowerCase().includes('2') ? 2 : 1; }
   function normalizeLunchValue(s){
     const v = String(s||'').toLowerCase().replace(/\s+/g,'').replace('lunch','').replace('group','').replace('l','');
     const m = v.match(/([12])/); return m ? Number(m[1]) : null;
@@ -328,119 +278,10 @@
     const have = normalizeLunchValue(lunchValue);
     return have === need;
   }
-  function updateHistoryPaneForLocation(){
-    const pane = document.getElementById('scansPane');
-    if (!pane) return;
-    // Tighten height for 3–4 rows + header
-    pane.style.maxHeight = isSeniorOutIn() ? '140px' : '360px';
-  }
 
-  /************** Bathroom helpers **************/
-  const BATHROOM_PREFIX = 'Bathroom (';               // exact labels: 'Bathroom (First Floor)', etc.
-  const BATH_KEY = 'bathroomInV1';                    // localStorage map of present students
-  const BATH_CAP_KEY = 'bathroomCapV1';               // per-location capacity map
-  const BATHROOM_CAPACITY_DEFAULT = 2;                // default; can be changed per location
-  
-  function isBathroomLocation(loc){
-    const v = String(loc||'').toLowerCase().trim();
-    return v.startsWith('bathroom (');
-  }
-  
-  // date-scoped + location-scoped bucket key for bathroom
-  function bathBucketKey() {
-    return `${todayKey()}|${(getLocation()||'').toLowerCase()}`;
-  }
-  
-  function loadBathMap(){
-    try { return JSON.parse(localStorage.getItem(BATH_KEY) || '{}'); } catch { return {}; }
-  }
-  function saveBathMap(map){
-    localStorage.setItem(BATH_KEY, JSON.stringify(map));
-  }
-  function getBathSet(){
-    const map = loadBathMap();
-    const bucket = bathBucketKey();
-    return map[bucket] || []; // array of { osis, name, sinceISO }
-  }
-  function setBathSet(list){
-    const map = loadBathMap();
-    const bucket = bathBucketKey();
-    map[bucket] = list;
-    saveBathMap(map);
-  }
-  function isInBathroom(osis){
-    osis = String(osis||'').trim();
-    if (!osis) return false;
-    return getBathSet().some(x => x.osis === osis);
-  }
-  function addInBathroom(osis, name, when=new Date()){
-    osis = String(osis||'').trim(); if (!osis) return;
-    const list = getBathSet();
-    if (!list.some(x => x.osis === osis)) {
-      list.unshift({ osis, name: String(name||'').trim(), sinceISO: when.toISOString() });
-      setBathSet(list);
-    }
-  }
-  function removeFromBathroom(osis){
-    osis = String(osis||'').trim(); if (!osis) return;
-    const list = getBathSet().filter(x => x.osis !== osis);
-    setBathSet(list);
-  }
-  
-  function loadBathCapMap(){
-    try { return JSON.parse(localStorage.getItem(BATH_CAP_KEY) || '{}'); } catch { return {}; }
-  }
-  function saveBathCapMap(map){
-    localStorage.setItem(BATH_CAP_KEY, JSON.stringify(map));
-  }
-  /** Get capacity for current bathroom location. */
-  function getBathroomCapacity(loc){
-    const map = loadBathCapMap();
-    const key = String(loc||'').toLowerCase();
-    const n = Number(map[key]);
-    return Number.isFinite(n) && n > 0 ? n : BATHROOM_CAPACITY_DEFAULT;
-  }
-  /** Optional helper you can call from console to change capacity for the current bathroom. */
-  function setBathroomCapacity(loc, n){
-    const map = loadBathCapMap();
-    map[String(loc||'').toLowerCase()] = Math.max(1, Number(n)||BATHROOM_CAPACITY_DEFAULT);
-    saveBathCapMap(map);
-  }
-  
-  function renderBathList(){
-    const bathPanel = document.getElementById('bathPanel');
-    const bathBody  = document.getElementById('bathBody');
-    const titleEl   = document.getElementById('bathPanelTitle');
-    const loc = getLocation();
-  
-    const show = isBathroomLocation(loc);
-    bathPanel.style.display = show ? '' : 'none';
-    if (!show) return;
-  
-    const cap = getBathroomCapacity(loc);
-    if (titleEl) titleEl.textContent = `Currently IN — ${loc} (cap ${cap})`;
-  
-    const rows = getBathSet();
-    bathBody.innerHTML = rows.map(r => {
-      const when = new Date(r.sinceISO);
-      return `<tr>
-        <td class="name">${esc(r.name || '—')}</td>
-        <td class="code">${esc(r.osis || '')}</td>
-        <td>${fmtTime(when)}</td>
-        <td>${rows.length}/${cap}</td>
-      </tr>`;
-    }).join('');
-  }
-  
-  // Optional: quick “refresh” button keeps parity with your other panel
-  document.getElementById('bathRefreshBtn')?.addEventListener('click', ()=>{
-    renderBathList();
-    setStatus('Bathroom list refreshed');
-    setTimeout(()=> setStatus('Ready. Scan a card…'), 900);
-  });
-
-
-  /************** Audio (bad beep) **************/
+  /* ============================================================
+   * AUDIO (bad beep)
+   * ============================================================ */
   let AUDIO_CTX;
   function getAudioCtx(){
     if (!AUDIO_CTX) AUDIO_CTX = new (window.AudioContext || window.webkitAudioContext)();
@@ -450,8 +291,6 @@
   ['pointerdown','keydown'].forEach(evt =>
     window.addEventListener(evt, ()=>getAudioCtx(), { once:true })
   );
-
-  function beepPattern(pattern){ pattern.forEach(p => beepOnce(p)); }
   function beepOnce({freq=440, dur=0.2, when=0}){
     const ctx = getAudioCtx(); const t = ctx.currentTime + when;
     const osc = ctx.createOscillator(); const g = ctx.createGain();
@@ -463,46 +302,162 @@
     osc.start(t); osc.stop(t+dur+0.05);
   }
   function beepBad(){
-    beepPattern([
+    [
       { freq: 260, dur: 0.51, when: 0.00 },
       { freq: 220, dur: 0.51, when: 0.10 },
       { freq: 260, dur: 0.51, when: 0.20 },
       { freq: 220, dur: 0.51, when: 0.30 }
-    ]);
+    ].forEach(p => beepOnce(p));
   }
 
-  /************** Header tweak for Lunch **************/
+  /* ============================================================
+   * PANES: Senior Lunch OUT; Bathroom IN lists (local-only UI state)
+   * ============================================================ */
+  function outBucketKey(){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}`; }
+  function loadOutMap(){ try { return JSON.parse(localStorage.getItem(OUT_KEY) || '{}'); } catch { return {}; } }
+  function saveOutMap(map){ localStorage.setItem(OUT_KEY, JSON.stringify(map)); }
+  function getOutSet(){ const map = loadOutMap(); return map[outBucketKey()] || []; }
+  function setOutSet(list){ const map = loadOutMap(); map[outBucketKey()] = list; saveOutMap(map); }
+  function isOutNow(osis){ return getOutSet().some(x => x.osis === String(osis||'').trim()); }
+  function addOut(osis, name, when=new Date()){
+    osis = String(osis||'').trim(); if (!osis) return;
+    const list = getOutSet();
+    if (!list.some(x => x.osis === osis)) { list.unshift({ osis, name:String(name||'').trim(), sinceISO: when.toISOString() }); setOutSet(list); }
+  }
+  function removeOut(osis){ setOutSet(getOutSet().filter(x => x.osis !== String(osis||'').trim())); }
+  function renderOutList(){
+    const outPanel = document.getElementById('outPanel');
+    const outBody  = document.getElementById('outBody');
+    const show = isSeniorOutIn();
+    outPanel.style.display = show ? '' : 'none';
+    if (!show) return;
+    const rows = getOutSet();
+    outBody.innerHTML = rows.map(r => {
+      const when = new Date(r.sinceISO);
+      return `<tr>
+        <td class="name">${esc(r.name || '—')}</td>
+        <td class="code">${esc(r.osis || '')}</td>
+        <td>${fmtTime(when)}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function bathBucketKey(){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}`; }
+  function loadBathMap(){ try { return JSON.parse(localStorage.getItem(BATH_KEY) || '{}'); } catch { return {}; } }
+  function saveBathMap(map){ localStorage.setItem(BATH_KEY, JSON.stringify(map)); }
+  function getBathSet(){ const map = loadBathMap(); return map[bathBucketKey()] || []; }
+  function setBathSet(list){ const map = loadBathMap(); map[bathBucketKey()] = list; saveBathMap(map); }
+  function isInBathroom(osis){ return getBathSet().some(x => x.osis === String(osis||'').trim()); }
+  function addInBathroom(osis, name, when=new Date()){
+    osis = String(osis||'').trim(); if (!osis) return;
+    const list = getBathSet();
+    if (!list.some(x => x.osis === osis)) { list.unshift({ osis, name:String(name||'').trim(), sinceISO: when.toISOString() }); setBathSet(list); }
+  }
+  function removeFromBathroom(osis){ setBathSet(getBathSet().filter(x => x.osis !== String(osis||'').trim())); }
+
+  // Worker-backed bathroom capacity
+  async function getBathroomCapacityRemote(loc) {
+    if (__LOCATIONS_CAPS && __LOCATIONS_CAPS[loc]) return __LOCATIONS_CAPS[loc];
+    try {
+      const r = await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'bath_cap', location: loc }) });
+      const ct = r.headers.get('content-type')||''; if (!r.ok || !ct.includes('application/json')) throw 0;
+      const data = await r.json();
+      const cap = Number(data?.cap);
+      return Number.isFinite(cap) && cap > 0 ? cap : BATHROOM_CAPACITY_DEFAULT;
+    } catch { return BATHROOM_CAPACITY_DEFAULT; }
+  }
+  async function getBathroomCapacity(loc){
+    const key = String(loc||'').toLowerCase();
+    if (BATH_CAP_CACHE[key]) return BATH_CAP_CACHE[key];
+    const cap = await getBathroomCapacityRemote(loc);
+    BATH_CAP_CACHE[key] = cap;
+    return cap;
+  }
+
+  async function renderBathList(){
+    const bathPanel = document.getElementById('bathPanel');
+    const bathBody  = document.getElementById('bathBody');
+    const titleEl   = document.getElementById('bathPanelTitle');
+    const loc = getLocation();
+
+    const show = isBathroomLocation(loc);
+    bathPanel.style.display = show ? '' : 'none';
+    if (!show) return;
+
+    const cap  = await getBathroomCapacity(loc);
+    const rows = getBathSet();
+    if (titleEl) titleEl.textContent = `Currently IN — ${loc} (cap ${cap})`;
+    bathBody.innerHTML = rows.map(r => {
+      const when = new Date(r.sinceISO);
+      return `<tr>
+        <td class="name">${esc(r.name || '—')}</td>
+        <td class="code">${esc(r.osis || '')}</td>
+        <td>${fmtTime(when)}</td>
+        <td>${rows.length}/${cap}</td>
+      </tr>`;
+    }).join('');
+  }
+  document.getElementById('bathRefreshBtn')?.addEventListener('click', async ()=>{
+    await renderBathList();
+    setStatus('Bathroom list refreshed');
+    setTimeout(()=> setStatus('Ready. Scan a card…'), 900);
+  });
+
+  // Console helpers (admin can tweak cap live with Worker token)
+  window.getBathroomCap = async function(location) {
+    location = location || getLocation();
+    const r = await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'bath_cap', location }) });
+    const data = await r.json().catch(()=> ({}));
+    console.log('Bathroom cap:', data);
+    return data;
+  };
+  window.setBathroomCap = async function(newCap, location, adminToken) {
+    location = location || getLocation();
+    if (!location) throw new Error('No location selected.');
+    if (!adminToken) adminToken = prompt('Admin token? (x-admin-token)') || '';
+    const body = new URLSearchParams({ location, cap: String(newCap) });
+    const r = await fetch(new URL('/admin/bath_cap', API_BASE), {
+      method: 'POST',
+      headers: { 'x-admin-token': adminToken },
+      body
+    });
+    if (!r.ok) { const t = await r.text(); throw new Error(`Failed (${r.status}) ${t.slice(0,120)}`); }
+    const data = await r.json();
+    if (!__LOCATIONS_CAPS) __LOCATIONS_CAPS = {};
+    __LOCATIONS_CAPS[location] = Number(data.cap);
+    BATH_CAP_CACHE[String(location).toLowerCase()] = Number(data.cap);
+    await renderBathList();
+    console.log(`Set cap for "${location}" →`, data.cap);
+    return data;
+  };
+
+  /* ============================================================
+   * HEADER / PANES RESPONSIVENESS
+   * ============================================================ */
   const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
+  function updateHistoryPaneForLocation(){
+    const pane = document.getElementById('scansPane');
+    if (!pane) return;
+    pane.style.maxHeight = isSeniorOutIn() ? '140px' : '360px';
+  }
   function updateHeaderForLocation(){
     const loc = getLocation();
     const col = historyHeaderCells[2];
     if (!col) return;
-  
-    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase() || isBathroomLocation(loc)) {
-      col.textContent = 'In/Out';
-    } else if (isLunchLocation(loc)) {
-      col.textContent = 'Allowed?';
-    } else {
-      col.textContent = 'Locker';
-    }
-  
-    // Also (re)render OUT list panel visibility
+
+    if (isSeniorOutIn() || isBathroomLocation(loc)) col.textContent = 'In/Out';
+    else if (isLunchLocation(loc)) col.textContent = 'Allowed?';
+    else col.textContent = 'Locker';
+
     renderOutList();
-    renderBathList();
+    renderBathList(); // async okay fire-and-forget
     updateHistoryPaneForLocation();
-    trimHistory(); // re-trim to new visible count immediately
+    trimHistory();
   }
 
-  /************** Normalization **************/
-  function normalizeForLookup(raw) {
-    const s = String(raw || '').trim();
-    if (!/^\d+$/.test(s)) return { ok:false, reason:'non_digit', norm:'' };
-    const norm = s.replace(/^0+/, '');
-    if (!norm) return { ok:false, reason:'all_zeros', norm:'' };
-    return { ok:true, norm };
-  }
-
-  /************** API **************/
+  /* ============================================================
+   * API CALLS (Worker)
+   * ============================================================ */
   async function apiLookup(code){
     const body = new URLSearchParams({ action:'lookup', code });
     const wakeTimer = setTimeout(() => setStatus('Waking server…'), 800);
@@ -520,15 +475,12 @@
       if (statusEl.textContent.includes('Waking server')) setStatus('Ready.');
     }
   }
-  function makeLogId({ whenISO, code }) {
-    return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`;
-  }
+  function makeLogId({ whenISO, code }) { return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`; }
   async function apiLog(entry){
     const whenISO = entry.whenISO || new Date().toISOString();
-    const log_id = makeLogId({ whenISO, code: entry.code || '' });
     const body = new URLSearchParams({
       action:'log',
-      log_id,
+      log_id: makeLogId({ whenISO, code: entry.code || '' }),
       whenISO,
       code: entry.code || '',
       source: entry.source || 'pwa',
@@ -538,74 +490,364 @@
       resolved_lcol:  entry.resolved?.locker_color  || '',
       location: getLocation() || '',
       device_id: DEVICE_ID,
-      allowed: entry.allowed || ''                // 👈 add this line
+      allowed: entry.allowed || ''
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
-
   async function apiGetLocations(){
-    // Try Worker first; if it fails, return static list.
     try{
       const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'locations' }) });
       const ct = r.headers.get('content-type')||''; const text = await r.text();
       if (r.ok && ct.includes('application/json')) {
         const data = JSON.parse(text);
-        if (data && data.ok && Array.isArray(data.locations)) return data.locations;
+        if (data && data.ok && Array.isArray(data.locations)) {
+          if (data.caps && typeof data.caps === 'object') __LOCATIONS_CAPS = data.caps;
+          return data.locations;
+        }
       }
     } catch(_){}
     return STATIC_LOCATIONS;
   }
-
   async function checkDeviceLock(){
     try{
-      const r = await fetch(API_BASE, {
-        method:'POST',
-        body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID })
-      });
+      const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID }) });
       const ct = r.headers.get('content-type')||'';
       if (!r.ok || !ct.includes('application/json')) return;
       const data = await r.json();
-      if (data.ok && data.locked && data.location) {
-        IS_LOCATION_LOCKED = true;
-        setLocation(data.location);
-      }
+      if (data.ok && data.locked && data.location) { IS_LOCATION_LOCKED = true; setLocation(data.location); }
     } catch(_) {}
   }
-  
-  // attach after DOM is ready (you’re already at end of body, so this is fine)
-  document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = 'Refreshing…';
-    setUpdating(true);
-    try {
-      const res = await apiRefreshRoster();
-      // Optional: toast in status line with counts
-      setStatus(`Roster updated — ${res?.counts?.osis ?? '?'} students`);
-    } catch (err) {
-      setStatus(`Update failed — ${err.message || err}`);
-    } finally {
-      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
-      btn.textContent = original;
-      btn.disabled = false;
-    }
-  });
-
-  let IS_REFRESHING = false;
-
   async function apiRefreshRoster(){
     IS_REFRESHING = true;
     try {
       const r = await fetch(API_BASE, { method:'POST', body:new URLSearchParams({action:'refresh_mem'}) });
-      const data = await r.json();
-      return data;
+      return await r.json();
     } finally {
       IS_REFRESHING = false;
     }
   }
 
-  /************** Queue **************/
+  /* ============================================================
+   * HISTORY TABLE RENDER
+   * ============================================================ */
+  function pushPendingRow(seq, code, when){
+    const tr = document.createElement('tr');
+    tr.dataset.seq = String(seq);
+    tr.innerHTML =
+      `<td class="name"><em>…looking up…</em></td>
+       <td class="code">${esc(code)}</td>
+       <td>—</td>
+       <td>${fmtTime(when)}</td>`;
+    historyBody.prepend(tr);
+    trimHistory();
+    return tr;
+  }
+  function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
+    const loc = getLocation();
+
+    // Senior Lunch or Bathroom → show In/Out/Not Allowed pills in the 3rd column
+    if (isSeniorOutIn() || isBathroomLocation(loc)) {
+      const label = String(lockerNum||'').toUpperCase(); // 'OUT'|'IN'|'NOT ALLOWED'
+      const isOut = label === 'OUT', isIn  = label === 'IN', isNA = label === 'NOT ALLOWED';
+      const pill = isOut
+        ? `<span class="badge badge--out">🫥 OUT</span>`
+        : (isIn ? `<span class="badge badge--in">😐 IN</span>`
+                : `<span class="badge badge--na">NOT ALLOWED</span>`);
+      // Only Senior Lunch shows “Allowed to go out”
+      const canGoOut = (isSeniorOutIn()) && !!window.__lastAllowedSenior;
+      const allowBox = (canGoOut && !isNA)
+        ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
+        : '';
+      tr.className = '';
+      tr.innerHTML =
+        `<td class="name">${esc(name||'Unknown')}</td>
+         <td class="code">${esc(code)}</td>
+         <td>${pill} ${allowBox}</td>
+         <td>${fmtTime(when)}</td>`;
+      return;
+    }
+
+    // Lunch → “Allowed?” / “Not allowed”
+    if (isLunchLocation(loc)) {
+      const allowed = isAllowedForLunch(loc, lunchValue ?? window.__lastLunchValue ?? '');
+      const thirdCell = allowed
+        ? `<span class="allowed-badge">✅ Allowed</span>`
+        : `<span class="not-allowed-badge">❌ Not allowed</span>`;
+      tr.className = '';
+      tr.innerHTML =
+        `<td class="name">${esc(name||'Unknown')}</td>
+         <td class="code">${esc(code)}</td>
+         <td>${thirdCell}</td>
+         <td>${fmtTime(when)}</td>`;
+      return;
+    }
+
+    // Default → Locker info
+    const color = (lockerColor||'').trim();
+    const cssColor = ({
+      red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
+      purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
+      grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
+    })[color.toLowerCase()] || null;
+    const lockerHtml = (lockerNum || color)
+      ? (cssColor
+          ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
+          : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
+      : '—';
+    tr.className = '';
+    tr.innerHTML =
+      `<td class="name">${esc(name||'Unknown')}</td>
+       <td class="code">${esc(code)}</td>
+       <td>${lockerHtml}</td>
+       <td>${fmtTime(when)}</td>`;
+  }
+  function updateRowToNotFound(tr, code, when, error, reason){
+    beepBad();
+    const msg = error === 'invalid_input'
+      ? (reason === 'leading_zero_osis' ? 'Leading-zero OSIS — scan card.' : 'Digits only.')
+      : 'Not found';
+    tr.innerHTML =
+      `<td class="name"><span class="bad">${esc(msg)}</span></td>
+       <td class="code">${esc(code)}</td>
+       <td>—</td>
+       <td>${fmtTime(when)}</td>`;
+  }
+  function updateRowToError(tr, code, when, err){
+    beepBad();
+    tr.innerHTML =
+      `<td class="name"><span class="bad">Lookup error</span></td>
+       <td class="code">${esc(code)}</td>
+       <td>—</td>
+       <td>${fmtTime(when)}</td>`;
+  }
+  function trimHistory(){
+    const maxVisible = isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR : HISTORY_VISIBLE_DEFAULT;
+    while (historyBody.children.length > maxVisible) historyBody.lastChild.remove();
+  }
+
+  /* ============================================================
+   * SCAN FLOW
+   * ============================================================ */
+  function normalizeForLookup(raw) {
+    const s = String(raw || '').trim();
+    if (!/^\d+$/.test(s)) return { ok:false, reason:'non_digit', norm:'' };
+    const norm = s.replace(/^0+/, '');
+    if (!norm) return { ok:false, reason:'all_zeros', norm:'' };
+    return { ok:true, norm };
+  }
+  function markRowQueued(tr){
+    const first = tr.querySelector('.name');
+    if (first) first.innerHTML = '<span class="queued">Queued (offline)</span>';
+  }
+
+  async function onScanAsync(scanned){
+    const when = new Date();
+    const v = normalizeForLookup(scanned);
+    if (!v.ok){
+      beepBad();
+      const msg = v.reason === 'non_digit' ? 'Digits only' : 'All zeros is not valid';
+      resultEl.innerHTML =
+        `<div class="err">${esc(msg)}</div>
+         <div class="code">${esc(scanned)}</div>
+         <div class="muted">${fmtTime(when)}</div>`;
+      setStatus('Ready.');
+      return;
+    }
+
+    const code = v.norm;
+    const row  = pushPendingRow(Date.now(), code, when);
+
+    if (!navigator.onLine){
+      markRowQueued(row);
+      const q = JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');
+      q.push({ seq: Date.now(), code, whenISO: when.toISOString() });
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+      setStatus('Offline — queued');
+      return;
+    }
+
+    try {
+      const res = await apiLookup(code);
+
+      if (!res.found){
+        updateRowToNotFound(row, code, when, res.error, res.reason);
+        showNotFound(code, when);
+        return;
+      }
+
+      // Stash last-known lunch & senior flag for renderers
+      window.__lastLunchValue    = res.lunch || '';
+      window.__lastAllowedSenior = !!res.allowed_senior;
+
+      const loc     = getLocation() || '';
+      const whenISO = when.toISOString();
+
+      // Senior Lunch (toggle OUT/IN)
+      if (isSeniorOutIn()){
+        const osis          = String(res.osis || '').trim();
+        const allowedSenior = !!res.allowed_senior;
+        const wasOut        = isOutNow(osis);
+
+        if (!allowedSenior){
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
+          showSuccess(res.name, code, 'NOT ALLOWED', '', when);
+          beepBad();
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
+          setStatus('Ready. Scan next card…');
+          return;
+        }
+
+        if (wasOut) removeOut(osis); else addOut(osis, res.name || '', when);
+        renderOutList();
+
+        const statusText = wasOut ? 'IN' : 'OUT';
+        updateRowToSuccess(row, { name: res.name, code, lockerNum: statusText, lockerColor: '', when });
+        showSuccess(res.name, code, statusText, '', when);
+        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(wasOut ? 'in' : 'out') });
+        setStatus('Ready. Scan next card…');
+        return;
+      }
+
+      // Bathroom IN/OUT with capacity
+      if (isBathroomLocation(loc)) {
+        const osis = String(res.osis || '').trim();
+        const wasIn = isInBathroom(osis);
+        const cap   = await getBathroomCapacity(loc);
+        const list  = getBathSet();
+
+        if (wasIn) {
+          // Leaving bathroom
+          removeFromBathroom(osis);
+          renderBathList();
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when });
+          showSuccess(res.name, code, 'OUT', '', when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
+          setStatus('Ready. Scan next card…');
+          return;
+        } else {
+          // Attempt to enter
+          if (list.length >= cap) {
+            beepBad();
+            updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
+            showSuccess(res.name, code, 'NOT ALLOWED', '', when);
+            apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'full' });
+            setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
+            return;
+          }
+          addInBathroom(osis, res.name || '', when);
+          renderBathList();
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when });
+          showSuccess(res.name, code, 'IN', '', when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'in' });
+          setStatus('Ready. Scan next card…');
+          return;
+        }
+      }
+
+      // Lunch check (Allowed? / Not allowed)
+      if (isLunchLocation(loc)){
+        const allowed = isAllowedForLunch(loc, res.lunch || '');
+        updateRowToSuccess(row, { name: res.name, code, lockerNum:'', lockerColor:'', lunchValue:res.lunch||'', when });
+        showSuccess(res.name, code, '', '', when);
+        if (!allowed) beepBad();
+        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:String(allowed) });
+        setStatus('Ready. Scan next card…');
+        return;
+      }
+
+      // Default (Locker)
+      updateRowToSuccess(row, {
+        name: res.name, code,
+        lockerNum: res.locker_number, lockerColor: res.locker_color, when
+      });
+      showSuccess(res.name, code, res.locker_number, res.locker_color, when);
+      apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'' });
+      setStatus('Ready. Scan next card…');
+
+    } catch (err) {
+      if (!navigator.onLine || err.name === 'AbortError'){
+        markRowQueued(row);
+        const q = JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');
+        q.push({ seq: Date.now(), code, whenISO: when.toISOString() });
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+        setStatus('Offline — queued');
+        resultEl.innerHTML =
+          `<div class="err">Queued (offline)</div>
+           <div class="code">${esc(code)}</div>
+           <div class="muted">${fmtTime(when)}</div>`;
+      } else {
+        updateRowToError(row, code, when, err);
+        showError(err, code, when);
+      }
+    }
+  }
+  function onScan(scanned){
+    if (IS_REFRESHING) { beepBad(); setStatus('Updating roster… wait…'); return; }
+    onScanAsync(scanned);
+  }
+
+  /* ============================================================
+   * RESULT PANEL RENDER
+   * ============================================================ */
+  function showSuccess(name, code, lockerNum, lockerColor, when){
+    const loc = getLocation();
+
+    // Senior Lunch + Bathroom share pill visuals
+    if (isSeniorOutIn() || isBathroomLocation(loc)) {
+      const label = String(lockerNum||'').toUpperCase();
+      const isOut = label === 'OUT';
+      const isIn  = label === 'IN';
+      const isNA  = label === 'NOT ALLOWED';
+      const pill = isOut
+        ? `<span class="badge badge--out">OUT</span>`
+        : (isIn ? `<span class="badge badge--in">IN</span>`
+                : `<span class="badge badge--na">NOT ALLOWED</span>`);
+      const canGoOut = (isSeniorOutIn()) && !!window.__lastAllowedSenior;
+      const allowBox = (canGoOut && !isNA)
+        ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
+        : '';
+      resultEl.innerHTML =
+        `<div class="ok">OK</div>
+         <div class="name">${esc(name || 'Unknown')}</div>
+         <div class="code">${esc(code)} — ${pill} ${allowBox}</div>
+         <div class="muted">${fmtTime(when)}</div>`;
+      setStatus('Ready. Scan next card…');
+      return;
+    }
+
+    // Lunch / Default
+    const allowed = (isLunchLocation(loc) ? isAllowedForLunch(loc, window.__lastLunchValue||'') : null);
+    let extra = `Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})`;
+    if (isLunchLocation(loc)) {
+      extra = allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`;
+    }
+    resultEl.innerHTML =
+      `<div class="ok">OK</div>
+       <div class="name">${esc(name || 'Unknown')}</div>
+       <div class="code">${esc(code)} — ${extra}</div>
+       <div class="muted">${fmtTime(when)}</div>`;
+    setStatus('Ready. Scan next card…');
+  }
+  function showNotFound(code, when){
+    beepBad();
+    resultEl.innerHTML =
+      `<div class="err">Not found</div>
+       <div class="code">${esc(code)}</div>
+       <div class="muted">${fmtTime(when)}</div>`;
+    setStatus('Ready.');
+  }
+  function showError(err, code, when){
+    beepBad();
+    resultEl.innerHTML =
+      `<div class="err">Lookup error</div>
+       <div class="code">${esc(code||'')}</div>
+       <div class="muted">${fmtTime(when)} — ${esc(err.message||String(err))}</div>`;
+    setStatus('Ready.');
+  }
+
+  /* ============================================================
+   * QUEUE (offline retries)
+   * ============================================================ */
   function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
   function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
   async function flushQueue(){
@@ -614,7 +856,7 @@
     const remain = [];
     for (const item of q){
       try{
-        const res = await apiLookup(item.code); // item.code already normalized
+        const res = await apiLookup(item.code);
         if (res.found){
           updateRowToSuccess(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)), {
             name: res.name, code: item.code,
@@ -633,585 +875,108 @@
   window.addEventListener('online', flushQueue);
   flushQueue();
 
-  /************** Utils **************/
-  function setStatus(t){ statusEl.textContent = t; }
-  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function fmtTime(d){ try{ return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d);}catch{return d.toLocaleString();} }
-
-  /************** Scan flow **************/
-  let scanSeq = 0;
-
-  function onScan(scanned){
-    // Pause scans while refreshing Worker memory
-    if (IS_REFRESHING) { 
-      beepBad(); 
-      setStatus('Updating roster… wait…'); 
-      return; 
-    }
-  
-    const when = new Date();
-  
-    // Normalize input (digits only, strip leading zeros)
-    const v = normalizeForLookup(scanned);
-    if (!v.ok){
-      beepBad();
-      const msg = v.reason === 'non_digit' ? 'Digits only' : 'All zeros is not valid';
-      resultEl.innerHTML =
-        `<div class="err">${esc(msg)}</div>
-         <div class="code">${esc(scanned)}</div>
-         <div class="muted">${fmtTime(when)}</div>`;
-      setStatus('Ready.');
-      return;
-    }
-  
-    const code = v.norm;
-    const row  = pushPendingRow(Date.now(), code, when);
-  
-    // Offline → queue and bail
-    if (!navigator.onLine){
-      markRowQueued(row);
-      const q = loadQueue(); 
-      q.push({ seq: Date.now(), code, whenISO: when.toISOString() }); 
-      saveQueue(q);
-      setStatus('Offline — queued');
-      return;
-    }
-  
-    (async () => {
-      try {
-        const res = await apiLookup(code);
-  
-        if (!res.found){
-          updateRowToNotFound(row, code, when, res.error, res.reason);
-          showNotFound(code, when, res.error, res.reason);
-          return;
-        }
-  
-        // Stash last-known lunch value & senior allowance for renderers
-        window.__lastLunchValue   = res.lunch || '';
-        window.__lastAllowedSenior = !!res.allowed_senior;
-  
-        const loc     = getLocation() || '';
-        const whenISO = when.toISOString();
-  
-        // === Special: Senior Lunch (out-in) toggle ===
-        if (loc.toLowerCase() === SPECIAL_LOCATION.toLowerCase()){
-          const osis           = String(res.osis || '').trim();
-          const allowedSenior  = !!res.allowed_senior;
-          const wasOut         = isOutNow(osis);
-  
-          if (!allowedSenior){
-            // Not allowed → red pill “NOT ALLOWED”, no toggle
-            updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
-            showSuccess(res.name, code, 'NOT ALLOWED', '', when);
-            beepBad();
-            // Log
-            apiLog({
-              whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed'
-            });
-            setStatus('Ready. Scan next card…');
-            return;
-          }
-  
-          // Allowed seniors → toggle OUT/IN and render pills (no row coloring)
-          if (wasOut) removeOut(osis); else addOut(osis, res.name || '', when);
-          renderOutList();
-  
-          const statusText = wasOut ? 'IN' : 'OUT';
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: statusText, lockerColor: '', when });
-          showSuccess(res.name, code, statusText, '', when);
-  
-          // Log OUT/IN event
-          apiLog({
-            whenISO, code, source:'pwa', resolved:res, allowed: (wasOut ? 'in' : 'out')
-          });
-  
-          setStatus('Ready. Scan next card…');
-          return;
-        }
-
-         // === Special: Bathroom IN/OUT with capacity ===
-         if (isBathroomLocation(loc)) {
-           const osis = String(res.osis || '').trim();
-           const wasIn = isInBathroom(osis);
-           const cap   = getBathroomCapacity(loc);
-           const list  = getBathSet();
-        
-           if (wasIn) {
-             // Toggle OUT
-             removeFromBathroom(osis);
-             renderBathList();
-             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when }); // row shows IN/OUT in 3rd col
-             showSuccess(res.name, code, 'OUT', '', when);  // panel says OUT
-             apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
-             setStatus('Ready. Scan next card…');
-             return;
-           } else {
-             // Want to go IN — check capacity
-             if (list.length >= cap) {
-               // Deny entry
-               beepBad();
-               updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
-               showSuccess(res.name, code, 'NOT ALLOWED', '', when);
-               apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'full' });
-               setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
-               return;
-             }
-             // Allow IN
-             addInBathroom(osis, res.name || '', when);
-             renderBathList();
-             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when }); // row shows IN/OUT in 3rd col
-             showSuccess(res.name, code, 'IN', '', when); // panel says OUT/IN label; for bathroom we show IN to mean "just entered"?
-             apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'in' });
-             setStatus('Ready. Scan next card…');
-             return;
-           }
-         }
-  
-        // === Normal paths (non-senior-out-in) ===
-        const isLunch = isLunchLocation(loc);
-         if (isLunch){
-           const allowed = isAllowedForLunch(loc, res.lunch || '');
-           updateRowToSuccess(row, {
-             name: res.name, code, lockerNum: '', lockerColor: '',
-             lunchValue: res.lunch || '',       // 👈 pass it
-             when
-           });
-          showSuccess(res.name, code, '', '', when);
-          if (!allowed) beepBad();
-  
-          // Log lunch gate decision
-          apiLog({
-            whenISO, code, source:'pwa', resolved:res, allowed: String(allowed)
-          });
-          setStatus('Ready. Scan next card…');
-          return;
-        }
-  
-        // Default (locker info)
-        updateRowToSuccess(row, {
-          name: res.name, code,
-          lockerNum: res.locker_number, lockerColor: res.locker_color, when
-        });
-        showSuccess(res.name, code, res.locker_number, res.locker_color, when);
-  
-        // Fire-and-forget log
-        apiLog({
-          whenISO, code, source:'pwa', resolved:res, allowed:''
-        });
-  
-        setStatus('Ready. Scan next card…');
-  
-      } catch (err) {
-        // If it was a fetch abort or we lost connectivity mid-flight → queue
-        if (!navigator.onLine || err.name === 'AbortError'){
-          markRowQueued(row);
-          const q = loadQueue(); 
-          q.push({ seq: Date.now(), code, whenISO: when.toISOString() }); 
-          saveQueue(q);
-          setStatus('Offline — queued');
-          resultEl.innerHTML =
-            `<div class="err">Queued (offline)</div>
-             <div class="code">${esc(code)}</div>
-             <div class="muted">${fmtTime(when)}</div>`;
-        } else {
-          updateRowToError(row, code, when, err);
-          showError(err, code, when);
-        }
-      }
-    })();
-  }
-
-  function markRowQueued(tr){
-    const first = tr.querySelector('.name');
-    if (first) first.innerHTML = '<span class="queued">Queued (offline)</span>';
-  }
-
-  function showSuccess(name, code, lockerNum, lockerColor, when){
-    const loc = getLocation();
-  
-    // Senior Lunch (out-in): only the "OUT" pill is red, add "Allowed" checkbox if applicable
-    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase() || isBathroomLocation(loc)) {
-      const label = String(lockerNum||'').toUpperCase(); // 'OUT' | 'IN' | 'NOT ALLOWED'
-      const isOut = label === 'OUT';
-      const isIn  = label === 'IN';
-      const isNA  = label === 'NOT ALLOWED';
-  
-      // If we just evaluated eligibility earlier, stash it on window
-      const canGoOut = !!window.__lastAllowedSenior;
-  
-      const pill = isOut
-        ? `<span class="badge badge--out">OUT</span>`
-        : (isIn ? `<span class="badge badge--in">IN</span>`
-                : `<span class="badge badge--na">NOT ALLOWED</span>`);
-  
-      // Checkbox only when allowed seniors (not for NOT ALLOWED)
-      const allowBox = (canGoOut && !isNA)
-        ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
-        : '';
-  
-      resultEl.innerHTML =
-        `<div class="ok">OK</div>
-         <div class="name">${esc(name || 'Unknown')}</div>
-         <div class="code">${esc(code)} — ${pill} ${allowBox}</div>
-         <div class="muted">${fmtTime(when)}</div>`;
-      setStatus('Ready. Scan next card…');
-      return;
-    }
-  
-    // Normal (non-Senior-Out) paths
-    const allowed = (isLunchLocation(loc) ? isAllowedForLunch(loc, window.__lastLunchValue||'') : null);
-    let extra = `Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})`;
-    if (isLunchLocation(loc)) {
-      extra = allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`;
-    }
-  
-    resultEl.innerHTML =
-      `<div class="ok">OK</div>
-       <div class="name">${esc(name || 'Unknown')}</div>
-       <div class="code">${esc(code)} — ${extra}</div>
-       <div class="muted">${fmtTime(when)}</div>`;
-    setStatus('Ready. Scan next card…');
-  }
-
-  function showNotFound(code, when){
-    beepBad();
-    resultEl.innerHTML =
-      `<div class="err">Not found</div>
-       <div class="code">${esc(code)}</div>
-       <div class="muted">${fmtTime(when)}</div>`;
-    setStatus('Ready.');
-  }
-
-  function showError(err, code, when){
-    beepBad();
-    resultEl.innerHTML =
-      `<div class="err">Lookup error</div>
-       <div class="code">${esc(code||'')}</div>
-       <div class="muted">${fmtTime(when)} — ${esc(err.message||String(err))}</div>`;
-    setStatus('Ready.');
-  }
-
-  function pushHistoryRow(name, code, lockerNum, lockerColor, when){
-    const tr = document.createElement('tr');
-    const color = String(lockerColor||'').trim();
-    const num   = String(lockerNum||'').trim();
-    const cssColor = ({
-      red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
-      purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
-      grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
-    })[color.toLowerCase()] || null;
-
-    const lockerHtml = isLunchLocation(getLocation()) ? '—'
-      : ((num || color)
-          ? (cssColor
-              ? `<span class="swatch" style="background:${cssColor}"></span>${esc(num)} <span class="muted">(${esc(color)})</span>`
-              : `${esc(num)} <span class="muted">(${esc(color)})</span>`)
-          : '—');
-
-    tr.innerHTML =
-      `<td class="name">${esc(name)}</td>
-       <td class="code">${esc(code)}</td>
-       <td>${lockerHtml}</td>
-       <td>${fmtTime(when)}</td>`;
-    historyBody.prepend(tr);
-    trimHistory();
-  }
-
-  function pushPendingRow(seq, code, when){
-    const tr = document.createElement('tr');
-    tr.dataset.seq = String(seq);
-    tr.innerHTML =
-      `<td class="name"><em>…looking up…</em></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
-    historyBody.prepend(tr);
-    trimHistory();
-    return tr;
-  }
-
-  function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
-    const loc = getLocation();
-  
-    if (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase() || isBathroomLocation(loc)) {
-      // Here lockerNum carries the status 'OUT' | 'IN' | 'NOT ALLOWED'
-      const label = String(lockerNum||'').toUpperCase();
-      const isOut = label === 'OUT';
-      const isIn  = label === 'IN';
-      const isNA  = label === 'NOT ALLOWED';
-  
-      const pill = isOut
-        ? `<span class="badge badge--out">🫥 OUT</span>`
-        : (isIn ? `<span class="badge badge--in">😐 IN</span>`
-                : `<span class="badge badge--na">NOT ALLOWED</span>`);
-      // Only Senior Lunch shows the "Allowed to go out" checkbox
-      const canGoOut = (String(loc||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase()) && !!window.__lastAllowedSenior;
-      const allowBox = (canGoOut && !isNA)
-       ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
-       : '';
-      
-  
-      tr.className = ''; // no row-level coloring
-      tr.innerHTML =
-        `<td class="name">${esc(name||'Unknown')}</td>
-         <td class="code">${esc(code)}</td>
-         <td>${pill} ${allowBox}</td>
-         <td>${fmtTime(when)}</td>`;
-      return;
-    }
-
-    // --- Lunch locations: replace the 3rd cell with Allowed / Not allowed ---
-    if (isLunchLocation(loc)) {
-      const allowed = isAllowedForLunch(loc, lunchValue ?? window.__lastLunchValue ?? '');
-      const thirdCellHtml = allowed
-        ? `<span class="allowed-badge">✅ Allowed</span>`
-        : `<span class="not-allowed-badge">❌ Not allowed</span>`;
-  
-      tr.className = '';
-      tr.innerHTML =
-        `<td class="name">${esc(name||'Unknown')}</td>
-         <td class="code">${esc(code)}</td>
-         <td>${thirdCellHtml}</td>
-         <td>${fmtTime(when)}</td>`;
-      return;
-    }
-  
-    // --- Normal locations ---
-    const color = (lockerColor||'').trim();
-    const cssColor = ({
-      red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
-      purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
-      grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
-    })[color.toLowerCase()] || null;
-  
-    const lockerHtml = (lockerNum || color)
-      ? (cssColor
-          ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
-          : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
-      : '—';
-  
-    tr.className = ''; // no row-level coloring
-    tr.innerHTML =
-      `<td class="name">${esc(name||'Unknown')}</td>
-       <td class="code">${esc(code)}</td>
-       <td>${lockerHtml}</td>
-       <td>${fmtTime(when)}</td>`;
-  }
-
-  function updateRowToNotFound(tr, code, when, error, reason){
-    beepBad();
-    const msg = error === 'invalid_input'
-      ? (reason === 'leading_zero_osis' ? 'Leading-zero OSIS — scan card.' : 'Digits only.')
-      : 'Not found';
-    tr.innerHTML =
-      `<td class="name"><span class="bad">${esc(msg)}</span></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
-  }
-
-  function updateRowToError(tr, code, when, err){
-    beepBad();
-    tr.innerHTML =
-      `<td class="name"><span class="bad">Lookup error</span></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
-  }
-
-  function trimHistory(){
-    const maxVisible = isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR : HISTORY_VISIBLE_DEFAULT;
-    // keep only the top N most recent rows in the DOM
-    while (historyBody.children.length > maxVisible) {
-      historyBody.lastChild.remove();
-    }
-    // you can still keep HISTORY_MAX if you later add off-DOM storage; for now DOM == visible
-  }
-
-  /************** Keyboard wedge **************/
-  window.addEventListener('keydown', (e)=>{
-    if (IS_MODAL_OPEN || isModalVisible()) return;
-    keepFocus();
-
-    const now = performance.now();
-    const gap = now - (lastKeyTs || now);
-    lastKeyTs = now;
-
-    if (e.key === 'Enter'){
-      const finished = wedgeBuf;
-      wedgeBuf = "";
-      if (finished){
-        e.preventDefault();
-        onScan(finished);
-        manualInput.value = '';
-      }
-      return;
-    }
-
-    if (e.key.length === 1){
-      const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
-      if (looksLikeScanner){
-        e.preventDefault();
-        wedgeBuf += e.key;
-      }
-    }
-
-    clearTimeout(wedgeResetTimer);
-    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
-  }, true);
-
-  /************** Manual form **************/
-  document.getElementById('manualForm').addEventListener('submit', (e)=>{
-    e.preventDefault();
-    if (IS_MODAL_OPEN || isModalVisible()) return;
-    const v = manualInput.value.trim();
-    if (v) onScan(v);
-    manualInput.value = '';
-    keepFocus();
-  });
-
+  /* ============================================================
+   * KEYBOARD WEDGE + MANUAL ENTRY
+   * ============================================================ */
   function keepFocus(){
     if (IS_MODAL_OPEN || isModalVisible()) return;
     if (document.activeElement !== manualInput) manualInput.focus({preventScroll:true});
     manualInput.setSelectionRange(manualInput.value.length, manualInput.value.length);
   }
-  keepFocus(); setInterval(keepFocus, 1000);
-
-/************** Battery indicator (Chromebook/Chrome) **************/
-  async function initBatteryPill(){
-    const pill = document.getElementById('batteryPill');
-    if (!pill || !navigator.getBattery) { 
-      // Hide if unsupported
-      pill && (pill.style.display = 'none'); 
-      return; 
-    }
-    try {
-      const batt = await navigator.getBattery();
-  
-      function fmt(b){
-        const pct = Math.round((b.level || 0) * 100);
-        const charging = b.charging;
-        // Choose an icon
-        let ico = '🔋';
-        if (charging) ico = '⚡';
-        else if (pct <= 10) ico = '🪫';
-        else if (pct <= 30) ico = '🔋'; // could swap for different glyphs if desired
-  
-        // Optional time remaining (minutes)
-        let extra = '';
-        if (!charging && Number.isFinite(b.dischargingTime) && b.dischargingTime > 0) {
-          const mins = Math.round(b.dischargingTime / 60);
-          extra = ` • ${mins}m left`;
-        } else if (charging && Number.isFinite(b.chargingTime) && b.chargingTime > 0) {
-          const mins = Math.round(b.chargingTime / 60);
-          extra = ` • ${mins}m to full`;
-        }
-  
-        pill.textContent = `${ico} ${pct}%${extra}`;
-        // color state
-        pill.classList.remove('pill--bad','pill--warn');
-        if (!charging && pct <= 10) pill.classList.add('pill--bad');
-        else if (!charging && pct <= 25) pill.classList.add('pill--warn');
-      }
-  
-      fmt(batt);
-      batt.addEventListener('levelchange',     ()=>fmt(batt));
-      batt.addEventListener('chargingchange',  ()=>fmt(batt));
-      batt.addEventListener('dischargingtimechange', ()=>fmt(batt));
-      batt.addEventListener('chargingtimechange',    ()=>fmt(batt));
-    } catch {
-      // If anything throws, hide it quietly
-      pill.style.display = 'none';
-    }
-  }
-
-/************** Network indicator (no true signal bars in web) **************/
-  function initNetworkPill(){
-    const pill = document.getElementById('netPill');
-    if (!pill) return;
-  
-    const navConn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-  
-    function fmt(){
-      // Basic online state
-      const online = navigator.onLine;
-  
-      // Defaults
-      let type = 'unknown';
-      let eff  = '';
-      let mbps = '';
-      let rtt  = '';
-  
-      if (navConn) {
-        // type: 'wifi' | 'ethernet' | 'cellular' | etc (may be undefined on some devices)
-        type = navConn.type || (online ? 'online' : 'offline');
-        // effectiveType: '4g'|'3g'|'2g'|'slow-2g'
-        eff  = navConn.effectiveType ? ` ${navConn.effectiveType}` : '';
-        if (typeof navConn.downlink === 'number') {
-          mbps = ` • ${Math.round(navConn.downlink)} Mbps`;
-        }
-        if (typeof navConn.rtt === 'number' && navConn.rtt > 0) {
-          rtt = ` • ${navConn.rtt} ms`;
-        }
-      } else {
-        type = online ? 'online' : 'offline';
-      }
-  
-      pill.classList.remove('pill--bad','pill--warn');
-  
-      if (!online) {
-        pill.textContent = 'Offline';
-        pill.classList.add('pill--bad');
-        return;
-      }
-  
-      // Heuristic coloring
-      if (navConn) {
-        if (navConn.effectiveType === 'slow-2g' || navConn.effectiveType === '2g') {
-          pill.classList.add('pill--bad');
-        } else if (navConn.effectiveType === '3g') {
-          pill.classList.add('pill--warn');
-        }
-      }
-  
-      // Show “Wi-Fi” label for type=wifi
-      const label = (type === 'wifi') ? 'Wi-Fi' : (type === 'ethernet' ? 'Ethernet' : type);
-      pill.textContent = `${label}${eff}${mbps}${rtt}`;
-    }
-  
-    fmt();
-  
-    // Live updates
-    window.addEventListener('online', fmt);
-    window.addEventListener('offline', fmt);
-    if (navConn && typeof navConn.addEventListener === 'function') {
-      navConn.addEventListener('change', fmt);
-    } else if (navConn) {
-      // Older implementations use onchange
-      navConn.onchange = fmt;
-    }
-  }
-
-  /************** Online/offline pill + location init **************/
-  function updateOnlinePill(){
-    const on = navigator.onLine;
-    onlinePill.textContent = on ? 'Online' : 'Offline';
-    onlinePill.style.background = on ? '#eaf7ea' : '#fff3e0';
-    onlinePill.style.color = on ? '#0a7c2f' : '#8a5a00';
-  }
-  window.addEventListener('online', updateOnlinePill);
-  window.addEventListener('offline', updateOnlinePill);
-  updateOnlinePill();
-
   function isModalVisible() {
     const m = document.getElementById('locModal');
     if (!m) return false;
     return getComputedStyle(m).display !== 'none';
   }
-  function setModalOpen(v){ IS_MODAL_OPEN = !!v; }
+  window.addEventListener('keydown', (e)=>{
+    if (IS_MODAL_OPEN || isModalVisible()) return;
+    keepFocus();
+    const now = performance.now();
+    const gap = now - (lastKeyTs || now);
+    lastKeyTs = now;
+    if (e.key === 'Enter'){
+      const finished = wedgeBuf; wedgeBuf = "";
+      if (finished){ e.preventDefault(); onScan(finished); manualInput.value=''; }
+      return;
+    }
+    if (e.key.length === 1){
+      const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
+      if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; }
+    }
+    clearTimeout(wedgeResetTimer);
+    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
+  }, true);
+  document.getElementById('manualForm').addEventListener('submit', (e)=>{
+    e.preventDefault(); if (IS_MODAL_OPEN || isModalVisible()) return;
+    const v = manualInput.value.trim(); if (v) onScan(v); manualInput.value=''; keepFocus();
+  });
+  keepFocus(); setInterval(keepFocus, 1000);
 
-  // Location pill UI
+  /* ============================================================
+   * BATTERY + NETWORK PILLS
+   * ============================================================ */
+  async function initBatteryPill(){
+    const pill = document.getElementById('batteryPill');
+    if (!pill || !navigator.getBattery) { pill && (pill.style.display='none'); return; }
+    try {
+      const batt = await navigator.getBattery();
+      function fmt(b){
+        const pct = Math.round((b.level || 0) * 100);
+        const charging = b.charging;
+        let ico = charging ? '⚡' : (pct <= 10 ? '🪫' : '🔋');
+        let extra = '';
+        if (!charging && Number.isFinite(b.dischargingTime) && b.dischargingTime > 0) extra = ` • ${Math.round(b.dischargingTime/60)}m left`;
+        else if (charging && Number.isFinite(b.chargingTime) && b.chargingTime > 0)   extra = ` • ${Math.round(b.chargingTime/60)}m to full`;
+        pill.textContent = `${ico} ${pct}%${extra}`;
+        pill.classList.remove('pill--bad','pill--warn');
+        if (!charging && pct <= 10) pill.classList.add('pill--bad');
+        else if (!charging && pct <= 25) pill.classList.add('pill--warn');
+      }
+      fmt(batt);
+      batt.addEventListener('levelchange', fmt.bind(null, batt));
+      batt.addEventListener('chargingchange', fmt.bind(null, batt));
+      batt.addEventListener('dischargingtimechange', fmt.bind(null, batt));
+      batt.addEventListener('chargingtimechange', fmt.bind(null, batt));
+    } catch { pill.style.display='none'; }
+  }
+  function initNetworkPill(){
+    const pill = document.getElementById('netPill');
+    if (!pill) return;
+    const navConn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    function fmt(){
+      const online = navigator.onLine;
+      let type = 'unknown', eff = '', mbps = '', rtt = '';
+      if (navConn) {
+        type = navConn.type || (online ? 'online' : 'offline');
+        eff  = navConn.effectiveType ? ` ${navConn.effectiveType}` : '';
+        if (typeof navConn.downlink === 'number') mbps = ` • ${Math.round(navConn.downlink)} Mbps`;
+        if (typeof navConn.rtt === 'number' && navConn.rtt > 0) rtt = ` • ${navConn.rtt} ms`;
+      } else type = online ? 'online' : 'offline';
+      pill.classList.remove('pill--bad','pill--warn');
+      if (!online){ pill.textContent='Offline'; pill.classList.add('pill--bad'); return; }
+      if (navConn) {
+        if (navConn.effectiveType === 'slow-2g' || navConn.effectiveType === '2g') pill.classList.add('pill--bad');
+        else if (navConn.effectiveType === '3g') pill.classList.add('pill--warn');
+      }
+      const label = (type === 'wifi') ? 'Wi-Fi' : (type === 'ethernet' ? 'Ethernet' : type);
+      pill.textContent = `${label}${eff}${mbps}${rtt}`;
+    }
+    fmt();
+    window.addEventListener('online', fmt);
+    window.addEventListener('offline', fmt);
+    if (navConn && typeof navConn.addEventListener === 'function') navConn.addEventListener('change', fmt);
+    else if (navConn) navConn.onchange = fmt;
+  }
+
+  /* ============================================================
+   * ONLINE/OFFLINE + LOCATION PILL + WAKE LOCK
+   * ============================================================ */
+  function updateOnlinePill(){ const on = navigator.onLine; onlinePill.textContent = on ? 'Online' : 'Offline'; onlinePill.style.background = on ? '#eaf7ea' : '#fff3e0'; onlinePill.style.color = on ? '#0a7c2f' : '#8a5a00'; }
+  window.addEventListener('online', updateOnlinePill);
+  window.addEventListener('offline', updateOnlinePill);
+  updateOnlinePill();
+
+  function setModalOpen(v){ IS_MODAL_OPEN = !!v; }
   function updateLocationPill(){
     const pill = document.getElementById('locationPill');
     const v = getLocation();
@@ -1222,7 +987,6 @@
     pill.title = IS_LOCATION_LOCKED ? 'This device is locked to this location' : 'Click to change location';
     updateHeaderForLocation();
   }
-
   async function promptForLocation(force=false){
     if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     if (!force && getLocation()) { updateLocationPill(); return; }
@@ -1244,7 +1008,6 @@
       sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
       const saved = getLocation(); if (saved) sel.value = saved;
     } catch {
-      // Shouldn't happen with static fallback, but keep a friendly message
       sel.innerHTML = `<option value="">(Using defaults)</option>` + STATIC_LOCATIONS.map(v=>`<option>${esc(v)}</option>`).join('');
     }
 
@@ -1266,24 +1029,23 @@
     });
   }
 
-  // Device lock (safe if Worker doesn't implement it)
-  (async () => { await checkDeviceLock(); updateLocationPill(); updateHistoryPaneForLocation(); trimHistory(); promptForLocation(false);renderBathList(); })();
+  // Device lock + first-run init
+  (async () => {
+    await checkDeviceLock();
+    updateLocationPill();
+    updateHistoryPaneForLocation();
+    trimHistory();
+    await promptForLocation(false);
+    await renderBathList();
+  })();
 
-  // Allow changing later
+  // Location pill click
   document.getElementById('locationPill').addEventListener('click', () => {
     if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     promptForLocation(true);
   });
-  document.body.addEventListener('click', (e)=>{
-    const t = e.target;
-    if (t && (t.id === 'locationPill' || t.closest?.('#locationPill'))) {
-      e.preventDefault();
-      if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
-      promptForLocation(true);
-    }
-  });
 
-  /************** Wake Lock **************/
+  // Wake Lock (keep screen on)
   let wakeLock = null;
   async function requestWakeLock() {
     if (!('wakeLock' in navigator)) return;
@@ -1294,15 +1056,35 @@
       });
     } catch {}
   }
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') requestWakeLock();
-  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
   window.addEventListener('focus', requestWakeLock);
   window.addEventListener('keydown', requestWakeLock, { once: true });
   window.addEventListener('pointerdown', requestWakeLock, { once: true });
 
+  // Init pills
   initBatteryPill();
   initNetworkPill();
+
+  /* ============================================================
+   * ROSTER REFRESH (Senior Lunch panel)
+   * ============================================================ */
+  document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = 'Refreshing…';
+    setStatus('Updating roster… wait…');
+    try {
+      const res = await apiRefreshRoster();
+      setStatus(`Roster updated — ${res?.counts?.osis ?? '?'} students`);
+    } catch (err) {
+      setStatus(`Update failed — ${err.message || err}`);
+    } finally {
+      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+      btn.textContent = original;
+      btn.disabled = false;
+    }
+  });
 
   </script>
 </body>
