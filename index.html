@@ -741,8 +741,8 @@
              // Toggle OUT
              removeFromBathroom(osis);
              renderBathList();
-             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when }); // row shows IN/OUT in 3rd col
-             showSuccess(res.name, code, 'IN', '', when);  // panel says IN
+             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when }); // row shows IN/OUT in 3rd col
+             showSuccess(res.name, code, 'OUT', '', when);  // panel says OUT
              apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
              setStatus('Ready. Scan next card…');
              return;
@@ -760,8 +760,8 @@
              // Allow IN
              addInBathroom(osis, res.name || '', when);
              renderBathList();
-             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when }); // row shows IN/OUT in 3rd col
-             showSuccess(res.name, code, 'OUT', '', when); // panel says OUT/IN label; for bathroom we show OUT to mean "just entered"?
+             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when }); // row shows IN/OUT in 3rd col
+             showSuccess(res.name, code, 'IN', '', when); // panel says OUT/IN label; for bathroom we show IN to mean "just entered"?
              apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'in' });
              setStatus('Ready. Scan next card…');
              return;
