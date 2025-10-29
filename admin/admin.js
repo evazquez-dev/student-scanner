@@ -40,9 +40,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     // Now safe to initialize
     gsi.initialize({
       client_id: clientId,
-      callback: async (resp) => {
-        // your existing login fetch...
-      }
+      callback: onGoogleCredential,          // ← wire it to your handler
+      ux_mode: 'popup',                      // optional, but good on GH Pages
+      use_fedcm_for_prompt: true             // optional
     });
     gsi.renderButton(document.getElementById('g_id_signin'), { theme: 'outline', size: 'large' });
 
