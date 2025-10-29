@@ -17,24 +17,40 @@ function show(el){ el && (el.style.display = ''); }
 function hide(el){ el && (el.style.display = 'none'); }
 
 // --- Google Sign-In init ---
-window.addEventListener('DOMContentLoaded', async () => {
-  const clientId = document.querySelector('meta[name="google-client-id"]')?.content || '';
-  if (!clientId) {
-    show(loginCard);
-    loginOut.textContent = 'Missing google-client-id meta.';
-    return;
+async function waitForGoogle(timeoutMs = 8000) {
+  const start = Date.now();
+  while (!window.google?.accounts?.id) {
+    if (Date.now() - start > timeoutMs) throw new Error('Google script failed to load');
+    await new Promise(r => setTimeout(r, 50));
   }
-  show(loginCard);
+  return window.google.accounts.id;
+}
 
-  // Render Google button
-  google.accounts.id.initialize({
-    client_id: clientId,
-    callback: onGoogleCredential
-  });
-  google.accounts.id.renderButton(
-    document.getElementById('g_id_signin'),
-    { theme: 'outline', size: 'large', type: 'standard' }
-  );
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const clientId = document.querySelector('meta[name="google-client-id"]')?.content || '';
+    if (!clientId) {
+      document.getElementById('loginCard').style.display = '';
+      document.getElementById('loginOut').textContent = 'Missing google-client-id meta.';
+      return;
+    }
+
+    const gsi = await waitForGoogle(); // ← ensures the script is ready
+
+    // Now safe to initialize
+    gsi.initialize({
+      client_id: clientId,
+      callback: async (resp) => {
+        // your existing login fetch...
+      }
+    });
+    gsi.renderButton(document.getElementById('g_id_signin'), { theme: 'outline', size: 'large' });
+
+    document.getElementById('loginCard').style.display = '';
+  } catch (e) {
+    document.getElementById('loginCard').style.display = '';
+    document.getElementById('loginOut').textContent = `Google init failed: ${e.message || e}`;
+  }
 });
 
 async function onGoogleCredential(resp) {
