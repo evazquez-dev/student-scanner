@@ -121,7 +121,6 @@ async function loadLocationsToEditor() {
     const r = await fetch(API_BASE, {
       method: 'POST',
       body: new URLSearchParams({ action: 'locations' }),
-      credentials: 'include'
     });
     const ct = r.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
@@ -180,7 +179,6 @@ document.getElementById('btnGetBathCap').addEventListener('click', async () => {
     const r = await fetch(API_BASE, {
       method: 'POST',
       body: new URLSearchParams({ action: 'bath_cap', location: loc }),
-      credentials: 'include'
     });
     bathOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
   } catch (e) { bathOut.textContent = `Error: ${e.message || e}`; }
