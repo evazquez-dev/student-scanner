@@ -32,6 +32,14 @@ self.addEventListener('activate', event => {
 //  - HTML/navigation => NETWORK-FIRST (so Ctrl+R gets new code)
 //  - other requests  => CACHE-FIRST with background revalidate
 self.addEventListener('fetch', event => {
+  // sw.js — snippet: bypass /admin/ requests (paste inside fetch handler before other logic)
+  const reqUrl = new URL(event.request.url);
+  if (reqUrl.pathname.startsWith('/admin/')) {
+    // network only for admin pages to avoid stale cached responses
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  
   const req = event.request;
 
   // Treat navigations and HTML as network-first
