@@ -9,15 +9,183 @@ const bindOut = document.getElementById('bindOut');
 
 document.getElementById('apiBase').textContent = API_BASE;
 
-// small helper: prompt for admin token (stored in-memory)
-let ADMIN_TOKEN = null;
-function requireTokenPrompt() {
-  if (ADMIN_TOKEN) return ADMIN_TOKEN;
-  const t = prompt('Admin token (x-admin-token) — will be kept in memory for this tab only (leave blank to cancel):', '');
-  if (!t) throw new Error('Admin token required');
-  ADMIN_TOKEN = t.trim();
-  return ADMIN_TOKEN;
+// admin/admin.js (session version)
+const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/,'') + '/';
+document.getElementById('apiBase').textContent = API_BASE;
+
+const loginCard = document.getElementById('loginCard');
+const loginOut  = document.getElementById('loginOut');
+
+function show(el){ el && (el.style.display=''); }
+function hide(el){ el && (el.style.display='none'); }
+
+// Initialize Google button and session detection
+window.addEventListener('DOMContentLoaded', async () => {
+  // Render Google button
+  const clientId = document.querySelector('meta[name="google-client-id"]')?.content || '';
+  if (!clientId) {
+    show(loginCard);
+    loginOut.textContent = 'Missing google-client-id meta.';
+    return;
+  }
+  show(loginCard);
+  google.accounts.id.initialize({
+    client_id: clientId,
+    callback: async (resp) => {
+      try {
+        loginOut.textContent = 'Signing in...';
+        const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body: new URLSearchParams({ id_token: resp.credential }).toString(),
+          credentials: 'include'
+        });
+        const data = await r.json().catch(()=> ({}));
+        if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
+        hide(loginCard); // show main UI now
+        // Optionally: fetch state immediately
+        document.getElementById('btnDiag')?.click();
+      } catch (e) {
+        loginOut.textContent = `Login failed: ${e.message || e}`;
+      }
+    }
+  });
+  google.accounts.id.renderButton(
+    document.getElementById('g_id_signin'),
+    { theme: 'outline', size: 'large', type: 'standard' }
+  );
+});
+
+// Helper fetch that includes cookies
+async function adminFetch(pathOrUrl, init={}) {
+  const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
+  const r = await fetch(u, { ...init, credentials: 'include' });
+  return r;
 }
+
+// --- Diagnostics buttons (now use credentials) ---
+const diagOut = document.getElementById('diagOut');
+document.getElementById('btnPing').addEventListener('click', async ()=>{
+  diagOut.textContent = 'Pinging...';
+  try {
+    const r = await fetch(API_BASE, { method:'POST', body:new URLSearchParams({action:'ping'}), credentials:'include' });
+    const txt = await r.text();
+    diagOut.textContent = `HTTP ${r.status}\n\n${txt}`;
+  } catch (e) { diagOut.textContent = `Error: ${e.message||e}`; }
+});
+document.getElementById('btnDiag').addEventListener('click', async ()=>{
+  try {
+    diagOut.textContent = 'Loading /admin/diag...';
+    const r = await adminFetch('/admin/diag', { method:'GET' });
+    const txt = await r.text();
+    diagOut.textContent = `HTTP ${r.status}\n\n${txt}`;
+  } catch (e) { diagOut.textContent = `Error: ${e.message||e}`; }
+});
+
+// --- Roster sync ---
+const syncOut = document.getElementById('syncOut');
+document.getElementById('btnSync').addEventListener('click', async ()=>{
+  try {
+    syncOut.textContent = 'Syncing...';
+    const r = await adminFetch('/admin/sync', { method:'POST' });
+    const txt = await r.text();
+    syncOut.textContent = `HTTP ${r.status}\n\n${txt}`;
+  } catch (e) { syncOut.textContent = `Error: ${e.message||e}`; }
+});
+
+// --- Locations load/push (use credentials) ---
+const locationsEditor = document.getElementById('locationsEditor');
+const locationsOut = document.getElementById('locationsOut');
+
+async function loadLocationsToEditor() {
+  locationsOut.textContent = 'Loading locations...';
+  try {
+    const r = await fetch(API_BASE, { method:'POST', body:new URLSearchParams({action:'locations'}), credentials:'include' });
+    const ct = r.headers.get('content-type')||'';
+    if (!ct.includes('application/json')) { locationsOut.textContent = await r.text(); return; }
+    const data = await r.json();
+    const arr = Array.isArray(data.locations) ? data.locations : [];
+    locationsEditor.value = arr.join('\n');
+    locationsOut.textContent = `Loaded ${arr.length} locations.`;
+  } catch (e) { locationsOut.textContent = `Error: ${e.message||e}`; }
+}
+document.getElementById('btnLoadLocations').addEventListener('click', loadLocationsToEditor);
+document.getElementById('btnPushLocations').addEventListener('click', async ()=>{
+  try {
+    const arr = locationsEditor.value.split('\n').map(s=>s.trim()).filter(Boolean);
+    locationsOut.textContent = 'Pushing...';
+    const r = await adminFetch('/admin/push_locations', {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body: JSON.stringify({ locations: arr })
+    });
+    const txt = await r.text();
+    locationsOut.textContent = `HTTP ${r.status}\n\n${txt}`;
+  } catch (e) { locationsOut.textContent = `Error: ${e.message||e}`; }
+});
+document.getElementById('btnResetLocations').addEventListener('click', ()=>{ if (confirm('Reset editor?')) locationsEditor.value=''; });
+
+// --- Bathroom caps ---
+const bathOut = document.getElementById('bathOut');
+document.getElementById('btnSetBathCap').addEventListener('click', async ()=>{
+  try {
+    const loc = document.getElementById('bathLocation').value.trim();
+    const cap = document.getElementById('bathCap').value.trim();
+    if (!loc || !cap) throw new Error('location + cap required');
+    bathOut.textContent = 'Setting...';
+    const r = await adminFetch('/admin/bath_cap', {
+      method:'POST',
+      headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ location: loc, cap: String(Number(cap)) }).toString()
+    });
+    bathOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+  } catch (e) { bathOut.textContent = `Error: ${e.message||e}`; }
+});
+document.getElementById('btnGetBathCap').addEventListener('click', async ()=>{
+  try {
+    const loc = document.getElementById('bathLocation').value.trim();
+    bathOut.textContent = 'Fetching...';
+    const r = await fetch(API_BASE, {
+      method:'POST',
+      body:new URLSearchParams({ action:'bath_cap', location: loc }),
+      credentials:'include'
+    });
+    bathOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+  } catch (e) { bathOut.textContent = `Error: ${e.message||e}`; }
+});
+
+// --- Bind/unbind ---
+const bindOut = document.getElementById('bindOut');
+document.getElementById('btnBind').addEventListener('click', async ()=>{
+  try {
+    const dev = document.getElementById('bindDeviceId').value.trim();
+    const loc = document.getElementById('bindLocation').value.trim();
+    if (!dev || !loc) throw new Error('device + location required');
+    bindOut.textContent = 'Binding...';
+    const r = await adminFetch('/admin/bind', {
+      method:'POST',
+      headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ device_id: dev, location: loc }).toString()
+    });
+    bindOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+  } catch (e) { bindOut.textContent = `Error: ${e.message||e}`; }
+});
+document.getElementById('btnUnbind').addEventListener('click', async ()=>{
+  try {
+    const dev = document.getElementById('bindDeviceId').value.trim();
+    if (!dev) throw new Error('device required');
+    bindOut.textContent = 'Unbinding...';
+    const r = await adminFetch('/admin/unbind', {
+      method:'POST',
+      headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ device_id: dev }).toString()
+    });
+    bindOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+  } catch (e) { bindOut.textContent = `Error: ${e.message||e}`; }
+});
+
+// Auto-load locations on entry
+loadLocationsToEditor();
 
 function safeText(x){ try { return typeof x === 'string' ? x : JSON.stringify(x, null, 2); } catch (e) { return String(x); } }
 
