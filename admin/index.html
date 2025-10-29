@@ -6,6 +6,8 @@
   <meta name="robots" content="noindex,nofollow">
   <!-- Set your Worker URL here (edit only the content attribute) -->
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <title>Student Scanner — Admin</title>
   <link rel="stylesheet" href="./admin.css">
 </head>
@@ -15,7 +17,12 @@
       <h1>Student Scanner — Admin</h1>
       <p class="muted">Admin console (temporary: uses x-admin-token prompt). No secrets are stored in files.</p>
     </header>
-
+    <div id="loginCard" class="card" style="display:none; text-align:center;">
+      <h2>Admin sign in</h2>
+      <p class="muted">Sign in with your school Google account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="pane">—</pre>
+    </div>
     <section class="card" id="diagCard">
       <h2>Diagnostics</h2>
       <div class="row">
