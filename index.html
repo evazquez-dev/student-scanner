@@ -655,7 +655,7 @@
     const loc = getLocation();
     const maxVisible =
       isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR :
-      (isBathroomLocation(loc) ? HISTORY_VISIBLE_BATHROOM : HISTORY_VISIBLE_DEFAULT);
+      (isBathroomLocation(loc) ? BATHROOM_RECENT_VISIBLE : HISTORY_VISIBLE_DEFAULT);
   
     while (historyBody.children.length > maxVisible) {
       historyBody.lastChild.remove();
