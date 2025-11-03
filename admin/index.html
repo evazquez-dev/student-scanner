@@ -17,12 +17,16 @@
       <h1>Student Scanner — Admin</h1>
       <p class="muted">Signed in with Google; actions require admin role.</p>
     </header>
+
+    <!-- Login -->
     <div id="loginCard" class="card" style="display:none; text-align:center;">
       <h2>Admin sign in</h2>
       <p class="muted">Sign in with your school Google account.</p>
       <div id="g_id_signin"></div>
       <pre id="loginOut" class="pane">—</pre>
     </div>
+
+    <!-- Diagnostics -->
     <section class="card" id="diagCard">
       <h2>Diagnostics</h2>
       <div class="row">
@@ -32,65 +36,100 @@
         </div>
         <div class="col right">
           <button id="btnPing" class="btn">Ping Worker</button>
-          <button id="btnDiag" class="btn ghost">Fetch /admin/diag (token)</button>
+          <button id="btnDiag" class="btn ghost">Fetch /admin/diag (session)</button>
         </div>
       </div>
       <pre id="diagOut" class="pane">—</pre>
     </section>
 
+    <!-- Roster -->
     <section class="card" id="rosterCard">
       <h2>Roster</h2>
       <div class="row">
         <div class="col">
-          <div class="muted">Trigger a full sync (GAS → Worker KV). This runs the same `/admin/sync` your GAS menu calls.</div>
+          <div class="muted">Trigger a full sync (GAS → Worker KV). This runs the same <code>/admin/sync</code> your GAS menu calls.</div>
         </div>
         <div class="col right">
-          <button id="btnSync" class="btn primary">Sync now (admin token)</button>
+          <button id="btnSync" class="btn primary">Sync now (session)</button>
         </div>
       </div>
       <pre id="syncOut" class="pane">—</pre>
     </section>
 
+    <!-- Locations -->
     <section class="card" id="locationsCard">
       <h2>Locations</h2>
       <div class="muted">Edit the list, then push to Worker via <code>/admin/push_locations</code>.</div>
       <textarea id="locationsEditor" placeholder="One location per line" rows="6"></textarea>
       <div class="row" style="gap:8px;margin-top:8px;">
         <button id="btnLoadLocations" class="btn">Load from Worker</button>
-        <button id="btnPushLocations" class="btn primary">Push to Worker (admin token)</button>
+        <button id="btnPushLocations" class="btn primary">Push to Worker (session)</button>
         <button id="btnResetLocations" class="btn ghost">Reset editor</button>
       </div>
       <pre id="locationsOut" class="pane">—</pre>
     </section>
 
+    <!-- Bathroom capacity: quick set -->
     <section class="card" id="bathCard">
-      <h2>Bathroom capacity</h2>
-      <div class="muted">Quickly set cap for a bathroom location via <code>/admin/bath_cap</code>.</div>
-
-      <div class="row" style="align-items:center; gap:8px; margin-top:8px;">
-        <input id="bathLocation" placeholder="Bathroom (First Floor)" />
-        <input id="bathCap" type="number" min="1" placeholder="cap (e.g. 2)" style="width:120px" />
-        <button id="btnSetBathCap" class="btn primary">Set cap (admin token)</button>
-        <button id="btnGetBathCap" class="btn ghost">Get cap</button>
+      <h2>Bathroom capacity — quick set</h2>
+      <div class="muted">
+        Pick a bathroom, then set a cap for ALL or just for a specific gender. Per-gender caps override the ALL cap.
       </div>
-
+      <div class="row" style="align-items:center; gap:8px; margin-top:8px;">
+        <select id="bathSelect" aria-label="Bathroom location">
+          <option value="">(Loading bathrooms…)</option>
+        </select>
+        <input id="bathCapAll" type="number" min="1" placeholder="ALL cap" style="width:110px" />
+        <input id="bathCapM" type="number" min="1" placeholder="M cap" style="width:110px" />
+        <input id="bathCapF" type="number" min="1" placeholder="F cap" style="width:110px" />
+      </div>
+      <div class="row" style="gap:8px; margin-top:8px;">
+        <button id="btnBathGetSelected" class="btn">Get caps for selected</button>
+        <button id="btnBathSetAll" class="btn primary">Set ALL</button>
+        <button id="btnBathSetM" class="btn">Set M</button>
+        <button id="btnBathSetF" class="btn">Set F</button>
+      </div>
       <pre id="bathOut" class="pane">—</pre>
     </section>
 
+    <!-- Bathroom capacity: table -->
+    <section class="card" id="bathTableCard">
+      <h2>Bathroom capacity — table</h2>
+      <div class="row" style="gap:8px; align-items:center;">
+        <button id="btnBathLoadTable" class="btn">Reload caps</button>
+      </div>
+      <div class="tableWrap">
+        <table id="bathTbl">
+          <thead>
+            <tr>
+              <th>Location</th>
+              <th>ALL cap</th>
+              <th>M cap</th>
+              <th>F cap</th>
+              <th style="width:180px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bathTbody"></tbody>
+        </table>
+      </div>
+      <pre id="bathTableOut" class="pane">—</pre>
+    </section>
+
+    <!-- Device binding -->
     <section class="card" id="bindCard">
       <h2>Device binding</h2>
       <div class="muted">Bind/unbind devices to locations.</div>
       <div class="row" style="gap:8px; align-items:center; margin-top:8px;">
         <input id="bindDeviceId" placeholder="device id (UUID)" />
         <input id="bindLocation" placeholder="location (exact)" />
-        <button id="btnBind" class="btn">Bind (admin token)</button>
-        <button id="btnUnbind" class="btn ghost">Unbind (admin token)</button>
+        <button id="btnBind" class="btn">Bind (session)</button>
+        <button id="btnUnbind" class="btn ghost">Unbind (session)</button>
       </div>
       <pre id="bindOut" class="pane">—</pre>
     </section>
 
     <footer style="margin-top:20px">
-      <small class="muted">When you switch to a proper auth method (Google Sign-In / Cloudflare Access) we will remove the token prompt and use session cookies instead.</small>
+      <small class="muted">This page uses Google Sign-In → session cookie with your Worker. No tokens in the browser UI.</small>
     </footer>
   </main>
 
