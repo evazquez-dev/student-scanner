@@ -37,3 +37,11 @@ th{font-weight:700;color:#667;background:#f8f9fc;position:sticky;top:0}
 .rowBtns{display:flex;gap:6px;align-items:center}
 tr.row-ok{background:#eaf7ea}
 tr.row-bad{background:#fdecea}
+
+/* feedback on per-row save/refresh */
+.row-ok { outline: 2px solid #3ddc97; outline-offset: 2px; }
+.row-bad { outline: 2px solid #ff6b6b; outline-offset: 2px; }
+
+/* tighter buttons in the table */
+.rowBtns .btn { padding:6px 10px; margin-right:6px; }
+.rowBtns .btn.ghost { background:#fff; }
