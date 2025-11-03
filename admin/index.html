@@ -71,26 +71,54 @@
 
     <!-- Bathroom capacity: quick set -->
     <section class="card" id="bathCard">
-      <h2>Bathroom capacity — quick set</h2>
+      <h2>Bathroom capacity</h2>
       <div class="muted">
-        Pick a bathroom, then set a cap for ALL or just for a specific gender. Per-gender caps override the ALL cap.
+        Quickly view and set caps for bathrooms (ALL / M / F) via <code>/admin/bath_cap</code>.
+        Use the selector to load a bathroom into the quick-set controls, or edit directly in the table below.
       </div>
-      <div class="row" style="align-items:center; gap:8px; margin-top:8px;">
-        <select id="bathSelect" aria-label="Bathroom location">
+    
+      <!-- Quick select + get/set -->
+      <div class="row" style="align-items:center; gap:8px; margin-top:12px;">
+        <select id="bathSelect" style="min-width:260px">
           <option value="">(Loading bathrooms…)</option>
         </select>
-        <input id="bathCapAll" type="number" min="1" placeholder="ALL cap" style="width:110px" />
-        <input id="bathCapM" type="number" min="1" placeholder="M cap" style="width:110px" />
-        <input id="bathCapF" type="number" min="1" placeholder="F cap" style="width:110px" />
-      </div>
-      <div class="row" style="gap:8px; margin-top:8px;">
-        <button id="btnBathGetSelected" class="btn">Get caps for selected</button>
-        <button id="btnBathSetAll" class="btn primary">Set ALL</button>
+    
+        <input id="bathCapAll" type="number" min="1" placeholder="ALL cap" style="width:120px" />
+        <button id="btnBathSetAll" class="btn">Set ALL</button>
+    
+        <input id="bathCapM" type="number" min="1" placeholder="M cap" style="width:120px" />
         <button id="btnBathSetM" class="btn">Set M</button>
+    
+        <input id="bathCapF" type="number" min="1" placeholder="F cap" style="width:120px" />
         <button id="btnBathSetF" class="btn">Set F</button>
+    
+        <button id="btnBathGetSelected" class="btn ghost">Load caps</button>
+        <button id="btnBathLoadTable" class="btn ghost">Reload table</button>
       </div>
+    
       <pre id="bathOut" class="pane">—</pre>
+    
+      <!-- Table -->
+      <div style="overflow:auto; margin-top:10px;">
+        <table style="width:100%; border-collapse:separate; border-spacing:0 6px;">
+          <thead>
+            <tr style="text-align:left; font-size:13px; color:#667;">
+              <th>Bathroom</th>
+              <th>ALL</th>
+              <th>M</th>
+              <th>F</th>
+              <th style="width:260px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bathTbody">
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+    
+      <pre id="bathTableOut" class="pane">—</pre>
     </section>
+
 
     <!-- Bathroom capacity: table -->
     <section class="card" id="bathTableCard">
