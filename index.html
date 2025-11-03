@@ -67,6 +67,21 @@
     .flag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334;user-select:none}
     .flag input{accent-color:#0b57d0}
 
+    /* Bag search highlight */
+    .flag-search { background:#fff8db; }               /* pale yellow */
+    .flag-search .name::after {
+      content:' — SEARCH';
+      color:#b26b00; font-weight:700;
+    }
+    
+    /* Regents Prep badge */
+    .badge-purple {
+      background:#f3e8ff; color:#6b21a8;
+      font-weight:700; padding:2px 6px;
+      border-radius:6px; font-size:12px;
+      margin-left:6px;
+    }
+    
     /* Modal + UI states */
     #locModal { position:fixed; inset:0; z-index: 2147483000; }
     .card[inert] { pointer-events: none; }
@@ -542,9 +557,16 @@
     trimHistory();
     return tr;
   }
+
   function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
     const loc = getLocation();
-
+  
+    // NEW: add yellow highlight if Search = TRUE
+    if (window.__lastSearchFlag) tr.classList.add('flag-search'); else tr.classList.remove('flag-search');
+  
+    // Build name with Regents badge (if any)
+    const nameHtml = `${esc(name||'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
+  
     // Senior Lunch or Bathroom → show In/Out/Not Allowed pills in the 3rd column
     if (isSeniorOutIn() || isBathroomLocation(loc)) {
       const label = String(lockerNum||'').toUpperCase(); // 'OUT'|'IN'|'NOT ALLOWED'
@@ -553,20 +575,19 @@
         ? `<span class="badge badge--out">🫥 OUT</span>`
         : (isIn ? `<span class="badge badge--in">😐 IN</span>`
                 : `<span class="badge badge--na">NOT ALLOWED</span>`);
-      // Only Senior Lunch shows “Allowed to go out”
       const canGoOut = (isSeniorOutIn()) && !!window.__lastAllowedSenior;
       const allowBox = (canGoOut && !isNA)
         ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
         : '';
       tr.className = '';
       tr.innerHTML =
-        `<td class="name">${esc(name||'Unknown')}</td>
+        `<td class="name">${nameHtml}</td>
          <td class="code">${esc(code)}</td>
          <td>${pill} ${allowBox}</td>
          <td>${fmtTime(when)}</td>`;
       return;
     }
-
+  
     // Lunch → “Allowed?” / “Not allowed”
     if (isLunchLocation(loc)) {
       const allowed = isAllowedForLunch(loc, lunchValue ?? window.__lastLunchValue ?? '');
@@ -575,14 +596,14 @@
         : `<span class="not-allowed-badge">❌ Not allowed</span>`;
       tr.className = '';
       tr.innerHTML =
-        `<td class="name">${esc(name||'Unknown')}</td>
+        `<td class="name">${nameHtml}</td>
          <td class="code">${esc(code)}</td>
          <td>${thirdCell}</td>
          <td>${fmtTime(when)}</td>`;
       return;
     }
-
-    // Default → Locker info
+  
+    // Default → Locker info (use color swatch map as before)
     const color = (lockerColor||'').trim();
     const cssColor = ({
       red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
@@ -594,13 +615,15 @@
           ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
           : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
       : '—';
+  
     tr.className = '';
     tr.innerHTML =
-      `<td class="name">${esc(name||'Unknown')}</td>
+      `<td class="name">${nameHtml}</td>
        <td class="code">${esc(code)}</td>
        <td>${lockerHtml}</td>
        <td>${fmtTime(when)}</td>`;
   }
+
   function updateRowToNotFound(tr, code, when, error, reason){
     beepBad();
     const msg = error === 'invalid_input'
@@ -679,6 +702,10 @@
       window.__lastLunchValue    = res.lunch || '';
       window.__lastAllowedSenior = !!res.allowed_senior;
 
+      // NEW: stash the two new flags for row styling / badges
+      window.__lastSearchFlag    = !!res.search;
+      window.__lastRegentsPrep   = !!res.regents_prep;
+
       const loc     = getLocation() || '';
       const whenISO = when.toISOString();
 
@@ -755,14 +782,18 @@
         return;
       }
 
-      // Default (Locker)
+      // Default (Locker) — prefer effective values if provided
+      const displayNum   = (res.locker_number_effective ?? res.locker_number) || '';
+      const displayColor = (res.locker_color_effective  ?? res.locker_color)  || '';
+      
       updateRowToSuccess(row, {
         name: res.name, code,
-        lockerNum: res.locker_number, lockerColor: res.locker_color, when
+        lockerNum: displayNum, lockerColor: displayColor, when
       });
-      showSuccess(res.name, code, res.locker_number, res.locker_color, when);
+      showSuccess(res.name, code, displayNum, displayColor, when);
       apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'' });
       setStatus('Ready. Scan next card…');
+
 
     } catch (err) {
       if (!navigator.onLine || err.name === 'AbortError'){
@@ -791,7 +822,7 @@
    * ============================================================ */
   function showSuccess(name, code, lockerNum, lockerColor, when){
     const loc = getLocation();
-
+  
     // Senior Lunch + Bathroom share pill visuals
     if (isSeniorOutIn() || isBathroomLocation(loc)) {
       const label = String(lockerNum||'').toUpperCase();
@@ -806,28 +837,36 @@
       const allowBox = (canGoOut && !isNA)
         ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
         : '';
+      const nameHtml = `${esc(name || 'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
       resultEl.innerHTML =
         `<div class="ok">OK</div>
-         <div class="name">${esc(name || 'Unknown')}</div>
+         <div class="name">${nameHtml}</div>
          <div class="code">${esc(code)} — ${pill} ${allowBox}</div>
          <div class="muted">${fmtTime(when)}</div>`;
       setStatus('Ready. Scan next card…');
       return;
     }
-
+  
     // Lunch / Default
     const allowed = (isLunchLocation(loc) ? isAllowedForLunch(loc, window.__lastLunchValue||'') : null);
-    let extra = `Locker ${esc(lockerNum || '—')} (${esc(lockerColor || '—')})`;
-    if (isLunchLocation(loc)) {
-      extra = allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`;
-    }
+  
+    // Build effective display (already passed in, but keep defaulting)
+    const displayNum   = lockerNum   ?? '';
+    const displayColor = lockerColor ?? '';
+  
+    const extra = isLunchLocation(loc)
+      ? (allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`)
+      : `Locker ${esc(displayNum || '—')} (${esc(displayColor || '—')})`;
+  
+    const nameHtml = `${esc(name || 'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
     resultEl.innerHTML =
       `<div class="ok">OK</div>
-       <div class="name">${esc(name || 'Unknown')}</div>
+       <div class="name">${nameHtml}</div>
        <div class="code">${esc(code)} — ${extra}</div>
        <div class="muted">${fmtTime(when)}</div>`;
     setStatus('Ready. Scan next card…');
   }
+
   function showNotFound(code, when){
     beepBad();
     resultEl.innerHTML =
