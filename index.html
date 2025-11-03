@@ -202,6 +202,11 @@
   /* ============================================================
    * CONFIG + CONSTANTS
    * ============================================================ */
+
+  // --- Recent scans display limits ---
+  const DEFAULT_RECENT_VISIBLE = 6;     // hall/office scanners (or whatever you use today)
+  const BATHROOM_RECENT_VISIBLE = 3;    // bathroom scanners: show only 2–3
+  const isBathroom = (name) => String(name || '').toLowerCase().startsWith('bathroom (');
   const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/'; // ← set your Worker URL
 
   // Optional wake-up ping
@@ -452,7 +457,16 @@
   function updateHistoryPaneForLocation(){
     const pane = document.getElementById('scansPane');
     if (!pane) return;
-    pane.style.maxHeight = isSeniorOutIn() ? '140px' : '360px';
+    const loc = getLocation();
+  
+    if (isSeniorOutIn()) {
+      pane.style.maxHeight = '140px';
+    } else if (isBathroomLocation(loc)) {
+      // shorter height so ~3 rows are visible without scrolling
+      pane.style.maxHeight = '120px';
+    } else {
+      pane.style.maxHeight = '360px';
+    }
   }
   function updateHeaderForLocation(){
     const loc = getLocation();
@@ -638,8 +652,14 @@
        <td>${fmtTime(when)}</td>`;
   }
   function trimHistory(){
-    const maxVisible = isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR : HISTORY_VISIBLE_DEFAULT;
-    while (historyBody.children.length > maxVisible) historyBody.lastChild.remove();
+    const loc = getLocation();
+    const maxVisible =
+      isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR :
+      (isBathroomLocation(loc) ? HISTORY_VISIBLE_BATHROOM : HISTORY_VISIBLE_DEFAULT);
+  
+    while (historyBody.children.length > maxVisible) {
+      historyBody.lastChild.remove();
+    }
   }
 
   /* ============================================================
