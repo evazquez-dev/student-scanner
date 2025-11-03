@@ -30,9 +30,7 @@
     .muted { color:var(--muted); font-size:13px; }
     .row { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
     .col { flex:1 1 320px; }
-    .panel {
-      background:#fafbff; border:1px solid #eef1f7; border-radius:14px; padding:14px;
-    }
+    .panel { background:#fafbff; border:1px solid #eef1f7; border-radius:14px; padding:14px; }
     #status { font-weight:600; }
     #result { font-size:17px; margin-top:6px; }
     table { width:100%; border-collapse:collapse; font-size:14px; }
@@ -47,13 +45,9 @@
       flex:1; padding:10px 12px; font-size:18px; border-radius:12px; border:1px solid #cfd7e3; outline:none;
     }
     .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:6px;border:1px solid #ccd3de}
-    button {
-      cursor:pointer; border:none; border-radius:12px; padding:10px 14px; font-weight:600; background:var(--brand); color:#fff;
-    }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eaf7ea; color:#0a7c2f; font-size:12px; }
-    .scans-pane{
-      max-height: 360px; overflow-y: auto; border: 1px solid #e5e9f2; border-radius: 8px; background: #fff;
-    }
+    button { cursor:pointer; border:none; border-radius:12px; padding:10px 14px; font-weight:600; background:var(--brand); color:#fff; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eaf7ea; color:#0a7c2f; font-size:12px; font-weight:700; }
+    .scans-pane{ max-height: 360px; overflow-y: auto; border: 1px solid #e5e9f2; border-radius: 8px; background: #fff; }
     .scans-pane thead th{ position: sticky; top: 0; background: #f7f9fc; z-index: 1; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
     #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
     .bad { color:#b00020; font-weight:600; }
@@ -61,27 +55,17 @@
     .allowed-badge { color:#0a7c2f; font-weight:700; }
     .not-allowed-badge { color:#b00020; font-weight:700; }
     .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
-    .badge--out{background:#eaf7ea;color:#b00020}  /* red ONLY for OUT */
-    .badge--in{background:#eaf7ea;color:#0a7c2f}   /* green for IN */
-    .badge--na{background:#fdecea;color:#b00020}   /* neutral for NOT ALLOWED */
+    .badge--out{background:#eaf7ea;color:#b00020}
+    .badge--in{ background:#eaf7ea;color:#0a7c2f}
+    .badge--na{ background:#fdecea;color:#b00020}
     .flag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334;user-select:none}
     .flag input{accent-color:#0b57d0}
 
     /* Bag search highlight */
-    .flag-search { background:#fff8db; }               /* pale yellow */
-    .flag-search .name::after {
-      content:' — SEARCH';
-      color:#b26b00; font-weight:700;
-    }
-    
+    .flag-search { background:#fff8db; }
+    .flag-search .name::after { content:' — SEARCH'; color:#b26b00; font-weight:700; }
     /* Regents Prep badge */
-    .badge-purple {
-      background:#f3e8ff; color:#6b21a8;
-      font-weight:700; padding:2px 6px;
-      border-radius:6px; font-size:12px;
-      margin-left:6px;
-    }
-    
+    .badge-purple { background:#f3e8ff; color:#6b21a8; font-weight:700; padding:2px 6px; border-radius:6px; font-size:12px; margin-left:6px; }
     /* Modal + UI states */
     #locModal { position:fixed; inset:0; z-index: 2147483000; }
     .card[inert] { pointer-events: none; }
@@ -175,26 +159,35 @@
           </div>
         </div>
 
-        <!-- Bathroom IN list -->
-        <div class="panel" id="bathPanel" style="margin-top:10px; display:none">
-          <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-            <span id="bathPanelTitle">Currently IN — Bathroom</span>
-            <button id="bathRefreshBtn" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">
-              Refresh roster
-            </button>
+        <!-- Bathroom IN lists (Male & Female) -->
+        <div class="row">
+          <div class="col">
+            <div class="panel" id="bathPanelM" style="margin-top:10px; display:none">
+              <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                <span id="bathPanelTitleM">Currently IN — Bathroom (M)</span>
+                <button id="bathRefreshBtnM" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Refresh roster</button>
+              </div>
+              <div class="scans-pane" style="max-height: 240px">
+                <table aria-label="Currently IN (Bathroom M)">
+                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Capacity</th></tr></thead>
+                  <tbody id="bathBodyM"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div id="bathPane" class="scans-pane" style="max-height: 240px">
-            <table id="bathTbl" aria-label="Currently IN (Bathroom)">
-              <thead>
-                <tr>
-                  <th style="width:40%">Name</th>
-                  <th style="width:20%">OSIS</th>
-                  <th style="width:20%">Since</th>
-                  <th style="width:20%">Capacity</th>
-                </tr>
-              </thead>
-              <tbody id="bathBody"></tbody>
-            </table>
+          <div class="col">
+            <div class="panel" id="bathPanelF" style="margin-top:10px; display:none">
+              <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                <span id="bathPanelTitleF">Currently IN — Bathroom (F)</span>
+                <button id="bathRefreshBtnF" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Refresh roster</button>
+              </div>
+              <div class="scans-pane" style="max-height: 240px">
+                <table aria-label="Currently IN (Bathroom F)">
+                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Capacity</th></tr></thead>
+                  <tbody id="bathBodyF"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -221,27 +214,23 @@
     'Bathroom (First Floor)','Bathroom (Second Floor)','Bathroom (Third Floor)'
   ];
 
-  // Keyboard wedge timing + history sizing
   const SCAN_GAP_MS = 10;
   const HISTORY_VISIBLE_DEFAULT = 10;
   const HISTORY_VISIBLE_SENIOR  = 4;
 
-  // Location constants
   const SPECIAL_LOCATION = 'Senior Lunch (out-in)';
   const BATHROOM_PREFIX  = 'Bathroom (';
 
-  // Local storage keys
   const QUEUE_KEY = 'scanQueueV1';
   const LOC_KEY   = 'scannerLocationV1';
   const OUT_KEY   = 'seniorOutV1';
   const BATH_KEY  = 'bathroomInV1';
 
-  // Bathroom capacity (canonical in Worker; default if Worker unreachable)
   const BATHROOM_CAPACITY_DEFAULT = 2;
-  let __LOCATIONS_CAPS = null;               // If Worker enriches /locations with caps
-  const BATH_CAP_CACHE = Object.create(null); // client-side memo by location
+  let __LOCATIONS_CAPS = null;
+  const BATH_CAP_CACHE = Object.create(null);
 
-  // DOM handles
+  // DOM
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
   const historyBody = document.getElementById('historyBody');
@@ -269,9 +258,7 @@
   function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
   function todayKey() {
     const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
+    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
     return `${y}-${m}-${day}`;
   }
   function fmtTime(d){ try { return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d); } catch { return d.toLocaleString(); } }
@@ -326,8 +313,9 @@
   }
 
   /* ============================================================
-   * PANES: Senior Lunch OUT; Bathroom IN lists (local-only UI state)
+   * PANES: Senior Lunch OUT; Bathroom IN lists (LOCAL storage)
    * ============================================================ */
+  // Senior Lunch (OUT/IN) — single bucket per (date|location)
   function outBucketKey(){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}`; }
   function loadOutMap(){ try { return JSON.parse(localStorage.getItem(OUT_KEY) || '{}'); } catch { return {}; } }
   function saveOutMap(map){ localStorage.setItem(OUT_KEY, JSON.stringify(map)); }
@@ -357,68 +345,79 @@
     }).join('');
   }
 
-  function bathBucketKey(){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}`; }
+  // Bathroom (IN lists) — GENDERED ONLY (canonical helpers)
+  function bathBucketKeyG(g){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}|${(g||'').toUpperCase()}`; }
   function loadBathMap(){ try { return JSON.parse(localStorage.getItem(BATH_KEY) || '{}'); } catch { return {}; } }
   function saveBathMap(map){ localStorage.setItem(BATH_KEY, JSON.stringify(map)); }
-  function getBathSet(){ const map = loadBathMap(); return map[bathBucketKey()] || []; }
-  function setBathSet(list){ const map = loadBathMap(); map[bathBucketKey()] = list; saveBathMap(map); }
-  function isInBathroom(osis){ return getBathSet().some(x => x.osis === String(osis||'').trim()); }
-  function addInBathroom(osis, name, when=new Date()){
+  function getBathSet(g){ const map = loadBathMap(); return map[bathBucketKeyG(g)] || []; }
+  function setBathSet(g, list){ const map = loadBathMap(); map[bathBucketKeyG(g)] = list; saveBathMap(map); }
+  function isInBathroomG(g, osis){ return getBathSet(g).some(x => x.osis === String(osis||'').trim()); }
+  function addInBathroomG(g, osis, name, when=new Date()){
     osis = String(osis||'').trim(); if (!osis) return;
-    const list = getBathSet();
-    if (!list.some(x => x.osis === osis)) { list.unshift({ osis, name:String(name||'').trim(), sinceISO: when.toISOString() }); setBathSet(list); }
+    const list = getBathSet(g);
+    if (!list.some(x => x.osis === osis)) { list.unshift({ osis, name:String(name||'').trim(), sinceISO: when.toISOString() }); setBathSet(g, list); }
   }
-  function removeFromBathroom(osis){ setBathSet(getBathSet().filter(x => x.osis !== String(osis||'').trim())); }
+  function removeFromBathroomG(g, osis){ setBathSet(g, getBathSet(g).filter(x => x.osis !== String(osis||'').trim())); }
 
-  // Worker-backed bathroom capacity
-  async function getBathroomCapacityRemote(loc) {
-    if (__LOCATIONS_CAPS && __LOCATIONS_CAPS[loc]) return __LOCATIONS_CAPS[loc];
+  async function getBathroomCapacityRemote(loc, gender) {
+    if (__LOCATIONS_CAPS && __LOCATIONS_CAPS[loc] && typeof __LOCATIONS_CAPS[loc] === 'object') {
+      // placeholder for per-gender preload
+    }
     try {
-      const r = await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'bath_cap', location: loc }) });
+      const body = new URLSearchParams({ action: 'bath_cap', location: loc });
+      if (gender) body.set('gender', gender);
+      const r = await fetch(API_BASE, { method: 'POST', body });
       const ct = r.headers.get('content-type')||''; if (!r.ok || !ct.includes('application/json')) throw 0;
       const data = await r.json();
       const cap = Number(data?.cap);
       return Number.isFinite(cap) && cap > 0 ? cap : BATHROOM_CAPACITY_DEFAULT;
     } catch { return BATHROOM_CAPACITY_DEFAULT; }
   }
-  async function getBathroomCapacity(loc){
-    const key = String(loc||'').toLowerCase();
+  async function getBathroomCapacity(loc, gender){
+    const key = `${String(loc||'').toLowerCase()}|${String(gender||'').toUpperCase()}`;
     if (BATH_CAP_CACHE[key]) return BATH_CAP_CACHE[key];
-    const cap = await getBathroomCapacityRemote(loc);
+    const cap = await getBathroomCapacityRemote(loc, gender);
     BATH_CAP_CACHE[key] = cap;
     return cap;
   }
 
   async function renderBathList(){
-    const bathPanel = document.getElementById('bathPanel');
-    const bathBody  = document.getElementById('bathBody');
-    const titleEl   = document.getElementById('bathPanelTitle');
     const loc = getLocation();
-
     const show = isBathroomLocation(loc);
-    bathPanel.style.display = show ? '' : 'none';
+    const panelM = document.getElementById('bathPanelM');
+    const panelF = document.getElementById('bathPanelF');
+    panelM.style.display = show ? '' : 'none';
+    panelF.style.display = show ? '' : 'none';
     if (!show) return;
 
-    const cap  = await getBathroomCapacity(loc);
-    const rows = getBathSet();
-    if (titleEl) titleEl.textContent = `Currently IN — ${loc} (cap ${cap})`;
-    bathBody.innerHTML = rows.map(r => {
+    const [capM, capF] = await Promise.all([ getBathroomCapacity(loc, 'M'), getBathroomCapacity(loc, 'F') ]);
+    const bodyM = document.getElementById('bathBodyM');
+    const bodyF = document.getElementById('bathBodyF');
+    const titleM = document.getElementById('bathPanelTitleM');
+    const titleF = document.getElementById('bathPanelTitleF');
+
+    const rowsM = getBathSet('M');
+    const rowsF = getBathSet('F');
+
+    if (titleM) titleM.textContent = `Currently IN — ${loc} (M cap ${capM})`;
+    if (titleF) titleF.textContent = `Currently IN — ${loc} (F cap ${capF})`;
+
+    function rowHtml(r, total, cap){
       const when = new Date(r.sinceISO);
       return `<tr>
         <td class="name">${esc(r.name || '—')}</td>
         <td class="code">${esc(r.osis || '')}</td>
         <td>${fmtTime(when)}</td>
-        <td>${rows.length}/${cap}</td>
+        <td>${total}/${cap}</td>
       </tr>`;
-    }).join('');
+    }
+    bodyM.innerHTML = rowsM.map(r => rowHtml(r, rowsM.length, capM)).join('');
+    bodyF.innerHTML = rowsF.map(r => rowHtml(r, rowsF.length, capF)).join('');
   }
-  document.getElementById('bathRefreshBtn')?.addEventListener('click', async ()=>{
-    await renderBathList();
-    setStatus('Bathroom list refreshed');
-    setTimeout(()=> setStatus('Ready. Scan a card…'), 900);
-  });
+  document.getElementById('bathRefreshBtnM')?.addEventListener('click', async ()=>{ await renderBathList(); setStatus('Bathroom (M) refreshed'); setTimeout(()=> setStatus('Ready. Scan a card…'), 900); });
+  document.getElementById('bathRefreshBtnF')?.addEventListener('click', async ()=>{ await renderBathList(); setStatus('Bathroom (F) refreshed'); setTimeout(()=> setStatus('Ready. Scan a card…'), 900); });
 
-  // Console helpers (admin can tweak cap live with Worker token)
+  // Console helpers
   window.getBathroomCap = async function(location) {
     location = location || getLocation();
     const r = await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'bath_cap', location }) });
@@ -465,7 +464,7 @@
     else col.textContent = 'Locker';
 
     renderOutList();
-    renderBathList(); // async okay fire-and-forget
+    renderBathList(); // fire-and-forget
     updateHistoryPaneForLocation();
     trimHistory();
   }
@@ -560,16 +559,13 @@
 
   function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
     const loc = getLocation();
-  
-    // NEW: add yellow highlight if Search = TRUE
+
     if (window.__lastSearchFlag) tr.classList.add('flag-search'); else tr.classList.remove('flag-search');
-  
-    // Build name with Regents badge (if any)
+
     const nameHtml = `${esc(name||'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
-  
-    // Senior Lunch or Bathroom → show In/Out/Not Allowed pills in the 3rd column
+
     if (isSeniorOutIn() || isBathroomLocation(loc)) {
-      const label = String(lockerNum||'').toUpperCase(); // 'OUT'|'IN'|'NOT ALLOWED'
+      const label = String(lockerNum||'').toUpperCase();
       const isOut = label === 'OUT', isIn  = label === 'IN', isNA = label === 'NOT ALLOWED';
       const pill = isOut
         ? `<span class="badge badge--out">🫥 OUT</span>`
@@ -587,8 +583,7 @@
          <td>${fmtTime(when)}</td>`;
       return;
     }
-  
-    // Lunch → “Allowed?” / “Not allowed”
+
     if (isLunchLocation(loc)) {
       const allowed = isAllowedForLunch(loc, lunchValue ?? window.__lastLunchValue ?? '');
       const thirdCell = allowed
@@ -602,8 +597,7 @@
          <td>${fmtTime(when)}</td>`;
       return;
     }
-  
-    // Default → Locker info (use color swatch map as before)
+
     const color = (lockerColor||'').trim();
     const cssColor = ({
       red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
@@ -615,7 +609,7 @@
           ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
           : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
       : '—';
-  
+
     tr.className = '';
     tr.innerHTML =
       `<td class="name">${nameHtml}</td>
@@ -698,11 +692,8 @@
         return;
       }
 
-      // Stash last-known lunch & senior flag for renderers
       window.__lastLunchValue    = res.lunch || '';
       window.__lastAllowedSenior = !!res.allowed_senior;
-
-      // NEW: stash the two new flags for row styling / badges
       window.__lastSearchFlag    = !!res.search;
       window.__lastRegentsPrep   = !!res.regents_prep;
 
@@ -735,43 +726,43 @@
         return;
       }
 
-      // Bathroom IN/OUT with capacity
+      // Bathroom IN/OUT with per-gender capacity
       if (isBathroomLocation(loc)) {
         const osis = String(res.osis || '').trim();
-        const wasIn = isInBathroom(osis);
-        const cap   = await getBathroomCapacity(loc);
-        const list  = getBathSet();
+        const sex  = (String(res.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
+        const wasIn = isInBathroomG(sex, osis);
+
+        const cap = await getBathroomCapacity(loc, sex);
+        const list = getBathSet(sex);
 
         if (wasIn) {
-          // Leaving bathroom
-          removeFromBathroom(osis);
-          renderBathList();
+          removeFromBathroomG(sex, osis);
+          await renderBathList();
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when });
           showSuccess(res.name, code, 'OUT', '', when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
           setStatus('Ready. Scan next card…');
           return;
         } else {
-          // Attempt to enter
           if (list.length >= cap) {
             beepBad();
             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
             showSuccess(res.name, code, 'NOT ALLOWED', '', when);
-            apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'full' });
+            apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`full_${sex}` });
             setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
             return;
           }
-          addInBathroom(osis, res.name || '', when);
-          renderBathList();
+          addInBathroomG(sex, osis, res.name || '', when);
+          await renderBathList();
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when });
           showSuccess(res.name, code, 'IN', '', when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'in' });
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`in_${sex}` });
           setStatus('Ready. Scan next card…');
           return;
         }
       }
 
-      // Lunch check (Allowed? / Not allowed)
+      // Lunch check
       if (isLunchLocation(loc)){
         const allowed = isAllowedForLunch(loc, res.lunch || '');
         updateRowToSuccess(row, { name: res.name, code, lockerNum:'', lockerColor:'', lunchValue:res.lunch||'', when });
@@ -785,15 +776,11 @@
       // Default (Locker) — prefer effective values if provided
       const displayNum   = (res.locker_number_effective ?? res.locker_number) || '';
       const displayColor = (res.locker_color_effective  ?? res.locker_color)  || '';
-      
-      updateRowToSuccess(row, {
-        name: res.name, code,
-        lockerNum: displayNum, lockerColor: displayColor, when
-      });
+
+      updateRowToSuccess(row, { name: res.name, code, lockerNum: displayNum, lockerColor: displayColor, when });
       showSuccess(res.name, code, displayNum, displayColor, when);
       apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'' });
       setStatus('Ready. Scan next card…');
-
 
     } catch (err) {
       if (!navigator.onLine || err.name === 'AbortError'){
@@ -822,8 +809,7 @@
    * ============================================================ */
   function showSuccess(name, code, lockerNum, lockerColor, when){
     const loc = getLocation();
-  
-    // Senior Lunch + Bathroom share pill visuals
+
     if (isSeniorOutIn() || isBathroomLocation(loc)) {
       const label = String(lockerNum||'').toUpperCase();
       const isOut = label === 'OUT';
@@ -846,18 +832,15 @@
       setStatus('Ready. Scan next card…');
       return;
     }
-  
-    // Lunch / Default
+
     const allowed = (isLunchLocation(loc) ? isAllowedForLunch(loc, window.__lastLunchValue||'') : null);
-  
-    // Build effective display (already passed in, but keep defaulting)
     const displayNum   = lockerNum   ?? '';
     const displayColor = lockerColor ?? '';
-  
+
     const extra = isLunchLocation(loc)
       ? (allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`)
       : `Locker ${esc(displayNum || '—')} (${esc(displayColor || '—')})`;
-  
+
     const nameHtml = `${esc(name || 'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
     resultEl.innerHTML =
       `<div class="ok">OK</div>
@@ -939,7 +922,7 @@
       return;
     }
     if (e.key.length === 1){
-      const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
+      const looksLikeScanner = gap <= 10 && (wedgeBuf.length > 0 || gap > 0);
       if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; }
     }
     clearTimeout(wedgeResetTimer);
@@ -1068,7 +1051,6 @@
     });
   }
 
-  // Device lock + first-run init
   (async () => {
     await checkDeviceLock();
     updateLocationPill();
@@ -1078,7 +1060,6 @@
     await renderBathList();
   })();
 
-  // Location pill click
   document.getElementById('locationPill').addEventListener('click', () => {
     if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     promptForLocation(true);
