@@ -4,6 +4,9 @@
   --fg: #0b1320;
   --muted: #667;
   --brand: #0b57d0;
+  --ok: #0a7c2f;
+  --bad: #b00020;
+  --warn: #8a5a00;
 }
 html,body{height:100%;margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;}
 body{background:var(--bg);color:var(--fg);display:flex;align-items:flex-start;justify-content:center;padding:28px;}
@@ -21,5 +24,16 @@ h1{margin:0;font-size:20px}
 .pane{background:#0f172010;border-radius:8px;padding:10px;margin-top:10px;color:#111;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;white-space:pre-wrap;min-height:36px}
 textarea{width:100%;border-radius:8px;padding:10px;border:1px solid #e3e9f5}
 input{padding:8px;border-radius:8px;border:1px solid #e3e9f5}
+select{padding:8px;border-radius:8px;border:1px solid #e3e9f5;background:#fff}
 .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;color:#1b2833}
 footer{color:var(--muted);font-size:13px}
+
+/* Bathroom table */
+.tableWrap{overflow:auto;border:1px solid #e5e9f2;border-radius:8px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:10px;border-bottom:1px solid #edf1f6;text-align:left}
+th{font-weight:700;color:#667;background:#f8f9fc;position:sticky;top:0}
+.cap{width:90px}
+.rowBtns{display:flex;gap:6px;align-items:center}
+tr.row-ok{background:#eaf7ea}
+tr.row-bad{background:#fdecea}
