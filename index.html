@@ -257,6 +257,15 @@
   /* ============================================================
    * SMALL HELPERS
    * ============================================================ */
+  function nameHtmlWithBadge(name){
+    const loc = getLocation();
+    const showBadge =
+      !!window.__lastRegentsPrep &&
+      !isSeniorOutIn() &&
+      !isBathroomLocation(loc) &&
+      !isLunchLocation(loc);
+    return `${esc(name || 'Unknown')}${showBadge ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
+  }
   function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function setStatus(t){ statusEl.textContent = t; }
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
@@ -576,7 +585,7 @@
 
     if (window.__lastSearchFlag) tr.classList.add('flag-search'); else tr.classList.remove('flag-search');
 
-    const nameHtml = `${esc(name||'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
+    const nameHtml = nameHtmlWithBadge(name);
 
     if (isSeniorOutIn() || isBathroomLocation(loc)) {
       const label = String(lockerNum||'').toUpperCase();
@@ -591,7 +600,7 @@
         : '';
       tr.className = '';
       tr.innerHTML =
-        `<td class="name">${nameHtml}</td>
+        `<td class="name">${nameHtmlWithBadge(name)}</td>
          <td class="code">${esc(code)}</td>
          <td>${pill} ${allowBox}</td>
          <td>${fmtTime(when)}</td>`;
@@ -843,7 +852,7 @@
       const allowBox = (canGoOut && !isNA)
         ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
         : '';
-      const nameHtml = `${esc(name || 'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
+      const nameHtml = nameHtmlWithBadge(name);
       resultEl.innerHTML =
         `<div class="ok">OK</div>
          <div class="name">${nameHtml}</div>
@@ -861,7 +870,7 @@
       ? (allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`)
       : `Locker ${esc(displayNum || '—')} (${esc(displayColor || '—')})`;
 
-    const nameHtml = `${esc(name || 'Unknown')}${window.__lastRegentsPrep ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
+    const nameHtml = nameHtmlWithBadge(name);
     resultEl.innerHTML =
       `<div class="ok">OK</div>
        <div class="name">${nameHtml}</div>
