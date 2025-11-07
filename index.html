@@ -141,8 +141,9 @@
         <div class="panel" id="outPanel" style="margin-top:10px; display:none">
           <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
             <span>Currently OUT — Senior Lunch</span>
+            <!-- CHANGED LABEL ONLY -->
             <button id="refreshRosterBtn" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">
-              Refresh roster
+              Clear list
             </button>
           </div>
           <div id="outPane" class="scans-pane" style="max-height: 240px">
@@ -165,7 +166,8 @@
             <div class="panel" id="bathPanelM" style="margin-top:10px; display:none">
               <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
                 <span id="bathPanelTitleM">Currently IN — Bathroom (M)</span>
-                <button id="bathRefreshBtnM" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Refresh roster</button>
+                <!-- CHANGED LABEL ONLY -->
+                <button id="bathRefreshBtnM" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Clear Bathroom</button>
               </div>
               <div class="scans-pane" style="max-height: 240px">
                 <table aria-label="Currently IN (Bathroom M)">
@@ -179,7 +181,8 @@
             <div class="panel" id="bathPanelF" style="margin-top:10px; display:none">
               <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
                 <span id="bathPanelTitleF">Currently IN — Bathroom (F)</span>
-                <button id="bathRefreshBtnF" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Refresh roster</button>
+                <!-- CHANGED LABEL ONLY -->
+                <button id="bathRefreshBtnF" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Clear Bathroom</button>
               </div>
               <div class="scans-pane" style="max-height: 240px">
                 <table aria-label="Currently IN (Bathroom F)">
@@ -266,7 +269,7 @@
       !isLunchLocation(loc);
     return `${esc(name || 'Unknown')}${showBadge ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
   }
-  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&gt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function setStatus(t){ statusEl.textContent = t; }
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
   function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
@@ -428,8 +431,60 @@
     bodyM.innerHTML = rowsM.map(r => rowHtml(r, rowsM.length, capM)).join('');
     bodyF.innerHTML = rowsF.map(r => rowHtml(r, rowsF.length, capF)).join('');
   }
-  document.getElementById('bathRefreshBtnM')?.addEventListener('click', async ()=>{ await renderBathList(); setStatus('Bathroom (M) refreshed'); setTimeout(()=> setStatus('Ready. Scan a card…'), 900); });
-  document.getElementById('bathRefreshBtnF')?.addEventListener('click', async ()=>{ await renderBathList(); setStatus('Bathroom (F) refreshed'); setTimeout(()=> setStatus('Ready. Scan a card…'), 900); });
+
+  /* ---------- MINIMAL ADD: manual clear helpers ---------- */
+  async function manualClearOutList(){
+    const loc = getLocation() || SPECIAL_LOCATION;
+    const items = getOutSet(); // [{osis,name,sinceISO}]
+    if (!items.length){ setStatus('Nothing to clear.'); return; }
+
+    setStatus('Clearing list…');
+    const nowISO = new Date().toISOString();
+    // log “manually_cleared” for each student
+    await Promise.allSettled(items.map(r =>
+      apiLog({
+        whenISO: nowISO,
+        code: r.osis,
+        source: 'pwa',
+        resolved: { name: r.name || '', osis: r.osis || '' },
+        allowed: 'manually_cleared'
+      })
+    ));
+    // clear UI/local
+    setOutSet([]);
+    renderOutList();
+    setStatus('List cleared.');
+    setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+  }
+
+  async function manualClearBathroom(g){
+    const loc = getLocation() || '';
+    if (!isBathroomLocation(loc)){ setStatus('Not a bathroom location.'); return; }
+    const items = getBathSet(g); // [{osis,name,sinceISO}]
+    if (!items.length){ setStatus(`Nothing to clear for ${g}.`); return; }
+
+    setStatus(`Clearing Bathroom (${g})…`);
+    const nowISO = new Date().toISOString();
+    await Promise.allSettled(items.map(r =>
+      apiLog({
+        whenISO: nowISO,
+        code: r.osis,
+        source: 'pwa',
+        resolved: { name: r.name || '', osis: r.osis || '' },
+        allowed: 'manually_cleared'
+      })
+    ));
+    // clear UI/local
+    setBathSet(g, []);
+    await renderBathList();
+    setStatus(`Bathroom (${g}) cleared.`);
+    setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+  }
+  /* ---------- END minimal add ---------- */
+
+  /* Attach (old) refresh buttons to NEW clear actions */
+  document.getElementById('bathRefreshBtnM')?.addEventListener('click', async ()=>{ await manualClearBathroom('M'); });
+  document.getElementById('bathRefreshBtnF')?.addEventListener('click', async ()=>{ await manualClearBathroom('F'); });
 
   // Console helpers
   window.getBathroomCap = async function(location) {
@@ -1115,21 +1170,16 @@
   initNetworkPill();
 
   /* ============================================================
-   * ROSTER REFRESH (Senior Lunch panel)
+   * ROSTER REFRESH — repurposed to CLEAR LIST for Senior Lunch
    * ============================================================ */
   document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
     const btn = e.currentTarget;
     btn.disabled = true;
     const original = btn.textContent;
-    btn.textContent = 'Refreshing…';
-    setStatus('Updating roster… wait…');
+    btn.textContent = 'Clearing…';
     try {
-      const res = await apiRefreshRoster();
-      setStatus(`Roster updated — ${res?.counts?.osis ?? '?'} students`);
-    } catch (err) {
-      setStatus(`Update failed — ${err.message || err}`);
+      await manualClearOutList();
     } finally {
-      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
       btn.textContent = original;
       btn.disabled = false;
     }
