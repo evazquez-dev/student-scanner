@@ -1,1140 +1,356 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Student Scanner</title>
-
-  <!-- PWA -->
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <meta name="theme-color" content="#0b57d0" />
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(()=>{});
-    }
-  </script>
-
-  <style>
-    :root { --fg:#0b1320; --muted:#5e6b7a; --brand:#0b57d0; --bg:#f6f8fb; }
-    html,body { height:100%; }
-    body {
-      margin:0; font:16px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      color:var(--fg); background:var(--bg);
-      display:flex; align-items:center; justify-content:center; min-height:100dvh;
-    }
-    .card {
-      width:min(920px, 96vw); background:#fff; border-radius:18px; padding:20px 20px 16px;
-      box-shadow:0 10px 30px rgba(0,0,0,.06);
-    }
-    h1 { margin:0 0 4px 0; font-size:22px; }
-    .muted { color:var(--muted); font-size:13px; }
-    .row { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
-    .col { flex:1 1 320px; }
-    .panel { background:#fafbff; border:1px solid #eef1f7; border-radius:14px; padding:14px; }
-    #status { font-weight:600; }
-    #result { font-size:17px; margin-top:6px; }
-    table { width:100%; border-collapse:collapse; font-size:14px; }
-    th,td { padding:8px 6px; border-bottom:1px solid #edf1f6; text-align:left; }
-    th { font-weight:600; color:#667; background:#f8f9fc; }
-    .ok { color:#0a7c2f; font-weight:600; }
-    .err { color:#b00020; font-weight:600; }
-    .name { font-weight:700; }
-    .code { color:#556; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .input-wrap { display:flex; gap:8px; align-items:center; }
-    input[type=text] {
-      flex:1; padding:10px 12px; font-size:18px; border-radius:12px; border:1px solid #cfd7e3; outline:none;
-    }
-    .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:6px;border:1px solid #ccd3de}
-    button { cursor:pointer; border:none; border-radius:12px; padding:10px 14px; font-weight:600; background:var(--brand); color:#fff; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eaf7ea; color:#0a7c2f; font-size:12px; font-weight:700; }
-    .scans-pane{ max-height: 360px; overflow-y: auto; border: 1px solid #e5e9f2; border-radius: 8px; background: #fff; }
-    .scans-pane thead th{ position: sticky; top: 0; background: #f7f9fc; z-index: 1; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
-    #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
-    .bad { color:#b00020; font-weight:600; }
-    .queued { color:#8a5a00; font-weight:600; }
-    .allowed-badge { color:#0a7c2f; font-weight:700; }
-    .not-allowed-badge { color:#b00020; font-weight:700; }
-    .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
-    .badge--out{background:#eaf7ea;color:#b00020}
-    .badge--in{ background:#eaf7ea;color:#0a7c2f}
-    .badge--na{ background:#fdecea;color:#b00020}
-    .flag{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#334;user-select:none}
-    .flag input{accent-color:#0b57d0}
-
-    /* Bag search highlight */
-    .flag-search { background:#fff8db; }
-    .flag-search .name::after { content:' — SEARCH'; color:#b26b00; font-weight:700; }
-    /* Regents Prep badge */
-    .badge-purple { background:#f3e8ff; color:#6b21a8; font-weight:700; padding:2px 6px; border-radius:6px; font-size:12px; margin-left:6px; }
-    /* Modal + UI states */
-    #locModal { position:fixed; inset:0; z-index: 2147483000; }
-    .card[inert] { pointer-events: none; }
-    .pill--bad { background:#fdecea !important; color:#b00020 !important; }
-    .pill--warn{ background:#fff3e0 !important; color:#8a5a00 !important; }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Student Scanner</title>
+<style>
+  :root { --bg:#0b0f1a; --card:#121826; --ink:#e6eefc; --muted:#8fa1c1; --ok:#0aa84f; --bad:#d7263d; --accent:#4c83ff; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; background: var(--bg); color: var(--ink); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 16px; }
+  header { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+  header .left { display:flex; gap:12px; align-items:center; }
+  .pill { padding: 6px 10px; border-radius: 20px; font-weight: 600; background: #17223a; color: var(--muted); }
+  .pill.good { color:#aef2c7; background:#0d2a1b; border:1px solid #156b3c;}
+  .pill.bad  { color:#ffd1d9; background:#3a151b; border:1px solid #8b2230;}
+  .pill.accent { color:#e7ecff; background:#1a2b5c; border:1px solid #4c83ff; }
+  .title { font-size: 18px; font-weight: 700; color:#dbe5ff; }
+  .card { background: var(--card); border:1px solid #202b40; border-radius: 14px; padding: 14px; margin: 12px 0; }
+  .row { display:flex; gap:10px; align-items:center; }
+  .grow { flex:1; }
+  input[type="text"] { width: 100%; padding: 12px 14px; background:#0d1424; color:var(--ink); border:1px solid #203050; border-radius: 12px; font-size: 18px; }
+  input[type="text"]::placeholder { color:#6f86b3; }
+  button { border:0; background:#213255; color:#eaf0ff; padding: 10px 14px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+  button:hover { filter: brightness(1.1); }
+  .btn-ok { background:#0b57d0; }
+  .btn-danger { background:#7a1220; }
+  .btn-ghost { background:#17223a; color:#bcd0ff; border:1px solid #263760; }
+  .stack { display:flex; flex-direction: column; gap:12px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+  .student { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px; border:1px dashed #2a3a62; border-radius:10px; }
+  .student b { font-size: 16px; }
+  .muted { color: var(--muted); }
+  .status { font-size: 14px; color: var(--muted); min-height: 1.2em; }
+  footer { margin-top: 18px; display:flex; gap:10px; align-items:center; justify-content:space-between; color:#9fb4dd; }
+  code { background:#0c1324; border:1px solid #1f2b4a; padding:2px 6px; border-radius:8px; }
+</style>
 </head>
 <body>
-  <!-- ============ LOCATION MODAL ============ -->
-  <div id="locModal" style="background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
-    <div style="background:#fff; width:min(360px, 92vw); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2)">
-      <div style="font-weight:700; margin-bottom:8px;">Select your location</div>
-      <div class="muted" style="margin-bottom:12px">This will be saved and attached to each scan.</div>
-      <select id="locSelect" style="width:100%; padding:10px; border:1px solid #cfd7e3; border-radius:10px; margin-bottom:12px">
-        <option value="">Loading…</option>
-      </select>
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button id="locCancelBtn" style="background:#e5e9f2; color:#333">Cancel</button>
-        <button id="locSaveBtn">Save</button>
+<div class="wrap">
+  <header>
+    <div class="left">
+      <div class="title">Student Scanner</div>
+      <div id="locPill" class="pill accent">Location: <span id="locName">—</span></div>
+      <div id="bindPill" class="pill">Device: <span id="devIdShort">—</span></div>
+    </div>
+    <div>
+      <button id="btnSetDevice" class="btn-ghost">Set Device</button>
+    </div>
+  </header>
+
+  <div class="card stack" id="scanCard">
+    <div class="row">
+      <div class="grow">
+        <input id="scanInput" type="text" inputmode="numeric" autocomplete="one-time-code"
+               placeholder="Scan card or type OSIS / RFID and press Enter…" />
       </div>
+      <div>
+        <button id="btnFocus" class="btn-ghost">Focus</button>
+      </div>
+    </div>
+    <div class="status" id="scanStatus"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <b>Latest Result</b>
+        <div id="resultPill" class="pill">—</div>
+      </div>
+      <div id="latest" class="stack">
+        <div class="muted">Waiting for a scan…</div>
+      </div>
+    </div>
+
+    <div class="card stack">
+      <div class="row" style="justify-content:space-between">
+        <b id="listTitle">Present List</b>
+        <div class="row" style="gap:8px">
+          <button id="btnClearList" class="btn-danger" style="display:none">Clear</button>
+          <button id="btnReset" class="btn-ghost">Reset View</button>
+        </div>
+      </div>
+      <div id="presentList" class="stack"></div>
+      <div class="status" id="clearStatus"></div>
     </div>
   </div>
 
-  <!-- ============ MAIN CARD ============ -->
-  <div class="card">
-    <h1>Student Scanner 
-      <span class="pill" id="onlinePill">Online</span>
-      <span class="pill" id="locationPill" style="margin-left:6px; cursor:pointer;" title="Click to change location">Set location</span>
-      <span class="pill" id="batteryPill" style="margin-left:6px">🔋 --%</span>
-      <span class="pill" id="netPill" style="margin-left:6px">Wi-Fi …</span>
-    </h1>
-    <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter.</div>
+  <footer>
+    <div>Bound: <code id="boundInfo">—</code></div>
+    <div>Device ID: <code id="deviceIdFooter">—</code></div>
+  </footer>
+</div>
 
-    <div class="row" style="margin-top:14px">
-      <!-- Left -->
-      <div class="col">
-        <div class="panel">
-          <div id="status">Ready. Scan a card…</div>
-          <div id="result"></div>
+<script>
+/** =========================
+ *  LIGHT CONFIG (edit me)
+ *  ========================= */
+const WORKER_URL = 'https://red-cake-77d5.evazquez-3e0.workers.dev/'; // trailing slash OK
+const ORIGIN_OK  = window.location.origin;
+const DEFAULT_DEVICE_ID = ''; // optional fallback
 
-          <hr style="border:none;border-top:1px solid #edf1f6; margin:12px -14px" />
+/** =========================
+ *  STATE
+ *  ========================= */
+let DEVICE_ID = localStorage.getItem('SCN_DEVICE_ID') || DEFAULT_DEVICE_ID || '';
+let LOCKED_LOCATION = ''; // set by /device_location
+let MODE = 'generic';     // 'bathroom' | 'senior_outin' | 'generic'
+let PRESENT = [];         // array of { osis, name, sex? }
 
-          <div class="muted" style="margin-bottom:6px">Manual entry:</div>
-          <form id="manualForm" class="input-wrap" autocomplete="off">
-            <input id="manualInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Type OSIS or RFID and press Enter" />
-            <button type="submit">Enter</button>
-          </form>
-          <div class="muted" style="margin-top:6px">Tip: field keeps focus—great for external keypads.</div>
-        </div>
+/** =========================
+ *  UTIL
+ *  ========================= */
+function $(id){ return document.getElementById(id); }
+function shortId(id){ return id ? id.slice(0,8)+'…' : '—'; }
+function setStatus(el,msg,kind){
+  el.textContent = msg || '';
+  const pill = $('resultPill');
+  if (kind === 'ok') { pill.textContent='OK'; pill.className='pill good'; }
+  else if (kind === 'bad') { pill.textContent='Error'; pill.className='pill bad'; }
+  else { pill.textContent='—'; pill.className='pill'; }
+}
+async function postForm(params){
+  const body = new URLSearchParams(params);
+  const r = await fetch(WORKER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8', 'Accept':'application/json' },
+    body: body.toString(),
+    credentials: 'include'
+  });
+  const ct = r.headers.get('content-type') || '';
+  const text = await r.text();
+  if (!ct.includes('application/json')) throw new Error('Non-JSON from worker');
+  const json = JSON.parse(text);
+  if (!r.ok) throw new Error(json?.error || ('HTTP '+r.status));
+  return json;
+}
+function renderPresent(){
+  const box = $('presentList');
+  box.innerHTML = '';
+  if (!PRESENT.length){
+    box.innerHTML = '<div class="muted">No students in list.</div>';
+    return;
+  }
+  for (const s of PRESENT){
+    const div = document.createElement('div');
+    div.className = 'student';
+    div.innerHTML = `
+      <div>
+        <b>${escapeHtml(s.name||'')}</b>
+        <div class="muted">OSIS: ${escapeHtml(s.osis||'')}</div>
       </div>
+      <button class="btn-ghost" data-osis="${s.osis}">Remove</button>
+    `;
+    box.appendChild(div);
+  }
+  // per-row remove
+  box.querySelectorAll('button[data-osis]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const os = String(btn.getAttribute('data-osis')||'');
+      PRESENT = PRESENT.filter(x => x.osis !== os);
+      renderPresent();
+    });
+  });
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function classifyModeByLocation(loc){
+  if (!loc) return 'generic';
+  if (loc.toLowerCase() === 'senior lunch (out-in)') return 'senior_outin';
+  if (loc.toLowerCase().startsWith('bathroom (')) return 'bathroom';
+  return 'generic';
+}
+function updateButtonsByMode(){
+  const btn = $('btnClearList');
+  const title = $('listTitle');
+  if (MODE === 'bathroom'){
+    btn.style.display = '';
+    btn.textContent = 'Clear Bathroom';
+    title.textContent = 'Currently In Bathroom';
+  } else if (MODE === 'senior_outin'){
+    btn.style.display = '';
+    btn.textContent = 'Clear List';
+    title.textContent = 'Currently OUT';
+  } else {
+    btn.style.display = 'none';
+    title.textContent = 'Present List';
+  }
+}
 
-      <!-- Right -->
-      <div class="col">
-        <!-- History -->
-        <div class="panel">
-          <div class="muted" style="margin-bottom:8px">Recent scans (local)</div>
-          <div id="scansPane" class="scans-pane">
-            <table id="historyTbl" aria-label="Scan history">
-              <thead>
-                <tr>
-                  <th style="width:30%">Name</th>
-                  <th style="width:20%">Code</th>
-                  <th style="width:22%">Locker</th>
-                  <th style="width:28%">Time</th>
-                </tr>
-              </thead>
-              <tbody id="historyBody"></tbody>
-            </table>
-          </div>
-        </div>
+/** =========================
+ *  DEVICE BIND / LOCATION
+ *  ========================= */
+async function resolveDeviceLocation(){
+  if (!DEVICE_ID) {
+    $('boundInfo').textContent = 'not set';
+    $('devIdShort').textContent = '—';
+    $('deviceIdFooter').textContent = '—';
+    $('locName').textContent = '—';
+    $('bindPill').className = 'pill bad';
+    return;
+  }
+  $('devIdShort').textContent = shortId(DEVICE_ID);
+  $('deviceIdFooter').textContent = DEVICE_ID;
 
-        <!-- Senior Lunch OUT list -->
-        <div class="panel" id="outPanel" style="margin-top:10px; display:none">
-          <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-            <span>Currently OUT — Senior Lunch</span>
-            <button id="refreshRosterBtn" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">
-              Refresh roster
-            </button>
-          </div>
-          <div id="outPane" class="scans-pane" style="max-height: 240px">
-            <table id="outTbl" aria-label="Currently OUT">
-              <thead>
-                <tr>
-                  <th style="width:40%">Name</th>
-                  <th style="width:20%">OSIS</th>
-                  <th style="width:40%">Since</th>
-                </tr>
-              </thead>
-              <tbody id="outBody"></tbody>
-            </table>
-          </div>
-        </div>
+  try {
+    const j = await postForm({ action:'device_location', device_id: DEVICE_ID });
+    LOCKED_LOCATION = j?.location || '';
+    $('locName').textContent = LOCKED_LOCATION || '—';
+    $('boundInfo').textContent = j?.locked ? `locked to "${LOCKED_LOCATION}"` : 'unbound';
+    $('bindPill').className = j?.locked ? 'pill good' : 'pill';
+    MODE = classifyModeByLocation(LOCKED_LOCATION);
+    updateButtonsByMode();
+  } catch (e) {
+    $('boundInfo').textContent = 'error';
+    $('bindPill').className = 'pill bad';
+  }
+}
 
-        <!-- Bathroom IN lists (Male & Female) -->
-        <div class="row">
-          <div class="col">
-            <div class="panel" id="bathPanelM" style="margin-top:10px; display:none">
-              <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-                <span id="bathPanelTitleM">Currently IN — Bathroom (M)</span>
-                <button id="bathRefreshBtnM" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Refresh roster</button>
-              </div>
-              <div class="scans-pane" style="max-height: 240px">
-                <table aria-label="Currently IN (Bathroom M)">
-                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Capacity</th></tr></thead>
-                  <tbody id="bathBodyM"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          <div class="col">
-            <div class="panel" id="bathPanelF" style="margin-top:10px; display:none">
-              <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-                <span id="bathPanelTitleF">Currently IN — Bathroom (F)</span>
-                <button id="bathRefreshBtnF" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Refresh roster</button>
-              </div>
-              <div class="scans-pane" style="max-height: 240px">
-                <table aria-label="Currently IN (Bathroom F)">
-                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Capacity</th></tr></thead>
-                  <tbody id="bathBodyF"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+/** =========================
+ *  SCANNING + LOOKUP + LOG
+ *  ========================= */
+async function handleScan(codeRaw){
+  const stat = $('scanStatus');
+  codeRaw = String(codeRaw||'').trim();
+  if (!codeRaw) return;
+  $('scanInput').value = '';
+  setStatus(stat, 'Scanning…');
+
+  try {
+    // 1) Lookup (Worker memory/KV)
+    const look = await postForm({ action:'lookup', code: codeRaw });
+    if (!look || look.found === false) {
+      setStatus(stat, 'Not found', 'bad');
+      $('latest').innerHTML = `<div class="muted">No match for <code>${escapeHtml(codeRaw)}</code></div>`;
+      return;
+    }
+
+    // Show result
+    $('latest').innerHTML = `
+      <div class="student">
+        <div>
+          <b>${escapeHtml(look.name)}</b>
+          <div class="muted">OSIS: ${escapeHtml(look.osis)} · Lunch: ${escapeHtml(look.lunch||'')}</div>
+          <div class="muted">Locker: ${escapeHtml(look.locker_color_effective||'')} ${escapeHtml(look.locker_number_effective||'')}</div>
         </div>
+        <div class="pill ${look.allowed_senior ? 'good' : ''}">${look.allowed_senior ? 'Senior ✓' : 'Student'}</div>
       </div>
-    </div>
+    `;
+    setStatus(stat, 'OK', 'ok');
 
-    <div class="muted" style="margin-top:10px">
-      Configure <span class="code">API_BASE</span> in the script below.
-    </div>
-  </div>
-
-  <script>
-  /* ============================================================
-   * CONFIG + CONSTANTS
-   * ============================================================ */
-
-  // --- Recent scans display limits ---
-  const DEFAULT_RECENT_VISIBLE = 6;     // hall/office scanners (or whatever you use today)
-  const BATHROOM_RECENT_VISIBLE = 3;    // bathroom scanners: show only 2–3
-  const isBathroom = (name) => String(name || '').toLowerCase().startsWith('bathroom (');
-  const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/'; // ← set your Worker URL
-
-  // Optional wake-up ping
-  (async () => { try {
-    await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
-  } catch (_) {} })();
-
-  const STATIC_LOCATIONS = [
-    'Front Desk','Main Entrance','Cafeteria','Gym','Security','Room 302','Senior Lunch (out-in)',
-    'Bathroom (First Floor)','Bathroom (Second Floor)','Bathroom (Third Floor)'
-  ];
-
-  const SCAN_GAP_MS = 10;
-  const HISTORY_VISIBLE_DEFAULT = 10;
-  const HISTORY_VISIBLE_SENIOR  = 4;
-
-  const SPECIAL_LOCATION = 'Senior Lunch (out-in)';
-  const BATHROOM_PREFIX  = 'Bathroom (';
-
-  const QUEUE_KEY = 'scanQueueV1';
-  const LOC_KEY   = 'scannerLocationV1';
-  const OUT_KEY   = 'seniorOutV1';
-  const BATH_KEY  = 'bathroomInV1';
-
-  const BATHROOM_CAPACITY_DEFAULT = 2;
-  let __LOCATIONS_CAPS = null;
-  const BATH_CAP_CACHE = Object.create(null);
-
-  // DOM
-  const statusEl = document.getElementById('status');
-  const resultEl = document.getElementById('result');
-  const historyBody = document.getElementById('historyBody');
-  const manualInput = document.getElementById('manualInput');
-  const onlinePill = document.getElementById('onlinePill');
-  const locationPill = document.getElementById('locationPill');
-  const cardEl = document.querySelector('.card');
-
-  // Runtime state
-  let IS_MODAL_OPEN = false;
-  let IS_LOCATION_LOCKED = false;
-  let IS_REFRESHING = false;
-  let lastKeyTs = 0, wedgeBuf = "", wedgeResetTimer = null;
-
-  // Device fingerprint (stable)
-  const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
-    (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
-
-  /* ============================================================
-   * SMALL HELPERS
-   * ============================================================ */
-  function nameHtmlWithBadge(name){
-    const loc = getLocation();
-    const showBadge =
-      !!window.__lastRegentsPrep &&
-      !isSeniorOutIn() &&
-      !isBathroomLocation(loc) &&
-      !isLunchLocation(loc);
-    return `${esc(name || 'Unknown')}${showBadge ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
-  }
-  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-  function setStatus(t){ statusEl.textContent = t; }
-  function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
-  function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
-  function todayKey() {
-    const d = new Date();
-    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${day}`;
-  }
-  function fmtTime(d){ try { return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d); } catch { return d.toLocaleString(); } }
-  function isSeniorOutIn(){ return String(getLocation()||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase(); }
-  function isBathroomLocation(loc){ return String(loc||getLocation()||'').toLowerCase().startsWith(BATHROOM_PREFIX.toLowerCase()); }
-
-  // Lunch helpers
-  function isLunchLocation(loc){
-    const v = String(loc||'').toLowerCase().trim();
-    return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
-  }
-  function lunchSlotFromLocation(loc){ return String(loc||'').toLowerCase().includes('2') ? 2 : 1; }
-  function normalizeLunchValue(s){
-    const v = String(s||'').toLowerCase().replace(/\s+/g,'').replace('lunch','').replace('group','').replace('l','');
-    const m = v.match(/([12])/); return m ? Number(m[1]) : null;
-  }
-  function isAllowedForLunch(location, lunchValue){
-    const need = lunchSlotFromLocation(location);
-    const have = normalizeLunchValue(lunchValue);
-    return have === need;
-  }
-
-  /* ============================================================
-   * AUDIO (bad beep)
-   * ============================================================ */
-  let AUDIO_CTX;
-  function getAudioCtx(){
-    if (!AUDIO_CTX) AUDIO_CTX = new (window.AudioContext || window.webkitAudioContext)();
-    if (AUDIO_CTX.state === 'suspended') AUDIO_CTX.resume().catch(()=>{});
-    return AUDIO_CTX;
-  }
-  ['pointerdown','keydown'].forEach(evt =>
-    window.addEventListener(evt, ()=>getAudioCtx(), { once:true })
-  );
-  function beepOnce({freq=440, dur=0.2, when=0}){
-    const ctx = getAudioCtx(); const t = ctx.currentTime + when;
-    const osc = ctx.createOscillator(); const g = ctx.createGain();
-    osc.type = 'square'; osc.frequency.value = freq;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.2, t+0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
-    osc.connect(g).connect(ctx.destination);
-    osc.start(t); osc.stop(t+dur+0.05);
-  }
-  function beepBad(){
-    [
-      { freq: 260, dur: 0.51, when: 0.00 },
-      { freq: 220, dur: 0.51, when: 0.10 },
-      { freq: 260, dur: 0.51, when: 0.20 },
-      { freq: 220, dur: 0.51, when: 0.30 }
-    ].forEach(p => beepOnce(p));
-  }
-
-  /* ============================================================
-   * PANES: Senior Lunch OUT; Bathroom IN lists (LOCAL storage)
-   * ============================================================ */
-  // Senior Lunch (OUT/IN) — single bucket per (date|location)
-  function outBucketKey(){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}`; }
-  function loadOutMap(){ try { return JSON.parse(localStorage.getItem(OUT_KEY) || '{}'); } catch { return {}; } }
-  function saveOutMap(map){ localStorage.setItem(OUT_KEY, JSON.stringify(map)); }
-  function getOutSet(){ const map = loadOutMap(); return map[outBucketKey()] || []; }
-  function setOutSet(list){ const map = loadOutMap(); map[outBucketKey()] = list; saveOutMap(map); }
-  function isOutNow(osis){ return getOutSet().some(x => x.osis === String(osis||'').trim()); }
-  function addOut(osis, name, when=new Date()){
-    osis = String(osis||'').trim(); if (!osis) return;
-    const list = getOutSet();
-    if (!list.some(x => x.osis === osis)) { list.unshift({ osis, name:String(name||'').trim(), sinceISO: when.toISOString() }); setOutSet(list); }
-  }
-  function removeOut(osis){ setOutSet(getOutSet().filter(x => x.osis !== String(osis||'').trim())); }
-  function renderOutList(){
-    const outPanel = document.getElementById('outPanel');
-    const outBody  = document.getElementById('outBody');
-    const show = isSeniorOutIn();
-    outPanel.style.display = show ? '' : 'none';
-    if (!show) return;
-    const rows = getOutSet();
-    outBody.innerHTML = rows.map(r => {
-      const when = new Date(r.sinceISO);
-      return `<tr>
-        <td class="name">${esc(r.name || '—')}</td>
-        <td class="code">${esc(r.osis || '')}</td>
-        <td>${fmtTime(when)}</td>
-      </tr>`;
-    }).join('');
-  }
-
-  // Bathroom (IN lists) — GENDERED ONLY (canonical helpers)
-  function bathBucketKeyG(g){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}|${(g||'').toUpperCase()}`; }
-  function loadBathMap(){ try { return JSON.parse(localStorage.getItem(BATH_KEY) || '{}'); } catch { return {}; } }
-  function saveBathMap(map){ localStorage.setItem(BATH_KEY, JSON.stringify(map)); }
-  function getBathSet(g){ const map = loadBathMap(); return map[bathBucketKeyG(g)] || []; }
-  function setBathSet(g, list){ const map = loadBathMap(); map[bathBucketKeyG(g)] = list; saveBathMap(map); }
-  function isInBathroomG(g, osis){ return getBathSet(g).some(x => x.osis === String(osis||'').trim()); }
-  function addInBathroomG(g, osis, name, when=new Date()){
-    osis = String(osis||'').trim(); if (!osis) return;
-    const list = getBathSet(g);
-    if (!list.some(x => x.osis === osis)) { list.unshift({ osis, name:String(name||'').trim(), sinceISO: when.toISOString() }); setBathSet(g, list); }
-  }
-  function removeFromBathroomG(g, osis){ setBathSet(g, getBathSet(g).filter(x => x.osis !== String(osis||'').trim())); }
-
-  async function getBathroomCapacityRemote(loc, gender) {
-    if (__LOCATIONS_CAPS && __LOCATIONS_CAPS[loc] && typeof __LOCATIONS_CAPS[loc] === 'object') {
-      // placeholder for per-gender preload
-    }
-    try {
-      const body = new URLSearchParams({ action: 'bath_cap', location: loc });
-      if (gender) body.set('gender', gender);
-      const r = await fetch(API_BASE, { method: 'POST', body });
-      const ct = r.headers.get('content-type')||''; if (!r.ok || !ct.includes('application/json')) throw 0;
-      const data = await r.json();
-      const cap = Number(data?.cap);
-      return Number.isFinite(cap) && cap > 0 ? cap : BATHROOM_CAPACITY_DEFAULT;
-    } catch { return BATHROOM_CAPACITY_DEFAULT; }
-  }
-  async function getBathroomCapacity(loc, gender){
-    const key = `${String(loc||'').toLowerCase()}|${String(gender||'').toUpperCase()}`;
-    if (BATH_CAP_CACHE[key]) return BATH_CAP_CACHE[key];
-    const cap = await getBathroomCapacityRemote(loc, gender);
-    BATH_CAP_CACHE[key] = cap;
-    return cap;
-  }
-
-  async function renderBathList(){
-    const loc = getLocation();
-    const show = isBathroomLocation(loc);
-    const panelM = document.getElementById('bathPanelM');
-    const panelF = document.getElementById('bathPanelF');
-    panelM.style.display = show ? '' : 'none';
-    panelF.style.display = show ? '' : 'none';
-    if (!show) return;
-
-    const [capM, capF] = await Promise.all([ getBathroomCapacity(loc, 'M'), getBathroomCapacity(loc, 'F') ]);
-    const bodyM = document.getElementById('bathBodyM');
-    const bodyF = document.getElementById('bathBodyF');
-    const titleM = document.getElementById('bathPanelTitleM');
-    const titleF = document.getElementById('bathPanelTitleF');
-
-    const rowsM = getBathSet('M');
-    const rowsF = getBathSet('F');
-
-    if (titleM) titleM.textContent = `Currently IN — ${loc} (M cap ${capM})`;
-    if (titleF) titleF.textContent = `Currently IN — ${loc} (F cap ${capF})`;
-
-    function rowHtml(r, total, cap){
-      const when = new Date(r.sinceISO);
-      return `<tr>
-        <td class="name">${esc(r.name || '—')}</td>
-        <td class="code">${esc(r.osis || '')}</td>
-        <td>${fmtTime(when)}</td>
-        <td>${total}/${cap}</td>
-      </tr>`;
-    }
-    bodyM.innerHTML = rowsM.map(r => rowHtml(r, rowsM.length, capM)).join('');
-    bodyF.innerHTML = rowsF.map(r => rowHtml(r, rowsF.length, capF)).join('');
-  }
-  document.getElementById('bathRefreshBtnM')?.addEventListener('click', async ()=>{ await renderBathList(); setStatus('Bathroom (M) refreshed'); setTimeout(()=> setStatus('Ready. Scan a card…'), 900); });
-  document.getElementById('bathRefreshBtnF')?.addEventListener('click', async ()=>{ await renderBathList(); setStatus('Bathroom (F) refreshed'); setTimeout(()=> setStatus('Ready. Scan a card…'), 900); });
-
-  // Console helpers
-  window.getBathroomCap = async function(location) {
-    location = location || getLocation();
-    const r = await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'bath_cap', location }) });
-    const data = await r.json().catch(()=> ({}));
-    console.log('Bathroom cap:', data);
-    return data;
-  };
-  window.setBathroomCap = async function(newCap, location, adminToken) {
-    location = location || getLocation();
-    if (!location) throw new Error('No location selected.');
-    if (!adminToken) adminToken = prompt('Admin token? (x-admin-token)') || '';
-    const body = new URLSearchParams({ location, cap: String(newCap) });
-    const r = await fetch(new URL('/admin/bath_cap', API_BASE), {
-      method: 'POST',
-      headers: { 'x-admin-token': adminToken },
-      body
+    // 2) Log to GAS via Worker (standard log path)
+    const log_id = `scan:${Date.now()}:${look.osis}`;
+    await postForm({
+      action: 'log',
+      code: look.osis,                 // keep it OSIS-based in logs
+      source: 'pwa',
+      location: LOCKED_LOCATION || '',
+      device_id: DEVICE_ID || '',
+      resolved_name: look.name || '',
+      resolved_osis: look.osis || '',
+      resolved_lnum: look.locker_number || '',
+      resolved_lcol: look.locker_color || '',
+      allowed: '',                     // normal scan; leave blank (sheet logic can infer)
+      log_id
     });
-    if (!r.ok) { const t = await r.text(); throw new Error(`Failed (${r.status}) ${t.slice(0,120)}`); }
-    const data = await r.json();
-    if (!__LOCATIONS_CAPS) __LOCATIONS_CAPS = {};
-    __LOCATIONS_CAPS[location] = Number(data.cap);
-    BATH_CAP_CACHE[String(location).toLowerCase()] = Number(data.cap);
-    await renderBathList();
-    console.log(`Set cap for "${location}" →`, data.cap);
-    return data;
-  };
 
-  /* ============================================================
-   * HEADER / PANES RESPONSIVENESS
-   * ============================================================ */
-  const historyHeaderCells = document.querySelectorAll('#historyTbl thead th');
-  function updateHistoryPaneForLocation(){
-    const pane = document.getElementById('scansPane');
-    if (!pane) return;
-    const loc = getLocation();
-  
-    if (isSeniorOutIn()) {
-      pane.style.maxHeight = '140px';
-    } else if (isBathroomLocation(loc)) {
-      // shorter height so ~3 rows are visible without scrolling
-      pane.style.maxHeight = '120px';
-    } else {
-      pane.style.maxHeight = '360px';
+    // 3) Maintain PRESENT list for “Clear” features
+    const entry = { osis: String(look.osis||''), name: String(look.name||''), sex: String(look.sex||'') };
+    // Bathroom: treat any scan as "IN" list
+    // Senior Lunch (out-in): treat scan as "OUT" list entry
+    if (MODE === 'bathroom' || MODE === 'senior_outin') {
+      // dedup by OSIS
+      if (!PRESENT.find(s => s.osis === entry.osis)) {
+        PRESENT.push(entry);
+        renderPresent();
+      }
     }
+  } catch (e) {
+    setStatus(stat, 'Error: ' + (e?.message || e), 'bad');
   }
-  function updateHeaderForLocation(){
-    const loc = getLocation();
-    const col = historyHeaderCells[2];
-    if (!col) return;
+}
 
-    if (isSeniorOutIn() || isBathroomLocation(loc)) col.textContent = 'In/Out';
-    else if (isLunchLocation(loc)) col.textContent = 'Allowed?';
-    else col.textContent = 'Locker';
-
-    renderOutList();
-    renderBathList(); // fire-and-forget
-    updateHistoryPaneForLocation();
-    trimHistory();
+/** =========================
+ *  MANUAL CLEAR (BATHROOM / OUT-IN)
+ *  ========================= */
+async function manualClear(){
+  const clearStat = $('clearStatus');
+  if (!PRESENT.length){
+    clearStat.textContent = 'Nothing to clear.';
+    return;
   }
+  clearStat.textContent = 'Clearing…';
 
-  /* ============================================================
-   * API CALLS (Worker)
-   * ============================================================ */
-  async function apiLookup(code){
-    const body = new URLSearchParams({ action:'lookup', code });
-    const wakeTimer = setTimeout(() => setStatus('Waking server…'), 800);
-    const controller = new AbortController();
-    const abortTimer = setTimeout(() => controller.abort(), 8000);
-    try {
-      const r = await fetch(API_BASE, { method:'POST', body, signal: controller.signal });
-      const ct = r.headers.get('content-type') || '';
-      const text = await r.text();
-      if (!r.ok) throw new Error(`HTTP ${r.status} ${text.slice(0,120)}`);
-      if (!ct.includes('application/json')) throw new Error('Upstream HTML (not JSON): ' + text.slice(0,120));
-      return JSON.parse(text);
-    } finally {
-      clearTimeout(wakeTimer); clearTimeout(abortTimer);
-      if (statusEl.textContent.includes('Waking server')) setStatus('Ready.');
-    }
-  }
-  function makeLogId({ whenISO, code }) { return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`; }
-  async function apiLog(entry){
-    const whenISO = entry.whenISO || new Date().toISOString();
-    const body = new URLSearchParams({
-      action:'log',
-      log_id: makeLogId({ whenISO, code: entry.code || '' }),
-      whenISO,
-      code: entry.code || '',
-      source: entry.source || 'pwa',
-      resolved_name:  entry.resolved?.name  || '',
-      resolved_osis:  entry.resolved?.osis  || '',
-      resolved_lnum:  entry.resolved?.locker_number || '',
-      resolved_lcol:  entry.resolved?.locker_color  || '',
-      location: getLocation() || '',
-      device_id: DEVICE_ID,
-      allowed: entry.allowed || ''
+  try {
+    const out = await postForm({
+      action: 'manual_clear',
+      device_id: DEVICE_ID || '',
+      location: LOCKED_LOCATION || '',
+      items_json: JSON.stringify(PRESENT) // [{osis,name,sex?}, ...]
     });
-    try { await fetch(API_BASE, { method:'POST', body }); } catch {}
+    if (out?.ok === false) throw new Error(out?.error || 'failed');
+    const n = Number(out?.cleared || 0);
+    PRESENT = [];
+    renderPresent();
+    clearStat.textContent = `Cleared ${n} entr${n===1?'y':'ies'}.`;
+  } catch (e) {
+    clearStat.textContent = 'Clear failed: ' + (e?.message || e);
   }
-  async function apiGetLocations(){
-    try{
-      const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'locations' }) });
-      const ct = r.headers.get('content-type')||''; const text = await r.text();
-      if (r.ok && ct.includes('application/json')) {
-        const data = JSON.parse(text);
-        if (data && data.ok && Array.isArray(data.locations)) {
-          if (data.caps && typeof data.caps === 'object') __LOCATIONS_CAPS = data.caps;
-          return data.locations;
-        }
-      }
-    } catch(_){}
-    return STATIC_LOCATIONS;
-  }
-  async function checkDeviceLock(){
-    try{
-      const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID }) });
-      const ct = r.headers.get('content-type')||'';
-      if (!r.ok || !ct.includes('application/json')) return;
-      const data = await r.json();
-      if (data.ok && data.locked && data.location) { IS_LOCATION_LOCKED = true; setLocation(data.location); }
-    } catch(_) {}
-  }
-  async function apiRefreshRoster(){
-    IS_REFRESHING = true;
-    try {
-      const r = await fetch(API_BASE, { method:'POST', body:new URLSearchParams({action:'refresh_mem'}) });
-      return await r.json();
-    } finally {
-      IS_REFRESHING = false;
-    }
-  }
+}
 
-  /* ============================================================
-   * HISTORY TABLE RENDER
-   * ============================================================ */
-  function pushPendingRow(seq, code, when){
-    const tr = document.createElement('tr');
-    tr.dataset.seq = String(seq);
-    tr.innerHTML =
-      `<td class="name"><em>…looking up…</em></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
-    historyBody.prepend(tr);
-    trimHistory();
-    return tr;
-  }
-
-  function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
-    const loc = getLocation();
-
-    if (window.__lastSearchFlag) tr.classList.add('flag-search'); else tr.classList.remove('flag-search');
-
-    const nameHtml = nameHtmlWithBadge(name);
-
-    if (isSeniorOutIn() || isBathroomLocation(loc)) {
-      const label = String(lockerNum||'').toUpperCase();
-      const isOut = label === 'OUT', isIn  = label === 'IN', isNA = label === 'NOT ALLOWED';
-      const pill = isOut
-        ? `<span class="badge badge--out">🫥 OUT</span>`
-        : (isIn ? `<span class="badge badge--in">😐 IN</span>`
-                : `<span class="badge badge--na">NOT ALLOWED</span>`);
-      const canGoOut = (isSeniorOutIn()) && !!window.__lastAllowedSenior;
-      const allowBox = (canGoOut && !isNA)
-        ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
-        : '';
-      tr.className = '';
-      tr.innerHTML =
-        `<td class="name">${nameHtmlWithBadge(name)}</td>
-         <td class="code">${esc(code)}</td>
-         <td>${pill} ${allowBox}</td>
-         <td>${fmtTime(when)}</td>`;
-      return;
-    }
-
-    if (isLunchLocation(loc)) {
-      const allowed = isAllowedForLunch(loc, lunchValue ?? window.__lastLunchValue ?? '');
-      const thirdCell = allowed
-        ? `<span class="allowed-badge">✅ Allowed</span>`
-        : `<span class="not-allowed-badge">❌ Not allowed</span>`;
-      tr.className = '';
-      tr.innerHTML =
-        `<td class="name">${nameHtml}</td>
-         <td class="code">${esc(code)}</td>
-         <td>${thirdCell}</td>
-         <td>${fmtTime(when)}</td>`;
-      return;
-    }
-
-    const color = (lockerColor||'').trim();
-    const cssColor = ({
-      red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
-      purple:'#8e24aa', orange:'#fb8c00', pink:'#d81b60', gray:'#78909c',
-      grey:'#78909c', black:'#263238', white:'#fafafa', teal:'#009688'
-    })[color.toLowerCase()] || null;
-    const lockerHtml = (lockerNum || color)
-      ? (cssColor
-          ? `<span class="swatch" style="background:${cssColor}"></span>${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`
-          : `${esc(lockerNum||'')} <span class="muted">(${esc(color)})</span>`)
-      : '—';
-
-    tr.className = '';
-    tr.innerHTML =
-      `<td class="name">${nameHtml}</td>
-       <td class="code">${esc(code)}</td>
-       <td>${lockerHtml}</td>
-       <td>${fmtTime(when)}</td>`;
-  }
-
-  function updateRowToNotFound(tr, code, when, error, reason){
-    beepBad();
-    const msg = error === 'invalid_input'
-      ? (reason === 'leading_zero_osis' ? 'Leading-zero OSIS — scan card.' : 'Digits only.')
-      : 'Not found';
-    tr.innerHTML =
-      `<td class="name"><span class="bad">${esc(msg)}</span></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
-  }
-  function updateRowToError(tr, code, when, err){
-    beepBad();
-    tr.innerHTML =
-      `<td class="name"><span class="bad">Lookup error</span></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
-  }
-  function trimHistory(){
-    const loc = getLocation();
-    const maxVisible =
-      isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR :
-      (isBathroomLocation(loc) ? BATHROOM_RECENT_VISIBLE : HISTORY_VISIBLE_DEFAULT);
-  
-    while (historyBody.children.length > maxVisible) {
-      historyBody.lastChild.remove();
-    }
-  }
-
-  /* ============================================================
-   * SCAN FLOW
-   * ============================================================ */
-  function normalizeForLookup(raw) {
-    const s = String(raw || '').trim();
-    if (!/^\d+$/.test(s)) return { ok:false, reason:'non_digit', norm:'' };
-    const norm = s.replace(/^0+/, '');
-    if (!norm) return { ok:false, reason:'all_zeros', norm:'' };
-    return { ok:true, norm };
-  }
-  function markRowQueued(tr){
-    const first = tr.querySelector('.name');
-    if (first) first.innerHTML = '<span class="queued">Queued (offline)</span>';
-  }
-
-  async function onScanAsync(scanned){
-    const when = new Date();
-    const v = normalizeForLookup(scanned);
-    if (!v.ok){
-      beepBad();
-      const msg = v.reason === 'non_digit' ? 'Digits only' : 'All zeros is not valid';
-      resultEl.innerHTML =
-        `<div class="err">${esc(msg)}</div>
-         <div class="code">${esc(scanned)}</div>
-         <div class="muted">${fmtTime(when)}</div>`;
-      setStatus('Ready.');
-      return;
-    }
-
-    const code = v.norm;
-    const row  = pushPendingRow(Date.now(), code, when);
-
-    if (!navigator.onLine){
-      markRowQueued(row);
-      const q = JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');
-      q.push({ seq: Date.now(), code, whenISO: when.toISOString() });
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-      setStatus('Offline — queued');
-      return;
-    }
-
-    try {
-      const res = await apiLookup(code);
-
-      if (!res.found){
-        updateRowToNotFound(row, code, when, res.error, res.reason);
-        showNotFound(code, when);
-        return;
-      }
-
-      window.__lastLunchValue    = res.lunch || '';
-      window.__lastAllowedSenior = !!res.allowed_senior;
-      window.__lastSearchFlag    = !!res.search;
-      window.__lastRegentsPrep   = !!res.regents_prep;
-
-      const loc     = getLocation() || '';
-      const whenISO = when.toISOString();
-
-      // Senior Lunch (toggle OUT/IN)
-      if (isSeniorOutIn()){
-        const osis          = String(res.osis || '').trim();
-        const allowedSenior = !!res.allowed_senior;
-        const wasOut        = isOutNow(osis);
-
-        if (!allowedSenior){
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
-          showSuccess(res.name, code, 'NOT ALLOWED', '', when);
-          beepBad();
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
-          setStatus('Ready. Scan next card…');
-          return;
-        }
-
-        if (wasOut) removeOut(osis); else addOut(osis, res.name || '', when);
-        renderOutList();
-
-        const statusText = wasOut ? 'IN' : 'OUT';
-        updateRowToSuccess(row, { name: res.name, code, lockerNum: statusText, lockerColor: '', when });
-        showSuccess(res.name, code, statusText, '', when);
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(wasOut ? 'in' : 'out') });
-        setStatus('Ready. Scan next card…');
-        return;
-      }
-
-      // Bathroom IN/OUT with per-gender capacity
-      if (isBathroomLocation(loc)) {
-        const osis = String(res.osis || '').trim();
-        const sex  = (String(res.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
-        const wasIn = isInBathroomG(sex, osis);
-
-        const cap = await getBathroomCapacity(loc, sex);
-        const list = getBathSet(sex);
-
-        if (wasIn) {
-          removeFromBathroomG(sex, osis);
-          await renderBathList();
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when });
-          showSuccess(res.name, code, 'OUT', '', when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
-          setStatus('Ready. Scan next card…');
-          return;
-        } else {
-          if (list.length >= cap) {
-            beepBad();
-            updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
-            showSuccess(res.name, code, 'NOT ALLOWED', '', when);
-            apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`full_${sex}` });
-            setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
-            return;
-          }
-          addInBathroomG(sex, osis, res.name || '', when);
-          await renderBathList();
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when });
-          showSuccess(res.name, code, 'IN', '', when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`in_${sex}` });
-          setStatus('Ready. Scan next card…');
-          return;
-        }
-      }
-
-      // Lunch check
-      if (isLunchLocation(loc)){
-        const allowed = isAllowedForLunch(loc, res.lunch || '');
-        updateRowToSuccess(row, { name: res.name, code, lockerNum:'', lockerColor:'', lunchValue:res.lunch||'', when });
-        showSuccess(res.name, code, '', '', when);
-        if (!allowed) beepBad();
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:String(allowed) });
-        setStatus('Ready. Scan next card…');
-        return;
-      }
-
-      // Default (Locker) — prefer effective values if provided
-      const displayNum   = (res.locker_number_effective ?? res.locker_number) || '';
-      const displayColor = (res.locker_color_effective  ?? res.locker_color)  || '';
-
-      updateRowToSuccess(row, { name: res.name, code, lockerNum: displayNum, lockerColor: displayColor, when });
-      showSuccess(res.name, code, displayNum, displayColor, when);
-      apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'' });
-      setStatus('Ready. Scan next card…');
-
-    } catch (err) {
-      if (!navigator.onLine || err.name === 'AbortError'){
-        markRowQueued(row);
-        const q = JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');
-        q.push({ seq: Date.now(), code, whenISO: when.toISOString() });
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-        setStatus('Offline — queued');
-        resultEl.innerHTML =
-          `<div class="err">Queued (offline)</div>
-           <div class="code">${esc(code)}</div>
-           <div class="muted">${fmtTime(when)}</div>`;
-      } else {
-        updateRowToError(row, code, when, err);
-        showError(err, code, when);
-      }
-    }
-  }
-  function onScan(scanned){
-    if (IS_REFRESHING) { beepBad(); setStatus('Updating roster… wait…'); return; }
-    onScanAsync(scanned);
-  }
-
-  /* ============================================================
-   * RESULT PANEL RENDER
-   * ============================================================ */
-  function showSuccess(name, code, lockerNum, lockerColor, when){
-    const loc = getLocation();
-
-    if (isSeniorOutIn() || isBathroomLocation(loc)) {
-      const label = String(lockerNum||'').toUpperCase();
-      const isOut = label === 'OUT';
-      const isIn  = label === 'IN';
-      const isNA  = label === 'NOT ALLOWED';
-      const pill = isOut
-        ? `<span class="badge badge--out">OUT</span>`
-        : (isIn ? `<span class="badge badge--in">IN</span>`
-                : `<span class="badge badge--na">NOT ALLOWED</span>`);
-      const canGoOut = (isSeniorOutIn()) && !!window.__lastAllowedSenior;
-      const allowBox = (canGoOut && !isNA)
-        ? `<label class="flag"><input type="checkbox" checked disabled> Allowed to go out</label>`
-        : '';
-      const nameHtml = nameHtmlWithBadge(name);
-      resultEl.innerHTML =
-        `<div class="ok">OK</div>
-         <div class="name">${nameHtml}</div>
-         <div class="code">${esc(code)} — ${pill} ${allowBox}</div>
-         <div class="muted">${fmtTime(when)}</div>`;
-      setStatus('Ready. Scan next card…');
-      return;
-    }
-
-    const allowed = (isLunchLocation(loc) ? isAllowedForLunch(loc, window.__lastLunchValue||'') : null);
-    const displayNum   = lockerNum   ?? '';
-    const displayColor = lockerColor ?? '';
-
-    const extra = isLunchLocation(loc)
-      ? (allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`)
-      : `Locker ${esc(displayNum || '—')} (${esc(displayColor || '—')})`;
-
-    const nameHtml = nameHtmlWithBadge(name);
-    resultEl.innerHTML =
-      `<div class="ok">OK</div>
-       <div class="name">${nameHtml}</div>
-       <div class="code">${esc(code)} — ${extra}</div>
-       <div class="muted">${fmtTime(when)}</div>`;
-    setStatus('Ready. Scan next card…');
-  }
-
-  function showNotFound(code, when){
-    beepBad();
-    resultEl.innerHTML =
-      `<div class="err">Not found</div>
-       <div class="code">${esc(code)}</div>
-       <div class="muted">${fmtTime(when)}</div>`;
-    setStatus('Ready.');
-  }
-  function showError(err, code, when){
-    beepBad();
-    resultEl.innerHTML =
-      `<div class="err">Lookup error</div>
-       <div class="code">${esc(code||'')}</div>
-       <div class="muted">${fmtTime(when)} — ${esc(err.message||String(err))}</div>`;
-    setStatus('Ready.');
-  }
-
-  /* ============================================================
-   * QUEUE (offline retries)
-   * ============================================================ */
-  function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
-  function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
-  async function flushQueue(){
-    if (!navigator.onLine) return;
-    const q = loadQueue(); if (!q.length) return;
-    const remain = [];
-    for (const item of q){
-      try{
-        const res = await apiLookup(item.code);
-        if (res.found){
-          updateRowToSuccess(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)), {
-            name: res.name, code: item.code,
-            lockerNum: res.locker_number, lockerColor: res.locker_color,
-            when: new Date(item.whenISO)
-          });
-          apiLog({ whenISO:item.whenISO, code:item.code, source:'pwa', resolved:res });
-        } else {
-          updateRowToNotFound(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)),
-            item.code, new Date(item.whenISO), res.error, res.reason);
-        }
-      } catch { remain.push(item); }
-    }
-    saveQueue(remain);
-  }
-  window.addEventListener('online', flushQueue);
-  flushQueue();
-
-  /* ============================================================
-   * KEYBOARD WEDGE + MANUAL ENTRY
-   * ============================================================ */
-  function keepFocus(){
-    if (IS_MODAL_OPEN || isModalVisible()) return;
-    if (document.activeElement !== manualInput) manualInput.focus({preventScroll:true});
-    manualInput.setSelectionRange(manualInput.value.length, manualInput.value.length);
-  }
-  function isModalVisible() {
-    const m = document.getElementById('locModal');
-    if (!m) return false;
-    return getComputedStyle(m).display !== 'none';
-  }
-  window.addEventListener('keydown', (e)=>{
-    if (IS_MODAL_OPEN || isModalVisible()) return;
-    keepFocus();
-    const now = performance.now();
-    const gap = now - (lastKeyTs || now);
-    lastKeyTs = now;
-    if (e.key === 'Enter'){
-      const finished = wedgeBuf; wedgeBuf = "";
-      if (finished){ e.preventDefault(); onScan(finished); manualInput.value=''; }
-      return;
-    }
-    if (e.key.length === 1){
-      const looksLikeScanner = gap <= 10 && (wedgeBuf.length > 0 || gap > 0);
-      if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; }
-    }
-    clearTimeout(wedgeResetTimer);
-    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
-  }, true);
-  document.getElementById('manualForm').addEventListener('submit', (e)=>{
-    e.preventDefault(); if (IS_MODAL_OPEN || isModalVisible()) return;
-    const v = manualInput.value.trim(); if (v) onScan(v); manualInput.value=''; keepFocus();
+/** =========================
+ *  WIRING
+ *  ========================= */
+window.addEventListener('DOMContentLoaded', ()=>{
+  // Inputs & buttons
+  $('btnFocus').addEventListener('click', ()=> $('scanInput').focus());
+  $('btnReset').addEventListener('click', ()=>{
+    PRESENT = [];
+    renderPresent();
+    $('latest').innerHTML = '<div class="muted">Waiting for a scan…</div>';
+    $('scanStatus').textContent = '';
+    $('resultPill').textContent = '—';
+    $('resultPill').className = 'pill';
   });
-  keepFocus(); setInterval(keepFocus, 1000);
+  $('btnClearList').addEventListener('click', manualClear);
 
-  /* ============================================================
-   * BATTERY + NETWORK PILLS
-   * ============================================================ */
-  async function initBatteryPill(){
-    const pill = document.getElementById('batteryPill');
-    if (!pill || !navigator.getBattery) { pill && (pill.style.display='none'); return; }
-    try {
-      const batt = await navigator.getBattery();
-      function fmt(b){
-        const pct = Math.round((b.level || 0) * 100);
-        const charging = b.charging;
-        let ico = charging ? '⚡' : (pct <= 10 ? '🪫' : '🔋');
-        let extra = '';
-        if (!charging && Number.isFinite(b.dischargingTime) && b.dischargingTime > 0) extra = ` • ${Math.round(b.dischargingTime/60)}m left`;
-        else if (charging && Number.isFinite(b.chargingTime) && b.chargingTime > 0)   extra = ` • ${Math.round(b.chargingTime/60)}m to full`;
-        pill.textContent = `${ico} ${pct}%${extra}`;
-        pill.classList.remove('pill--bad','pill--warn');
-        if (!charging && pct <= 10) pill.classList.add('pill--bad');
-        else if (!charging && pct <= 25) pill.classList.add('pill--warn');
-      }
-      fmt(batt);
-      batt.addEventListener('levelchange', fmt.bind(null, batt));
-      batt.addEventListener('chargingchange', fmt.bind(null, batt));
-      batt.addEventListener('dischargingtimechange', fmt.bind(null, batt));
-      batt.addEventListener('chargingtimechange', fmt.bind(null, batt));
-    } catch { pill.style.display='none'; }
-  }
-  function initNetworkPill(){
-    const pill = document.getElementById('netPill');
-    if (!pill) return;
-    const navConn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
-    function fmt(){
-      const online = navigator.onLine;
-      let type = 'unknown', eff = '', mbps = '', rtt = '';
-      if (navConn) {
-        type = navConn.type || (online ? 'online' : 'offline');
-        eff  = navConn.effectiveType ? ` ${navConn.effectiveType}` : '';
-        if (typeof navConn.downlink === 'number') mbps = ` • ${Math.round(navConn.downlink)} Mbps`;
-        if (typeof navConn.rtt === 'number' && navConn.rtt > 0) rtt = ` • ${navConn.rtt} ms`;
-      } else type = online ? 'online' : 'offline';
-      pill.classList.remove('pill--bad','pill--warn');
-      if (!online){ pill.textContent='Offline'; pill.classList.add('pill--bad'); return; }
-      if (navConn) {
-        if (navConn.effectiveType === 'slow-2g' || navConn.effectiveType === '2g') pill.classList.add('pill--bad');
-        else if (navConn.effectiveType === '3g') pill.classList.add('pill--warn');
-      }
-      const label = (type === 'wifi') ? 'Wi-Fi' : (type === 'ethernet' ? 'Ethernet' : type);
-      pill.textContent = `${label}${eff}${mbps}${rtt}`;
-    }
-    fmt();
-    window.addEventListener('online', fmt);
-    window.addEventListener('offline', fmt);
-    if (navConn && typeof navConn.addEventListener === 'function') navConn.addEventListener('change', fmt);
-    else if (navConn) navConn.onchange = fmt;
-  }
-
-  /* ============================================================
-   * ONLINE/OFFLINE + LOCATION PILL + WAKE LOCK
-   * ============================================================ */
-  function updateOnlinePill(){ const on = navigator.onLine; onlinePill.textContent = on ? 'Online' : 'Offline'; onlinePill.style.background = on ? '#eaf7ea' : '#fff3e0'; onlinePill.style.color = on ? '#0a7c2f' : '#8a5a00'; }
-  window.addEventListener('online', updateOnlinePill);
-  window.addEventListener('offline', updateOnlinePill);
-  updateOnlinePill();
-
-  function setModalOpen(v){ IS_MODAL_OPEN = !!v; }
-  function updateLocationPill(){
-    const pill = document.getElementById('locationPill');
-    const v = getLocation();
-    pill.textContent = v ? `Location: ${v}${IS_LOCATION_LOCKED ? ' (locked)' : ''}` : 'Set location';
-    pill.style.background = v ? '#e7f0fe' : '#fff3e0';
-    pill.style.color = v ? '#0b57d0' : '#8a5a00';
-    pill.style.cursor = IS_LOCATION_LOCKED ? 'not-allowed' : 'pointer';
-    pill.title = IS_LOCATION_LOCKED ? 'This device is locked to this location' : 'Click to change location';
-    updateHeaderForLocation();
-  }
-  async function promptForLocation(force=false){
-    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
-    if (!force && getLocation()) { updateLocationPill(); return; }
-
-    const modal = document.getElementById('locModal');
-    const sel   = document.getElementById('locSelect');
-    const btnOK = document.getElementById('locSaveBtn');
-    const btnX  = document.getElementById('locCancelBtn');
-
-    sel.innerHTML = `<option value="">Loading…</option>`;
-    modal.style.display = 'flex';
-    setModalOpen(true);
-    manualInput.blur();
-    cardEl?.setAttribute?.('inert', '');
-    setTimeout(() => sel.focus({ preventScroll: true }), 0);
-
-    try {
-      const list = await apiGetLocations();
-      sel.innerHTML = `<option value="">Select a location…</option>` + list.map(v => `<option>${esc(v)}</option>`).join('');
-      const saved = getLocation(); if (saved) sel.value = saved;
-    } catch {
-      sel.innerHTML = `<option value="">(Using defaults)</option>` + STATIC_LOCATIONS.map(v=>`<option>${esc(v)}</option>`).join('');
-    }
-
-    return new Promise(resolve=>{
-      const close = (val) => {
-        modal.style.display = 'none';
-        setModalOpen(false);
-        cardEl?.removeAttribute?.('inert');
-        setTimeout(() => { keepFocus(); }, 0);
-        resolve(val);
-      };
-      btnOK.onclick = () => {
-        const val = sel.value.trim();
-        if (val) { setLocation(val); updateHeaderForLocation(); close(val); }
-        else { alert('Please choose a location.'); }
-      };
-      btnX.onclick = () => close(getLocation());
-      modal.addEventListener('click', (ev)=>{ if (ev.target === modal) close(getLocation()); }, { once:true });
-    });
-  }
-
-  (async () => {
-    await checkDeviceLock();
-    updateLocationPill();
-    updateHistoryPaneForLocation();
-    trimHistory();
-    await promptForLocation(false);
-    await renderBathList();
-  })();
-
-  document.getElementById('locationPill').addEventListener('click', () => {
-    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
-    promptForLocation(true);
-  });
-
-  // Wake Lock (keep screen on)
-  let wakeLock = null;
-  async function requestWakeLock() {
-    if (!('wakeLock' in navigator)) return;
-    try {
-      wakeLock = await navigator.wakeLock.request('screen');
-      wakeLock.addEventListener('release', () => {
-        if (document.visibilityState === 'visible') requestWakeLock();
-      });
-    } catch {}
-  }
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') requestWakeLock(); });
-  window.addEventListener('focus', requestWakeLock);
-  window.addEventListener('keydown', requestWakeLock, { once: true });
-  window.addEventListener('pointerdown', requestWakeLock, { once: true });
-
-  // Init pills
-  initBatteryPill();
-  initNetworkPill();
-
-  /* ============================================================
-   * ROSTER REFRESH (Senior Lunch panel)
-   * ============================================================ */
-  document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = 'Refreshing…';
-    setStatus('Updating roster… wait…');
-    try {
-      const res = await apiRefreshRoster();
-      setStatus(`Roster updated — ${res?.counts?.osis ?? '?'} students`);
-    } catch (err) {
-      setStatus(`Update failed — ${err.message || err}`);
-    } finally {
-      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
-      btn.textContent = original;
-      btn.disabled = false;
+  $('btnSetDevice').addEventListener('click', async ()=>{
+    const id = prompt('Enter DEVICE_ID (found on the scanner footer):', DEVICE_ID || '');
+    if (id && id.trim()){
+      DEVICE_ID = id.trim();
+      localStorage.setItem('SCN_DEVICE_ID', DEVICE_ID);
+      await resolveDeviceLocation();
     }
   });
 
-  </script>
+  // Scan field handlers
+  const input = $('scanInput');
+  input.addEventListener('keydown', (ev)=>{
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      handleScan(input.value);
+    }
+  });
+  // Autofocus for USB scanners
+  setTimeout(()=> input.focus(), 50);
+
+  // Init bind/location
+  resolveDeviceLocation();
+  renderPresent();
+});
+</script>
 </body>
 </html>
