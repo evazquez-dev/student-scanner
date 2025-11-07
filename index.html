@@ -483,8 +483,50 @@
   /* ---------- END minimal add ---------- */
 
   /* Attach (old) refresh buttons to NEW clear actions */
-  document.getElementById('bathRefreshBtnM')?.addEventListener('click', async ()=>{ await manualClearBathroom('M'); });
-  document.getElementById('bathRefreshBtnF')?.addEventListener('click', async ()=>{ await manualClearBathroom('F'); });
+  document.getElementById('bathRefreshBtnM')?.addEventListener('click', async (e)=>{
+    const btn = e.currentTarget; btn.disabled = true; const orig = btn.textContent;
+    btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (M)…');
+    try {
+      const loc = getLocation();
+      const list = getBathSet('M'); // [{ osis, name, sinceISO }]
+      if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
+      if (!list.length) { setStatus('Nothing to clear.'); return; }
+  
+      const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'M' }));
+      const res = await apiManualClear(loc, items);
+      setBathSet('M', []); // local clear
+      await renderBathList();
+      setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (M).`);
+    } catch (err) {
+      setStatus(`Clear failed — ${err.message || err}`);
+    } finally {
+      btn.textContent = orig; btn.disabled = false;
+      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+    }
+  });
+  
+  document.getElementById('bathRefreshBtnF')?.addEventListener('click', async (e)=>{
+    const btn = e.currentTarget; btn.disabled = true; const orig = btn.textContent;
+    btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (F)…');
+    try {
+      const loc = getLocation();
+      const list = getBathSet('F'); // [{ osis, name, sinceISO }]
+      if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
+      if (!list.length) { setStatus('Nothing to clear.'); return; }
+  
+      const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'F' }));
+      const res = await apiManualClear(loc, items);
+      setBathSet('F', []); // local clear
+      await renderBathList();
+      setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (F).`);
+    } catch (err) {
+      setStatus(`Clear failed — ${err.message || err}`);
+    } finally {
+      btn.textContent = orig; btn.disabled = false;
+      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+    }
+  });
+
 
   // Console helpers
   window.getBathroomCap = async function(location) {
@@ -566,6 +608,20 @@
       clearTimeout(wakeTimer); clearTimeout(abortTimer);
       if (statusEl.textContent.includes('Waking server')) setStatus('Ready.');
     }
+  }
+  async function apiManualClear(location, items){
+    const body = new URLSearchParams();
+    body.set('action', 'manual_clear');
+    body.set('location', location || '');
+    body.set('device_id', DEVICE_ID);
+    body.set('items_json', JSON.stringify(items || []));
+    const r = await fetch(API_BASE, { method:'POST', body });
+    const ct = r.headers.get('content-type') || '';
+    const text = await r.text();
+    if (!r.ok || !ct.includes('application/json')) {
+      throw new Error(`Manual clear failed (${r.status}): ${text.slice(0,160)}`);
+    }
+    return JSON.parse(text); // { ok, cleared, errors:[] }
   }
   function makeLogId({ whenISO, code }) { return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`; }
   async function apiLog(entry){
@@ -1173,15 +1229,24 @@
    * ROSTER REFRESH — repurposed to CLEAR LIST for Senior Lunch
    * ============================================================ */
   document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = 'Clearing…';
+    const btn = e.currentTarget; btn.disabled = true; const original = btn.textContent;
+    btn.textContent = 'Clearing…'; setStatus('Clearing list…');
     try {
-      await manualClearOutList();
+      if (!isSeniorOutIn()) throw new Error('This button is for the "Senior Lunch (out-in)" location.');
+      const loc = getLocation();
+      const list = getOutSet(); // [{ osis, name, sinceISO }]
+      if (!list.length) { setStatus('Nothing to clear.'); return; }
+  
+      const items = list.map(r => ({ osis: r.osis, name: r.name }));
+      const res = await apiManualClear(loc, items);
+      setOutSet([]); // local clear
+      renderOutList();
+      setStatus(`Cleared ${res?.cleared ?? 0} student(s) from OUT list.`);
+    } catch (err) {
+      setStatus(`Clear failed — ${err.message || err}`);
     } finally {
-      btn.textContent = original;
-      btn.disabled = false;
+      btn.textContent = original; btn.disabled = false;
+      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
     }
   });
 
