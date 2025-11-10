@@ -110,7 +110,7 @@
 
           <div class="muted" style="margin-bottom:6px">Manual entry:</div>
           <form id="manualForm" class="input-wrap" autocomplete="off">
-            <input id="manualInput" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="Type OSIS or RFID and press Enter" />
+            <input id="manualInput" type="text" inputmode="none" readonly pattern="[0-9]*" placeholder="Type OSIS or RFID and press Enter" />
             <button type="submit">Enter</button>
           </form>
           <div class="muted" style="margin-top:6px">Tip: field keeps focus—great for external keypads.</div>
@@ -1053,21 +1053,47 @@
   window.addEventListener('keydown', (e)=>{
     if (IS_MODAL_OPEN || isModalVisible()) return;
     keepFocus();
+  
+    // Only measure gap for keys we might use
     const now = performance.now();
     const gap = now - (lastKeyTs || now);
-    lastKeyTs = now;
+  
     if (e.key === 'Enter'){
       const finished = wedgeBuf; wedgeBuf = "";
       if (finished){ e.preventDefault(); onScan(finished); manualInput.value=''; }
       return;
     }
-    if (e.key.length === 1){
-      const looksLikeScanner = gap <= 10 && (wedgeBuf.length > 0 || gap > 0);
-      if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; }
+  
+    if (e.key.length === 1) {
+      const isDigit = /[0-9]/.test(e.key);
+      if (isDigit) {
+        // Accept if it's classic scanner-fast OR we’re in read-only mode (external keypad)
+        const looksScannerFast = gap <= 10;
+        const focusedReadOnly = (document.activeElement === manualInput && manualInput.readOnly);
+  
+        if (looksScannerFast || focusedReadOnly) {
+          e.preventDefault();
+          wedgeBuf += e.key;
+  
+          clearTimeout(wedgeResetTimer);
+          // Longer buffer for human keypad; short for scanner
+          const resetDelay = focusedReadOnly ? 1500 : 200;
+          wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, resetDelay);
+  
+          // Only advance lastKeyTs when we actually consume a digit
+          lastKeyTs = now;
+          return;
+        }
+      }
     }
+  
+    // If we didn’t consume the key, keep the original fast-clear for true wedges
     clearTimeout(wedgeResetTimer);
     wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
+  
+    // Don’t update lastKeyTs on unused keys
   }, true);
+
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault(); if (IS_MODAL_OPEN || isModalVisible()) return;
     const v = manualInput.value.trim(); if (v) onScan(v); manualInput.value=''; keepFocus();
