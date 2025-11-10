@@ -269,7 +269,7 @@
       !isLunchLocation(loc);
     return `${esc(name || 'Unknown')}${showBadge ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
   }
-  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&gt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function setStatus(t){ statusEl.textContent = t; }
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
   function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
@@ -391,7 +391,7 @@
     } catch { return BATHROOM_CAPACITY_DEFAULT; }
   }
   async function getBathroomCapacity(loc, gender){
-    const key = `${String(loc||'').toLowerCase()}|${String(gender||'').toUpperCase()}`;
+    const key = String(loc||'').toLowerCase();
     if (BATH_CAP_CACHE[key]) return BATH_CAP_CACHE[key];
     const cap = await getBathroomCapacityRemote(loc, gender);
     BATH_CAP_CACHE[key] = cap;
@@ -1063,7 +1063,7 @@
       return;
     }
     if (e.key.length === 1){
-      const looksLikeScanner = gap <= 10 && (wedgeBuf.length > 0 || gap > 0);
+      const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
       if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; }
     }
     clearTimeout(wedgeResetTimer);
