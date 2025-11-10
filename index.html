@@ -1050,8 +1050,27 @@
     if (!m) return false;
     return getComputedStyle(m).display !== 'none';
   }
-  window.addEventListener('keydown', (e)=>{ if (IS_MODAL_OPEN || isModalVisible()) return; keepFocus(); const now = performance.now(); const gap = now - (lastKeyTs || now); lastKeyTs = now; if (e.key === 'Enter'){ const finished = wedgeBuf; wedgeBuf = ""; if (finished){ e.preventDefault(); onScan(finished); manualInput.value=''; } return; } if (e.key.length === 1){ const looksLikeScanner = gap <= 10 && (wedgeBuf.length > 0 || gap > 0); if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; } } clearTimeout(wedgeResetTimer); wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200); }, true);
 
+  window.addEventListener('keydown', (e)=>{
+    if (IS_MODAL_OPEN || isModalVisible()) return;
+    keepFocus();
+    const now = performance.now();
+    const gap = now - (lastKeyTs || now);
+    lastKeyTs = now;
+    if (e.key === 'Enter'){
+      const finished = wedgeBuf; wedgeBuf = "";
+      if (finished){ e.preventDefault(); onScan(finished); manualInput.value=''; }
+      return;
+    }
+    if (e.key.length === 1){
+      const looksLikeScanner = gap <= 10 && (wedgeBuf.length > 0 || gap > 0);
+      if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; }
+    }
+    clearTimeout(wedgeResetTimer);
+    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
+  }, true);
+
+    
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault(); if (IS_MODAL_OPEN || isModalVisible()) return;
     const v = manualInput.value.trim(); if (v) onScan(v); manualInput.value=''; keepFocus();
