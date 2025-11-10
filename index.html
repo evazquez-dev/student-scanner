@@ -1050,49 +1050,7 @@
     if (!m) return false;
     return getComputedStyle(m).display !== 'none';
   }
-  window.addEventListener('keydown', (e)=>{
-    if (IS_MODAL_OPEN || isModalVisible()) return;
-    keepFocus();
-  
-    // Only measure gap for keys we might use
-    const now = performance.now();
-    const gap = now - (lastKeyTs || now);
-  
-    if (e.key === 'Enter'){
-      const finished = wedgeBuf; wedgeBuf = "";
-      if (finished){ e.preventDefault(); onScan(finished); manualInput.value=''; }
-      return;
-    }
-  
-    if (e.key.length === 1) {
-      const isDigit = /[0-9]/.test(e.key);
-      if (isDigit) {
-        // Accept if it's classic scanner-fast OR we’re in read-only mode (external keypad)
-        const looksScannerFast = gap <= 10;
-        const focusedReadOnly = (document.activeElement === manualInput && manualInput.readOnly);
-  
-        if (looksScannerFast || focusedReadOnly) {
-          e.preventDefault();
-          wedgeBuf += e.key;
-  
-          clearTimeout(wedgeResetTimer);
-          // Longer buffer for human keypad; short for scanner
-          const resetDelay = focusedReadOnly ? 1500 : 200;
-          wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, resetDelay);
-  
-          // Only advance lastKeyTs when we actually consume a digit
-          lastKeyTs = now;
-          return;
-        }
-      }
-    }
-  
-    // If we didn’t consume the key, keep the original fast-clear for true wedges
-    clearTimeout(wedgeResetTimer);
-    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
-  
-    // Don’t update lastKeyTs on unused keys
-  }, true);
+  window.addEventListener('keydown', (e)=>{ if (IS_MODAL_OPEN || isModalVisible()) return; keepFocus(); const now = performance.now(); const gap = now - (lastKeyTs || now); lastKeyTs = now; if (e.key === 'Enter'){ const finished = wedgeBuf; wedgeBuf = ""; if (finished){ e.preventDefault(); onScan(finished); manualInput.value=''; } return; } if (e.key.length === 1){ const looksLikeScanner = gap <= 10 && (wedgeBuf.length > 0 || gap > 0); if (looksLikeScanner){ e.preventDefault(); wedgeBuf += e.key; } } clearTimeout(wedgeResetTimer); wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200); }, true);
 
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault(); if (IS_MODAL_OPEN || isModalVisible()) return;
