@@ -13,6 +13,7 @@ const locationsOut    = document.getElementById('locationsOut');
 const bathOut         = document.getElementById('bathOut');
 const bathTableOut    = document.getElementById('bathTableOut');
 const bindOut         = document.getElementById('bindOut');
+const scheduleOut     = document.getElementById('scheduleOut');
 
 // Quick-set controls
 const bathSelect = document.getElementById('bathSelect');
@@ -121,6 +122,20 @@ document.getElementById('btnSync').addEventListener('click', async () => {
     syncOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
   } catch (e) {
     syncOut.textContent = `Error: ${e.message || e}`;
+  }
+});
+
+/* ===============================
+ * SCHEDULE + CLASSES PUSH
+ * =============================== */
+document.getElementById('btnPushSchedule').addEventListener('click', async () => {
+  scheduleOut.textContent = 'Pushing bell schedule + classes…';
+  try {
+    const r = await adminFetch('/admin/push_schedule', { method: 'POST' });
+    const text = await r.text();
+    scheduleOut.textContent = `HTTP ${r.status}\n\n${text}`;
+  } catch (e) {
+    scheduleOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
