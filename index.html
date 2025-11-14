@@ -654,7 +654,8 @@
       resolved_lcol:  entry.resolved?.locker_color  || '',
       location: getLocation() || '',
       device_id: DEVICE_ID,
-      allowed: entry.allowed || ''
+      allowed: entry.allowed || '',
+      resolved_class: entry.resolved?.class_now || ''
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
