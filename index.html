@@ -171,7 +171,7 @@
               </div>
               <div class="scans-pane" style="max-height: 240px">
                 <table aria-label="Currently IN (Bathroom M)">
-                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Capacity</th></tr></thead>
+                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Class</th></tr></thead>
                   <tbody id="bathBodyM"></tbody>
                 </table>
               </div>
@@ -186,7 +186,7 @@
               </div>
               <div class="scans-pane" style="max-height: 240px">
                 <table aria-label="Currently IN (Bathroom F)">
-                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Capacity</th></tr></thead>
+                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Class</th></tr></thead>
                   <tbody id="bathBodyF"></tbody>
                 </table>
               </div>
@@ -369,10 +369,24 @@
   function getBathSet(g){ const map = loadBathMap(); return map[bathBucketKeyG(g)] || []; }
   function setBathSet(g, list){ const map = loadBathMap(); map[bathBucketKeyG(g)] = list; saveBathMap(map); }
   function isInBathroomG(g, osis){ return getBathSet(g).some(x => x.osis === String(osis||'').trim()); }
-  function addInBathroomG(g, osis, name, when=new Date()){
-    osis = String(osis||'').trim(); if (!osis) return;
+  function addInBathroomG(g, osis, name, when=new Date(), cls=''){
+    osis = String(osis||'').trim();
+    if (!osis) return;
+  
     const list = getBathSet(g);
-    if (!list.some(x => x.osis === osis)) { list.unshift({ osis, name:String(name||'').trim(), sinceISO: when.toISOString() }); setBathSet(g, list); }
+    const rec = {
+      osis,
+      name: String(name || '').trim(),
+      sinceISO: when.toISOString()
+    };
+    if (cls) rec.cls = String(cls);
+  
+    // Replace any existing record for this OSIS, or insert at top
+    const idx = list.findIndex(x => x.osis === osis);
+    if (idx >= 0) list.splice(idx, 1, rec);
+    else list.unshift(rec);
+  
+    setBathSet(g, list);
   }
   function removeFromBathroomG(g, osis){ setBathSet(g, getBathSet(g).filter(x => x.osis !== String(osis||'').trim())); }
 
@@ -419,17 +433,19 @@
     if (titleM) titleM.textContent = `Currently IN — ${loc} (M cap ${capM})`;
     if (titleF) titleF.textContent = `Currently IN — ${loc} (F cap ${capF})`;
 
-    function rowHtml(r, total, cap){
+    function rowHtml(r){
       const when = new Date(r.sinceISO);
+      const cls = r.cls || '';
       return `<tr>
         <td class="name">${esc(r.name || '—')}</td>
         <td class="code">${esc(r.osis || '')}</td>
         <td>${fmtTime(when)}</td>
-        <td>${total}/${cap}</td>
+        <td>${esc(cls || '—')}</td>
       </tr>`;
     }
-    bodyM.innerHTML = rowsM.map(r => rowHtml(r, rowsM.length, capM)).join('');
-    bodyF.innerHTML = rowsF.map(r => rowHtml(r, rowsF.length, capF)).join('');
+    
+    bodyM.innerHTML = rowsM.map(rowHtml).join('');
+    bodyF.innerHTML = rowsF.map(rowHtml).join('');
   }
 
   /* ---------- MINIMAL ADD: manual clear helpers ---------- */
@@ -870,12 +886,15 @@
       if (isBathroomLocation(loc)) {
         const osis = String(res.osis || '').trim();
         const sex  = (String(res.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
+        const classNow = res.class_now || '';   // ← NEW: from Worker (optional)
+      
         const wasIn = isInBathroomG(sex, osis);
-
+      
         const cap = await getBathroomCapacity(loc, sex);
         const list = getBathSet(sex);
-
+      
         if (wasIn) {
+          // Student is leaving bathroom
           removeFromBathroomG(sex, osis);
           await renderBathList();
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when });
@@ -884,6 +903,7 @@
           setStatus('Ready. Scan next card…');
           return;
         } else {
+          // Trying to enter bathroom
           if (list.length >= cap) {
             beepBad();
             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
@@ -892,7 +912,8 @@
             setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
             return;
           }
-          addInBathroomG(sex, osis, res.name || '', when);
+          // Store current class with bathroom entry
+          addInBathroomG(sex, osis, res.name || '', when, classNow);
           await renderBathList();
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when });
           showSuccess(res.name, code, 'IN', '', when);
