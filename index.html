@@ -18,38 +18,88 @@
   </script>
 
   <style>
-    :root { --fg:#0b1320; --muted:#5e6b7a; --brand:#0b57d0; --bg:#f6f8fb; }
-    html,body { height:100%; }
-    body {
-      margin:0; font:16px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      color:var(--fg); background:var(--bg);
-      display:flex; align-items:center; justify-content:center; min-height:100dvh;
+    :root {
+      --fg:#0b1320;
+      --muted:#5e6b7a;
+    
+      /* THEME VARIABLES (default = “morning” theme) */
+      --bg-main:#f6f8fb;
+      --card-bg:#ffffff;
+      --panel-bg:#fafbff;
+      --panel-border:#eef1f7;
+      --accent:#0b57d0;
+      --pill-bg:#eaf7ea;
+      --pill-fg:#0a7c2f;
     }
+    
+    html,body { height:100%; }
+    
+    body {
+      margin:0;
+      font:16px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color:var(--fg);
+      background:var(--bg-main);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:100dvh;
+    }
+    
+    /* THEME OVERRIDES */
+    body[data-theme="bathroom"] {
+      --bg-main:#2b0507;
+      --card-bg:#fff5f5;
+      --panel-bg:#fff7f7;
+      --panel-border:#f3c1c1;
+      --accent:#c62828;
+      --pill-bg:#fdecea;
+      --pill-fg:#b00020;
+    }
+    
+    body[data-theme="lunch"] {
+      --bg-main:#16052b;
+      --card-bg:#f7f2ff;
+      --panel-bg:#f4e9ff;
+      --panel-border:#d7c4ff;
+      --accent:#7e3ff2;
+      --pill-bg:#ede9fe;
+      --pill-fg:#4c1d95;
+    }
+    
     .card {
-      width:min(920px, 96vw); background:#fff; border-radius:18px; padding:20px 20px 16px;
+      width:min(920px, 96vw);
+      background:var(--card-bg);
+      border-radius:18px;
+      padding:20px 20px 16px;
       box-shadow:0 10px 30px rgba(0,0,0,.06);
     }
-    h1 { margin:0 0 4px 0; font-size:22px; }
-    .muted { color:var(--muted); font-size:13px; }
-    .row { display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap; }
-    .col { flex:1 1 320px; }
-    .panel { background:#fafbff; border:1px solid #eef1f7; border-radius:14px; padding:14px; }
-    #status { font-weight:600; }
-    #result { font-size:17px; margin-top:6px; }
-    table { width:100%; border-collapse:collapse; font-size:14px; }
-    th,td { padding:8px 6px; border-bottom:1px solid #edf1f6; text-align:left; }
-    th { font-weight:600; color:#667; background:#f8f9fc; }
-    .ok { color:#0a7c2f; font-weight:600; }
-    .err { color:#b00020; font-weight:600; }
-    .name { font-weight:700; }
-    .code { color:#556; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .input-wrap { display:flex; gap:8px; align-items:center; }
-    input[type=text] {
-      flex:1; padding:10px 12px; font-size:18px; border-radius:12px; border:1px solid #cfd7e3; outline:none;
+    
+    .panel {
+      background:var(--panel-bg);
+      border:1px solid var(--panel-border);
+      border-radius:14px;
+      padding:14px;
     }
-    .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin-right:6px;border:1px solid #ccd3de}
-    button { cursor:pointer; border:none; border-radius:12px; padding:10px 14px; font-weight:600; background:var(--brand); color:#fff; }
-    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#eaf7ea; color:#0a7c2f; font-size:12px; font-weight:700; }
+    
+    button {
+      cursor:pointer;
+      border:none;
+      border-radius:12px;
+      padding:10px 14px;
+      font-weight:600;
+      background:var(--accent);
+      color:#fff;
+    }
+    
+    .pill {
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      background:var(--pill-bg);
+      color:var(--pill-fg);
+      font-size:12px;
+      font-weight:700;
+    }
     .scans-pane{ max-height: 360px; overflow-y: auto; border: 1px solid #e5e9f2; border-radius: 8px; background: #fff; }
     .scans-pane thead th{ position: sticky; top: 0; background: #f7f9fc; z-index: 1; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
     #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
@@ -74,6 +124,78 @@
     .card[inert] { pointer-events: none; }
     .pill--bad { background:#fdecea !important; color:#b00020 !important; }
     .pill--warn{ background:#fff3e0 !important; color:#8a5a00 !important; }
+    h1 {
+      margin:0 0 4px 0;
+      font-size:22px;
+    }
+    
+    .muted {
+      color:var(--muted);
+      font-size:13px;
+    }
+    
+    .row {
+      display:flex;
+      gap:18px;
+      align-items:flex-start;
+      flex-wrap:wrap;
+    }
+    
+    .col {
+      flex:1 1 320px;
+    }
+    
+    /* History / table base styles */
+    table {
+      width:100%;
+      border-collapse:collapse;
+      font-size:14px;
+    }
+    th,td {
+      padding:8px 6px;
+      border-bottom:1px solid #edf1f6;
+      text-align:left;
+    }
+    th {
+      font-weight:600;
+      color:#667;
+      background:#f8f9fc;
+    }
+    
+    /* Status + text styles */
+    .ok { color:#0a7c2f; font-weight:600; }
+    .err { color:#b00020; font-weight:600; }
+    .name { font-weight:700; }
+    .code {
+      color:#556;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    
+    /* Manual entry input */
+    .input-wrap {
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+    input[type=text] {
+      flex:1;
+      padding:10px 12px;
+      font-size:18px;
+      border-radius:12px;
+      border:1px solid #cfd7e3;
+      outline:none;
+    }
+    
+    /* Locker color swatch */
+    .swatch{
+      display:inline-block;
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      vertical-align:middle;
+      margin-right:6px;
+      border:1px solid #ccd3de;
+    }
   </style>
 </head>
 <body>
@@ -299,6 +421,29 @@
     const need = lunchSlotFromLocation(location);
     const have = normalizeLunchValue(lunchValue);
     return have === need;
+  }
+
+  // THEME HELPERS — decide which color theme to use
+  function classifyLocationType(locationName){
+    const s = String(locationName || '').toLowerCase().trim();
+    if (!s) return 'default';
+  
+    // Bathrooms (e.g. "Bathroom (First Floor)")
+    if (s.startsWith('bathroom')) return 'bathroom';
+  
+    // Lunchy spaces — “lunch”, “lunch 1/2”, “caf”
+    if (s.includes('lunch') || s.includes('caf')) return 'lunch';
+  
+    return 'default';
+  }
+  
+  function applyThemeForLocation(locationName){
+    const theme = classifyLocationType(locationName);
+    if (theme === 'default') {
+      document.body.removeAttribute('data-theme');
+    } else {
+      document.body.setAttribute('data-theme', theme);
+    }
   }
 
   /* ============================================================
@@ -1170,13 +1315,25 @@
   function updateLocationPill(){
     const pill = document.getElementById('locationPill');
     const v = getLocation();
-    pill.textContent = v ? `Location: ${v}${IS_LOCATION_LOCKED ? ' (locked)' : ''}` : 'Set location';
+  
+    pill.textContent = v
+      ? `Location: ${v}${IS_LOCATION_LOCKED ? ' (locked)' : ''}`
+      : 'Set location';
+  
+    // Keep your pill behavior
     pill.style.background = v ? '#e7f0fe' : '#fff3e0';
     pill.style.color = v ? '#0b57d0' : '#8a5a00';
     pill.style.cursor = IS_LOCATION_LOCKED ? 'not-allowed' : 'pointer';
-    pill.title = IS_LOCATION_LOCKED ? 'This device is locked to this location' : 'Click to change location';
+    pill.title = IS_LOCATION_LOCKED
+      ? 'This device is locked to this location'
+      : 'Click to change location';
+  
+    // NEW: apply theme based on location type
+    applyThemeForLocation(v);
+  
     updateHeaderForLocation();
   }
+
   async function promptForLocation(force=false){
     if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     if (!force && getLocation()) { updateLocationPill(); return; }
