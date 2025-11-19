@@ -528,6 +528,20 @@
        <div class="muted">${fmtTime(when)}</div>`;
   }
 
+  function showClassRedirect(code, shouldRoom, when){
+    beepBad();
+    const msg = shouldRoom
+      ? `You should be in ${esc(shouldRoom)}.`
+      : 'You should be in a different class right now.';
+  
+    resultEl.innerHTML =
+      `<div class="err">Wrong class</div>
+       <div class="code">${esc(code)}</div>
+       <div class="muted">${fmtTime(when)} — ${esc(msg)}</div>`;
+  
+    setStatus('Wrong class.');
+  }
+
   function updateRowToWrongClass(tr, {name, code, when, label}){
     const nameHtml = nameHtmlWithBadge(name);
     tr.className = '';
@@ -882,6 +896,7 @@
 
     if (isSeniorOutIn() || isBathroomLocation(loc)) col.textContent = 'In/Out';
     else if (isLunchLocation(loc)) col.textContent = 'Allowed?';
+    else if (isClassKiosk(loc)) col.textContent = 'Attendance';
     else col.textContent = 'Locker';
 
     renderOutList();
@@ -1085,6 +1100,24 @@
       return;
     }
 
+    // NEW: class kiosk rendering
+    if (isClassKiosk(loc)) {
+      const attendanceLabel = lockerNum || 'Present';
+      const shouldRoom = lockerColor || '';
+  
+      const thirdCell = shouldRoom
+        ? `${esc(attendanceLabel)} <span class="muted">(should be ${esc(shouldRoom)})</span>`
+        : esc(attendanceLabel);
+  
+      tr.className = '';
+      tr.innerHTML =
+        `<td class="name">${nameHtml}</td>
+         <td class="code">${esc(code)}</td>
+         <td>${thirdCell}</td>
+         <td>${fmtTime(when)}</td>`;
+      return;
+    }
+    
     const color = (lockerColor||'').trim();
     const cssColor = ({
       red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
@@ -1194,19 +1227,56 @@
       const whenISO = when.toISOString();
 
       // Classroom kiosk gating (mode: class)
+      // ---- NEW: Class kiosk logic ----
       if (isClassKiosk(loc)) {
-        const kioskRoom = normalizeRoomLabelClient(loc);
-        const { ok: allowedHere, studentRoom, displayLabel } = checkClassKioskEligibility(kioskRoom, res);
-        if (!allowedHere) {
-          const label = displayLabel || (studentRoom || 'your scheduled class');
-          beepBad();
-          showClassPopup(`You should be in ${label} right now.`);
-          updateRowToWrongClass(row, { name: res.name, code, when, label });
-          showWrongClass(res.name, code, label, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'wrong_class' });
-          setStatus('Wrong class — scan rejected');
+        const kioskMode    = res.kiosk_mode || 'none';
+        const kioskAllowed = !!res.kiosk_allowed;
+        const shouldRoom   = res.kiosk_should_room || res.class_now || ''; // e.g. "316"
+
+        // No schedule context – just mark as Present for now
+        if (!kioskMode || kioskMode === 'none') {
+          const attendance = 'Present';
+          updateRowToSuccess(row, {
+            name: res.name,
+            code,
+            lockerNum: attendance,   // repurpose lockerNum = attendance label
+            lockerColor: shouldRoom, // repurpose lockerColor = "should be" room
+            when
+          });
+          showSuccess(res.name, code, attendance, shouldRoom, when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
+          setStatus('Ready. Scan next card…');
           return;
         }
+
+        // Not allowed in this room right now
+        if (!kioskAllowed) {
+          const attendance = 'Not allowed';
+          updateRowToSuccess(row, {
+            name: res.name,
+            code,
+            lockerNum: attendance,
+            lockerColor: shouldRoom,
+            when
+          });
+          showClassRedirect(code, shouldRoom, when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_denied' });
+          return;
+        }
+
+        // Allowed → mark as Present (we’ll add “Late” logic later)
+        const attendance = 'Present';
+        updateRowToSuccess(row, {
+          name: res.name,
+          code,
+          lockerNum: attendance,
+          lockerColor: shouldRoom,
+          when
+        });
+        showSuccess(res.name, code, attendance, shouldRoom, when);
+        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_ok' });
+        setStatus('Ready. Scan next card…');
+        return;
       }
 
       // Senior Lunch (toggle OUT/IN)
@@ -1342,6 +1412,25 @@
         `<div class="ok">OK</div>
          <div class="name">${nameHtml}</div>
          <div class="code">${esc(code)} — ${pill} ${allowBox}</div>
+         <div class="muted">${fmtTime(when)}</div>`;
+      setStatus('Ready. Scan next card…');
+      return;
+    }
+
+    // NEW: class kiosk — show Attendance instead of Locker
+    if (isClassKiosk(loc)) {
+      const attendanceLabel = lockerNum || 'Present';
+      const shouldRoom = lockerColor || '';
+  
+      const extra = shouldRoom
+        ? `${attendanceLabel} — should be ${esc(shouldRoom)}`
+        : attendanceLabel;
+  
+      const nameHtml = nameHtmlWithBadge(name);
+      resultEl.innerHTML =
+        `<div class="ok">OK</div>
+         <div class="name">${nameHtml}</div>
+         <div class="code">${esc(code)} — ${extra}</div>
          <div class="muted">${fmtTime(when)}</div>`;
       setStatus('Ready. Scan next card…');
       return;
