@@ -59,7 +59,7 @@
       <pre id="syncOut" class="pane">—</pre>
     </section>
     
-        <!-- Schedule + Classes -->
+    <!-- Schedule + Classes -->
     <section class="card" id="scheduleCard">
       <h2>Bell schedule &amp; classes</h2>
       <div class="row">
@@ -77,6 +77,34 @@
         </div>
       </div>
       <pre id="scheduleOut" class="pane">—</pre>
+    </section>
+
+    <!-- Class kiosk attendance -->
+    <section class="card" id="attendanceCard">
+      <h2>Class kiosk attendance</h2>
+      <div class="muted">
+        Configure how many minutes after the period start a student is marked as
+        <strong>Late</strong> when scanning into a class location. This uses
+        <code>/admin/attendance_cfg</code>.
+      </div>
+
+      <div class="row" style="align-items:center; gap:8px; margin-top:12px;">
+        <label for="attLateMinutes">Late after</label>
+        <input
+          id="attLateMinutes"
+          type="number"
+          min="1"
+          max="119"
+          placeholder="8"
+          style="width:120px"
+        />
+        <span>minutes</span>
+
+        <button id="btnAttLoad" class="btn ghost">Load current</button>
+        <button id="btnAttSave" class="btn primary">Save</button>
+      </div>
+
+      <pre id="attOut" class="pane">—</pre>
     </section>
     
     <!-- Locations -->
