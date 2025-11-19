@@ -110,13 +110,40 @@
     <!-- Locations -->
     <section class="card" id="locationsCard">
       <h2>Locations</h2>
-      <div class="muted">Edit the list, then push to Worker via <code>/admin/push_locations</code>.</div>
-      <textarea id="locationsEditor" placeholder="One location per line" rows="6"></textarea>
+      <div class="muted">
+        Edit locations, modes, and visibility. Classrooms from
+        <code>All_Rooms</code> are included as hidden <code>mode="class"</code>
+        locations by default.
+      </div>
+    
+      <div class="tableWrap" style="margin-top:8px;">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width:200px;">Name</th>
+              <th style="min-width:120px;">Type</th>
+              <th style="min-width:140px;">Mode</th>
+              <th style="width:80px;text-align:center;">Visible</th>
+              <th style="width:60px;text-align:center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="locationsTbody">
+            <!-- rows injected by admin.js -->
+          </tbody>
+        </table>
+      </div>
+    
+      <div class="row" style="gap:8px;margin-top:8px;">
+        <button id="btnAddLocation" class="btn ghost">Add row</button>
+        <span id="locationsCountLabel" class="muted">—</span>
+      </div>
+    
       <div class="row" style="gap:8px;margin-top:8px;">
         <button id="btnLoadLocations" class="btn">Load from Worker</button>
         <button id="btnPushLocations" class="btn primary">Push to Worker (session)</button>
-        <button id="btnResetLocations" class="btn ghost">Reset editor</button>
+        <button id="btnResetLocations" class="btn ghost">Reset to last loaded</button>
       </div>
+    
       <pre id="locationsOut" class="pane">—</pre>
     </section>
 
