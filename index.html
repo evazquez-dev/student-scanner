@@ -361,6 +361,7 @@
 
   const BATHROOM_CAPACITY_DEFAULT = 2;
   let __LOCATIONS_CAPS = null;
+  let __LOCATIONS_META = {}; // name -> { type, visible }
   const BATH_CAP_CACHE = Object.create(null);
 
   // DOM
@@ -425,22 +426,26 @@
 
   // THEME HELPERS — decide which color theme to use
   function classifyLocationType(locationName){
-    const s = String(locationName || '').toLowerCase().trim();
-    if (!s) return 'default';
+    const name = String(locationName || '').trim();
+    if (!name) return 'default';
   
-    // Bathrooms (e.g. "Bathroom (First Floor)")
+    // If backend sent metadata, trust it first
+    const meta = __LOCATIONS_META[name];
+    if (meta && meta.type) return meta.type;
+  
+    const s = name.toLowerCase();
+  
+    // Fallback heuristics (for older data / safety)
     if (s.startsWith('bathroom')) return 'bathroom';
-  
-    // Lunchy spaces — “lunch”, “lunch 1/2”, “caf”
     if (s.includes('lunch') || s.includes('caf')) return 'lunch';
   
-    return 'default';
+    return 'morning'; // or 'default' if you want truly neutral
   }
   
   function applyThemeForLocation(locationName){
     const theme = classifyLocationType(locationName);
-    if (theme === 'default') {
-      document.body.removeAttribute('data-theme');
+    if (!theme || theme === 'default' || theme === 'morning') {
+      document.body.removeAttribute('data-theme'); // default “morning” theme
     } else {
       document.body.setAttribute('data-theme', theme);
     }
@@ -807,20 +812,56 @@
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
-  async function apiGetLocations(){
-    try{
-      const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'locations' }) });
-      const ct = r.headers.get('content-type')||''; const text = await r.text();
-      if (r.ok && ct.includes('application/json')) {
-        const data = JSON.parse(text);
-        if (data && data.ok && Array.isArray(data.locations)) {
-          if (data.caps && typeof data.caps === 'object') __LOCATIONS_CAPS = data.caps;
-          return data.locations;
+    async function apiGetLocations(){
+      try{
+        const r = await fetch(API_BASE, {
+          method:'POST',
+          body: new URLSearchParams({ action:'locations' })
+        });
+        const ct   = r.headers.get('content-type') || '';
+        const text = await r.text();
+    
+        if (r.ok && ct.includes('application/json')) {
+          const data = JSON.parse(text);
+    
+          if (data && data.ok && Array.isArray(data.locations)) {
+            // ---- NEW: build meta + list of *visible* names ----
+            __LOCATIONS_META = {}; // reset
+            
+            const visibleNames = [];
+    
+            for (const item of data.locations) {
+              if (typeof item === 'string') {
+                // Backwards-compatible: server returned names only
+                __LOCATIONS_META[item] = { type: null, visible: true };
+                visibleNames.push(item);
+              } else if (item && typeof item === 'object') {
+                const name  = String(item.name || '').trim();
+                if (!name) continue;
+                const type  = item.type || null;
+                const vis   = (item.visible !== false); // default TRUE if missing
+                __LOCATIONS_META[name] = { type, visible: vis };
+                if (vis) visibleNames.push(name);
+              }
+            }
+    
+            if (data.caps && typeof data.caps === 'object') {
+              __LOCATIONS_CAPS = data.caps;
+            }
+    
+            // Only show visible names in dropdown
+            return visibleNames;
+          }
         }
-      }
-    } catch(_){}
-    return STATIC_LOCATIONS;
-  }
+      } catch(_) {}
+    
+      // Fallback if API fails: static list (all “visible”)
+      __LOCATIONS_META = {};
+      STATIC_LOCATIONS.forEach(name => {
+        __LOCATIONS_META[name] = { type: null, visible: true };
+      });
+      return STATIC_LOCATIONS;
+    }
   async function checkDeviceLock(){
     try{
       const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID }) });
