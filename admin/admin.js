@@ -21,6 +21,8 @@ const capAllInp  = document.getElementById('bathCapAll');
 const capMInp    = document.getElementById('bathCapM');
 const capFInp    = document.getElementById('bathCapF');
 const bathTbody  = document.getElementById('bathTbody');
+const attOut     = document.getElementById('attOut');
+const attLateInp = document.getElementById('attLateMinutes');
 
 function show(el){ el && (el.style.display = ''); }
 function hide(el){ el && (el.style.display = 'none'); }
@@ -77,6 +79,7 @@ async function onGoogleCredential(resp) {
     document.getElementById('btnDiag')?.click();
     await loadLocationsToEditor();
     await hydrateBathrooms();
+    await loadAttendanceCfg();
   } catch (e) {
     loginOut.textContent = `Login failed: ${e.message || e}`;
   }
@@ -218,6 +221,48 @@ async function setCap(location, cap, gender /* optional */) {
   return { ok: r.ok && ct.includes('application/json'), status: r.status, text };
 }
 
+async function getAttendanceCfg() {
+  const r = await adminFetch('/admin/attendance_cfg', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: new URLSearchParams().toString()
+  });
+  const ct = r.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    return { ok:false, error:'non_json', status:r.status, text: await r.text() };
+  }
+  const data = await r.json().catch(() => ({}));
+  return data;
+}
+
+async function setAttendanceLateMin(minutes) {
+  const body = new URLSearchParams({ late_min: String(minutes) });
+  const r = await adminFetch('/admin/attendance_cfg', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: body.toString()
+  });
+  const ct = r.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    return { ok:false, error:'non_json', status:r.status, text: await r.text() };
+  }
+  const data = await r.json().catch(() => ({}));
+  return data;
+}
+
+async function loadAttendanceCfg() {
+  if (!attOut || !attLateInp) return;
+  attOut.textContent = 'Loading…';
+  try {
+    const cfg = await getAttendanceCfg();
+    if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
+    attLateInp.value = Number(cfg.late_min) || '';
+    attOut.textContent = `Current Late threshold: ${cfg.late_min} minute(s).`;
+  } catch (e) {
+    attOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
 /* ===============================
  * BATHROOM UI — hydrate, quick set, table
  * =============================== */
@@ -351,6 +396,28 @@ document.getElementById('btnBathGetSelected').addEventListener('click', async ()
     bathOut.textContent = `Loaded caps for "${loc}".`;
   } catch (e) {
     bathOut.textContent = `Error: ${e.message || e}`;
+  }
+});
+
+document.getElementById('btnAttLoad')?.addEventListener('click', async () => {
+  await loadAttendanceCfg();
+});
+
+document.getElementById('btnAttSave')?.addEventListener('click', async () => {
+  if (!attOut || !attLateInp) return;
+  const raw = attLateInp.value.trim();
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n >= 120) {
+    attOut.textContent = 'Enter a number between 1 and 119.';
+    return;
+  }
+  attOut.textContent = 'Saving…';
+  try {
+    const cfg = await setAttendanceLateMin(n);
+    if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
+    attOut.textContent = `Saved. Late after ${cfg.late_min} minute(s).`;
+  } catch (e) {
+    attOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
