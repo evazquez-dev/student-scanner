@@ -1107,11 +1107,15 @@
     if (isClassKiosk(loc)) {
       const attendanceLabel = lockerNum || 'Present';
       const shouldRoom = lockerColor || '';
-  
-      const thirdCell = shouldRoom
+    
+      // Only show "should be <ROOM>" when the student is NOT ALLOWED
+      const upper = String(attendanceLabel).toUpperCase();
+      const showShould = (upper === 'NOT ALLOWED') && !!shouldRoom;
+    
+      const thirdCell = showShould
         ? `${esc(attendanceLabel)} <span class="muted">(should be ${esc(shouldRoom)})</span>`
         : esc(attendanceLabel);
-  
+    
       tr.className = '';
       tr.innerHTML =
         `<td class="name">${nameHtml}</td>
@@ -1120,7 +1124,7 @@
          <td>${fmtTime(when)}</td>`;
       return;
     }
-    
+
     const color = (lockerColor||'').trim();
     const cssColor = ({
       red:'#e53935', blue:'#1e88e5', green:'#43a047', yellow:'#fdd835',
@@ -1437,11 +1441,15 @@
     if (isClassKiosk(loc)) {
       const attendanceLabel = lockerNum || 'Present';
       const shouldRoom = lockerColor || '';
-  
-      const extra = shouldRoom
+    
+      // Only show "should be <ROOM>" when NOT ALLOWED
+      const upper = String(attendanceLabel).toUpperCase();
+      const showShould = (upper === 'NOT ALLOWED') && !!shouldRoom;
+    
+      const extra = showShould
         ? `${attendanceLabel} — should be ${esc(shouldRoom)}`
         : attendanceLabel;
-  
+    
       const nameHtml = nameHtmlWithBadge(name);
       resultEl.innerHTML =
         `<div class="ok">OK</div>
