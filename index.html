@@ -519,6 +519,9 @@
     __classPopupTimer = setTimeout(()=>{ el.classList.remove('visible'); }, 2500);
   }
 
+  // Expose for console testing
+  window.showClassPopup = showClassPopup;
+  
   function showWrongClass(name, code, label, when){
     const nameHtml = nameHtmlWithBadge(name);
     resultEl.innerHTML =
@@ -1259,6 +1262,12 @@
             lockerColor: shouldRoom,
             when
           });
+
+          showClassPopup(
+            shouldRoom
+              ? `You should be in ${shouldRoom} right now.`
+              : 'You should be in a different class right now.'
+          );
           showClassRedirect(code, shouldRoom, when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_denied' });
           return;
