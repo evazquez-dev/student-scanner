@@ -1671,6 +1671,7 @@
   (async () => {
     await checkDeviceLock();
     updateLocationPill();
+    await apiGetLocations();
     updateHistoryPaneForLocation();
     trimHistory();
     await promptForLocation(false);
