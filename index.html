@@ -130,6 +130,16 @@
     .flag-search .name::after { content:' — SEARCH'; color:#b26b00; font-weight:700; }
     /* Regents Prep badge */
     .badge-purple { background:#f3e8ff; color:#6b21a8; font-weight:700; padding:2px 6px; border-radius:6px; font-size:12px; margin-left:6px; }
+    /* Generic Alert badge (blue) */
+    .badge-alert {
+      background:#e3f2fd;   /* soft blue */
+      color:#0b57d0;        /* matches existing accent blue */
+      font-weight:700;
+      padding:2px 6px;
+      border-radius:6px;
+      font-size:12px;
+      margin-left:4px;
+    }
     /* Modal + UI states */
     #locModal { position:fixed; inset:0; z-index: 2147483000; }
     .card[inert] { pointer-events: none; }
@@ -429,12 +439,30 @@
    * ============================================================ */
   function nameHtmlWithBadge(name){
     const loc = getLocation();
-    const showBadge =
-      !!window.__lastRegentsPrep &&
+  
+    const inMorningContext =
       !isSeniorOutIn() &&
       !isBathroomLocation(loc) &&
       !isLunchLocation(loc);
-    return `${esc(name || 'Unknown')}${showBadge ? ' <span class="badge-purple">REGENTS PREP</span>' : ''}`;
+  
+    const badges = [];
+  
+    // Regents stays “morning-only”
+    if (inMorningContext && window.__lastRegentsPrep) {
+      badges.push('<span class="badge-purple">REGENTS PREP</span>');
+    }
+  
+    // Alert: I’d also keep this to “morning-ish” to avoid clutter, but you can
+    // drop `inMorningContext &&` if you want it visible everywhere.
+    if (inMorningContext && window.__lastAlertFlag) {
+      badges.push('<span class="badge-alert">ALERT</span>');
+    }
+  
+    // Keep things from getting too crowded
+    const maxBadges = 2;
+    const rendered = badges.slice(0, maxBadges).join('');
+  
+    return `${esc(name || 'Unknown')}${rendered ? ' ' + rendered : ''}`;
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function setStatus(t){ statusEl.textContent = t; }
@@ -1240,6 +1268,7 @@
       window.__lastAllowedSenior = !!res.allowed_senior;
       window.__lastSearchFlag    = !!res.search;
       window.__lastRegentsPrep   = !!res.regents_prep;
+      window.__lastAlertFlag     = !!res.alert;       // <— NEW
 
       const loc     = getLocation() || '';
       const whenISO = when.toISOString();
