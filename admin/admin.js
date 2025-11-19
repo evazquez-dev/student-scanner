@@ -8,12 +8,20 @@ const loginCard = document.getElementById('loginCard');
 const loginOut  = document.getElementById('loginOut');
 const diagOut   = document.getElementById('diagOut');
 const syncOut   = document.getElementById('syncOut');
-const locationsEditor = document.getElementById('locationsEditor');
-const locationsOut    = document.getElementById('locationsOut');
-const bathOut         = document.getElementById('bathOut');
-const bathTableOut    = document.getElementById('bathTableOut');
-const bindOut         = document.getElementById('bindOut');
-const scheduleOut     = document.getElementById('scheduleOut');
+
+// Locations UI
+const locationsOut        = document.getElementById('locationsOut');
+const locationsTbody      = document.getElementById('locationsTbody');
+const locationsCountLabel = document.getElementById('locationsCountLabel');
+
+// Bathroom + other cards
+const bathOut      = document.getElementById('bathOut');
+const bathTableOut = document.getElementById('bathTableOut');
+const bindOut      = document.getElementById('bindOut');
+const scheduleOut  = document.getElementById('scheduleOut');
+
+// In-memory copy of last loaded locations (full meta)
+let lastLoadedLocations = [];
 
 // Quick-set controls
 const bathSelect = document.getElementById('bathSelect');
@@ -145,6 +153,62 @@ document.getElementById('btnPushSchedule').addEventListener('click', async () =>
 /* ===============================
  * LOCATIONS
  * =============================== */
+
+// Render table rows from a list of location objects:
+// { name, type, mode, visible }
+function renderLocationsTable(rows) {
+  locationsTbody.innerHTML = '';
+  (rows || []).forEach((rec, idx) => {
+    const tr = document.createElement('tr');
+    tr.dataset.index = String(idx);
+
+    const name   = rec?.name   || '';
+    const type   = rec?.type   || '';
+    const mode   = rec?.mode   || '';
+    const vis    = (rec?.visible !== false); // default true
+
+    tr.innerHTML = `
+      <td><input type="text" class="loc-name" value="${esc(name)}" /></td>
+      <td><input type="text" class="loc-type" value="${esc(type)}" /></td>
+      <td><input type="text" class="loc-mode" value="${esc(mode)}" /></td>
+      <td style="text-align:center;">
+        <input type="checkbox" class="loc-visible"${vis ? ' checked' : ''}>
+      </td>
+      <td style="text-align:center;">
+        <button type="button" class="btn ghost btnLocDelete" style="padding:4px 8px;font-size:11px;">✕</button>
+      </td>
+    `;
+    locationsTbody.appendChild(tr);
+  });
+
+  locationsCountLabel.textContent =
+    rows && rows.length ? `${rows.length} locations (including hidden/class)` : 'No locations loaded yet.';
+}
+
+// Collect current table state into objects we can POST
+function gatherLocationsFromUI() {
+  const out = [];
+  locationsTbody.querySelectorAll('tr').forEach(tr => {
+    const nameInput = tr.querySelector('.loc-name');
+    if (!nameInput) return;
+    const name = nameInput.value.trim();
+    if (!name) return;
+
+    const typeInput = tr.querySelector('.loc-type');
+    const modeInput = tr.querySelector('.loc-mode');
+    const visInput  = tr.querySelector('.loc-visible');
+
+    out.push({
+      name,
+      type: (typeInput?.value || '').trim(),
+      mode: (modeInput?.value || '').trim(),
+      visible: !!(visInput && visInput.checked)
+    });
+  });
+  return out;
+}
+
+// Load locations (including hidden/class) from Worker
 async function loadLocationsToEditor() {
   locationsOut.textContent = 'Loading locations...';
   try {
@@ -159,35 +223,85 @@ async function loadLocationsToEditor() {
       return [];
     }
     const data = await r.json();
-    const arr = Array.isArray(data.locations) ? data.locations : [];
-    locationsEditor.value = arr.join('\n');
-    locationsOut.textContent = `Loaded ${arr.length} locations.`;
-    return arr;
+    const visibleNames = Array.isArray(data.locations) ? data.locations : [];
+    const meta = Array.isArray(data.meta) ? data.meta : [];
+
+    // Prefer full meta from Worker (includes name/type/mode/visible).
+    // Fallback: build simple objects from visible list if meta is missing.
+    const recs = meta.length
+      ? meta
+      : visibleNames.map(name => ({ name, type: '', mode: '', visible: true }));
+
+    lastLoadedLocations = recs;
+    renderLocationsTable(recs);
+    locationsOut.textContent = `Loaded ${recs.length} locations (meta + visibility).`;
+
+    return recs;
   } catch (e) {
     locationsOut.textContent = `Error: ${e.message || e}`;
     return [];
   }
 }
+
+// Load button
 document.getElementById('btnLoadLocations').addEventListener('click', loadLocationsToEditor);
 
+// Push button
 document.getElementById('btnPushLocations').addEventListener('click', async () => {
   try {
     locationsOut.textContent = 'Pushing...';
-    const arr = locationsEditor.value.split('\n').map(s => s.trim()).filter(Boolean);
+
+    const arr = gatherLocationsFromUI();  // full objects
     const r = await adminFetch('/admin/push_locations', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ locations: arr })
     });
+
     locationsOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+    lastLoadedLocations = arr.slice();
+
     // Rehydrate bathrooms after location push
     await hydrateBathrooms();
   } catch (e) {
     locationsOut.textContent = `Error: ${e.message || e}`;
   }
 });
+
+// Reset to last loaded
 document.getElementById('btnResetLocations').addEventListener('click', () => {
-  if (confirm('Reset editor?')) locationsEditor.value = '';
+  if (!lastLoadedLocations.length) {
+    locationsOut.textContent = 'Nothing to reset — load locations first.';
+    return;
+  }
+  if (confirm('Reset to last loaded locations from Worker?')) {
+    renderLocationsTable(lastLoadedLocations);
+    locationsOut.textContent = 'Editor reset to last loaded locations.';
+  }
+});
+
+// Add row (blank)
+document.getElementById('btnAddLocation').addEventListener('click', () => {
+  const rows = gatherLocationsFromUI();
+  rows.push({ name: '', type: '', mode: '', visible: true });
+  lastLoadedLocations = rows.slice();
+  renderLocationsTable(rows);
+});
+
+// Delete row (event delegation)
+locationsTbody.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.btnLocDelete');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  if (!tr) return;
+
+  const rows = gatherLocationsFromUI();
+  const idx = Array.prototype.indexOf.call(locationsTbody.children, tr);
+  if (idx >= 0 && idx < rows.length) {
+    rows.splice(idx, 1);
+  }
+  lastLoadedLocations = rows.slice();
+  renderLocationsTable(rows);
 });
 
 /* ===============================
