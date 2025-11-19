@@ -1236,21 +1236,28 @@
         const kioskAllowed = !!res.kiosk_allowed;
         const shouldRoom   = res.kiosk_should_room || res.class_now || ''; // e.g. "316"
 
-        // No schedule context – just mark as Present for now
-        if (!kioskMode || kioskMode === 'none') {
-          const attendance = 'Present';
-          updateRowToSuccess(row, {
-            name: res.name,
-            code,
-            lockerNum: attendance,   // repurpose lockerNum = attendance label
-            lockerColor: shouldRoom, // repurpose lockerColor = "should be" room
-            when
-          });
-          showSuccess(res.name, code, attendance, shouldRoom, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
-          setStatus('Ready. Scan next card…');
-          return;
-        }
+      // No schedule context – treat as NOT ALLOWED for class kiosks
+      if (!kioskMode || kioskMode === 'none') {
+        const attendance = 'Not allowed';
+        updateRowToSuccess(row, {
+          name: res.name,
+          code,
+          lockerNum: attendance,   // shows "Not allowed" in the history table
+          lockerColor: shouldRoom, // still show "(should be 316)" if we know it
+          when
+        });
+    
+        // Same style as the "wrong class" path
+        showClassPopup(
+          shouldRoom
+            ? `You should be in ${shouldRoom} right now.`
+            : 'This scanner is only for your scheduled class period.'
+        );
+        showClassRedirect(code, shouldRoom, when);
+        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
+        setStatus('Ready. Scan next card…');
+        return;
+      }
 
         // Not allowed in this room right now
         if (!kioskAllowed) {
@@ -1273,8 +1280,8 @@
           return;
         }
 
-        // Allowed → mark as Present (we’ll add “Late” logic later)
-        const attendance = 'Present';
+        // Allowed → use server-computed attendance ("Present" or "Late")
+        const attendance = res.attendance || 'Present';
         updateRowToSuccess(row, {
           name: res.name,
           code,
