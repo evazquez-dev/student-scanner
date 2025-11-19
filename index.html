@@ -196,6 +196,28 @@
       margin-right:6px;
       border:1px solid #ccd3de;
     }
+
+    /* Wrong-class popup */
+    .popup{
+      position:fixed;
+      left:50%;
+      bottom:20px;
+      transform:translate(-50%, 10px);
+      background:#b00020;
+      color:#fff;
+      padding:8px 14px;
+      border-radius:999px;
+      font-size:14px;
+      box-shadow:0 6px 20px rgba(0,0,0,.25);
+      opacity:0;
+      pointer-events:none;
+      z-index:2147483000;
+      transition:opacity .2s ease-out, transform .2s ease-out;
+    }
+    .popup.visible{
+      opacity:1;
+      transform:translate(-50%, 0);
+    }
   </style>
 </head>
 <body>
@@ -326,6 +348,9 @@
     </div>
   </div>
 
+  <!-- Small red popup for wrong-class redirects -->
+  <div id="classPopup" class="popup" aria-live="polite"></div>
+
   <script>
   /* ============================================================
    * CONFIG + CONSTANTS
@@ -361,7 +386,7 @@
 
   const BATHROOM_CAPACITY_DEFAULT = 2;
   let __LOCATIONS_CAPS = null;
-  let __LOCATIONS_META = {}; // name -> { type, visible }
+  let __LOCATIONS_META = {}; // name -> { type, mode, visible }
   const BATH_CAP_CACHE = Object.create(null);
 
   // DOM
@@ -382,6 +407,11 @@
   // Device fingerprint (stable)
   const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
     (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
+
+  function getLocationMeta(loc) {
+    const name = String(loc || getLocation() || '').trim();
+    return __LOCATIONS_META[name] || {};
+  }
 
   /* ============================================================
    * SMALL HELPERS
@@ -405,12 +435,36 @@
     return `${y}-${m}-${day}`;
   }
   function fmtTime(d){ try { return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d); } catch { return d.toLocaleString(); } }
-  function isSeniorOutIn(){ return String(getLocation()||'').toLowerCase() === SPECIAL_LOCATION.toLowerCase(); }
-  function isBathroomLocation(loc){ return String(loc||getLocation()||'').toLowerCase().startsWith(BATHROOM_PREFIX.toLowerCase()); }
-
+  function isSeniorOutIn() {
+    const loc = getLocation();
+    const meta = getLocationMeta(loc);
+    if (meta && meta.mode) {
+      return String(meta.mode).toLowerCase() === 'senior_outin';
+    }
+    // Fallback for older data / default config
+    return String(loc || '').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
+  }
+  function isBathroomLocation(loc) {
+    const current = loc || getLocation();
+    const meta = getLocationMeta(current);
+    if (meta && meta.mode) {
+      if (String(meta.mode).toLowerCase() === 'bathroom') return true;
+    }
+    // Fallback: prefix
+    return String(current || '').toLowerCase().startsWith(BATHROOM_PREFIX.toLowerCase());
+  }
+  function isClassKiosk(loc) {
+    const meta = getLocationMeta(loc);
+    return meta && String(meta.mode || '').toLowerCase() === 'class';
+  }
   // Lunch helpers
-  function isLunchLocation(loc){
-    const v = String(loc||'').toLowerCase().trim();
+  function isLunchLocation(loc) {
+    const current = loc || getLocation();
+    const meta = getLocationMeta(current);
+    if (meta && meta.mode) {
+      if (String(meta.mode).toLowerCase() === 'lunch') return true;
+    }
+    const v = String(current || '').toLowerCase().trim();
     return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
   }
   function lunchSlotFromLocation(loc){ return String(loc||'').toLowerCase().includes('2') ? 2 : 1; }
@@ -422,6 +476,84 @@
     const need = lunchSlotFromLocation(location);
     const have = normalizeLunchValue(lunchValue);
     return have === need;
+  }
+  function normalizeRoomLabelClient(room) {
+    if (!room) return null;
+    // Option B-friendly: values like "316", "Caf", and also tolerate legacy "RM 316"
+    return String(room)
+      .replace(/^RM\s*/i, '')
+      .trim();
+  }
+
+  // === Class-kiosk helpers (uses Worker schedule fields) ===
+  function deriveStudentRoomFromResponse(res) {
+    if (!res) return null;
+    if (res.current_room) {
+      return normalizeRoomLabelClient(res.current_room);
+    }
+    const cn = String(res.class_now || '').trim();
+    if (!cn) return null;
+    // Patterns like "316 → 218", "→ 218", "316 →", or just "316"
+    const parts = cn.split('\u2192').map(p => p.trim()).filter(Boolean);
+    if (parts.length) {
+      const last = parts[parts.length - 1];
+      return normalizeRoomLabelClient(last);
+    }
+    return normalizeRoomLabelClient(cn);
+  }
+
+  function deriveClassDisplayLabel(res, studentRoom) {
+    if (res && res.class_now) return res.class_now;
+    if (studentRoom) return studentRoom;
+    if (res && res.current_period) return `Period ${res.current_period}`;
+    return 'your scheduled class';
+  }
+
+  let __classPopupTimer = null;
+  function showClassPopup(msg){
+    const el = document.getElementById('classPopup');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('visible');
+    if (__classPopupTimer) clearTimeout(__classPopupTimer);
+    __classPopupTimer = setTimeout(()=>{ el.classList.remove('visible'); }, 2500);
+  }
+
+  function showWrongClass(name, code, label, when){
+    const nameHtml = nameHtmlWithBadge(name);
+    resultEl.innerHTML =
+      `<div class="err">Wrong class</div>
+       <div class="name">${nameHtml}</div>
+       <div class="code">${esc(code)} — You should be in ${esc(label || 'your scheduled class')} right now.</div>
+       <div class="muted">${fmtTime(when)}</div>`;
+  }
+
+  function updateRowToWrongClass(tr, {name, code, when, label}){
+    const nameHtml = nameHtmlWithBadge(name);
+    tr.className = '';
+    tr.innerHTML =
+      `<td class="name">${nameHtml}</td>
+       <td class="code">${esc(code)}</td>
+       <td><span class="badge badge--na">Wrong class</span></td>
+       <td>${fmtTime(when)}</td>`;
+  }
+
+  function checkClassKioskEligibility(kioskRoom, res) {
+    if (!kioskRoom) {
+      // If kiosk room can't be derived, don't block
+      return { ok:true, studentRoom:null, displayLabel:null };
+    }
+    const studentRoom = deriveStudentRoomFromResponse(res);
+    if (!studentRoom) {
+      // No schedule info → fail open, allow scan
+      return { ok:true, studentRoom:null, displayLabel:null };
+    }
+    const same = studentRoom.toLowerCase() === kioskRoom.toLowerCase();
+    return {
+      ok: same,
+      studentRoom,
+      displayLabel: deriveClassDisplayLabel(res, studentRoom)
+    };
   }
 
   // THEME HELPERS — decide which color theme to use
@@ -762,7 +894,16 @@
    * API CALLS (Worker)
    * ============================================================ */
   async function apiLookup(code){
+    const loc = getLocation();
     const body = new URLSearchParams({ action:'lookup', code });
+
+    // For classroom kiosks, tell the Worker which room this is (optional)
+    if (isClassKiosk(loc)) {
+      const kioskRoom = normalizeRoomLabelClient(loc);
+      if (kioskRoom) {
+        body.set('kiosk_room', kioskRoom);
+      }
+    }
     const wakeTimer = setTimeout(() => setStatus('Waking server…'), 800);
     const controller = new AbortController();
     const abortTimer = setTimeout(() => controller.abort(), 8000);
@@ -823,32 +964,38 @@
     
         if (r.ok && ct.includes('application/json')) {
           const data = JSON.parse(text);
-    
-          if (data && data.ok && Array.isArray(data.locations)) {
-            // ---- NEW: build meta + list of *visible* names ----
+        
+          if (data && data.ok) {
+            // Prefer meta (objects), fall back to locations (strings/objects)
+            const arr = Array.isArray(data.meta)
+              ? data.meta
+              : (Array.isArray(data.locations) ? data.locations : []);
+        
             __LOCATIONS_META = {}; // reset
-            
             const visibleNames = [];
-    
-            for (const item of data.locations) {
+        
+            for (const item of arr) {
               if (typeof item === 'string') {
                 // Backwards-compatible: server returned names only
-                __LOCATIONS_META[item] = { type: null, visible: true };
+                __LOCATIONS_META[item] = { type: null, mode: null, visible: true };
                 visibleNames.push(item);
               } else if (item && typeof item === 'object') {
                 const name  = String(item.name || '').trim();
                 if (!name) continue;
-                const type  = item.type || null;
-                const vis   = (item.visible !== false); // default TRUE if missing
-                __LOCATIONS_META[name] = { type, visible: vis };
+        
+                const type = item.type || null;
+                const mode = item.mode || null;
+                const vis  = (item.visible !== false);
+        
+                __LOCATIONS_META[name] = { type, mode, visible: vis };
                 if (vis) visibleNames.push(name);
               }
             }
-    
+        
             if (data.caps && typeof data.caps === 'object') {
               __LOCATIONS_CAPS = data.caps;
             }
-    
+        
             // Only show visible names in dropdown
             return visibleNames;
           }
@@ -858,9 +1005,9 @@
       // Fallback if API fails: static list (all “visible”)
       __LOCATIONS_META = {};
       STATIC_LOCATIONS.forEach(name => {
-        __LOCATIONS_META[name] = { type: null, visible: true };
+        __LOCATIONS_META[name] = { type: null, mode: null, visible: true };
       });
-      return STATIC_LOCATIONS;
+      return STATIC_LOCATIONS.slice();
     }
   async function checkDeviceLock(){
     try{
@@ -1046,6 +1193,22 @@
       const loc     = getLocation() || '';
       const whenISO = when.toISOString();
 
+      // Classroom kiosk gating (mode: class)
+      if (isClassKiosk(loc)) {
+        const kioskRoom = normalizeRoomLabelClient(loc);
+        const { ok: allowedHere, studentRoom, displayLabel } = checkClassKioskEligibility(kioskRoom, res);
+        if (!allowedHere) {
+          const label = displayLabel || (studentRoom || 'your scheduled class');
+          beepBad();
+          showClassPopup(`You should be in ${label} right now.`);
+          updateRowToWrongClass(row, { name: res.name, code, when, label });
+          showWrongClass(res.name, code, label, when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'wrong_class' });
+          setStatus('Wrong class — scan rejected');
+          return;
+        }
+      }
+
       // Senior Lunch (toggle OUT/IN)
       if (isSeniorOutIn()){
         const osis          = String(res.osis || '').trim();
@@ -1076,7 +1239,7 @@
       if (isBathroomLocation(loc)) {
         const osis = String(res.osis || '').trim();
         const sex  = (String(res.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
-        const classNow = res.class_now || '';   // ← NEW: from Worker (optional)
+        const classNow = res.class_now || '';   // from Worker (optional)
       
         const wasIn = isInBathroomG(sex, osis);
       
@@ -1361,7 +1524,6 @@
       ? `Location: ${v}${IS_LOCATION_LOCKED ? ' (locked)' : ''}`
       : 'Set location';
   
-    // Keep your pill behavior
     pill.style.background = v ? '#e7f0fe' : '#fff3e0';
     pill.style.color = v ? '#0b57d0' : '#8a5a00';
     pill.style.cursor = IS_LOCATION_LOCKED ? 'not-allowed' : 'pointer';
@@ -1369,7 +1531,7 @@
       ? 'This device is locked to this location'
       : 'Click to change location';
   
-    // NEW: apply theme based on location type
+    // Apply theme based on location type
     applyThemeForLocation(v);
   
     updateHeaderForLocation();
