@@ -523,6 +523,7 @@
   let lastKeyTs = 0, wedgeBuf = "", wedgeResetTimer = null;
   let DEBUG_BUFFER = '';
   let DEBUG_LAST_TS = 0;
+  let DEBUG_EVENTS = [];
   
   function debugLogLine(text) {
     const logEl = document.getElementById('debugLog');
@@ -546,14 +547,36 @@
     const gap = DEBUG_LAST_TS ? (now - DEBUG_LAST_TS) : 0;
     DEBUG_LAST_TS = now;
   
-    // Log the raw key event
+    // 1) Keep on-screen debug log
     debugLogLine(
       `key=${JSON.stringify(e.key)} code=${e.code} keyCode=${e.keyCode} gapMs=${gap.toFixed(1)}`
     );
   
+    // 2) Track per-scan event list
+    DEBUG_EVENTS.push({
+      key: e.key,
+      code: e.code,
+      keyCode: e.keyCode,
+      gapMs: Number(gap.toFixed(1)),
+      tsPerf: now
+    });
+  
     if (e.key === 'Enter') {
+      // End of one RFID "scan" according to wedge
+      const sample = {
+        ts: Date.now(),
+        buffer: DEBUG_BUFFER,
+        events: DEBUG_EVENTS.slice()
+      };
+  
       debugLogLine(`SCAN COMPLETE buffer=${JSON.stringify(DEBUG_BUFFER)}`);
+  
+      // Fire-and-forget send to backend
+      apiDebugLog(sample);
+  
+      // Reset for next scan
       DEBUG_BUFFER = '';
+      DEBUG_EVENTS = [];
       if (manualInput) manualInput.value = '';
     } else if (e.key.length === 1) {
       DEBUG_BUFFER += e.key;
@@ -1337,6 +1360,24 @@
     return JSON.parse(text);
   }
   function makeLogId({ whenISO, code }) { return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`; }
+  async function apiDebugLog(sample){
+    const whenISO = new Date(sample.ts || Date.now()).toISOString();
+    const body = new URLSearchParams({
+      action: 'rfid_debug',
+      whenISO,
+      device_id: DEVICE_ID,
+      location: getLocation() || '',
+      buffer: sample.buffer || '',
+      events_json: JSON.stringify(sample.events || []),
+    });
+  
+    try {
+      await fetch(API_BASE, { method: 'POST', body });
+    } catch (err) {
+      // purely best-effort; no UI error needed
+      console.warn('rfid_debug send failed', err);
+    }
+  }
   async function apiLog(entry){
     const whenISO = entry.whenISO || new Date().toISOString();
     const body = new URLSearchParams({
