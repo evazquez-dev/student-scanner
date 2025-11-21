@@ -514,6 +514,7 @@
   const CLASS_PRESENT = Object.create(null); // osis -> { firstIn, lastIn }
   const OUT_OF_CLASS = Object.create(null);  // osis -> { name, reason, startedAt, rowEl, timeEl, timerId }
   let CURRENT_CLASS_PENDING = null;
+  let CURRENT_CLASS_PERIOD_KEY = null; // tracks which period this kiosk session is for
 
   // Device fingerprint
   const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
@@ -698,6 +699,33 @@
     };
   }
 
+  function deriveKioskPeriodKeyFromResponse(res) {
+    // Prefer the “current” period if we have it
+    if (res && res.current_period != null) {
+      return String(res.current_period);
+    }
+    // During transition / early window, we can anchor on the *next* period
+    if (res && res.next_period != null) {
+      return String(res.next_period);
+    }
+    return null;
+  }
+  
+  function maybeResetClassStateForPeriod(res) {
+    const loc = getLocation();
+    if (!isClassKiosk(loc)) return;
+  
+    const key = deriveKioskPeriodKeyFromResponse(res);
+    if (!key) return;
+  
+    // If we already have a period and it changes → new class, reset state
+    if (CURRENT_CLASS_PERIOD_KEY && CURRENT_CLASS_PERIOD_KEY !== key) {
+      resetClassSessionState();
+    }
+  
+    CURRENT_CLASS_PERIOD_KEY = key;
+  }
+    
   function classifyLocationType(locationName){
     const name = String(locationName || '').trim();
     if (!name) return 'default';
@@ -990,6 +1018,7 @@
       delete CLASS_PRESENT[osis];
     });
     if (classOutBody) classOutBody.innerHTML = '';
+    CURRENT_CLASS_PERIOD_KEY = null;
     ensureClassOutVisibility();
   }
 
@@ -1523,6 +1552,9 @@
 
       const loc     = getLocation() || '';
       const whenISO = when.toISOString();
+
+      // 🔔 Auto-reset per period for class kiosks
+      maybeResetClassStateForPeriod(res);
 
       // ---- CLASS KIOSK LOGIC ----
       if (isClassKiosk(loc)) {
