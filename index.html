@@ -1086,8 +1086,8 @@
   outReasonButtons.forEach(btn => {
     btn.addEventListener('click', async () => {
       const reason = btn.dataset.reason || 'Other';
-      closeOutModalForClass();
-      await handleClassOut(reason);
+      await handleClassOut(reason);  // uses CURRENT_CLASS_PENDING
+      closeOutModalForClass();       // clears it afterwards
     });
   });
 
