@@ -1945,61 +1945,64 @@
     return getComputedStyle(m).display !== 'none';
   }
 
-window.addEventListener('keydown', (e)=>{
-  if (IS_MODAL_OPEN || isModalVisible()) return;
-
-  keepFocus();
-
-  const loc = getLocation();
-
-  // ===== RFID DEBUG MODE =====
-  if (isDebugLocation(loc)) {
-    // Always let us see the raw key
-    handleDebugKey(e);
-
-    // Prevent the normal scanner logic from firing
-    // so we don't spam lookups while debugging.
-    // Still clear the textbox on Enter, nice for repeated tests.
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (manualInput) manualInput.value = '';
+  window.addEventListener('keydown', (e)=>{
+    if (IS_MODAL_OPEN || isModalVisible()) return;
+  
+    keepFocus();
+  
+    const loc = getLocation();
+  
+    // ===== RFID DEBUG MODE =====
+    if (isDebugLocation(loc)) {
+      // Always let us see the raw key
+      handleDebugKey(e);
+  
+      // Prevent the normal scanner logic from firing
+      // so we don't spam lookups while debugging.
+      // Still clear the textbox on Enter, nice for repeated tests.
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (manualInput) manualInput.value = '';
+      }
+  
+      return;
     }
-
-    return;
-  }
-
-  // ===== NORMAL SCANNER LOGIC =====
-  const now = performance.now();
-  const gap = now - (lastKeyTs || now);
-  lastKeyTs = now;
-
-  if (e.key === 'Enter'){
-    const finished = wedgeBuf;
-    wedgeBuf = "";
-
-    // Always clear textbox on Enter
-    if (manualInput) {
-      manualInput.value = '';
+  
+    // ===== NORMAL SCANNER LOGIC =====
+    const now = performance.now();
+    const gap = now - (lastKeyTs || now);
+    lastKeyTs = now;
+  
+    if (e.key === 'Enter'){
+      const finished = wedgeBuf;
+      wedgeBuf = "";
+  
+      if (finished){
+        // Scanner path: we handled the whole code via wedgeBuf
+        e.preventDefault();
+        onScan(finished);
+  
+        // Now we can safely clear the textbox
+        if (manualInput) {
+          manualInput.value = '';
+        }
+      }
+      // If finished is empty, this was normal typing.
+      // Let the form submit handler run and read manualInput.value.
+      return;
     }
-
-    if (finished){
-      e.preventDefault();
-      onScan(finished);
+  
+    if (e.key.length === 1){
+      const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
+      if (looksLikeScanner){
+        e.preventDefault();
+        wedgeBuf += e.key;
+      }
     }
-    return;
-  }
-
-  if (e.key.length === 1){
-    const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
-    if (looksLikeScanner){
-      e.preventDefault();
-      wedgeBuf += e.key;
-    }
-  }
-
-  clearTimeout(wedgeResetTimer);
-  wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
-}, true);
+  
+    clearTimeout(wedgeResetTimer);
+    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
+  }, true);
 
     
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
