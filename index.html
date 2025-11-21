@@ -1005,7 +1005,6 @@
     if (!outModal) return;
     outModal.style.display = 'none';
     setModalOpen(false);
-    CURRENT_CLASS_PENDING = null;
   }
 
   async function handleClassOut(reason){
@@ -1073,12 +1072,14 @@
 
   if (outModalCancel) {
     outModalCancel.addEventListener('click', () => {
+      CURRENT_CLASS_PENDING = null;
       closeOutModalForClass();
     });
   }
   if (outModal) {
     outModal.addEventListener('click', (ev) => {
       if (ev.target === outModal) {
+        CURRENT_CLASS_PENDING = null;
         closeOutModalForClass();
       }
     });
@@ -1086,8 +1087,8 @@
   outReasonButtons.forEach(btn => {
     btn.addEventListener('click', async () => {
       const reason = btn.dataset.reason || 'Other';
-      await handleClassOut(reason);  // uses CURRENT_CLASS_PENDING
-      closeOutModalForClass();       // clears it afterwards
+      closeOutModalForClass();
+      handleClassOut(reason);
     });
   });
 
