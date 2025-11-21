@@ -72,8 +72,8 @@
       --card-bg:#f1fbf4;
       --panel-bg:#e7f6ec;
       --panel-border:#b5e1c4;
-      --accent:#0a7c2f;   /* same green family you already use */
-      --pill-bg:#eaf7ea;  /* reuse “ok” pill green */
+      --accent:#0a7c2f;
+      --pill-bg:#eaf7ea;
       --pill-fg:#0a7c2f;
     }
     
@@ -132,8 +132,8 @@
     .badge-purple { background:#f3e8ff; color:#6b21a8; font-weight:700; padding:2px 6px; border-radius:6px; font-size:12px; margin-left:6px; }
     /* Generic Alert badge (blue) */
     .badge-alert {
-      background:#e3f2fd;   /* soft blue */
-      color:#0b57d0;        /* matches existing accent blue */
+      background:#e3f2fd;
+      color:#0b57d0;
       font-weight:700;
       padding:2px 6px;
       border-radius:6px;
@@ -239,6 +239,51 @@
       opacity:1;
       transform:translate(-50%, 0);
     }
+
+    /* === Out-of-Class Reason Modal (class kiosks) === */
+    .modal-backdrop {
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.65);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      z-index:2147483001;
+    }
+    .modal {
+      background:#fff;
+      border-radius:16px;
+      padding:20px;
+      max-width:480px;
+      width:90%;
+      box-shadow:0 10px 40px rgba(0,0,0,0.3);
+      text-align:center;
+    }
+    .out-modal-student {
+      font-size:1.1rem;
+      margin-bottom:16px;
+    }
+    .out-reason-grid {
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+      margin-bottom:16px;
+    }
+    .out-reason-btn {
+      font-size:1.1rem;
+      padding:16px 8px;
+      border-radius:12px;
+      border:none;
+      cursor:pointer;
+      touch-action:manipulation;
+    }
+    .out-reason-cancel {
+      font-size:1rem;
+      padding:10px 16px;
+      border-radius:8px;
+      border:none;
+      touch-action:manipulation;
+    }
   </style>
 </head>
 <body>
@@ -254,6 +299,23 @@
         <button id="locCancelBtn" style="background:#e5e9f2; color:#333">Cancel</button>
         <button id="locSaveBtn">Save</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ============ OUT-OF-CLASS MODAL (CLASS MODE) ============ -->
+  <div id="outModal" class="modal-backdrop" style="display:none;">
+    <div class="modal">
+      <h2 id="outModalTitle">Where is this student going?</h2>
+      <p id="outModalStudent" class="out-modal-student"></p>
+      <div class="out-reason-grid">
+        <button class="out-reason-btn" data-reason="Bathroom">Bathroom</button>
+        <button class="out-reason-btn" data-reason="Nurse">Nurse</button>
+        <button class="out-reason-btn" data-reason="Main Office">Main Office</button>
+        <button class="out-reason-btn" data-reason="Dean">Dean</button>
+        <button class="out-reason-btn" data-reason="Social Worker">Social Worker</button>
+        <button class="out-reason-btn" data-reason="Other">Other</button>
+      </div>
+      <button id="outModalCancel" class="out-reason-cancel">Cancel</button>
     </div>
   </div>
 
@@ -309,7 +371,6 @@
         <div class="panel" id="outPanel" style="margin-top:10px; display:none">
           <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
             <span>Currently OUT — Senior Lunch</span>
-            <!-- CHANGED LABEL ONLY -->
             <button id="refreshRosterBtn" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">
               Clear list
             </button>
@@ -328,13 +389,31 @@
           </div>
         </div>
 
+        <!-- Out of Classroom list (class kiosks) -->
+        <div class="panel" id="classOutPanel" style="margin-top:10px; display:none">
+          <div class="muted" style="margin-bottom:8px;">
+            Out of Classroom
+          </div>
+          <div class="scans-pane" style="max-height:240px">
+            <table aria-label="Out of Classroom">
+              <thead>
+                <tr>
+                  <th style="width:40%">Student</th>
+                  <th style="width:30%">Reason</th>
+                  <th style="width:30%">Time Elapsed</th>
+                </tr>
+              </thead>
+              <tbody id="classOutBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Bathroom IN lists (Male & Female) -->
         <div class="row">
           <div class="col">
             <div class="panel" id="bathPanelM" style="margin-top:10px; display:none">
               <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
                 <span id="bathPanelTitleM">Currently IN — Bathroom (M)</span>
-                <!-- CHANGED LABEL ONLY -->
                 <button id="bathRefreshBtnM" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Clear Bathroom</button>
               </div>
               <div class="scans-pane" style="max-height: 240px">
@@ -349,7 +428,6 @@
             <div class="panel" id="bathPanelF" style="margin-top:10px; display:none">
               <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
                 <span id="bathPanelTitleF">Currently IN — Bathroom (F)</span>
-                <!-- CHANGED LABEL ONLY -->
                 <button id="bathRefreshBtnF" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">Clear Bathroom</button>
               </div>
               <div class="scans-pane" style="max-height: 240px">
@@ -378,12 +456,11 @@
    * ============================================================ */
 
   // --- Recent scans display limits ---
-  const DEFAULT_RECENT_VISIBLE = 6;     // hall/office scanners (or whatever you use today)
-  const BATHROOM_RECENT_VISIBLE = 3;    // bathroom scanners: show only 2–3
+  const DEFAULT_RECENT_VISIBLE = 6;
+  const BATHROOM_RECENT_VISIBLE = 3;
   const isBathroom = (name) => String(name || '').toLowerCase().startsWith('bathroom (');
-  const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/'; // ← set your Worker URL
+  const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/';
 
-  // Optional wake-up ping
   (async () => { try {
     await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
   } catch (_) {} })();
@@ -419,13 +496,26 @@
   const locationPill = document.getElementById('locationPill');
   const cardEl = document.querySelector('.card');
 
+  const classOutPanel = document.getElementById('classOutPanel');
+  const classOutBody = document.getElementById('classOutBody');
+
+  const outModal = document.getElementById('outModal');
+  const outModalStudent = document.getElementById('outModalStudent');
+  const outModalCancel = document.getElementById('outModalCancel');
+  const outReasonButtons = Array.from(document.querySelectorAll('.out-reason-btn') || []);
+
   // Runtime state
   let IS_MODAL_OPEN = false;
   let IS_LOCATION_LOCKED = false;
   let IS_REFRESHING = false;
   let lastKeyTs = 0, wedgeBuf = "", wedgeResetTimer = null;
 
-  // Device fingerprint (stable)
+  // Class-mode state
+  const CLASS_PRESENT = Object.create(null); // osis -> { firstIn, lastIn }
+  const OUT_OF_CLASS = Object.create(null);  // osis -> { name, reason, startedAt, rowEl, timeEl, timerId }
+  let CURRENT_CLASS_PENDING = null;
+
+  // Device fingerprint
   const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
     (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
 
@@ -447,18 +537,14 @@
   
     const badges = [];
   
-    // Regents stays “morning-only”
     if (inMorningContext && window.__lastRegentsPrep) {
       badges.push('<span class="badge-purple">REGENTS PREP</span>');
     }
   
-    // Alert: I’d also keep this to “morning-ish” to avoid clutter, but you can
-    // drop `inMorningContext &&` if you want it visible everywhere.
     if (inMorningContext && window.__lastAlertFlag) {
       badges.push('<span class="badge-alert">ALERT</span>');
     }
   
-    // Keep things from getting too crowded
     const maxBadges = 2;
     const rendered = badges.slice(0, maxBadges).join('');
   
@@ -474,13 +560,20 @@
     return `${y}-${m}-${day}`;
   }
   function fmtTime(d){ try { return new Intl.DateTimeFormat(undefined,{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).format(d); } catch { return d.toLocaleString(); } }
+
+  function formatElapsed(ms){
+    const totalSec = Math.floor(ms/1000);
+    const m = Math.floor(totalSec/60);
+    const s = totalSec % 60;
+    return `${m}:${s.toString().padStart(2,'0')}`;
+  }
+
   function isSeniorOutIn() {
     const loc = getLocation();
     const meta = getLocationMeta(loc);
     if (meta && meta.mode) {
       return String(meta.mode).toLowerCase() === 'senior_outin';
     }
-    // Fallback for older data / default config
     return String(loc || '').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
   }
   function isBathroomLocation(loc) {
@@ -489,14 +582,12 @@
     if (meta && meta.mode) {
       if (String(meta.mode).toLowerCase() === 'bathroom') return true;
     }
-    // Fallback: prefix
     return String(current || '').toLowerCase().startsWith(BATHROOM_PREFIX.toLowerCase());
   }
   function isClassKiosk(loc) {
     const meta = getLocationMeta(loc);
     return meta && String(meta.mode || '').toLowerCase() === 'class';
   }
-  // Lunch helpers
   function isLunchLocation(loc) {
     const current = loc || getLocation();
     const meta = getLocationMeta(current);
@@ -518,7 +609,6 @@
   }
   function normalizeRoomLabelClient(room) {
     if (!room) return null;
-    // Option B-friendly: values like "316", "Caf", and also tolerate legacy "RM 316"
     return String(room)
       .replace(/^RM\s*/i, '')
       .trim();
@@ -532,7 +622,6 @@
     }
     const cn = String(res.class_now || '').trim();
     if (!cn) return null;
-    // Patterns like "316 → 218", "→ 218", "316 →", or just "316"
     const parts = cn.split('\u2192').map(p => p.trim()).filter(Boolean);
     if (parts.length) {
       const last = parts[parts.length - 1];
@@ -558,7 +647,6 @@
     __classPopupTimer = setTimeout(()=>{ el.classList.remove('visible'); }, 2500);
   }
 
-  // Expose for console testing
   window.showClassPopup = showClassPopup;
   
   function showWrongClass(name, code, label, when){
@@ -596,12 +684,10 @@
 
   function checkClassKioskEligibility(kioskRoom, res) {
     if (!kioskRoom) {
-      // If kiosk room can't be derived, don't block
       return { ok:true, studentRoom:null, displayLabel:null };
     }
     const studentRoom = deriveStudentRoomFromResponse(res);
     if (!studentRoom) {
-      // No schedule info → fail open, allow scan
       return { ok:true, studentRoom:null, displayLabel:null };
     }
     const same = studentRoom.toLowerCase() === kioskRoom.toLowerCase();
@@ -612,28 +698,24 @@
     };
   }
 
-  // THEME HELPERS — decide which color theme to use
   function classifyLocationType(locationName){
     const name = String(locationName || '').trim();
     if (!name) return 'default';
   
-    // If backend sent metadata, trust it first
     const meta = __LOCATIONS_META[name];
     if (meta && meta.type) return meta.type;
   
     const s = name.toLowerCase();
-  
-    // Fallback heuristics (for older data / safety)
     if (s.startsWith('bathroom')) return 'bathroom';
     if (s.includes('lunch') || s.includes('caf')) return 'lunch';
   
-    return 'morning'; // or 'default' if you want truly neutral
+    return 'morning';
   }
   
   function applyThemeForLocation(locationName){
     const theme = classifyLocationType(locationName);
     if (!theme || theme === 'default' || theme === 'morning') {
-      document.body.removeAttribute('data-theme'); // default “morning” theme
+      document.body.removeAttribute('data-theme');
     } else {
       document.body.setAttribute('data-theme', theme);
     }
@@ -673,7 +755,6 @@
   /* ============================================================
    * PANES: Senior Lunch OUT; Bathroom IN lists (LOCAL storage)
    * ============================================================ */
-  // Senior Lunch (OUT/IN) — single bucket per (date|location)
   function outBucketKey(){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}`; }
   function loadOutMap(){ try { return JSON.parse(localStorage.getItem(OUT_KEY) || '{}'); } catch { return {}; } }
   function saveOutMap(map){ localStorage.setItem(OUT_KEY, JSON.stringify(map)); }
@@ -703,7 +784,7 @@
     }).join('');
   }
 
-  // Bathroom (IN lists) — GENDERED ONLY (canonical helpers)
+  // Bathroom (IN lists) — gendered
   function bathBucketKeyG(g){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}|${(g||'').toUpperCase()}`; }
   function loadBathMap(){ try { return JSON.parse(localStorage.getItem(BATH_KEY) || '{}'); } catch { return {}; } }
   function saveBathMap(map){ localStorage.setItem(BATH_KEY, JSON.stringify(map)); }
@@ -722,7 +803,6 @@
     };
     if (cls) rec.cls = String(cls);
   
-    // Replace any existing record for this OSIS, or insert at top
     const idx = list.findIndex(x => x.osis === osis);
     if (idx >= 0) list.splice(idx, 1, rec);
     else list.unshift(rec);
@@ -792,12 +872,11 @@
   /* ---------- MINIMAL ADD: manual clear helpers ---------- */
   async function manualClearOutList(){
     const loc = getLocation() || SPECIAL_LOCATION;
-    const items = getOutSet(); // [{osis,name,sinceISO}]
+    const items = getOutSet();
     if (!items.length){ setStatus('Nothing to clear.'); return; }
 
     setStatus('Clearing list…');
     const nowISO = new Date().toISOString();
-    // log “manually_cleared” for each student
     await Promise.allSettled(items.map(r =>
       apiLog({
         whenISO: nowISO,
@@ -807,7 +886,6 @@
         allowed: 'manually_cleared'
       })
     ));
-    // clear UI/local
     setOutSet([]);
     renderOutList();
     setStatus('List cleared.');
@@ -817,7 +895,7 @@
   async function manualClearBathroom(g){
     const loc = getLocation() || '';
     if (!isBathroomLocation(loc)){ setStatus('Not a bathroom location.'); return; }
-    const items = getBathSet(g); // [{osis,name,sinceISO}]
+    const items = getBathSet(g);
     if (!items.length){ setStatus(`Nothing to clear for ${g}.`); return; }
 
     setStatus(`Clearing Bathroom (${g})…`);
@@ -831,7 +909,6 @@
         allowed: 'manually_cleared'
       })
     ));
-    // clear UI/local
     setBathSet(g, []);
     await renderBathList();
     setStatus(`Bathroom (${g}) cleared.`);
@@ -839,19 +916,194 @@
   }
   /* ---------- END minimal add ---------- */
 
-  /* Attach (old) refresh buttons to NEW clear actions */
+  /* ============================================================
+   * CLASS MODE: OUT-OF-CLASS BUCKET + MODAL
+   * ============================================================ */
+  function ensureClassOutVisibility(){
+    if (!classOutPanel) return;
+    const loc = getLocation();
+    const onClass = isClassKiosk(loc);
+    const any = Object.keys(OUT_OF_CLASS).length > 0;
+    classOutPanel.style.display = (onClass && any) ? '' : 'none';
+  }
+
+  function clearClassOutEntry(osis){
+    const entry = OUT_OF_CLASS[osis];
+    if (!entry) return 0;
+    clearInterval(entry.timerId);
+    if (entry.rowEl && entry.rowEl.parentNode) {
+      entry.rowEl.parentNode.removeChild(entry.rowEl);
+    }
+    const elapsed = Date.now() - entry.startedAt;
+    delete OUT_OF_CLASS[osis];
+    ensureClassOutVisibility();
+    return elapsed;
+  }
+
+  function addClassOutEntry(osis, name, reason, startedAt){
+    if (!classOutPanel || !classOutBody) return;
+    const existing = OUT_OF_CLASS[osis];
+    if (existing) {
+      clearInterval(existing.timerId);
+      if (existing.rowEl && existing.rowEl.parentNode) {
+        existing.rowEl.parentNode.removeChild(existing.rowEl);
+      }
+    }
+    const row = document.createElement('tr');
+    const nameCell = document.createElement('td');
+    const reasonCell = document.createElement('td');
+    const timeCell = document.createElement('td');
+
+    nameCell.textContent = `${name} (${osis})`;
+    reasonCell.textContent = reason;
+    timeCell.textContent = '0:00';
+
+    row.appendChild(nameCell);
+    row.appendChild(reasonCell);
+    row.appendChild(timeCell);
+    classOutBody.appendChild(row);
+
+    const entry = {
+      osis,
+      name,
+      reason,
+      startedAt: startedAt instanceof Date ? startedAt.getTime() : startedAt,
+      rowEl: row,
+      timeEl: timeCell,
+      timerId: null
+    };
+
+    entry.timerId = setInterval(() => {
+      const elapsed = Date.now() - entry.startedAt;
+      entry.timeEl.textContent = formatElapsed(elapsed);
+    }, 1000);
+
+    OUT_OF_CLASS[osis] = entry;
+    ensureClassOutVisibility();
+  }
+
+  function resetClassSessionState(){
+    Object.keys(OUT_OF_CLASS).forEach(osis => {
+      clearClassOutEntry(osis);
+    });
+    Object.keys(CLASS_PRESENT).forEach(osis => {
+      delete CLASS_PRESENT[osis];
+    });
+    if (classOutBody) classOutBody.innerHTML = '';
+    ensureClassOutVisibility();
+  }
+
+  function openOutModalForClass(ctx){
+    CURRENT_CLASS_PENDING = ctx;
+    if (!outModal || !outModalStudent) return;
+    outModalStudent.textContent = `${ctx.res.name} (${ctx.osis})`;
+    outModal.style.display = 'flex';
+    setModalOpen(true);
+  }
+
+  function closeOutModalForClass(){
+    if (!outModal) return;
+    outModal.style.display = 'none';
+    setModalOpen(false);
+    CURRENT_CLASS_PENDING = null;
+  }
+
+  async function handleClassOut(reason){
+    const ctx = CURRENT_CLASS_PENDING;
+    if (!ctx) return;
+    CURRENT_CLASS_PENDING = null;
+
+    const { row, code, when, res, osis, shouldRoom } = ctx;
+    const whenISO = when.toISOString();
+    const loc = getLocation() || '';
+
+    addClassOutEntry(osis, res.name || '', reason, when);
+
+    updateRowToSuccess(row, {
+      name: res.name,
+      code,
+      lockerNum: `OUT: ${reason}`,
+      lockerColor: shouldRoom || '',
+      when
+    });
+
+    showSuccess(res.name, code, `OUT: ${reason}`, shouldRoom || '', when);
+
+    await apiLog({
+      whenISO,
+      code,
+      source:'pwa',
+      resolved:res,
+      allowed:`class_out:${reason}`
+    });
+
+    setStatus('Student marked out of classroom.');
+  }
+
+  async function handleClassBackIn(ctx){
+    const { row, code, when, res, osis, shouldRoom } = ctx;
+    const whenISO = when.toISOString();
+    const elapsedMs = clearClassOutEntry(osis);
+    const elapsedStr = elapsedMs > 0 ? formatElapsed(elapsedMs) : '0:00';
+
+    if (CLASS_PRESENT[osis]) {
+      CLASS_PRESENT[osis].lastIn = Date.now();
+    }
+
+    updateRowToSuccess(row, {
+      name: res.name,
+      code,
+      lockerNum: `BACK (${elapsedStr})`,
+      lockerColor: shouldRoom || '',
+      when
+    });
+
+    showSuccess(res.name, code, `BACK (${elapsedStr})`, shouldRoom || '', when);
+
+    await apiLog({
+      whenISO,
+      code,
+      source:'pwa',
+      resolved:res,
+      allowed:`class_back:${elapsedStr}`
+    });
+
+    setStatus('Student back in classroom.');
+  }
+
+  if (outModalCancel) {
+    outModalCancel.addEventListener('click', () => {
+      closeOutModalForClass();
+    });
+  }
+  if (outModal) {
+    outModal.addEventListener('click', (ev) => {
+      if (ev.target === outModal) {
+        closeOutModalForClass();
+      }
+    });
+  }
+  outReasonButtons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const reason = btn.dataset.reason || 'Other';
+      closeOutModalForClass();
+      await handleClassOut(reason);
+    });
+  });
+
+  /* Attach clear buttons to existing endpoints */
   document.getElementById('bathRefreshBtnM')?.addEventListener('click', async (e)=>{
     const btn = e.currentTarget; btn.disabled = true; const orig = btn.textContent;
     btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (M)…');
     try {
       const loc = getLocation();
-      const list = getBathSet('M'); // [{ osis, name, sinceISO }]
+      const list = getBathSet('M');
       if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
       if (!list.length) { setStatus('Nothing to clear.'); return; }
   
       const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'M' }));
       const res = await apiManualClear(loc, items);
-      setBathSet('M', []); // local clear
+      setBathSet('M', []);
       await renderBathList();
       setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (M).`);
     } catch (err) {
@@ -867,13 +1119,13 @@
     btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (F)…');
     try {
       const loc = getLocation();
-      const list = getBathSet('F'); // [{ osis, name, sinceISO }]
+      const list = getBathSet('F');
       if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
       if (!list.length) { setStatus('Nothing to clear.'); return; }
   
       const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'F' }));
       const res = await apiManualClear(loc, items);
-      setBathSet('F', []); // local clear
+      setBathSet('F', []);
       await renderBathList();
       setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (F).`);
     } catch (err) {
@@ -883,7 +1135,6 @@
       setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
     }
   });
-
 
   // Console helpers
   window.getBathroomCap = async function(location) {
@@ -925,7 +1176,6 @@
     if (isSeniorOutIn()) {
       pane.style.maxHeight = '140px';
     } else if (isBathroomLocation(loc)) {
-      // shorter height so ~3 rows are visible without scrolling
       pane.style.maxHeight = '120px';
     } else {
       pane.style.maxHeight = '360px';
@@ -941,8 +1191,14 @@
     else if (isClassKiosk(loc)) col.textContent = 'Attendance';
     else col.textContent = 'Locker';
 
+    if (!isClassKiosk(loc)) {
+      resetClassSessionState();
+    } else {
+      ensureClassOutVisibility();
+    }
+
     renderOutList();
-    renderBathList(); // fire-and-forget
+    renderBathList();
     updateHistoryPaneForLocation();
     trimHistory();
   }
@@ -954,7 +1210,6 @@
     const loc = getLocation();
     const body = new URLSearchParams({ action:'lookup', code });
 
-    // For classroom kiosks, tell the Worker which room this is (optional)
     if (isClassKiosk(loc)) {
       const kioskRoom = normalizeRoomLabelClient(loc);
       if (kioskRoom) {
@@ -988,7 +1243,7 @@
     if (!r.ok || !ct.includes('application/json')) {
       throw new Error(`Manual clear failed (${r.status}): ${text.slice(0,160)}`);
     }
-    return JSON.parse(text); // { ok, cleared, errors:[] }
+    return JSON.parse(text);
   }
   function makeLogId({ whenISO, code }) { return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`; }
   async function apiLog(entry){
@@ -1010,62 +1265,59 @@
     });
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
-    async function apiGetLocations(){
-      try{
-        const r = await fetch(API_BASE, {
-          method:'POST',
-          body: new URLSearchParams({ action:'locations' })
-        });
-        const ct   = r.headers.get('content-type') || '';
-        const text = await r.text();
-    
-        if (r.ok && ct.includes('application/json')) {
-          const data = JSON.parse(text);
-        
-          if (data && data.ok) {
-            // Prefer meta (objects), fall back to locations (strings/objects)
-            const arr = Array.isArray(data.meta)
-              ? data.meta
-              : (Array.isArray(data.locations) ? data.locations : []);
-        
-            __LOCATIONS_META = {}; // reset
-            const visibleNames = [];
-        
-            for (const item of arr) {
-              if (typeof item === 'string') {
-                // Backwards-compatible: server returned names only
-                __LOCATIONS_META[item] = { type: null, mode: null, visible: true };
-                visibleNames.push(item);
-              } else if (item && typeof item === 'object') {
-                const name  = String(item.name || '').trim();
-                if (!name) continue;
-        
-                const type = item.type || null;
-                const mode = item.mode || null;
-                const vis  = (item.visible !== false);
-        
-                __LOCATIONS_META[name] = { type, mode, visible: vis };
-                if (vis) visibleNames.push(name);
-              }
-            }
-        
-            if (data.caps && typeof data.caps === 'object') {
-              __LOCATIONS_CAPS = data.caps;
-            }
-        
-            // Only show visible names in dropdown
-            return visibleNames;
-          }
-        }
-      } catch(_) {}
-    
-      // Fallback if API fails: static list (all “visible”)
-      __LOCATIONS_META = {};
-      STATIC_LOCATIONS.forEach(name => {
-        __LOCATIONS_META[name] = { type: null, mode: null, visible: true };
+
+  async function apiGetLocations(){
+    try{
+      const r = await fetch(API_BASE, {
+        method:'POST',
+        body: new URLSearchParams({ action:'locations' })
       });
-      return STATIC_LOCATIONS.slice();
-    }
+      const ct   = r.headers.get('content-type') || '';
+      const text = await r.text();
+  
+      if (r.ok && ct.includes('application/json')) {
+        const data = JSON.parse(text);
+      
+        if (data && data.ok) {
+          const arr = Array.isArray(data.meta)
+            ? data.meta
+            : (Array.isArray(data.locations) ? data.locations : []);
+      
+          __LOCATIONS_META = {};
+          const visibleNames = [];
+      
+          for (const item of arr) {
+            if (typeof item === 'string') {
+              __LOCATIONS_META[item] = { type: null, mode: null, visible: true };
+              visibleNames.push(item);
+            } else if (item && typeof item === 'object') {
+              const name  = String(item.name || '').trim();
+              if (!name) continue;
+      
+              const type = item.type || null;
+              const mode = item.mode || null;
+              const vis  = (item.visible !== false);
+      
+              __LOCATIONS_META[name] = { type, mode, visible: vis };
+              if (vis) visibleNames.push(name);
+            }
+          }
+      
+          if (data.caps && typeof data.caps === 'object') {
+            __LOCATIONS_CAPS = data.caps;
+          }
+      
+          return visibleNames;
+        }
+      }
+    } catch(_) {}
+  
+    __LOCATIONS_META = {};
+    STATIC_LOCATIONS.forEach(name => {
+      __LOCATIONS_META[name] = { type: null, mode: null, visible: true };
+    });
+    return STATIC_LOCATIONS.slice();
+  }
   async function checkDeviceLock(){
     try{
       const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID }) });
@@ -1142,12 +1394,10 @@
       return;
     }
 
-    // NEW: class kiosk rendering
     if (isClassKiosk(loc)) {
       const attendanceLabel = lockerNum || 'Present';
       const shouldRoom = lockerColor || '';
     
-      // Only show "should be <ROOM>" when the student is NOT ALLOWED
       const upper = String(attendanceLabel).toUpperCase();
       const showShould = (upper === 'NOT ALLOWED') && !!shouldRoom;
     
@@ -1268,42 +1518,39 @@
       window.__lastAllowedSenior = !!res.allowed_senior;
       window.__lastSearchFlag    = !!res.search;
       window.__lastRegentsPrep   = !!res.regents_prep;
-      window.__lastAlertFlag     = !!res.alert;       // <— NEW
+      window.__lastAlertFlag     = !!res.alert;
 
       const loc     = getLocation() || '';
       const whenISO = when.toISOString();
 
-      // Classroom kiosk gating (mode: class)
-      // ---- NEW: Class kiosk logic ----
+      // ---- CLASS KIOSK LOGIC ----
       if (isClassKiosk(loc)) {
         const kioskMode    = res.kiosk_mode || 'none';
         const kioskAllowed = !!res.kiosk_allowed;
-        const shouldRoom   = res.kiosk_should_room || res.class_now || ''; // e.g. "316"
+        const shouldRoom   = res.kiosk_should_room || res.class_now || '';
 
-      // No schedule context – treat as NOT ALLOWED for class kiosks
-      if (!kioskMode || kioskMode === 'none') {
-        const attendance = 'Not allowed';
-        updateRowToSuccess(row, {
-          name: res.name,
-          code,
-          lockerNum: attendance,   // shows "Not allowed" in the history table
-          lockerColor: shouldRoom, // still show "(should be 316)" if we know it
-          when
-        });
-    
-        // Same style as the "wrong class" path
-        showClassPopup(
-          shouldRoom
-            ? `You should be in ${shouldRoom} right now.`
-            : 'This scanner is only for your scheduled class period.'
-        );
-        showClassRedirect(code, shouldRoom, when);
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
-        setStatus('Ready. Scan next card…');
-        return;
-      }
+        // No schedule context → treat as NOT ALLOWED in class kiosks
+        if (!kioskMode || kioskMode === 'none') {
+          const attendance = 'Not allowed';
+          updateRowToSuccess(row, {
+            name: res.name,
+            code,
+            lockerNum: attendance,
+            lockerColor: shouldRoom,
+            when
+          });
+          showClassPopup(
+            shouldRoom
+              ? `You should be in ${shouldRoom} right now.`
+              : 'This scanner is only for your scheduled class period.'
+          );
+          showClassRedirect(code, shouldRoom, when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
+          setStatus('Ready. Scan next card…');
+          return;
+        }
 
-        // Not allowed in this room right now
+        // Not allowed in this room
         if (!kioskAllowed) {
           const attendance = 'Not allowed';
           updateRowToSuccess(row, {
@@ -1324,19 +1571,49 @@
           return;
         }
 
-        // Allowed → use server-computed attendance ("Present" or "Late")
-        const attendance = res.attendance || 'Present';
-        updateRowToSuccess(row, {
-          name: res.name,
-          code,
-          lockerNum: attendance,
-          lockerColor: shouldRoom,
-          when
-        });
-        showSuccess(res.name, code, attendance, shouldRoom, when);
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_ok' });
-        setStatus('Ready. Scan next card…');
-        return;
+        const osis = String(res.osis || '').trim();
+        const wasOut = !!OUT_OF_CLASS[osis];
+        const isPresent = !!CLASS_PRESENT[osis];
+
+        // First allowed scan of period → take attendance, mark present
+        if (!isPresent && !wasOut) {
+          const attendance = res.attendance || 'Present';
+          CLASS_PRESENT[osis] = {
+            firstIn: Date.now(),
+            lastIn: Date.now()
+          };
+          updateRowToSuccess(row, {
+            name: res.name,
+            code,
+            lockerNum: attendance,
+            lockerColor: shouldRoom,
+            when
+          });
+          showSuccess(res.name, code, attendance, shouldRoom, when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_ok_first' });
+          setStatus('Ready. Scan next card…');
+          return;
+        }
+
+        // Present in class and not currently out → open Out-of-Class modal
+        if (isPresent && !wasOut) {
+          CURRENT_CLASS_PENDING = { row, code, when, res, osis, shouldRoom };
+          row.innerHTML =
+            `<td class="name">${nameHtmlWithBadge(res.name)}</td>
+             <td class="code">${esc(code)}</td>
+             <td>Waiting for reason…</td>
+             <td>${fmtTime(when)}</td>`;
+          openOutModalForClass(CURRENT_CLASS_PENDING);
+          setStatus('Select a destination for this student.');
+          return;
+        }
+
+        // Currently out; scanning again → back in
+        if (wasOut) {
+          const ctx = { row, code, when, res, osis, shouldRoom };
+          await handleClassBackIn(ctx);
+          return;
+        }
       }
 
       // Senior Lunch (toggle OUT/IN)
@@ -1369,7 +1646,7 @@
       if (isBathroomLocation(loc)) {
         const osis = String(res.osis || '').trim();
         const sex  = (String(res.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
-        const classNow = res.class_now || '';   // from Worker (optional)
+        const classNow = res.class_now || '';
       
         const wasIn = isInBathroomG(sex, osis);
       
@@ -1377,7 +1654,6 @@
         const list = getBathSet(sex);
       
         if (wasIn) {
-          // Student is leaving bathroom
           removeFromBathroomG(sex, osis);
           await renderBathList();
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when });
@@ -1386,7 +1662,6 @@
           setStatus('Ready. Scan next card…');
           return;
         } else {
-          // Trying to enter bathroom
           if (list.length >= cap) {
             beepBad();
             updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
@@ -1395,7 +1670,6 @@
             setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
             return;
           }
-          // Store current class with bathroom entry
           addInBathroomG(sex, osis, res.name || '', when, classNow);
           await renderBathList();
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when });
@@ -1417,7 +1691,7 @@
         return;
       }
 
-      // Default (Locker) — prefer effective values if provided
+      // Default (Locker)
       const displayNum   = (res.locker_number_effective ?? res.locker_number) || '';
       const displayColor = (res.locker_color_effective  ?? res.locker_color)  || '';
 
@@ -1477,12 +1751,10 @@
       return;
     }
 
-    // NEW: class kiosk — show Attendance instead of Locker
     if (isClassKiosk(loc)) {
       const attendanceLabel = lockerNum || 'Present';
       const shouldRoom = lockerColor || '';
     
-      // Only show "should be <ROOM>" when NOT ALLOWED
       const upper = String(attendanceLabel).toUpperCase();
       const showShould = (upper === 'NOT ALLOWED') && !!shouldRoom;
     
@@ -1684,9 +1956,7 @@
       ? 'This device is locked to this location'
       : 'Click to change location';
   
-    // Apply theme based on location type
     applyThemeForLocation(v);
-  
     updateHeaderForLocation();
   }
 
@@ -1776,12 +2046,12 @@
     try {
       if (!isSeniorOutIn()) throw new Error('This button is for the "Senior Lunch (out-in)" location.');
       const loc = getLocation();
-      const list = getOutSet(); // [{ osis, name, sinceISO }]
+      const list = getOutSet();
       if (!list.length) { setStatus('Nothing to clear.'); return; }
   
       const items = list.map(r => ({ osis: r.osis, name: r.name }));
       const res = await apiManualClear(loc, items);
-      setOutSet([]); // local clear
+      setOutSet([]);
       renderOutList();
       setStatus(`Cleared ${res?.cleared ?? 0} student(s) from OUT list.`);
     } catch (err) {
