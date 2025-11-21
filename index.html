@@ -493,6 +493,8 @@
   const LOC_KEY   = 'scannerLocationV1';
   const OUT_KEY   = 'seniorOutV1';
   const BATH_KEY  = 'bathroomInV1';
+  const CLASS_PRESENT_KEY = 'classPresentV1';
+  const CLASS_OUT_KEY = 'classOutV1';
 
   const BATHROOM_CAPACITY_DEFAULT = 2;
   let __LOCATIONS_CAPS = null;
@@ -600,6 +602,48 @@
   /* ============================================================
    * SMALL HELPERS
    * ============================================================ */
+  function classBucketKeyFor(periodKey) {
+    const loc = getLocation() || '';
+    const p   = periodKey || 'unknown';
+    return `${todayKey()}|${loc.toLowerCase()}|${p}|${DEVICE_ID}`;
+  }
+  
+  function loadClassPresentMap() {
+    try {
+      return JSON.parse(localStorage.getItem(CLASS_PRESENT_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  }
+  
+  function saveClassPresentMap(map) {
+    localStorage.setItem(CLASS_PRESENT_KEY, JSON.stringify(map));
+  }
+  
+  function getClassPresentList(bucketKey) {
+    const map = loadClassPresentMap();
+    return map[bucketKey] || [];
+  }
+  
+  function setClassPresentList(bucketKey, list) {
+    const map = loadClassPresentMap();
+    map[bucketKey] = list;
+    saveClassPresentMap(map);
+  }
+  
+  // Rebuild CLASS_PRESENT in memory from localStorage for current period
+  function hydrateClassPresentFromStorage(periodKey) {
+    Object.keys(CLASS_PRESENT).forEach(k => delete CLASS_PRESENT[k]);
+    if (!periodKey) return;
+  
+    const bucket = classBucketKeyFor(periodKey);
+    const list   = getClassPresentList(bucket);
+  
+    const now = Date.now();
+    for (const osis of list) {
+      CLASS_PRESENT[osis] = { firstIn: now, lastIn: now };
+    }
+  }
   function nameHtmlWithBadge(name){
     const loc = getLocation();
   
@@ -622,6 +666,77 @@
     const rendered = badges.slice(0, maxBadges).join('');
   
     return `${esc(name || 'Unknown')}${rendered ? ' ' + rendered : ''}`;
+  }
+  // ---- Out-of-Class (class kiosks) persistence ----
+  function loadClassOutMap() {
+    try {
+      return JSON.parse(localStorage.getItem(CLASS_OUT_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  }
+  
+  function saveClassOutMap(map) {
+    localStorage.setItem(CLASS_OUT_KEY, JSON.stringify(map));
+  }
+  
+  function getClassOutList(bucketKey) {
+    const map = loadClassOutMap();
+    return map[bucketKey] || [];
+  }
+  
+  function setClassOutList(bucketKey, list) {
+    const map = loadClassOutMap();
+    map[bucketKey] = list;
+    saveClassOutMap(map);
+  }
+  
+  // Rebuild OUT_OF_CLASS + table from localStorage for current period
+  let __HYDRATING_OUT = false;
+  
+  function hydrateOutOfClassFromStorage(periodKey) {
+    // Clear any old timers + rows
+    Object.keys(OUT_OF_CLASS).forEach(osis => {
+      const entry = OUT_OF_CLASS[osis];
+      if (entry && entry.timerId) clearInterval(entry.timerId);
+      delete OUT_OF_CLASS[osis];
+    });
+    if (classOutBody) classOutBody.innerHTML = '';
+  
+    if (!periodKey) {
+      ensureClassOutVisibility();
+      return;
+    }
+  
+    const bucket = classBucketKeyFor(periodKey);
+    const list   = getClassOutList(bucket);
+  
+    __HYDRATING_OUT = true;
+    try {
+      for (const rec of list) {
+        const osis   = String(rec.osis || '').trim();
+        if (!osis) continue;
+        const name   = rec.name   || '';
+        const reason = rec.reason || 'OUT';
+  
+        let startMs;
+        if (rec.startedAtMs) {
+          startMs = rec.startedAtMs;
+        } else if (rec.startedAtISO) {
+          const t = Date.parse(rec.startedAtISO);
+          startMs = Number.isFinite(t) ? t : Date.now();
+        } else {
+          startMs = Date.now();
+        }
+  
+        // Rebuild entry & row; addClassOutEntry will skip re-saving while hydrating
+        addClassOutEntry(osis, name, reason, startMs);
+      }
+    } finally {
+      __HYDRATING_OUT = false;
+    }
+  
+    ensureClassOutVisibility();
   }
   function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function setStatus(t){ statusEl.textContent = t; }
@@ -802,10 +917,15 @@
   
     // If we already have a period and it changes → new class, reset state
     if (CURRENT_CLASS_PERIOD_KEY && CURRENT_CLASS_PERIOD_KEY !== key) {
+      logClassTimeoutsForCurrentPeriod();
       resetClassSessionState();
     }
   
     CURRENT_CLASS_PERIOD_KEY = key;
+  
+    // Rebuild "present" + "OUT" from localStorage for this bucket
+    hydrateClassPresentFromStorage(key);
+    hydrateOutOfClassFromStorage(key);
   }
     
   function classifyLocationType(locationName){
@@ -1040,18 +1160,28 @@
   function clearClassOutEntry(osis){
     const entry = OUT_OF_CLASS[osis];
     if (!entry) return 0;
+  
     clearInterval(entry.timerId);
     if (entry.rowEl && entry.rowEl.parentNode) {
       entry.rowEl.parentNode.removeChild(entry.rowEl);
     }
     const elapsed = Date.now() - entry.startedAt;
     delete OUT_OF_CLASS[osis];
+  
+    // Also remove from localStorage for this period
+    if (CURRENT_CLASS_PERIOD_KEY) {
+      const bucket = classBucketKeyFor(CURRENT_CLASS_PERIOD_KEY);
+      const list   = getClassOutList(bucket).filter(r => r.osis !== osis);
+      setClassOutList(bucket, list);
+    }
+  
     ensureClassOutVisibility();
     return elapsed;
   }
 
   function addClassOutEntry(osis, name, reason, startedAt){
     if (!classOutPanel || !classOutBody) return;
+  
     const existing = OUT_OF_CLASS[osis];
     if (existing) {
       clearInterval(existing.timerId);
@@ -1059,37 +1189,85 @@
         existing.rowEl.parentNode.removeChild(existing.rowEl);
       }
     }
+  
     const row = document.createElement('tr');
     const nameCell = document.createElement('td');
     const reasonCell = document.createElement('td');
     const timeCell = document.createElement('td');
-
+  
     nameCell.textContent = `${name} (${osis})`;
     reasonCell.textContent = reason;
     timeCell.textContent = '0:00';
-
+  
     row.appendChild(nameCell);
     row.appendChild(reasonCell);
     row.appendChild(timeCell);
     classOutBody.appendChild(row);
-
+  
+    const startMs = startedAt instanceof Date
+      ? startedAt.getTime()
+      : (typeof startedAt === 'number' ? startedAt : Date.now());
+  
     const entry = {
       osis,
       name,
       reason,
-      startedAt: startedAt instanceof Date ? startedAt.getTime() : startedAt,
+      startedAt: startMs,
       rowEl: row,
       timeEl: timeCell,
       timerId: null
     };
-
+  
     entry.timerId = setInterval(() => {
       const elapsed = Date.now() - entry.startedAt;
       entry.timeEl.textContent = formatElapsed(elapsed);
     }, 1000);
-
+  
     OUT_OF_CLASS[osis] = entry;
+  
+    // Persist this OUT entry (but skip when we are hydrating from storage)
+    if (!__HYDRATING_OUT && CURRENT_CLASS_PERIOD_KEY) {
+      const bucket = classBucketKeyFor(CURRENT_CLASS_PERIOD_KEY);
+      const list   = getClassOutList(bucket);
+      const rec    = {
+        osis,
+        name,
+        reason,
+        startedAtISO: new Date(startMs).toISOString()
+      };
+      const idx = list.findIndex(r => r.osis === osis);
+      if (idx >= 0) list[idx] = rec;
+      else list.push(rec);
+      setClassOutList(bucket, list);
+    }
+  
     ensureClassOutVisibility();
+  }
+
+  function logClassTimeoutsForCurrentPeriod() {
+    // If there’s no active period yet, nothing to do
+    if (!CURRENT_CLASS_PERIOD_KEY) return;
+  
+    const now = new Date();
+    const whenISO = now.toISOString();
+  
+    Object.keys(OUT_OF_CLASS).forEach(osis => {
+      const entry = OUT_OF_CLASS[osis];
+      if (!entry) return;
+  
+      // entry has: { osis, name, reason, startedAt, ... }
+      apiLog({
+        whenISO,
+        code: osis, // log OSIS as the code
+        source: 'pwa',
+        resolved: {
+          name: entry.name || '',
+          osis: osis
+        },
+        // You’ll see this in the log as a “class back in due to timeout”
+        allowed: `class_timeout${entry.reason ? ':' + entry.reason : ''}`
+      });
+    });
   }
 
   function resetClassSessionState(){
@@ -1725,10 +1903,22 @@
         // First allowed scan of period → take attendance, mark present
         if (!isPresent && !wasOut) {
           const attendance = res.attendance || 'Present';
+        
           CLASS_PRESENT[osis] = {
             firstIn: Date.now(),
             lastIn: Date.now()
           };
+        
+          // 🔒 Persist “present this period” in localStorage
+          if (CURRENT_CLASS_PERIOD_KEY) {
+            const bucket = classBucketKeyFor(CURRENT_CLASS_PERIOD_KEY);
+            const list   = getClassPresentList(bucket);
+            if (!list.includes(osis)) {
+              list.push(osis);
+              setClassPresentList(bucket, list);
+            }
+          }
+        
           updateRowToSuccess(row, {
             name: res.name,
             code,
