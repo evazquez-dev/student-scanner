@@ -484,6 +484,7 @@
 
   const HISTORY_VISIBLE_DEFAULT = 10;
   const HISTORY_VISIBLE_SENIOR  = 4;
+  const HISTORY_VISIBLE_CLASS = 3;
 
   const SPECIAL_LOCATION = 'Senior Lunch (out-in)';
   const BATHROOM_PREFIX  = 'Bathroom (';
@@ -1288,6 +1289,9 @@
       pane.style.maxHeight = '140px';
     } else if (isBathroomLocation(loc)) {
       pane.style.maxHeight = '120px';
+    } else if (isClassKiosk(loc)) {
+      // Super small for class mode so OUT list stays visible
+      pane.style.maxHeight = '90px';
     } else {
       pane.style.maxHeight = '360px';
     }
@@ -1585,14 +1589,23 @@
   }
   function trimHistory(){
     const loc = getLocation();
-    const maxVisible =
-      isSeniorOutIn() ? HISTORY_VISIBLE_SENIOR :
-      (isBathroomLocation(loc) ? BATHROOM_RECENT_VISIBLE : HISTORY_VISIBLE_DEFAULT);
+    let maxVisible;
+  
+    if (isSeniorOutIn()) {
+      maxVisible = HISTORY_VISIBLE_SENIOR;
+    } else if (isBathroomLocation(loc)) {
+      maxVisible = BATHROOM_RECENT_VISIBLE;
+    } else if (isClassKiosk(loc)) {
+      maxVisible = HISTORY_VISIBLE_CLASS;
+    } else {
+      maxVisible = HISTORY_VISIBLE_DEFAULT;
+    }
   
     while (historyBody.children.length > maxVisible) {
       historyBody.lastChild.remove();
     }
   }
+
 
   /* ============================================================
    * SCAN FLOW
