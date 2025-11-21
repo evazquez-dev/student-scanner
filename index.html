@@ -482,7 +482,6 @@
     'Bathroom (First Floor)','Bathroom (Second Floor)','Bathroom (Third Floor)'
   ];
 
-  const SCAN_GAP_MS = 10;
   const HISTORY_VISIBLE_DEFAULT = 10;
   const HISTORY_VISIBLE_SENIOR  = 4;
 
@@ -520,7 +519,6 @@
   let IS_MODAL_OPEN = false;
   let IS_LOCATION_LOCKED = false;
   let IS_REFRESHING = false;
-  let lastKeyTs = 0, wedgeBuf = "", wedgeResetTimer = null;
   let DEBUG_BUFFER = '';
   let DEBUG_LAST_TS = 0;
   let DEBUG_EVENTS = [];
@@ -1986,66 +1984,29 @@
     return getComputedStyle(m).display !== 'none';
   }
 
-  window.addEventListener('keydown', (e)=>{
+  window.addEventListener('keydown', (e) => {
     if (IS_MODAL_OPEN || isModalVisible()) return;
-  
-    keepFocus();
   
     const loc = getLocation();
   
     // ===== RFID DEBUG MODE =====
     if (isDebugLocation(loc)) {
-      // Always let us see the raw key
+      // Always log the raw key
       handleDebugKey(e);
   
-      // Prevent the normal scanner logic from firing
-      // so we don't spam lookups while debugging.
-      // Still clear the textbox on Enter, nice for repeated tests.
+      // Still clear the textbox on Enter in debug mode
       if (e.key === 'Enter') {
         e.preventDefault();
         if (manualInput) manualInput.value = '';
       }
-  
       return;
     }
   
-    // ===== NORMAL SCANNER LOGIC =====
-    const now = performance.now();
-    const gap = now - (lastKeyTs || now);
-    lastKeyTs = now;
-  
-    if (e.key === 'Enter'){
-      const finished = wedgeBuf;
-      wedgeBuf = "";
-  
-      if (finished){
-        // Scanner path: we handled the whole code via wedgeBuf
-        e.preventDefault();
-        onScan(finished);
-  
-        // Now we can safely clear the textbox
-        if (manualInput) {
-          manualInput.value = '';
-        }
-      }
-      // If finished is empty, this was normal typing.
-      // Let the form submit handler run and read manualInput.value.
-      return;
-    }
-  
-    if (e.key.length === 1){
-      const looksLikeScanner = gap <= SCAN_GAP_MS && (wedgeBuf.length > 0 || gap > 0);
-      if (looksLikeScanner){
-        e.preventDefault();
-        wedgeBuf += e.key;
-      }
-    }
-  
-    clearTimeout(wedgeResetTimer);
-    wedgeResetTimer = setTimeout(()=> { wedgeBuf = ""; }, 200);
+    // ===== NORMAL MODE =====
+    // Just keep the input focused; Enter handling is via the form submit
+    keepFocus();
   }, true);
 
-    
   document.getElementById('manualForm').addEventListener('submit', (e)=>{
     e.preventDefault(); if (IS_MODAL_OPEN || isModalVisible()) return;
     const v = manualInput.value.trim(); if (v) onScan(v); manualInput.value=''; keepFocus();
