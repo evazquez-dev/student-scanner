@@ -391,11 +391,26 @@ async function hydrateBathrooms() {
       return;
     }
     const data = await r.json();
-    const list = Array.isArray(data?.locations?.list) ? data.locations.list : [];
-    const bathrooms = list.filter(isBathroom).sort((a,b)=>a.localeCompare(b));
+
+    const rawList = Array.isArray(data?.locations?.list) ? data.locations.list : [];
+
+    // Normalize to plain names
+    const names = rawList
+      .map(loc =>
+        (loc && typeof loc === 'object')
+          ? String(loc.name || '').trim()
+          : String(loc || '').trim()
+      )
+      .filter(Boolean);
+
+    const bathrooms = names
+      .filter(isBathroom)
+      .sort((a, b) => a.localeCompare(b));
+
     // Populate select
     bathSelect.innerHTML = '<option value="">Select bathroom…</option>' +
       bathrooms.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+
     // Build table
     await loadBathTable(bathrooms);
   } catch {
@@ -405,10 +420,19 @@ async function hydrateBathrooms() {
 
 async function hydrateFromPublicLocations() {
   // Public fallback if /admin/state not available
-  const locs = await loadLocationsToEditor();
-  const bathrooms = locs.filter(isBathroom).sort((a,b)=>a.localeCompare(b));
+  const locs = await loadLocationsToEditor(); // meta objects
+
+  const names = (locs || [])
+    .map(rec => String(rec?.name || '').trim())
+    .filter(Boolean);
+
+  const bathrooms = names
+    .filter(isBathroom)
+    .sort((a, b) => a.localeCompare(b));
+
   bathSelect.innerHTML = '<option value="">Select bathroom…</option>' +
     bathrooms.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+
   await loadBathTable(bathrooms);
 }
 
@@ -419,9 +443,21 @@ async function loadBathTable(bathrooms /* optional */) {
       // try refresh via state to get current location list
       const r = await adminFetch('/admin/state', { method: 'GET' });
       const data = await r.json().catch(()=> ({}));
-      const list = Array.isArray(data?.locations?.list) ? data.locations.list : [];
-      bathrooms = list.filter(isBathroom).sort((a,b)=>a.localeCompare(b));
+      const rawList = Array.isArray(data?.locations?.list) ? data.locations.list : [];
+
+      const names = rawList
+        .map(loc =>
+          (loc && typeof loc === 'object')
+            ? String(loc.name || '').trim()
+            : String(loc || '').trim()
+        )
+        .filter(Boolean);
+
+      bathrooms = names
+        .filter(isBathroom)
+        .sort((a, b) => a.localeCompare(b));
     }
+
     bathTbody.innerHTML = '';
     for (const loc of bathrooms) {
       // Read ALL, M, F (M/F may fall back to ALL if not set on server)
