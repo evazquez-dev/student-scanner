@@ -1560,21 +1560,37 @@
   }
   async function apiLog(entry){
     const whenISO = entry.whenISO || new Date().toISOString();
+  
+    // Derive a period key from the resolved record (same logic as class kiosks)
+    let periodId = '';
+    const res = entry.resolved;
+    if (res && res.current_period != null) {
+      periodId = String(res.current_period);
+    } else if (res && res.next_period != null) {
+      periodId = String(res.next_period);
+    }
+  
     const body = new URLSearchParams({
-      action:'log',
+      action: 'log',
       log_id: makeLogId({ whenISO, code: entry.code || '' }),
       whenISO,
       code: entry.code || '',
       source: entry.source || 'pwa',
-      resolved_name:  entry.resolved?.name  || '',
-      resolved_osis:  entry.resolved?.osis  || '',
-      resolved_lnum:  entry.resolved?.locker_number || '',
-      resolved_lcol:  entry.resolved?.locker_color  || '',
+      resolved_name:  res?.name          || '',
+      resolved_osis:  res?.osis          || '',
+      resolved_lnum:  res?.locker_number || '',
+      resolved_lcol:  res?.locker_color  || '',
       location: getLocation() || '',
       device_id: DEVICE_ID,
       allowed: entry.allowed || '',
-      resolved_class: entry.resolved?.class_now || ''
+      resolved_class: res?.class_now || ''
     });
+  
+    // Only send period_id if we actually have one
+    if (periodId) {
+      body.set('period_id', periodId);
+    }
+  
     try { await fetch(API_BASE, { method:'POST', body }); } catch {}
   }
 
