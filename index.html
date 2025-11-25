@@ -1569,7 +1569,9 @@
     } else if (res && res.next_period != null) {
       periodId = String(res.next_period);
     }
-  
+
+    const attendance = entry.attendance || (res && res.attendance) || '';
+    
     const body = new URLSearchParams({
       action: 'log',
       log_id: makeLogId({ whenISO, code: entry.code || '' }),
@@ -1919,6 +1921,8 @@
         // First allowed scan of period → take attendance, mark present
         if (!isPresent && !wasOut) {
           const attendance = res.attendance || 'Present';
+          const attSlug = String(attendance).toLowerCase();
+          const allowedValue = `kiosk_ok_first:${attSlug}`;
         
           CLASS_PRESENT[osis] = {
             firstIn: Date.now(),
@@ -1943,7 +1947,7 @@
             when
           });
           showSuccess(res.name, code, attendance, shouldRoom, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_ok_first' });
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed: allowedValue });
           setStatus('Ready. Scan next card…');
           return;
         }
