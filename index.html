@@ -525,7 +525,12 @@
   let DEBUG_BUFFER = '';
   let DEBUG_LAST_TS = 0;
   let DEBUG_EVENTS = [];
-  
+
+  function clearManualInput() {
+    if (!manualInput) return;
+    manualInput.value = '';
+  }
+    
   function debugLogLine(text) {
     const logEl = document.getElementById('debugLog');
     if (!logEl) return;
@@ -1828,7 +1833,7 @@
         `<div class="err">${esc(msg)}</div>
          <div class="code">${esc(scanned)}</div>
          <div class="muted">${fmtTime(when)}</div>`;
-      if (manualInput) manualInput.value = '';   // extra safety
+      clearManualInput();
       setStatus('Ready.');
       return;
     }
@@ -2230,10 +2235,19 @@
     keepFocus();
   }, true);
 
-  document.getElementById('manualForm').addEventListener('submit', (e)=>{
-    e.preventDefault(); if (IS_MODAL_OPEN || isModalVisible()) return;
-    const v = manualInput.value.trim(); if (v) onScan(v); manualInput.value=''; keepFocus();
+  document.getElementById('manualForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (IS_MODAL_OPEN || isModalVisible()) return;
+  
+    const v = manualInput.value.trim();
+  
+    // 🔑 Always clear on Enter *no matter what*
+    clearManualInput();
+  
+    if (v) onScan(v);
+    keepFocus();
   });
+
   keepFocus(); setInterval(keepFocus, 1000);
 
   /* ============================================================
