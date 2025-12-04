@@ -986,6 +986,28 @@
       { freq: 220, dur: 0.51, when: 0.30 }
     ].forEach(p => beepOnce(p));
   }
+    function beepGood(){
+    [
+      { freq: 260, dur: 0.51, when: 0.00 },
+      { freq: 280, dur: 0.51, when: 0.10 },
+      { freq: 300, dur: 0.51, when: 0.20 },
+      { freq: 320, dur: 0.51, when: 0.30 }
+    ].forEach(p => beepOnce(p));
+  }
+
+  function beepNeutralUp(){
+    [
+      { freq: 280, dur: 0.81, when: 0.00 },
+      { freq: 340, dur: 0.81, when: 0.10 }
+    ].forEach(p => beepOnce(p));
+  }
+
+  function beepNeutralDown(){
+    [
+      { freq: 340, dur: 0.81, when: 0.00 },
+      { freq: 280, dur: 0.81, when: 0.10 }
+    ].forEach(p => beepOnce(p));
+  }
 
   /* ============================================================
    * PANES: Senior Lunch OUT; Bathroom IN lists (LOCAL storage)
@@ -1563,42 +1585,42 @@
       console.warn('rfid_debug send failed', err);
     }
   }
-  async function apiLog(entry){
+  async function apiLog(entry) {
     const whenISO = entry.whenISO || new Date().toISOString();
+    const loc     = getLocation() || '';
+    const res     = entry.resolved || {};
   
     // Derive a period key from the resolved record (same logic as class kiosks)
     let periodId = '';
-    const res = entry.resolved;
     if (res && res.current_period != null) {
       periodId = String(res.current_period);
     } else if (res && res.next_period != null) {
       periodId = String(res.next_period);
     }
-
-    const attendance = entry.attendance || (res && res.attendance) || '';
-    
-    const body = new URLSearchParams({
-      action: 'log',
-      log_id: makeLogId({ whenISO, code: entry.code || '' }),
-      whenISO,
-      code: entry.code || '',
-      source: entry.source || 'pwa',
-      resolved_name:  res?.name          || '',
-      resolved_osis:  res?.osis          || '',
-      resolved_lnum:  res?.locker_number || '',
-      resolved_lcol:  res?.locker_color  || '',
-      location: getLocation() || '',
-      device_id: DEVICE_ID,
-      allowed: entry.allowed || '',
-      resolved_class: res?.class_now || ''
-    });
   
-    // Only send period_id if we actually have one
-    if (periodId) {
-      body.set('period_id', periodId);
+    const attendance = entry.attendance || (res && res.attendance) || '';
+  
+    const body = new URLSearchParams();
+    body.set('action',    'log');
+    body.set('code',      entry.code || '');
+    body.set('whenISO',   whenISO);
+    body.set('source',    entry.source || 'pwa');
+    body.set('device_id', DEVICE_ID);
+    body.set('location',  loc);
+    body.set('allowed',   entry.allowed || '');
+    if (attendance) body.set('attendance', attendance);
+    if (periodId)   body.set('period_id',  periodId);
+  
+    if (res && typeof res === 'object' && Object.keys(res).length) {
+      body.set('resolved', JSON.stringify(res));
     }
   
-    try { await fetch(API_BASE, { method:'POST', body }); } catch {}
+    // If you don’t actually consume the response, this can be fire-and-forget
+    try {
+      await fetch(API_BASE, { method: 'POST', body });
+    } catch (_) {
+      // logging failures shouldn't break the kiosk
+    }
   }
 
   async function apiGetLocations(){
@@ -1928,7 +1950,8 @@
           const attendance = res.attendance || 'Present';
           const attSlug = String(attendance).toLowerCase();
           const allowedValue = `kiosk_ok_first:${attSlug}`;
-        
+
+          beepGood();
           CLASS_PRESENT[osis] = {
             firstIn: Date.now(),
             lastIn: Date.now()
@@ -1959,6 +1982,7 @@
 
         // Present in class and not currently out → open Out-of-Class modal
         if (isPresent && !wasOut) {
+          beepNeutralDown();
           CURRENT_CLASS_PENDING = { row, code, when, res, osis, shouldRoom };
           row.innerHTML =
             `<td class="name">${nameHtmlWithBadge(res.name)}</td>
@@ -1972,6 +1996,7 @@
 
         // Currently out; scanning again → back in
         if (wasOut) {
+          beepNeutralUp();
           const ctx = { row, code, when, res, osis, shouldRoom };
           await handleClassBackIn(ctx);
           return;
