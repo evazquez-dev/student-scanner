@@ -50,7 +50,7 @@ window.addEventListener('unhandledrejection', (e) => {
 dbg('hallway.js loaded. API_BASE=', API_BASE, 'GOOGLE_CLIENT_ID set=', !!GOOGLE_CLIENT_ID);
 
 
-function show(el){ if (el) el.style.display = ''; }
+function show(el){ if (el) el.style.display = 'block'; }
 function hide(el){ if (el) el.style.display = 'none'; }
 
 function setStatus(ok, msg) {
