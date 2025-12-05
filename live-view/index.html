@@ -4,6 +4,15 @@
   <meta charset="utf-8" />
   <title>ADS – Live Hallway View</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+
+  <!-- Same pattern as admin/index.html -->
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <style>
     :root {
       color-scheme: dark;
@@ -25,7 +34,60 @@
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
       background: radial-gradient(circle at top, #020617, #000);
       color: var(--fg);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
       padding: 1.5rem;
+    }
+    .shell {
+      width: min(1200px, 100%);
+    }
+
+    /* Login splash */
+    #loginCard {
+      max-width: 420px;
+      margin: 4rem auto 0 auto;
+      background: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94));
+      border-radius: 1.1rem;
+      border: 1px solid var(--card-border);
+      padding: 1.5rem 1.75rem 1.25rem;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.65);
+      text-align: center;
+    }
+    #loginCard h2 {
+      margin: 0 0 0.4rem;
+      font-size: 1.15rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    #loginCard p {
+      margin: 0 0 0.9rem;
+      font-size: 0.87rem;
+      color: var(--muted);
+    }
+    #loginCard small {
+      display: block;
+      margin-top: 0.6rem;
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    #loginOut {
+      margin-top: 0.8rem;
+      background: rgba(15,23,42,0.9);
+      border-radius: 0.8rem;
+      padding: 0.6rem 0.75rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align: left;
+      max-height: 90px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    header {
+      margin-bottom: 0.4rem;
     }
     h1 {
       margin: 0 0 0.25rem;
@@ -129,9 +191,9 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .summary-item--hallway { background-color: var(--accent-soft); border-color: rgba(34,197,94,0.5); }
-    .summary-item--bathroom { background-color: var(--bath-soft); border-color: rgba(56,189,248,0.55); }
-    .summary-item--danger { background-color: var(--danger-soft); border-color: rgba(239,68,68,0.6); }
+    .summary-item--hallway  { background-color: var(--accent-soft);  border-color: rgba(34,197,94,0.5); }
+    .summary-item--bathroom { background-color: var(--bath-soft);    border-color: rgba(56,189,248,0.55); }
+    .summary-item--danger   { background-color: var(--danger-soft);  border-color: rgba(239,68,68,0.6); }
 
     .loc-group {
       margin-top: 0.75rem;
@@ -154,6 +216,7 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--muted);
+      margin-left: 0.45rem;
     }
     .loc-count {
       font-size: 0.75rem;
@@ -199,7 +262,7 @@
       margin-left: 0.3rem;
       color: var(--muted);
     }
-    .zone-chip--bath { border-color: var(--bath); color: var(--bath); }
+    .zone-chip--bath { border-color: var(--bath);   color: var(--bath); }
     .zone-chip--hall { border-color: var(--accent); color: var(--accent); }
 
     .error {
@@ -207,71 +270,91 @@
       font-size: 0.78rem;
       color: var(--danger);
     }
+
+    /* Main app initially hidden until login */
+    #appShell {
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Live Hallway / Bathroom View</h1>
-    <div class="sub">
-      Current in-building movement based on scanner events. Updates every 10 seconds.
-    </div>
-    <div class="pill-row">
-      <div class="pill" id="statusPill">
-        <span class="pill-dot" id="statusDot"></span>
-        <span id="statusText">Connecting…</span>
-      </div>
-      <div class="pill" id="datePill">
-        <span>📅</span>
-        <span id="dateText"></span>
-      </div>
-      <div class="pill">
-        <span>⏱</span>
-        <span id="refreshText"></span>
-      </div>
-    </div>
-  </header>
-
-  <main class="layout">
-    <section class="card">
-      <h2>
-        Summary
-        <span id="summarySubtitle"></span>
-      </h2>
-      <small>Counts are based on the latest location state for each student for today.</small>
-
-      <div class="summary-grid" id="summaryGrid">
-        <!-- filled by JS -->
-      </div>
-
-      <div class="error" id="summaryError" style="display:none;"></div>
+  <div class="shell">
+    <!-- Login splash -->
+    <section id="loginCard">
+      <h2>Admin sign in</h2>
+      <p>Sign in with your school Google account to view live hallway / bathroom activity.</p>
+      <div id="g_id_signin"></div>
+      <small>Requires the same admin role your Student Scanner admin page uses.</small>
+      <pre id="loginOut">—</pre>
     </section>
 
-    <section class="card">
-      <h2>
-        Students in Hallways & Bathrooms
-        <span id="listSubtitle"></span>
-      </h2>
-      <small>Grouped by scanner location. Most recent scans appear first.</small>
+    <!-- Main app, only shown after login succeeds -->
+    <div id="appShell">
+      <header>
+        <h1>Live Hallway / Bathroom View</h1>
+        <div class="sub">
+          Current in-building movement based on scanner events. Updates every 10 seconds.
+        </div>
+        <div class="pill-row">
+          <div class="pill" id="statusPill">
+            <span class="pill-dot" id="statusDot"></span>
+            <span id="statusText">Connecting…</span>
+          </div>
+          <div class="pill" id="datePill">
+            <span>📅</span>
+            <span id="dateText"></span>
+          </div>
+          <div class="pill">
+            <span>⏱</span>
+            <span id="refreshText"></span>
+          </div>
+        </div>
+      </header>
 
-      <div id="locContainer">
-        <!-- filled by JS -->
-      </div>
+      <main class="layout">
+        <section class="card">
+          <h2>
+            Summary
+            <span id="summarySubtitle"></span>
+          </h2>
+          <small>Counts are based on the latest location state for each student for today.</small>
 
-      <div class="error" id="listError" style="display:none;"></div>
-    </section>
-  </main>
+          <div class="summary-grid" id="summaryGrid">
+            <!-- filled by JS -->
+          </div>
+
+          <div class="error" id="summaryError" style="display:none;"></div>
+        </section>
+
+        <section class="card">
+          <h2>
+            Students in Hallways &amp; Bathrooms
+            <span id="listSubtitle"></span>
+          </h2>
+          <small>Grouped by scanner location. Most recent scans appear first.</small>
+
+          <div id="locContainer">
+            <!-- filled by JS -->
+          </div>
+
+          <div class="error" id="listError" style="display:none;"></div>
+        </section>
+      </main>
+    </div>
+  </div>
 
   <script>
-    // ===================== CONFIG =====================
-    const ADMIN_BASE  = 'https://red-cake-77d5.evazquez-3e0.workers.dev';
-    const SNAPSHOT_URL = ADMIN_BASE + '/admin/hallway_state';
+    // ========= CONFIG FROM META =========
+    const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '')
+      .replace(/\/*$/, '');
+    const SNAPSHOT_URL = new URL('/admin/hallway_state', API_BASE).toString();
+    const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
 
-    // If you want to use token auth instead of login cookie, put your env.ADMIN_TOKEN here:
-    const ADMIN_TOKEN = ''; // e.g. 'ZZNvxqOD8X' — leave blank if using login session
+    // ========= DOM HOOKS =========
+    const loginCard  = document.getElementById('loginCard');
+    const loginOut   = document.getElementById('loginOut');
+    const appShell   = document.getElementById('appShell');
 
-    const POLL_MS = 10_000;
-
-    const statusPill  = document.getElementById('statusPill');
     const statusDot   = document.getElementById('statusDot');
     const statusText  = document.getElementById('statusText');
     const dateText    = document.getElementById('dateText');
@@ -283,14 +366,87 @@
     const summarySubtitle = document.getElementById('summarySubtitle');
     const listSubtitle    = document.getElementById('listSubtitle');
 
+    const POLL_MS = 10_000;
     let lastUpdatedAt = null;
     let lastRefreshTs = null;
+    let pollTimer = null;
 
     function setStatus(ok, msg) {
       statusDot.className = 'pill-dot ' + (ok ? 'pill-dot--ok' : 'pill-dot--bad');
       statusText.textContent = msg;
     }
 
+    // --- Google Sign-In helpers (mirrors admin.js pattern) ---
+    async function waitForGoogle(timeoutMs = 8000) {
+      const start = Date.now();
+      while (!window.google?.accounts?.id) {
+        if (Date.now() - start > timeoutMs) {
+          throw new Error('Google script failed to load');
+        }
+        await new Promise(r => setTimeout(r, 50));
+      }
+      return window.google.accounts.id;
+    }
+
+    // Called by GIS when user completes sign-in
+    async function onGoogleCredential(resp) {
+      try {
+        loginOut.textContent = 'Signing in…';
+        const body = new URLSearchParams({ id_token: resp.credential }).toString();
+        const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+          body,
+          credentials: 'include'
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+
+        // Session cookie set -> hide login, show app & start polling
+        loginCard.style.display = 'none';
+        appShell.style.display = '';
+
+        setStatus(true, 'Live');
+        startPolling();
+      } catch (e) {
+        loginOut.textContent = `Login failed: ${e.message || e}`;
+      }
+    }
+
+    async function initGoogleSignin() {
+      if (!GOOGLE_CLIENT_ID) {
+        loginOut.textContent = 'Missing google-client-id meta.';
+        return;
+      }
+      try {
+        const gsi = await waitForGoogle();
+        gsi.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: onGoogleCredential,
+          ux_mode: 'popup',
+          use_fedcm_for_prompt: true
+        });
+        gsi.renderButton(
+          document.getElementById('g_id_signin'),
+          { theme: 'outline', size: 'large' }
+        );
+        loginCard.style.display = '';
+        loginOut.textContent = '—';
+      } catch (e) {
+        loginCard.style.display = '';
+        loginOut.textContent = `Google init failed: ${e.message || e}`;
+      }
+    }
+
+    // Helper fetch that always sends cookies (session)
+    async function adminFetch(url, init = {}) {
+      const u = url instanceof URL ? url : new URL(url, API_BASE);
+      return fetch(u, { ...init, credentials: 'include' });
+    }
+
+    // ========= RENDER HELPERS =========
     function fmtClock(d) {
       return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
@@ -316,9 +472,7 @@
       const total = data.total || 0;
 
       dateText.textContent = date || '';
-      summarySubtitle.textContent = total
-        ? `Total tracked: ${total}`
-        : '';
+      summarySubtitle.textContent = total ? `Total tracked: ${total}` : '';
 
       const defs = [
         { key: 'hallway',   label: 'In Hallway',   className: 'summary-item--hallway' },
@@ -356,7 +510,6 @@
       const byLoc = data.by_location || {};
       const entries = Object.entries(byLoc);
 
-      // Filter to only locations where at least one student is hallway/bathroom
       const filtered = entries
         .map(([loc, arr]) => {
           const hallBath = arr.filter(x => x.zone === 'hallway' || x.zone === 'bathroom');
@@ -452,43 +605,38 @@
       }
     }
 
+    // ========= POLLING =========
     async function fetchSnapshot() {
       lastRefreshTs = Date.now();
-
-      const headers = {};
-      if (ADMIN_TOKEN) {
-        headers['x-admin-token'] = ADMIN_TOKEN;
-      }
-
+      const r = await adminFetch(SNAPSHOT_URL, { method: 'GET' });
+      const text = await r.text();
+      let data;
       try {
-        const r = await fetch(SNAPSHOT_URL, {
-          method: 'GET',
-          headers,
-          credentials: ADMIN_TOKEN ? 'omit' : 'include'
-        });
-        const text = await r.text();
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          throw new Error('Bad JSON from server');
-        }
-
-        if (!r.ok || !data.ok) {
-          throw new Error(data && data.error ? data.error : 'Request failed');
-        }
-
-        setStatus(true, 'Live');
-        renderSummary(data);
-        renderLocations(data);
-
-        lastUpdatedAt = data.updated_at || null;
-      } catch (err) {
-        console.error('snapshot error', err);
-        setStatus(false, 'Error');
-        summaryError.textContent = String(err.message || err);
-        summaryError.style.display = 'block';
+        data = JSON.parse(text);
+      } catch (_) {
+        throw new Error('Bad JSON from server');
       }
+
+      if (r.status === 401 || r.status === 403) {
+        // Session expired / not logged in
+        setStatus(false, 'Unauthorized');
+        appShell.style.display = 'none';
+        loginCard.style.display = '';
+        loginOut.textContent = 'Session expired. Please sign in again.';
+        // Stop polling
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = null;
+        return;
+      }
+
+      if (!r.ok || !data.ok) {
+        throw new Error(data && data.error ? data.error : `HTTP ${r.status}`);
+      }
+
+      setStatus(true, 'Live');
+      renderSummary(data);
+      renderLocations(data);
+      lastUpdatedAt = data.updated_at || null;
     }
 
     function tickRefreshLabel() {
@@ -501,11 +649,38 @@
       refreshText.textContent = `Refreshed ${diffSec}s ago`;
     }
 
-    // Kick off
-    fetchSnapshot();
-    setInterval(fetchSnapshot, POLL_MS);
-    tickRefreshLabel();
-    setInterval(tickRefreshLabel, 1000);
+    function startPolling() {
+      // Avoid double timers if user re-logs
+      if (pollTimer) clearInterval(pollTimer);
+
+      // Show shell (in case this is called from somewhere else)
+      appShell.style.display = '';
+
+      // Initial fetch + interval
+      fetchSnapshot().catch(err => {
+        console.error('snapshot error', err);
+        summaryError.textContent = String(err.message || err);
+        summaryError.style.display = 'block';
+        setStatus(false, 'Error');
+      });
+
+      pollTimer = setInterval(() => {
+        fetchSnapshot().catch(err => {
+          console.error('snapshot error', err);
+          summaryError.textContent = String(err.message || err);
+          summaryError.style.display = 'block';
+          setStatus(false, 'Error');
+        });
+      }, POLL_MS);
+
+      tickRefreshLabel();
+      setInterval(tickRefreshLabel, 1000);
+    }
+
+    // ========= BOOT =========
+    window.addEventListener('DOMContentLoaded', () => {
+      initGoogleSignin();
+    });
   </script>
 </body>
 </html>
