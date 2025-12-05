@@ -23,6 +23,33 @@ const POLL_MS = 10_000;
 let lastRefreshTs = null;
 let pollTimer = null;
 
+// ===== DEBUGGING =====
+const debugEl = document.getElementById('debugLog');
+
+function dbg(...args) {
+  const ts = new Date().toISOString();
+  const msg = args
+    .map(a => (typeof a === 'string' ? a : JSON.stringify(a, null, 2)))
+    .join(' ');
+  console.log('[hallway]', msg);
+  if (debugEl) {
+    debugEl.style.display = 'block';
+    debugEl.textContent += `[${ts}] ${msg}\n`;
+  }
+}
+
+// Global error hooks
+window.addEventListener('error', (e) => {
+  dbg('window error:', e.message || e, e.error && e.error.stack);
+});
+
+window.addEventListener('unhandledrejection', (e) => {
+  dbg('unhandledrejection:', String(e.reason || e));
+});
+
+dbg('hallway.js loaded. API_BASE=', API_BASE, 'GOOGLE_CLIENT_ID set=', !!GOOGLE_CLIENT_ID);
+
+
 function show(el){ if (el) el.style.display = ''; }
 function hide(el){ if (el) el.style.display = 'none'; }
 
@@ -32,35 +59,48 @@ function setStatus(ok, msg) {
 }
 
 async function waitForGoogle(timeoutMs = 8000) {
+  dbg('waitForGoogle: starting, timeoutMs=', timeoutMs);
   const start = Date.now();
   while (!window.google?.accounts?.id) {
-    if (Date.now() - start > timeoutMs) throw new Error('Google script failed to load');
+    if (Date.now() - start > timeoutMs) {
+      dbg('waitForGoogle: timed out waiting for window.google.accounts.id');
+      throw new Error('Google script failed to load');
+    }
     await new Promise(r => setTimeout(r, 50));
   }
+  dbg('waitForGoogle: google.accounts.id is available');
   return window.google.accounts.id;
 }
 
 // ===== LOGIN FLOW (same idea as admin.js) =====
 window.addEventListener('DOMContentLoaded', async () => {
+  dbg('DOMContentLoaded fired.');
   try {
     if (!GOOGLE_CLIENT_ID) {
+      dbg('No GOOGLE_CLIENT_ID meta found');
       show(loginCard);
       loginOut.textContent = 'Missing google-client-id meta.';
       return;
     }
+    dbg('Calling waitForGoogle()...');
     const gsi = await waitForGoogle();
+    dbg('waitForGoogle resolved, initializing GSI');
+
     gsi.initialize({
       client_id: GOOGLE_CLIENT_ID,
       callback: onGoogleCredential,
       ux_mode: 'popup',
       use_fedcm_for_prompt: true
     });
+    dbg('GSI initialized; rendering button...');
     gsi.renderButton(
       document.getElementById('g_id_signin'),
       { theme: 'outline', size: 'large' }
     );
+    dbg('GSI button rendered, showing loginCard');
     show(loginCard);
   } catch (e) {
+    dbg('Google init failed:', e && (e.message || e));
     show(loginCard);
     loginOut.textContent = `Google init failed: ${e.message || e}`;
   }
@@ -68,22 +108,30 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 async function onGoogleCredential(resp) {
   try {
+    dbg('onGoogleCredential: received credential response');
     loginOut.textContent = 'Signing in...';
-    const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
+    const r = await fetch(new URL('/admin/session/login_gsi', API_BASE), {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: new URLSearchParams({ id_token: resp.credential }).toString(),
-      credentials: 'include'
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: resp.credential })
     });
-    const data = await r.json().catch(()=> ({}));
-    if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
-    // Session is good → show app, start polling
+    dbg('login_gsi response status:', r.status);
+    const data = await r.json().catch(() => ({}));
+    dbg('login_gsi response body:', data);
+
+    if (!r.ok || !data.ok) {
+      throw new Error(data.error || `HTTP ${r.status}`);
+    }
+
+    dbg('Login OK; hiding loginCard and showing appShell');
     hide(loginCard);
     show(appShell);
     setStatus(true, 'Live');
     startPolling();
   } catch (e) {
+    dbg('Login failed:', e && (e.message || e));
     show(loginCard);
     hide(appShell);
     loginOut.textContent = `Login failed: ${e.message || e}`;
@@ -256,19 +304,26 @@ function renderLocations(data) {
 }
 
 // ===== POLLING =====
+// ===== POLLING =====
 async function fetchSnapshotOnce() {
+  dbg('fetchSnapshotOnce: fetching snapshot…');
   lastRefreshTs = Date.now();
+
   const r = await adminFetch(SNAPSHOT_PATH, { method: 'GET' });
+  dbg('fetchSnapshotOnce: response status', r.status);
+
   const text = await r.text();
   let data;
   try {
     data = JSON.parse(text);
   } catch (_) {
+    dbg('fetchSnapshotOnce: JSON parse failed, raw text:', text);
     throw new Error('Bad JSON from /admin/hallway_state');
   }
 
+  // Handle expired session
   if (r.status === 401 || r.status === 403) {
-    // session expired — bounce back to login
+    dbg('fetchSnapshotOnce: unauthorized, showing login');
     setStatus(false, 'Unauthorized');
     hide(appShell);
     show(loginCard);
@@ -279,12 +334,39 @@ async function fetchSnapshotOnce() {
   }
 
   if (!r.ok || !data.ok) {
-    throw new Error(data.error || `HTTP ${r.status}`);
+    dbg('fetchSnapshotOnce: error payload:', data);
+    throw new Error(data?.error || `HTTP ${r.status}`);
   }
 
+  dbg('fetchSnapshotOnce: data ok, rendering summary and locations');
   setStatus(true, 'Live');
   renderSummary(data);
   renderLocations(data);
+}
+
+async function initApp() {
+  dbg('initApp: starting');
+  try {
+    const r = await adminFetch('/admin/session/check', { method: 'GET' });
+    dbg('session/check status:', r.status);
+    const data = await r.json().catch(() => ({}));
+    dbg('session/check body:', data);
+
+    if (!r.ok || !data.ok) {
+      throw new Error(data.error || `HTTP ${r.status}`);
+    }
+
+    dbg('Session OK; showing appShell and starting polling');
+    hide(loginCard);
+    show(appShell);
+    setStatus(true, 'Live');
+    startPolling();
+  } catch (e) {
+    dbg('initApp: not logged in or error, showing loginCard. Reason:', e && (e.message || e));
+    show(loginCard);
+    hide(appShell);
+    loginOut.textContent = `Login failed: ${e.message || e}`;
+  }
 }
 
 function tickRefreshLabel() {
