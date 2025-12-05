@@ -110,16 +110,17 @@ async function onGoogleCredential(resp) {
   try {
     dbg('onGoogleCredential: received credential response');
     loginOut.textContent = 'Signing in...';
-    const r = await fetch(new URL('/admin/session/login_gsi', API_BASE), {
+
+    const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
       method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ credential: resp.credential })
+      headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ id_token: resp.credential }).toString(),
+      credentials: 'include'
     });
 
-    dbg('login_gsi response status:', r.status);
+    dbg('login_google response status:', r.status);
     const data = await r.json().catch(() => ({}));
-    dbg('login_gsi response body:', data);
+    dbg('login_google response body:', data);
 
     if (!r.ok || !data.ok) {
       throw new Error(data.error || `HTTP ${r.status}`);
