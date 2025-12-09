@@ -649,29 +649,37 @@
       CLASS_PRESENT[osis] = { firstIn: now, lastIn: now };
     }
   }
+
   function nameHtmlWithBadge(name){
-    const loc = getLocation();
-  
+    const loc  = getLocation();
+    const meta = getLocationMeta(loc);
+    const type = String(meta.type || '').toLowerCase();
+    const mode = String(meta.mode || '').toLowerCase();
+
+    // Must NOT be bathroom / lunch / senior-out
     const inMorningContext =
       !isSeniorOutIn() &&
       !isBathroomLocation(loc) &&
       !isLunchLocation(loc);
-  
+
+    // Now both badges require type=morning AND mode=default
+    const scannerEligible = (type === 'morning' && mode === 'default');
+
     const badges = [];
-  
-    if (inMorningContext && window.__lastRegentsPrep) {
+
+    // REGENTS PREP
+    if (inMorningContext && scannerEligible && window.__lastRegentsPrep) {
       badges.push('<span class="badge-purple">REGENTS PREP</span>');
     }
-  
-    if (inMorningContext && window.__lastAlertFlag) {
+
+    // ALERT — now follows same rule
+    if (inMorningContext && scannerEligible && window.__lastAlertFlag) {
       badges.push('<span class="badge-alert">ALERT</span>');
     }
-  
-    const maxBadges = 2;
-    const rendered = badges.slice(0, maxBadges).join('');
-  
-    return `${esc(name || 'Unknown')}${rendered ? ' ' + rendered : ''}`;
+
+    return `${esc(name)}${badges.length ? ' ' + badges.join('') : ''}`;
   }
+
   // ---- Out-of-Class (class kiosks) persistence ----
   function loadClassOutMap() {
     try {
