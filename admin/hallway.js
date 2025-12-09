@@ -278,6 +278,32 @@ function renderLocations(data) {
     const list = document.createElement('div');
     list.className = 'list';
 
+    // Header row
+    const headerRow = document.createElement('div');
+    headerRow.className = 'row row-header';
+
+    const h1 = document.createElement('div');
+    h1.className = 'row-name';
+    h1.textContent = 'Student';
+
+    const h2 = document.createElement('div');
+    h2.className = 'row-bath';
+    h2.textContent = 'Bathroom visits today';
+
+    const h3 = document.createElement('div');
+    h3.className = 'row-source';
+    h3.textContent = 'Last event';
+
+    const h4 = document.createElement('div');
+    h4.className = 'row-ts';
+    h4.textContent = 'Last seen';
+
+    headerRow.appendChild(h1);
+    headerRow.appendChild(h2);
+    headerRow.appendChild(h3);
+    headerRow.appendChild(h4);
+    list.appendChild(headerRow);
+
     for (const s of arr) {
       const row = document.createElement('div');
       row.className = 'row';
