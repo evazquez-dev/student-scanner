@@ -288,6 +288,15 @@ function renderLocations(data) {
       col1.appendChild(name);
       col1.appendChild(osis);
 
+      // Show bathroom visits today, if any
+      if (typeof s.bathroom_visits === 'number' && s.bathroom_visits > 0) {
+        const extra = document.createElement('div');
+        extra.className = 'row-extra';
+        extra.textContent = `Bathroom visits today: ${s.bathroom_visits}`;
+        col1.appendChild(extra);
+      }
+
+
       const col2 = document.createElement('div');
       col2.textContent = s.source || '';
 
