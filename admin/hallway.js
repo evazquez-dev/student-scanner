@@ -19,6 +19,10 @@ const locContainer= document.getElementById('locContainer');
 const summarySubtitle = document.getElementById('summarySubtitle');
 const listSubtitle    = document.getElementById('listSubtitle');
 
+const DEFAULT_ACTIVE_ZONES = new Set(['hallway', 'bathroom']); // initial behavior = what you have now
+let activeZones = new Set(DEFAULT_ACTIVE_ZONES);
+let lastSnapshot = null;
+
 const POLL_MS = 10_000;
 let lastRefreshTs = null;
 let pollTimer = null;
@@ -187,12 +191,19 @@ function renderSummary(data) {
   for (const def of defs) {
     const div = document.createElement('div');
     div.className = 'summary-item ' + (def.className || '');
+    div.dataset.zoneKey = def.key;
+    div.classList.add('summary-item--clickable');
+    if (activeZones.has(def.key)) {
+      div.classList.add('summary-item--active');
+    }
+
     const label = document.createElement('div');
     label.className = 'summary-label';
     label.textContent = def.label;
     const value = document.createElement('div');
     value.className = 'summary-value';
     value.textContent = counts[def.key] ?? 0;
+
     div.appendChild(label);
     div.appendChild(value);
     summaryGrid.appendChild(div);
@@ -214,14 +225,15 @@ function renderLocations(data) {
 
   const filtered = entries
     .map(([loc, arr]) => {
-      const hallBath = arr.filter(x => x.zone === 'hallway' || x.zone === 'bathroom');
-      return [loc, hallBath];
+      const selected = arr.filter(x => activeZones.has(x.zone));
+      return [loc, selected];
     })
     .filter(([, arr]) => arr.length > 0);
 
   const totalShown = filtered.reduce((sum, [, arr]) => sum + arr.length, 0);
+  const zonesLabel = Array.from(activeZones).join(', ') || 'none';
   listSubtitle.textContent = totalShown
-    ? `${totalShown} students in hallways / bathrooms`
+    ? `${totalShown} students in selected zones (${zonesLabel})`
     : '';
 
   if (!filtered.length) {
@@ -270,6 +282,7 @@ function renderLocations(data) {
       const row = document.createElement('div');
       row.className = 'row';
 
+      // col1: name + OSIS + zone chip
       const col1 = document.createElement('div');
       const name = document.createElement('div');
       name.className = 'row-name';
@@ -288,25 +301,26 @@ function renderLocations(data) {
       col1.appendChild(name);
       col1.appendChild(osis);
 
-      // Show bathroom visits today, if any
-      if (typeof s.bathroom_visits === 'number' && s.bathroom_visits > 0) {
-        const extra = document.createElement('div');
-        extra.className = 'row-extra';
-        extra.textContent = `Bathroom visits today: ${s.bathroom_visits}`;
-        col1.appendChild(extra);
-      }
-
-
+      // col2: bathroom visits today
       const col2 = document.createElement('div');
-      col2.textContent = s.source || '';
+      col2.className = 'row-bath';
+      const visits = (typeof s.bathroom_visits === 'number') ? s.bathroom_visits : 0;
+      col2.textContent = visits;
 
+      // col3: source (bathroom_in, hallway_in, etc.)
       const col3 = document.createElement('div');
-      col3.className = 'row-ts';
-      col3.textContent = fmtShortTs(s.updated_at);
+      col3.className = 'row-source';
+      col3.textContent = s.source || '';
+
+      // col4: last timestamp
+      const col4 = document.createElement('div');
+      col4.className = 'row-ts';
+      col4.textContent = fmtShortTs(s.updated_at);
 
       row.appendChild(col1);
       row.appendChild(col2);
       row.appendChild(col3);
+      row.appendChild(col4);
       list.appendChild(row);
     }
 
@@ -316,7 +330,25 @@ function renderLocations(data) {
   }
 }
 
-// ===== POLLING =====
+// Toggle zones by clicking summary items
+summaryGrid.addEventListener('click', (ev) => {
+  const item = ev.target.closest('.summary-item');
+  if (!item || !item.dataset.zoneKey) return;
+  const key = item.dataset.zoneKey;
+
+  if (activeZones.has(key)) {
+    activeZones.delete(key);
+  } else {
+    activeZones.add(key);
+  }
+
+  // Re-render using the last snapshot we have
+  if (lastSnapshot) {
+    renderSummary(lastSnapshot);
+    renderLocations(lastSnapshot);
+  }
+});
+
 // ===== POLLING =====
 async function fetchSnapshotOnce() {
   dbg('fetchSnapshotOnce: fetching snapshot…');
@@ -353,6 +385,7 @@ async function fetchSnapshotOnce() {
 
   dbg('fetchSnapshotOnce: data ok, rendering summary and locations');
   setStatus(true, 'Live');
+  lastSnapshot = data;
   renderSummary(data);
   renderLocations(data);
 }
