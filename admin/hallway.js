@@ -24,9 +24,12 @@ let lastRefreshTs = null;
 let pollTimer = null;
 
 // ===== DEBUGGING =====
+const DEBUG = false; //change to true to output debug code
 const debugEl = document.getElementById('debugLog');
 
 function dbg(...args) {
+  if(!DEBUG) return;
+
   const ts = new Date().toISOString();
   const msg = args
     .map(a => (typeof a === 'string' ? a : JSON.stringify(a, null, 2)))
