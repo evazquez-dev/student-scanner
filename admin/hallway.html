@@ -22,12 +22,20 @@
       --card-border: #1f2937;
       --fg: #e5e7eb;
       --muted: #9ca3af;
+
+      /* Existing theme colors */
       --accent: #22c55e;
       --accent-soft: rgba(34,197,94,0.12);
       --danger: #ef4444;
       --danger-soft: rgba(239,68,68,0.14);
       --bath: #38bdf8;
       --bath-soft: rgba(56,189,248,0.12);
+
+      /* NEW theme colors for class + lunch */
+      --class: #f59e0b;
+      --class-soft: rgba(245,158,11,0.15);
+      --lunch: #8b5cf6;
+      --lunch-soft: rgba(139,92,246,0.15);
     }
     * { box-sizing: border-box; }
     body {
@@ -196,9 +204,29 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .summary-item--hallway  { background-color: var(--accent-soft);  border-color: rgba(34,197,94,0.5); }
-    .summary-item--bathroom { background-color: var(--bath-soft);    border-color: rgba(56,189,248,0.55); }
-    .summary-item--danger   { background-color: var(--danger-soft);  border-color: rgba(239,68,68,0.6); }
+    /* Summary pills by zone */
+    .summary-item--hallway  {
+      background-color: var(--accent-soft);
+      border-color: rgba(34,197,94,0.5);
+    }
+    .summary-item--bathroom {
+      background-color: var(--bath-soft);
+      border-color: rgba(56,189,248,0.55);
+    }
+    .summary-item--class {
+      background-color: var(--class-soft);
+      border-color: rgba(245,158,11,0.65);
+    }
+    .summary-item--lunch {
+      background-color: var(--lunch-soft);
+      border-color: rgba(139,92,246,0.65);
+    }
+    .summary-item--danger,
+    .summary-item--offcamp,
+    .summary-item--offcampus {
+      background-color: var(--danger-soft);
+      border-color: rgba(239,68,68,0.6);
+    }
 
     .loc-group {
       margin-top: 0.75rem;
@@ -272,6 +300,8 @@
       font-variant-numeric: tabular-nums;
       color: var(--muted);
     }
+
+    /* Mini zone badges next to student names */
     .zone-chip {
       font-size: 0.68rem;
       padding: 0.1rem 0.4rem;
@@ -283,8 +313,28 @@
       margin-left: 0.3rem;
       color: var(--muted);
     }
-    .zone-chip--bath { border-color: var(--bath);   color: var(--bath); }
-    .zone-chip--hall { border-color: var(--accent); color: var(--accent); }
+    .zone-chip--bath {
+      border-color: var(--bath);
+      color: var(--bath);
+    }
+    .zone-chip--hall {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .zone-chip--class {
+      border-color: var(--class);
+      color: var(--class);
+    }
+    .zone-chip--lunch {
+      border-color: var(--lunch);
+      color: var(--lunch);
+    }
+    .zone-chip--offcamp,
+    .zone-chip--offcampus,
+    .zone-chip--off {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
 
     .error {
       margin-top: 0.4rem;
@@ -357,7 +407,7 @@
     </div>
   </div>
 
-    <!-- Debug console (only shows when there is debug output) -->
+  <!-- Debug console (only shows when there is debug output) -->
   <pre id="debugLog"
        style="position:fixed;
               bottom:0;
