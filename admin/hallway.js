@@ -152,6 +152,45 @@ async function adminFetch(pathOrUrl, init = {}) {
   return fetch(u, { ...init, credentials: 'include' });
 }
 
+function inferFloor(locLabel, rawLoc) {
+  const label = String(locLabel || '').trim();
+  const lower = label.toLowerCase();
+  const base = String(rawLoc || locLabel || '').trim();
+
+  if (!label && !base) return 'Other / Unknown';
+
+  if (lower.includes('off campus')) return 'Off Campus';
+
+  if (lower.includes('first floor') || lower.includes('1st floor')) return 'Floor 1';
+  if (lower.includes('second floor') || lower.includes('2nd floor')) return 'Floor 2';
+  if (lower.includes('third floor') || lower.includes('3rd floor')) return 'Floor 3';
+
+  // Room-style names: RM 316, 212, etc.
+  const room = base.replace(/^rm\s*/i, '');
+  if (/^\d{3}$/.test(room)) {
+    const n = Number(room[0]);
+    if (n >= 1 && n <= 9) return `Floor ${n}`;
+  }
+
+  // Cafeteria = 1st floor
+  if (/^caf/i.test(base)) return 'Floor 1';
+
+  return 'Other / Unknown';
+}
+
+function floorSortKey(label) {
+  const lower = String(label || '').toLowerCase();
+
+  if (lower.includes('off campus')) return 50;
+
+  const m = lower.match(/(\d+)/);
+  if (m) return Number(m[1]);        // Floor 1, 2, 3, etc.
+
+  if (lower.includes('other')) return 90;
+
+  return 80; // generic bucket
+}
+
 // ===== RENDER HELPERS =====
 function fmtClock(d) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -221,30 +260,53 @@ function renderLocations(data) {
   }
 
   const byLoc = data.by_location || {};
-  const entries = Object.entries(byLoc);
+  const rowsByFloor = new Map();
+  let totalShown = 0;
 
-  const filtered = entries
-    .map(([loc, arr]) => {
-      const selected = arr.filter(x => activeZones.has(x.zone));
-      return [loc, selected];
-    })
-    .filter(([, arr]) => arr.length > 0);
+  // Flatten by_location → rows grouped by floor
+  for (const [locLabel, arr] of Object.entries(byLoc)) {
+    for (const s of arr) {
+      if (!activeZones.has(s.zone)) continue;
 
-  const totalShown = filtered.reduce((sum, [, arr]) => sum + arr.length, 0);
+      const floor = inferFloor(locLabel, s.loc);
+      if (!rowsByFloor.has(floor)) rowsByFloor.set(floor, []);
+      rowsByFloor.get(floor).push({
+        ...s,
+        locLabel,
+        floor
+      });
+      totalShown++;
+    }
+  }
+
   const zonesLabel = Array.from(activeZones).join(', ') || 'none';
   listSubtitle.textContent = totalShown
     ? `${totalShown} students in selected zones (${zonesLabel})`
     : '';
 
-  if (!filtered.length) {
+  if (!totalShown) {
     const div = document.createElement('div');
     div.className = 'loc-group';
-    div.innerHTML = '<div class="loc-header"><div class="loc-name">None in hallway/bathroom</div></div>';
+    div.innerHTML = '<div class="loc-header"><div class="loc-name">None in selected zones</div></div>';
     locContainer.appendChild(div);
     return;
   }
 
-  for (const [loc, arr] of filtered) {
+  // Sort floors nicely
+  const floorEntries = Array.from(rowsByFloor.entries());
+  floorEntries.sort((a, b) => {
+    const ka = floorSortKey(a[0]);
+    const kb = floorSortKey(b[0]);
+    if (ka !== kb) return ka - kb;
+    return String(a[0]).localeCompare(String(b[0]));
+  });
+
+  for (const [floorLabel, rows] of floorEntries) {
+    // Sort each floor by most recent first
+    rows.sort((a, b) =>
+      String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
+    );
+
     const group = document.createElement('div');
     group.className = 'loc-group';
 
@@ -254,23 +316,18 @@ function renderLocations(data) {
     const left = document.createElement('div');
     const nameEl = document.createElement('span');
     nameEl.className = 'loc-name';
-    nameEl.textContent = loc;
+    nameEl.textContent = floorLabel;
 
-    const zonesSet = new Set(arr.map(x => x.zone));
     const tag = document.createElement('span');
     tag.className = 'loc-tag';
-    tag.textContent = zonesSet.has('bathroom') && !zonesSet.has('hallway')
-      ? 'Bathroom'
-      : (zonesSet.has('hallway') && !zonesSet.has('bathroom')
-          ? 'Hallway'
-          : 'Mixed');
+    tag.textContent = (floorLabel.toLowerCase().includes('floor') ? 'Floor' : 'Zone');
 
     left.appendChild(nameEl);
     left.appendChild(tag);
 
     const right = document.createElement('div');
     right.className = 'loc-count';
-    right.textContent = `${arr.length} student${arr.length === 1 ? '' : 's'}`;
+    right.textContent = `${rows.length} student${rows.length === 1 ? '' : 's'}`;
 
     header.appendChild(left);
     header.appendChild(right);
@@ -278,7 +335,7 @@ function renderLocations(data) {
     const list = document.createElement('div');
     list.className = 'list';
 
-    // Header row
+    // Header row inside each floor
     const headerRow = document.createElement('div');
     headerRow.className = 'row row-header';
 
@@ -292,7 +349,7 @@ function renderLocations(data) {
 
     const h3 = document.createElement('div');
     h3.className = 'row-source';
-    h3.textContent = 'Last event';
+    h3.textContent = 'Location';
 
     const h4 = document.createElement('div');
     h4.className = 'row-ts';
@@ -304,7 +361,7 @@ function renderLocations(data) {
     headerRow.appendChild(h4);
     list.appendChild(headerRow);
 
-    for (const s of arr) {
+    for (const s of rows) {
       const row = document.createElement('div');
       row.className = 'row';
 
@@ -313,6 +370,7 @@ function renderLocations(data) {
       const name = document.createElement('div');
       name.className = 'row-name';
       name.textContent = s.name || '(Unknown)';
+
       const osis = document.createElement('div');
       osis.className = 'row-osis';
       osis.textContent = s.osis || '';
@@ -320,7 +378,9 @@ function renderLocations(data) {
       const chip = document.createElement('span');
       chip.className = 'zone-chip ' + (s.zone === 'bathroom'
         ? 'zone-chip--bath'
-        : 'zone-chip--hall');
+        : (s.zone === 'off_campus'
+            ? 'zone-chip--hall' // reuse style, label still "off_campus"
+            : 'zone-chip--hall'));
       chip.textContent = s.zone;
 
       name.appendChild(chip);
@@ -333,10 +393,13 @@ function renderLocations(data) {
       const visits = (typeof s.bathroom_visits === 'number') ? s.bathroom_visits : 0;
       col2.textContent = visits;
 
-      // col3: source (bathroom_in, hallway_in, etc.)
+      // col3: location (plus raw source if you like)
       const col3 = document.createElement('div');
       col3.className = 'row-source';
-      col3.textContent = s.source || '';
+      const locText = s.locLabel || s.loc || '';
+      col3.textContent = s.source
+        ? `${locText} • ${s.source}`
+        : locText;
 
       // col4: last timestamp
       const col4 = document.createElement('div');
