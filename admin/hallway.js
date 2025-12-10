@@ -202,6 +202,27 @@ function fmtShortTs(iso) {
   return fmtClock(d);
 }
 
+/**
+ * Map zone string from API → CSS class for mini badge.
+ * Matches the classes defined in hallway.html CSS.
+ */
+function zoneToChipClass(zone) {
+  switch (zone) {
+    case 'hallway':
+      return 'zone-chip--hall';
+    case 'bathroom':
+      return 'zone-chip--bath';
+    case 'class':
+      return 'zone-chip--class';
+    case 'lunch':
+      return 'zone-chip--lunch';
+    case 'off_campus':
+      return 'zone-chip--offcampus';
+    default:
+      return 'zone-chip--hall'; // safe fallback
+  }
+}
+
 function renderSummary(data) {
   summaryError.style.display = 'none';
   summaryGrid.innerHTML = '';
@@ -220,11 +241,11 @@ function renderSummary(data) {
   summarySubtitle.textContent = total ? `Total tracked: ${total}` : '';
 
   const defs = [
-    { key: 'hallway',   label: 'In Hallway',   className: 'summary-item--hallway' },
-    { key: 'bathroom',  label: 'In Bathroom',  className: 'summary-item--bathroom' },
-    { key: 'class',     label: 'In Class' },
-    { key: 'lunch',     label: 'At Lunch' },
-    { key: 'off_campus',label: 'Off Campus',   className: 'summary-item--danger' }
+    { key: 'hallway',    label: 'In Hallway',   className: 'summary-item--hallway' },
+    { key: 'bathroom',   label: 'In Bathroom',  className: 'summary-item--bathroom' },
+    { key: 'class',      label: 'In Class',     className: 'summary-item--class' },
+    { key: 'lunch',      label: 'At Lunch',     className: 'summary-item--lunch' },
+    { key: 'off_campus', label: 'Off Campus',   className: 'summary-item--offcampus' }
   ];
 
   for (const def of defs) {
@@ -376,12 +397,9 @@ function renderLocations(data) {
       osis.textContent = s.osis || '';
 
       const chip = document.createElement('span');
-      chip.className = 'zone-chip ' + (s.zone === 'bathroom'
-        ? 'zone-chip--bath'
-        : (s.zone === 'off_campus'
-            ? 'zone-chip--hall' // reuse style, label still "off_campus"
-            : 'zone-chip--hall'));
-      chip.textContent = s.zone;
+      const zone = s.zone || '';
+      chip.className = 'zone-chip ' + zoneToChipClass(zone);
+      chip.textContent = zone.toUpperCase();
 
       name.appendChild(chip);
       col1.appendChild(name);
