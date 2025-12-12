@@ -1165,15 +1165,11 @@
 
     setStatus(`Clearing Bathroom (${g})…`);
     const nowISO = new Date().toISOString();
-    await Promise.allSettled(items.map(r =>
-      apiLog({
-        whenISO: nowISO,
-        code: r.osis,
-        source: 'pwa',
-        resolved: { name: r.name || '', osis: r.osis || '' },
-        allowed: 'manually_cleared'
-      })
-    ));
+    await apiManualClear(loc, items.map(r => ({
+      osis: r.osis,
+      name: r.name || '',
+      sex: g // 'M' or 'F'
+    })));
     setBathSet(g, []);
     await renderBathList();
     setStatus(`Bathroom (${g}) cleared.`);
