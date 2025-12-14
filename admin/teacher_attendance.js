@@ -347,6 +347,14 @@ async function refreshOnce(){
   setStatus(true, 'Live');
 }
 
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    stopAutoRefresh();
+  } else {
+    startAutoRefresh();
+  }
+});
+
 // ===== LOGIN FLOW (copied structure from hallway.js) =====
 window.addEventListener('DOMContentLoaded', async () => {
   // Prefill from URL (?room=316&period=3&when=mid) or localStorage
@@ -399,6 +407,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     hide(loginCard);
     show(appShell);
     setStatus(true, 'Live');
+    startAutoRefresh();
 
     // Auto-refresh once if room+period prefilled
     if(roomInput.value.trim() && periodInput.value.trim()){
@@ -431,6 +440,28 @@ window.addEventListener('DOMContentLoaded', async () => {
   setInterval(tickRefreshLabel, 1000);
 });
 
+let autoTimer = null;
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  autoTimer = setInterval(() => {
+    // don’t overlap requests
+    if (window.__refreshing) return;
+    window.__refreshing = true;
+    refreshOnce()
+      .catch(err => {
+        console.error(err);
+        setStatus(false, 'Auto-refresh error');
+      })
+      .finally(() => (window.__refreshing = false));
+  }, 7000); // 7s is a good default
+}
+
+function stopAutoRefresh() {
+  if (autoTimer) clearInterval(autoTimer);
+  autoTimer = null;
+}
+
 async function onGoogleCredential(resp){
   try{
     loginOut.textContent = 'Signing in...';
@@ -446,6 +477,7 @@ async function onGoogleCredential(resp){
     hide(loginCard);
     show(appShell);
     setStatus(true, 'Live');
+    startAutoRefresh();
 
     if(roomInput.value.trim() && periodInput.value.trim()){
       await refreshOnce();
