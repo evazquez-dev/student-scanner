@@ -65,6 +65,16 @@ async function adminFetch(pathOrUrl, init = {}){
   return fetch(u, { ...init, credentials:'include' });
 }
 
+async function populateDropdowns(){
+  const opts = await fetchTeacherOptions();
+
+  const savedRoom   = localStorage.getItem('teacher_att_room') || '';
+  const savedPeriod = localStorage.getItem('teacher_att_period') || '';
+
+  fillSelect(roomInput, opts.rooms || [], 'Select room…', savedRoom);
+  fillSelect(periodInput, opts.periods || [], 'Select period…', savedPeriod);
+}
+
 async function fetchTeacherOptions(){
   const r = await adminFetch('/admin/teacher_att/options', { method:'GET' });
   const data = await r.json().catch(()=>null);
@@ -535,6 +545,17 @@ async function onGoogleCredential(resp){
     hide(loginCard);
     show(appShell);
     setStatus(true, 'Live');
+    IS_AUTHED = true;
+    try{
+      await populateDropdowns();
+    }catch(e){
+      console.warn('options load failed', e);
+    }
+    startAutoRefresh();
+
+    if(roomInput.value.trim() && periodInput.value.trim()){
+      await refreshOnce();
+    }
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) stopAutoRefresh();
       else startAutoRefresh();
