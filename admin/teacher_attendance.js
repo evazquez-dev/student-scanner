@@ -136,7 +136,10 @@ function tickRefreshLabel(){
 async function fetchRosterSnapshotMap(){
   const r = await adminFetch('/admin/hallway_state', { method:'GET' });
   const data = await r.json().catch(()=>null);
-  if(!r.ok || !data?.ok) throw new Error(data?.error || `hallway_state HTTP ${r.status}`);
+  if(!r.ok || !data?.ok) {
+    const extra = data?.message ? ` — ${data.message}` : '';
+    throw new Error((data?.error || `hallway_state HTTP ${r.status}`) + extra);
+  }
 
   // Build osis->student record map
   // hallway_state groups; safest is to walk all arrays we can find
@@ -172,7 +175,10 @@ async function fetchPreview(room, period, whenType){
 
   const r = await adminFetch(u, { method:'GET' });
   const data = await r.json().catch(()=>null);
-  if(!r.ok || !data?.ok) throw new Error(data?.error || `meeting/preview HTTP ${r.status}`);
+  if(!r.ok || !data?.ok) {
+    const extra = data?.message ? ` — ${data.message}` : '';
+    throw new Error((data?.error || `meeting/preview HTTP ${r.status}`) + extra);
+  }
   return data;
 }
 
