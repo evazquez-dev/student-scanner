@@ -242,20 +242,23 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
+    /* ZONE DOT — hidden by default (DESKTOP) */
     .zoneDot{
       width: 10px;
       height: 10px;
       border-radius: 999px;
-      display: inline-block;
+      display: none;          /* 👈 key line */
       flex: 0 0 auto;
       border: 1px solid rgba(255,255,255,0.18);
-      background: var(--muted);
     }
+
+    /* colors */
     .zoneDot--hall { background: var(--ok); }
     .zoneDot--bath { background: var(--bath); }
     .zoneDot--class{ background: var(--warn); }
     .zoneDot--lunch{ background: var(--lunch); }
     .zoneDot--off  { background: var(--bad); }
+    
     .chip{
       font-size:0.68rem;
       padding:0.1rem 0.4rem;
@@ -292,6 +295,9 @@
       .controls .btn{ width:100%; }
       .row{ grid-template-columns: minmax(0,2fr) minmax(0,0.9fr) minmax(0,0.9fr); }
       .hide-sm{ display:none; }
+
+      .zoneDot{ display:inline-block; }  /* show dots on mobile */
+      .chip{ display:none; }             /* hide badges on mobile */
     }
   </style>
 </head>
