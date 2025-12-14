@@ -383,26 +383,31 @@
 
   <script type="module">
     const API_BASE = document.querySelector('meta[name="api-base"]')?.content || '';
+
     async function getVersion(){
       try{
         const r = await fetch(new URL('/version', API_BASE), { cache: 'no-store' });
         const j = await r.json();
-        return j?.id || j?.tag || String(Date.now());
+        return j?.id || j?.tag || null;
       }catch{
-        return String(Date.now()); // fallback = always bust
+        return null; // IMPORTANT: don't force reload on transient failures
       }
     }
 
-    const ver = await getVersion();
-    const url = new URL('./teacher_attendance.js', location.href);
+    // IMPORTANT: resolve JS relative to the *directory* even for "pretty URLs"
+    const baseDir = new URL('.', location.href);
+
+    const ver = (await getVersion()) || String(Date.now()); // bust cache on first load
+    const url = new URL('teacher_attendance.js', baseDir);
     url.searchParams.set('v', ver);
     await import(url.toString());
 
-    // OPTIONAL: auto-reload if a new deploy happens while the page is open
+    // Auto-reload only when we can actually read a version
     let last = ver;
     setInterval(async () => {
       const next = await getVersion();
-      if (next && next !== last){
+      if(!next) return;              // don't reload on failure
+      if(next !== last){
         last = next;
         location.reload();
       }
