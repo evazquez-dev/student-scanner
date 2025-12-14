@@ -84,6 +84,9 @@ async function cacheFirst(req) {
   try {
     const res = await fetch(req);
     if (res && res.ok) {
+      if (request.method !== 'GET') {
+        return fetch(request);
+      }
       const cache = await caches.open(STATIC_CACHE);
       cache.put(req, res.clone());
     }

@@ -125,6 +125,17 @@ function zoneToChipClass(zone){
   }
 }
 
+function zoneToDotClass(zone){
+  switch(String(zone||'')){
+    case 'hallway': return 'zoneDot--hall';
+    case 'bathroom': return 'zoneDot--bath';
+    case 'class': return 'zoneDot--class';
+    case 'lunch': return 'zoneDot--lunch';
+    case 'off_campus': return 'zoneDot--off';
+    default: return '';
+  }
+}
+
 function fmtClock(iso){
   if(!iso) return '—';
   const d = new Date(iso);
@@ -272,12 +283,16 @@ function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
     student.className = 'student';
     student.textContent = r.name;
 
-    const chip = document.createElement('span');
-    chip.className = 'chip ' + zoneToChipClass(r.zone);
-    chip.textContent = r.zone ? String(r.zone).toUpperCase() : '—';
+    const dot = document.createElement('span');
+    dot.className = 'zoneDot ' + zoneToDotClass(r.zone);
 
+    // “perspective name” shown on hover + accessibility
+    const label = r.zone ? String(r.zone).replace(/_/g,' ') : 'unknown';
+    dot.title = label;
+    dot.setAttribute('aria-label', label);
+
+    top.appendChild(dot);
     top.appendChild(student);
-    top.appendChild(chip);
 
     const sub = document.createElement('div');
     sub.className = 'subline';
@@ -293,7 +308,7 @@ function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
     c1.appendChild(sub);
 
     const c2 = document.createElement('div');
-    c2.className = 'mono muted';
+    c2.className = 'mono muted hide-sm';
     c2.textContent = r.osis;
 
     const c3 = document.createElement('div');

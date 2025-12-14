@@ -242,7 +242,20 @@
       text-overflow:ellipsis;
       white-space:nowrap;
     }
-
+    .zoneDot{
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
+      flex: 0 0 auto;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: var(--muted);
+    }
+    .zoneDot--hall { background: var(--ok); }
+    .zoneDot--bath { background: var(--bath); }
+    .zoneDot--class{ background: var(--warn); }
+    .zoneDot--lunch{ background: var(--lunch); }
+    .zoneDot--off  { background: var(--bad); }
     .chip{
       font-size:0.68rem;
       padding:0.1rem 0.4rem;
@@ -349,7 +362,7 @@
           <div class="table" id="tableBox">
             <div class="row row-header">
               <div>Student</div>
-              <div class="mono">OSIS</div>
+              <div class="mono hide-sm">OSIS</div>
               <div style="text-align:center;">Code</div>
               <div class="hide-sm">Scan</div>
               <div class="hide-sm">Now</div>
