@@ -27,7 +27,7 @@ const errBox     = document.getElementById('errBox');
 const subtitleRight = document.getElementById('subtitleRight');
 const rowsEl     = document.getElementById('rows');
 
-const DEBUG = false;
+const DEBUG = true;
 const debugEl = document.getElementById('debugLog');
 
 let IS_AUTHED = false;
@@ -70,6 +70,9 @@ async function populateDropdowns(){
 
   const savedRoom   = localStorage.getItem('teacher_att_room') || '';
   const savedPeriod = localStorage.getItem('teacher_att_period') || '';
+
+  dbg('opts', opts);
+  dbg('room options len', roomInput.options.length);
 
   fillSelect(roomInput, opts.rooms || [], 'Select room…', savedRoom);
   fillSelect(periodInput, opts.periods || [], 'Select period…', savedPeriod);
