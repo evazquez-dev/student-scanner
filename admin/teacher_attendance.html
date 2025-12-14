@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+
+  <!-- COPY THESE TWO META TAGS FROM hallway.html -->
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <title>Teacher Attendance</title>
+
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg: #050711;
+      --card: #111827;
+      --card-border: #1f2937;
+      --fg: #e5e7eb;
+      --muted: #9ca3af;
+
+      --ok: #22c55e;
+      --ok-soft: rgba(34,197,94,0.12);
+
+      --warn: #f59e0b;
+      --warn-soft: rgba(245,158,11,0.15);
+
+      --bad: #ef4444;
+      --bad-soft: rgba(239,68,68,0.14);
+
+      --bath: #38bdf8;
+      --bath-soft: rgba(56,189,248,0.12);
+
+      --lunch: #8b5cf6;
+      --lunch-soft: rgba(139,92,246,0.15);
+    }
+    * { box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: radial-gradient(circle at top, #020617, #000);
+      color: var(--fg);
+      min-height: 100vh;
+      display:flex;
+      justify-content:center;
+      padding: 1.5rem;
+    }
+    .shell{ width:min(1200px,100%); }
+
+    #loginCard{
+      max-width: 420px;
+      margin: 4rem auto 0 auto;
+      background: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94));
+      border-radius: 1.1rem;
+      border: 1px solid var(--card-border);
+      padding: 1.5rem 1.75rem 1.25rem;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.65);
+      text-align:center;
+      display:none;
+    }
+    #loginCard h2{
+      margin:0 0 0.4rem;
+      font-size:1.15rem;
+      letter-spacing:0.04em;
+      text-transform:uppercase;
+    }
+    #loginCard p{
+      margin:0 0 0.9rem;
+      font-size:0.87rem;
+      color: var(--muted);
+    }
+    #loginCard pre{
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align:left;
+      max-height: 90px;
+      overflow:auto;
+      white-space: pre-wrap;
+      margin: 0.75rem 0 0;
+    }
+
+    #appShell{ display:none; }
+
+    header{ margin-bottom: 0.6rem; }
+    h1{
+      margin:0 0 0.25rem;
+      font-size:1.35rem;
+      letter-spacing:0.03em;
+      text-transform:uppercase;
+    }
+    .sub{
+      color: var(--muted);
+      font-size:0.9rem;
+      margin-bottom: 0.8rem;
+    }
+
+    .pill-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:0.5rem;
+      margin-bottom: 0.8rem;
+      align-items:center;
+    }
+    .pill{
+      padding:0.25rem 0.6rem;
+      border-radius:999px;
+      font-size:0.78rem;
+      border:1px solid var(--card-border);
+      background: rgba(15,23,42,0.85);
+      display:inline-flex;
+      align-items:center;
+      gap:0.35rem;
+      white-space:nowrap;
+    }
+    .pill-dot{
+      width:6px;height:6px;border-radius:999px;background:var(--muted);
+    }
+    .pill-dot--ok{ background: var(--ok); }
+    .pill-dot--bad{ background: var(--bad); }
+
+    .layout{
+      display:grid;
+      grid-template-columns: minmax(0,1fr);
+      gap: 1rem;
+      align-items:flex-start;
+    }
+    .card{
+      background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.92));
+      border-radius: 1rem;
+      border: 1px solid var(--card-border);
+      padding: 1rem;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.5);
+      min-height:0;
+    }
+    .card h2{
+      margin:0 0 0.75rem;
+      font-size:1.05rem;
+      display:flex;
+      align-items:baseline;
+      gap:0.5rem;
+      justify-content:space-between;
+    }
+    .card h2 span{
+      font-size:0.8rem;
+      font-weight:500;
+      color: var(--muted);
+    }
+
+    .controls{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr auto auto;
+      gap: 0.5rem;
+      align-items:end;
+    }
+    .field label{
+      display:block;
+      font-size:0.72rem;
+      color: var(--muted);
+      letter-spacing:0.06em;
+      text-transform:uppercase;
+      margin: 0 0 0.25rem;
+    }
+    .field input, .field select{
+      width:100%;
+      padding:0.55rem 0.65rem;
+      border-radius:0.75rem;
+      border:1px solid rgba(31,41,55,0.9);
+      background: rgba(2,6,23,0.35);
+      color: var(--fg);
+      outline:none;
+      font-size:0.92rem;
+    }
+    .btn{
+      cursor:pointer;
+      padding:0.55rem 0.8rem;
+      border-radius:0.75rem;
+      border:1px solid rgba(31,41,55,0.9);
+      background: rgba(2,6,23,0.35);
+      color: var(--fg);
+      font-weight:600;
+    }
+    .btn:hover{ box-shadow: 0 0 0 1px rgba(148,163,184,0.6); }
+
+    .error{
+      margin-top:0.6rem;
+      font-size:0.85rem;
+      color: var(--bad);
+      display:none;
+      white-space: pre-wrap;
+    }
+
+    .table{
+      margin-top: 0.75rem;
+      border-top: 1px solid rgba(31,41,55,0.9);
+      padding-top: 0.75rem;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr) minmax(0,1fr);
+      gap:0.5rem;
+      padding:0.35rem 0.15rem;
+      border-radius:0.6rem;
+      align-items:center;
+      font-size:0.88rem;
+    }
+    .row:nth-child(odd){ background: rgba(15,23,42,0.55); }
+    .row-header{
+      background: transparent !important;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing:0.06em;
+      font-size:0.72rem;
+      padding-top:0.15rem;
+      padding-bottom:0.15rem;
+    }
+    .name{
+      display:flex;
+      flex-direction:column;
+      gap:0.08rem;
+      min-width:0;
+    }
+    .name .top{
+      display:flex;
+      gap:0.35rem;
+      align-items:center;
+      min-width:0;
+    }
+    .name .student{
+      font-weight:600;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .subline{
+      color: var(--muted);
+      font-size:0.78rem;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .chip{
+      font-size:0.68rem;
+      padding:0.1rem 0.4rem;
+      border-radius:999px;
+      border:1px solid rgba(55,65,81,0.9);
+      background: rgba(15,23,42,0.9);
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .chip--hall{ border-color: var(--ok); color: var(--ok); }
+    .chip--bath{ border-color: var(--bath); color: var(--bath); }
+    .chip--class{ border-color: var(--warn); color: var(--warn); }
+    .chip--lunch{ border-color: var(--lunch); color: var(--lunch); }
+    .chip--off{ border-color: var(--bad); color: var(--bad); }
+
+    .codeSelect{
+      width:100%;
+      padding:0.4rem 0.5rem;
+      border-radius:0.65rem;
+      border:1px solid rgba(31,41,55,0.9);
+      background: rgba(2,6,23,0.35);
+      color: var(--fg);
+      font-weight:700;
+      text-align:center;
+    }
+
+    .muted{ color: var(--muted); font-variant-numeric: tabular-nums; }
+    .mono{ font-variant-numeric: tabular-nums; }
+
+    @media (max-width: 900px){
+      .controls{ grid-template-columns: 1fr 1fr 1fr; }
+      .controls .btn{ width:100%; }
+      .row{ grid-template-columns: minmax(0,2fr) minmax(0,0.9fr) minmax(0,0.9fr); }
+      .hide-sm{ display:none; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="shell">
+
+    <!-- Login -->
+    <section id="loginCard">
+      <h2>Sign in</h2>
+      <p>Use your school Google account to access attendance.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut">—</pre>
+    </section>
+
+    <!-- App -->
+    <div id="appShell">
+      <header>
+        <h1>Teacher Attendance</h1>
+        <div class="sub">Pulls scheduled roster + scan evidence from the Worker’s attendance durable object.</div>
+
+        <div class="pill-row">
+          <div class="pill">
+            <span class="pill-dot" id="statusDot"></span>
+            <span id="statusText">Connecting…</span>
+          </div>
+          <div class="pill">
+            <span>📅</span>
+            <span id="dateText">—</span>
+          </div>
+          <div class="pill">
+            <span>⏱</span>
+            <span id="refreshText">Never</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="card">
+          <h2>
+            <span>Class</span>
+            <span id="subtitleRight"></span>
+          </h2>
+
+          <div class="controls">
+            <div class="field">
+              <label for="roomInput">Room</label>
+              <input id="roomInput" placeholder="316" />
+            </div>
+            <div class="field">
+              <label for="periodInput">Period (local)</label>
+              <input id="periodInput" placeholder="1" />
+            </div>
+            <div class="field">
+              <label for="whenSelect">When</label>
+              <select id="whenSelect">
+                <option value="mid">mid (no absents)</option>
+                <option value="end">end (include absents)</option>
+              </select>
+            </div>
+
+            <button class="btn" id="refreshBtn">Refresh</button>
+            <button class="btn" id="copyCsvBtn">Copy CSV</button>
+          </div>
+
+          <div class="error" id="errBox"></div>
+
+          <div class="table" id="tableBox">
+            <div class="row row-header">
+              <div>Student</div>
+              <div class="mono">OSIS</div>
+              <div style="text-align:center;">Code</div>
+              <div class="hide-sm">Scan</div>
+              <div class="hide-sm">Now</div>
+            </div>
+            <div id="rows"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+  </div>
+
+  <!-- Debug console (toggle DEBUG in JS) -->
+  <pre id="debugLog"
+       style="position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow:auto;
+              font-size:11px;background:rgba(0,0,0,0.9);color:#00ff88;padding:0.5rem;
+              margin:0;white-space:pre-wrap;z-index:9999;display:none;"></pre>
+
+  <script type="module" src="./teacher_attendance.js"></script>
+</body>
+</html>
