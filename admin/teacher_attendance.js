@@ -29,6 +29,9 @@ const rowsEl     = document.getElementById('rows');
 
 const DEBUG = false;
 const debugEl = document.getElementById('debugLog');
+
+let IS_AUTHED = false;
+
 function dbg(...args){
   if(!DEBUG) return;
   const ts = new Date().toISOString();
@@ -60,6 +63,37 @@ async function waitForGoogle(timeoutMs = 8000){
 async function adminFetch(pathOrUrl, init = {}){
   const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
   return fetch(u, { ...init, credentials:'include' });
+}
+
+async function fetchTeacherOptions(){
+  const r = await adminFetch('/admin/teacher_att/options', { method:'GET' });
+  const data = await r.json().catch(()=>null);
+  if(!r.ok || !data?.ok){
+    throw new Error(data?.error || `teacher_att/options HTTP ${r.status}`);
+  }
+  return data; // { periods:[...], rooms:[...], ... }
+}
+
+function fillSelect(el, items, placeholder, preferredValue){
+  if(!el) return;
+
+  el.innerHTML = '';
+
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = placeholder || 'Select…';
+  el.appendChild(ph);
+
+  for(const v of (items || [])){
+    const opt = document.createElement('option');
+    opt.value = String(v);
+    opt.textContent = String(v);
+    el.appendChild(opt);
+  }
+
+  if(preferredValue && items?.includes(preferredValue)){
+    el.value = preferredValue;
+  }
 }
 
 function qs(){
@@ -354,11 +388,9 @@ async function refreshOnce(){
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    stopAutoRefresh();
-  } else {
-    startAutoRefresh();
-  }
+  if (!IS_AUTHED) return;
+  if (document.hidden) stopAutoRefresh();
+  else startAutoRefresh();
 });
 
 // ===== LOGIN FLOW (copied structure from hallway.js) =====
@@ -404,7 +436,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Check existing session first (same pattern as hallway.js initApp) :contentReference[oaicite:3]{index=3}
+  
   try{
     const r = await adminFetch('/admin/session/check', { method:'GET' });
     const data = await r.json().catch(()=>({}));
@@ -412,8 +444,28 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     hide(loginCard);
     show(appShell);
+    IS_AUTHED = true;
     setStatus(true, 'Live');
-    startAutoRefresh();
+    // Populate dropdowns (PeriodLocal + Class Rooms)
+    try{
+      const opts = await fetchTeacherOptions();
+
+      const savedRoom   = localStorage.getItem('teacher_att_room') || '';
+      const savedPeriod = localStorage.getItem('teacher_att_period') || '';
+
+      fillSelect(roomInput, opts.rooms || [], 'Select room…', savedRoom);
+      fillSelect(periodInput, opts.periods || [], 'Select period…', savedPeriod);
+
+      // If nothing saved, keep them blank
+    }catch(e){
+      // Don’t block the page if options fail — teachers can still type if you revert to inputs later
+      console.warn('options load failed', e);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopAutoRefresh();
+      else startAutoRefresh();
+    });
+
 
     // Auto-refresh once if room+period prefilled
     if(roomInput.value.trim() && periodInput.value.trim()){
@@ -483,7 +535,11 @@ async function onGoogleCredential(resp){
     hide(loginCard);
     show(appShell);
     setStatus(true, 'Live');
-    startAutoRefresh();
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopAutoRefresh();
+      else startAutoRefresh();
+    });
+
 
     if(roomInput.value.trim() && periodInput.value.trim()){
       await refreshOnce();
