@@ -27,7 +27,7 @@ const errBox     = document.getElementById('errBox');
 const subtitleRight = document.getElementById('subtitleRight');
 const rowsEl     = document.getElementById('rows');
 
-const DEBUG = true;
+const DEBUG = false;
 const debugEl = document.getElementById('debugLog');
 
 let IS_AUTHED = false;
@@ -68,14 +68,15 @@ async function adminFetch(pathOrUrl, init = {}){
 async function populateDropdowns(){
   const opts = await fetchTeacherOptions();
 
-  const savedRoom   = localStorage.getItem('teacher_att_room') || '';
   const savedPeriod = localStorage.getItem('teacher_att_period') || '';
 
-  dbg('opts', opts);
-  dbg('room options len', roomInput.options.length);
+  // ROOM: always blank on load (no default room)
+  fillSelect(roomInput, opts.rooms || [], 'Select room…', '');
 
-  fillSelect(roomInput, opts.rooms || [], 'Select room…', savedRoom);
-  fillSelect(periodInput, opts.periods || [], 'Select period…', savedPeriod);
+  // PERIOD: always prefer Worker’s current periodLocal; fallback to savedPeriod
+  const preferredPeriod = String(opts.current_period_local || '').trim() || savedPeriod;
+  fillSelect(periodInput, opts.periods || [], 'Select period…', preferredPeriod);
+
 }
 
 async function fetchTeacherOptions(){
