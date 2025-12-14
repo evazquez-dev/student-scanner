@@ -422,8 +422,7 @@ document.addEventListener('visibilitychange', () => {
   else startAutoRefresh();
 });
 
-// ===== LOGIN FLOW (copied structure from hallway.js) =====
-window.addEventListener('DOMContentLoaded', async () => {
+async function bootTeacherAttendance(){
   // Prefill from URL (?room=316&period=3&when=mid) or localStorage
   const p = qs();
   const roomQ = p.get('room') || localStorage.getItem('teacher_att_room') || '';
@@ -490,10 +489,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       // Don’t block the page if options fail — teachers can still type if you revert to inputs later
       console.warn('options load failed', e);
     }
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) stopAutoRefresh();
-      else startAutoRefresh();
-    });
 
 
     // Auto-refresh once if room+period prefilled
@@ -525,7 +520,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   }
 
   setInterval(tickRefreshLabel, 1000);
-});
+}
+
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', () => bootTeacherAttendance().catch(console.error));
+} else {
+  bootTeacherAttendance().catch(console.error);
+}
 
 let autoTimer = null;
 
