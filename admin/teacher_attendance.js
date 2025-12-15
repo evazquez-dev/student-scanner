@@ -399,8 +399,15 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     dot.title = label;
     dot.setAttribute('aria-label', label);
 
-    top.appendChild(dot);
+    top.appendChild(dot);      // ✅ shows on mobile (CSS)
     top.appendChild(student);
+
+    if (r.zone) {
+      const chip = document.createElement('span');
+      chip.className = 'chip ' + zoneToChipClass(r.zone);
+      chip.textContent = String(r.zone).replace(/_/g, ' ');
+      top.appendChild(chip);   // ✅ shows on desktop (CSS)
+    }
 
     const sub = document.createElement('div');
     sub.className = 'subline';
