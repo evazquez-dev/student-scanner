@@ -403,7 +403,7 @@
     }
 
     // Resolve JS relative to directory (works with pretty URLs)
-    const baseDir = new URL('.', location.href);
+    const baseDir = new URL(location.href.endsWith('/') ? location.href : location.href + '/');
 
     // Prefer server version; fallback to Date.now ONLY for cache-busting
     const serverVer = await getVersion();
