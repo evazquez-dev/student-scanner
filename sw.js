@@ -32,19 +32,18 @@ self.addEventListener('activate', event => {
 //  - HTML/navigation => NETWORK-FIRST (so Ctrl+R gets new code)
 //  - other requests  => CACHE-FIRST with background revalidate
 self.addEventListener('fetch', event => {
-  // sw.js — snippet: bypass /admin/ requests (paste inside fetch handler before other logic)
-  const reqUrl = new URL(event.request.url);
-  if (reqUrl.pathname.startsWith('/admin/')) {
-    // network only for admin pages to avoid stale cached responses
-    event.respondWith(fetch(event.request));
+  const req = event.request;
+  const url = new URL(req.url);
+
+  // ✅ 1) Bypass ALL admin routes (yours are /student-scanner/admin/...)
+  if (url.pathname.includes('/admin/')) {
+    event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }
-  
-  const req = event.request;
 
-  // Treat navigations and HTML as network-first
+  // ✅ 2) Treat HTML/navigation as network-first
   const isNav = req.mode === 'navigate' ||
-                (req.destination === 'document') ||
+                req.destination === 'document' ||
                 (req.headers.get('accept') || '').includes('text/html');
 
   if (isNav) {
@@ -52,9 +51,39 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // For non-HTML: cache-first, then network
+  // ✅ 3) For JS modules/CSS, prefer network-first (avoids stale “mixed” deploys)
+  if (req.destination === 'script' || req.destination === 'style') {
+    event.respondWith(networkFirst(req));
+    return;
+  }
+
+  // Everything else: cache-first
   event.respondWith(cacheFirst(req));
 });
+
+async function cacheFirst(req) {
+  const cached = await caches.match(req);
+  if (cached) {
+    fetch(req).then(res => {
+      if (res && res.ok && req.method === 'GET') {
+        caches.open(STATIC_CACHE).then(c => c.put(req, res.clone()));
+      }
+    }).catch(()=>{});
+    return cached;
+  }
+
+  try {
+    const res = await fetch(req);
+    if (res && res.ok && req.method === 'GET') {
+      const cache = await caches.open(STATIC_CACHE);
+      cache.put(req, res.clone());
+    }
+    return res;
+  } catch {
+    // Don’t fabricate 504s for JS/modules; just fail naturally
+    return new Response('', { status: 504 });
+  }
+}
 
 async function networkFirst(req) {
   try {
