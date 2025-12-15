@@ -388,6 +388,7 @@
               margin:0;white-space:pre-wrap;z-index:9999;display:none;"></pre>
 
   <script type="module">
+  (async () => {
     const API_BASE = document.querySelector('meta[name="api-base"]')?.content || '';
     const loginCard = document.getElementById('loginCard');
     const loginOut  = document.getElementById('loginOut');
@@ -418,7 +419,7 @@
       if (loginCard) loginCard.style.display = 'block';
       if (loginOut) loginOut.textContent = `JS failed to load:\n${e?.message || e}`;
       console.error(e);
-      return;
+      return; // ✅ legal now
     }
 
     // Only auto-reload when we have a real server version (avoid Date.now → real id flip reload)
@@ -432,6 +433,7 @@
         location.reload();
       }
     }, 15000);
+  })();
   </script>
 </body>
 </html>
