@@ -21,200 +21,206 @@
       <p class="muted">Signed in with Google; actions require admin role.</p>
     </header>
 
-    <!-- Login -->
-    <div id="loginCard" class="card" style="display:none; text-align:center;">
-      <h2>Admin sign in</h2>
-      <p class="muted">Sign in with your school Google account.</p>
-      <div id="g_id_signin"></div>
-      <pre id="loginOut" class="pane">—</pre>
-    </div>
-
+    <!-- Shell stays on the page; we toggle loginCard vs appInner -->
     <div id="appShell">
-
-    <!-- Diagnostics -->
-    <section class="card" id="diagCard">
-      <h2>Diagnostics</h2>
-      <div class="row">
-        <div class="col">
-          <label>API base (from meta)</label>
-          <div id="apiBase" class="mono"></div>
-        </div>
-        <div class="col right">
-          <button id="btnPing" class="btn">Ping Worker</button>
-          <button id="btnDiag" class="btn ghost">Fetch /admin/diag (session)</button>
-        </div>
+      <!-- Login -->
+      <div id="loginCard" class="card" style="display:none; text-align:center;">
+        <h2>Admin sign in</h2>
+        <p class="muted">Sign in with your school Google account.</p>
+        <div id="g_id_signin"></div>
+        <pre id="loginOut" class="pane">—</pre>
       </div>
-      <pre id="diagOut" class="pane">—</pre>
-    </section>
 
-    <!-- Roster -->
-    <section class="card" id="rosterCard">
-      <h2>Roster</h2>
-      <div class="row">
-        <div class="col">
-          <div class="muted">Trigger a full sync (GAS → Worker KV). This runs the same <code>/admin/sync</code> your GAS menu calls.</div>
-        </div>
-        <div class="col right">
-          <button id="btnSync" class="btn primary">Sync now (session)</button>
-        </div>
-      </div>
-      <pre id="syncOut" class="pane">—</pre>
-    </section>
-    
-    <!-- Schedule + Classes -->
-    <section class="card" id="scheduleCard">
-      <h2>Bell schedule &amp; classes</h2>
-      <div class="row">
-        <div class="col">
-          <div class="muted">
-            Push today’s bell schedule and <code>Student_Period_Room_Map</code>
-            from GAS into the Worker (<code>/admin/bell_schedule</code> and
-            <code>/admin/student_classes</code>).
+      <!-- App -->
+      <div id="appInner">
+        <!-- Diagnostics -->
+        <section class="card" id="diagCard">
+          <h2>Diagnostics</h2>
+          <div class="row">
+            <div class="col">
+              <label>API base (from meta)</label>
+              <div id="apiBase" class="mono"></div>
+            </div>
+            <div class="col right">
+              <button id="btnPing" class="btn">Ping Worker</button>
+              <button id="btnDiag" class="btn ghost">Fetch /admin/diag (session)</button>
+            </div>
           </div>
-        </div>
-        <div class="col right">
-          <button id="btnPushSchedule" class="btn primary">
-            Push schedule + classes (session)
-          </button>
-        </div>
-      </div>
-      <pre id="scheduleOut" class="pane">—</pre>
-    </section>
+          <pre id="diagOut" class="pane">—</pre>
+        </section>
 
-    <!-- Class kiosk attendance -->
-    <section class="card" id="attendanceCard">
-      <h2>Class kiosk attendance</h2>
-      <div class="muted">
-        Configure how many minutes after the period start a student is marked as
-        <strong>Late</strong> when scanning into a class location. This uses
-        <code>/admin/attendance_cfg</code>.
-      </div>
+        <!-- Roster -->
+        <section class="card" id="rosterCard">
+          <h2>Roster</h2>
+          <div class="row">
+            <div class="col">
+              <div class="muted">
+                Trigger a full sync (GAS → Worker KV). This runs the same <code>/admin/sync</code>
+                your GAS menu calls.
+              </div>
+            </div>
+            <div class="col right">
+              <button id="btnSync" class="btn primary">Sync now (session)</button>
+            </div>
+          </div>
+          <pre id="syncOut" class="pane">—</pre>
+        </section>
 
-      <div class="row" style="align-items:center; gap:8px; margin-top:12px;">
-        <label for="attLateMinutes">Late after</label>
-        <input
-          id="attLateMinutes"
-          type="number"
-          min="1"
-          max="119"
-          placeholder="8"
-          style="width:120px"
-        />
-        <span>minutes</span>
+        <!-- Schedule + Classes -->
+        <section class="card" id="scheduleCard">
+          <h2>Bell schedule &amp; classes</h2>
+          <div class="row">
+            <div class="col">
+              <div class="muted">
+                Push today’s bell schedule and <code>Student_Period_Room_Map</code>
+                from GAS into the Worker (<code>/admin/bell_schedule</code> and
+                <code>/admin/student_classes</code>).
+              </div>
+            </div>
+            <div class="col right">
+              <button id="btnPushSchedule" class="btn primary">
+                Push schedule + classes (session)
+              </button>
+            </div>
+          </div>
+          <pre id="scheduleOut" class="pane">—</pre>
+        </section>
 
-        <button id="btnAttLoad" class="btn ghost">Load current</button>
-        <button id="btnAttSave" class="btn primary">Save</button>
-      </div>
+        <!-- Class kiosk attendance -->
+        <section class="card" id="attendanceCard">
+          <h2>Class kiosk attendance</h2>
+          <div class="muted">
+            Configure how many minutes after the period start a student is marked as
+            <strong>Late</strong> when scanning into a class location. This uses
+            <code>/admin/attendance_cfg</code>.
+          </div>
 
-      <pre id="attOut" class="pane">—</pre>
-    </section>
-    
-    <!-- Locations -->
-    <section class="card" id="locationsCard">
-      <h2>Locations</h2>
-      <div class="muted">
-        Edit locations, modes, and visibility. Classrooms from
-        <code>All_Rooms</code> are included as hidden <code>mode="class"</code>
-        locations by default.
-      </div>
-    
-      <div class="tableWrap" style="margin-top:8px;">
-        <table>
-          <thead>
-            <tr>
-              <th style="min-width:200px;">Name</th>
-              <th style="min-width:120px;">Type</th>
-              <th style="min-width:140px;">Mode</th>
-              <th style="width:80px;text-align:center;">Visible</th>
-              <th style="width:60px;text-align:center;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="locationsTbody">
-            <!-- rows injected by admin.js -->
-          </tbody>
-        </table>
-      </div>
-    
-      <div class="row" style="gap:8px;margin-top:8px;">
-        <button id="btnAddLocation" class="btn ghost">Add row</button>
-        <span id="locationsCountLabel" class="muted">—</span>
-      </div>
-    
-      <div class="row" style="gap:8px;margin-top:8px;">
-        <button id="btnLoadLocations" class="btn">Load from Worker</button>
-        <button id="btnPushLocations" class="btn primary">Push to Worker (session)</button>
-        <button id="btnResetLocations" class="btn ghost">Reset to last loaded</button>
-      </div>
-    
-      <pre id="locationsOut" class="pane">—</pre>
-    </section>
+          <div class="row" style="align-items:center; gap:8px; margin-top:12px;">
+            <label for="attLateMinutes">Late after</label>
+            <input
+              id="attLateMinutes"
+              type="number"
+              min="1"
+              max="119"
+              placeholder="8"
+              style="width:120px"
+            />
+            <span>minutes</span>
 
-    <!-- Bathroom capacity: quick set -->
-    <section class="card" id="bathCard">
-      <h2>Bathroom capacity</h2>
-      <div class="muted">
-        Quickly view and set caps for bathrooms (ALL / M / F) via <code>/admin/bath_cap</code>.
-        Use the selector to load a bathroom into the quick-set controls, or edit directly in the table below.
-      </div>
-    
-      <!-- Quick select + get/set -->
-      <div class="row" style="align-items:center; gap:8px; margin-top:12px;">
-        <select id="bathSelect" style="min-width:260px">
-          <option value="">(Loading bathrooms…)</option>
-        </select>
-    
-        <input id="bathCapAll" type="number" min="1" placeholder="ALL cap" style="width:120px" />
-        <button id="btnBathSetAll" class="btn">Set ALL</button>
-    
-        <input id="bathCapM" type="number" min="1" placeholder="M cap" style="width:120px" />
-        <button id="btnBathSetM" class="btn">Set M</button>
-    
-        <input id="bathCapF" type="number" min="1" placeholder="F cap" style="width:120px" />
-        <button id="btnBathSetF" class="btn">Set F</button>
-    
-        <button id="btnBathGetSelected" class="btn ghost">Load caps</button>
-        <button id="btnBathLoadTable" class="btn ghost">Reload table</button>
-      </div>
-    
-      <pre id="bathOut" class="pane">—</pre>
-    
-      <!-- Table -->
-      <div style="overflow:auto; margin-top:10px;">
-        <table style="width:100%; border-collapse:separate; border-spacing:0 6px;">
-          <thead>
-            <tr style="text-align:left; font-size:13px; color:#667;">
-              <th>Bathroom</th>
-              <th>ALL</th>
-              <th>M</th>
-              <th>F</th>
-              <th style="width:260px">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="bathTbody">
-            <!-- rows injected by JS -->
-          </tbody>
-        </table>
-      </div>
-    
-      <pre id="bathTableOut" class="pane">—</pre>
-    </section>
+            <button id="btnAttLoad" class="btn ghost">Load current</button>
+            <button id="btnAttSave" class="btn primary">Save</button>
+          </div>
 
-    <!-- Device binding -->
-    <section class="card" id="bindCard">
-      <h2>Device binding</h2>
-      <div class="muted">Bind/unbind devices to locations.</div>
-      <div class="row" style="gap:8px; align-items:center; margin-top:8px;">
-        <input id="bindDeviceId" placeholder="device id (UUID)" />
-        <input id="bindLocation" placeholder="location (exact)" />
-        <button id="btnBind" class="btn">Bind (session)</button>
-        <button id="btnUnbind" class="btn ghost">Unbind (session)</button>
-      </div>
-      <pre id="bindOut" class="pane">—</pre>
-    </section>
+          <pre id="attOut" class="pane">—</pre>
+        </section>
 
-    <footer style="margin-top:20px">
-      <small class="muted">This page uses Google Sign-In → session cookie with your Worker. No tokens in the browser UI.</small>
-    </footer>
+        <!-- Locations -->
+        <section class="card" id="locationsCard">
+          <h2>Locations</h2>
+          <div class="muted">
+            Edit locations, modes, and visibility. Classrooms from
+            <code>All_Rooms</code> are included as hidden <code>mode="class"</code>
+            locations by default.
+          </div>
+
+          <div class="tableWrap" style="margin-top:8px;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width:200px;">Name</th>
+                  <th style="min-width:120px;">Type</th>
+                  <th style="min-width:140px;">Mode</th>
+                  <th style="width:80px;text-align:center;">Visible</th>
+                  <th style="width:60px;text-align:center;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="locationsTbody">
+                <!-- rows injected by admin.js -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="row" style="gap:8px;margin-top:8px;">
+            <button id="btnAddLocation" class="btn ghost">Add row</button>
+            <span id="locationsCountLabel" class="muted">—</span>
+          </div>
+
+          <div class="row" style="gap:8px;margin-top:8px;">
+            <button id="btnLoadLocations" class="btn">Load from Worker</button>
+            <button id="btnPushLocations" class="btn primary">Push to Worker (session)</button>
+            <button id="btnResetLocations" class="btn ghost">Reset to last loaded</button>
+          </div>
+
+          <pre id="locationsOut" class="pane">—</pre>
+        </section>
+
+        <!-- Bathroom capacity: quick set -->
+        <section class="card" id="bathCard">
+          <h2>Bathroom capacity</h2>
+          <div class="muted">
+            Quickly view and set caps for bathrooms (ALL / M / F) via <code>/admin/bath_cap</code>.
+            Use the selector to load a bathroom into the quick-set controls, or edit directly in the table below.
+          </div>
+
+          <div class="row" style="align-items:center; gap:8px; margin-top:12px;">
+            <select id="bathSelect" style="min-width:260px">
+              <option value="">(Loading bathrooms…)</option>
+            </select>
+
+            <input id="bathCapAll" type="number" min="1" placeholder="ALL cap" style="width:120px" />
+            <button id="btnBathSetAll" class="btn">Set ALL</button>
+
+            <input id="bathCapM" type="number" min="1" placeholder="M cap" style="width:120px" />
+            <button id="btnBathSetM" class="btn">Set M</button>
+
+            <input id="bathCapF" type="number" min="1" placeholder="F cap" style="width:120px" />
+            <button id="btnBathSetF" class="btn">Set F</button>
+
+            <button id="btnBathGetSelected" class="btn ghost">Load caps</button>
+            <button id="btnBathLoadTable" class="btn ghost">Reload table</button>
+          </div>
+
+          <pre id="bathOut" class="pane">—</pre>
+
+          <div style="overflow:auto; margin-top:10px;">
+            <table style="width:100%; border-collapse:separate; border-spacing:0 6px;">
+              <thead>
+                <tr style="text-align:left; font-size:13px; color:#667;">
+                  <th>Bathroom</th>
+                  <th>ALL</th>
+                  <th>M</th>
+                  <th>F</th>
+                  <th style="width:260px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="bathTbody">
+                <!-- rows injected by JS -->
+              </tbody>
+            </table>
+          </div>
+
+          <pre id="bathTableOut" class="pane">—</pre>
+        </section>
+
+        <!-- Device binding -->
+        <section class="card" id="bindCard">
+          <h2>Device binding</h2>
+          <div class="muted">Bind/unbind devices to locations.</div>
+          <div class="row" style="gap:8px; align-items:center; margin-top:8px;">
+            <input id="bindDeviceId" placeholder="device id (UUID)" />
+            <input id="bindLocation" placeholder="location (exact)" />
+            <button id="btnBind" class="btn">Bind (session)</button>
+            <button id="btnUnbind" class="btn ghost">Unbind (session)</button>
+          </div>
+          <pre id="bindOut" class="pane">—</pre>
+        </section>
+
+        <footer style="margin-top:20px">
+          <small class="muted">
+            This page uses Google Sign-In → session cookie with your Worker. No tokens in the browser UI.
+          </small>
+        </footer>
+      </div>
     </div>
   </main>
 

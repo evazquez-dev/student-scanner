@@ -1,6 +1,11 @@
 // admin/admin.js — Admin UI with bathroom cap helpers (ALL / M / F)
 
-const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/,'') + '/';
+/* ===============================
+ * BASE + ELEMENTS
+ * =============================== */
+const API_BASE =
+  (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/, '') + '/';
+
 document.getElementById('apiBase')?.textContent = API_BASE;
 
 // Cards / outputs
@@ -29,19 +34,34 @@ const capAllInp  = document.getElementById('bathCapAll');
 const capMInp    = document.getElementById('bathCapM');
 const capFInp    = document.getElementById('bathCapF');
 const bathTbody  = document.getElementById('bathTbody');
+
+// Attendance controls
 const attOut     = document.getElementById('attOut');
 const attLateInp = document.getElementById('attLateMinutes');
 
+// Shell / inner
 const appShell = document.getElementById('appShell');
+const appInner = document.getElementById('appInner');
 
-function showBlock(el){ el && (el.style.display = 'block'); }
-function showFlex(el){ el && (el.style.display = 'flex'); } // if you ever need it
+/* ===============================
+ * SMALL HELPERS
+ * =============================== */
+function showBlock(el){ if (el) el.style.display = 'block'; }
+function show(el){ if (el) el.style.display = ''; }
+function hide(el){ if (el) el.style.display = 'none'; }
 
-function show(el){ el && (el.style.display = ''); }
-function hide(el){ el && (el.style.display = 'none'); }
-function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
-function isBathroom(name){ return String(name||'').toLowerCase().startsWith('bathroom ('); }
+function esc(s){
+  return String(s).replace(/[&<>"']/g, m=>(
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]
+  ));
+}
+function isBathroom(name){
+  return String(name||'').toLowerCase().startsWith('bathroom (');
+}
 
+/* ===============================
+ * SESSION + LOGIN FLOW
+ * =============================== */
 async function checkSession() {
   try {
     const r = await fetch(new URL('/admin/session/check', API_BASE), {
@@ -55,10 +75,21 @@ async function checkSession() {
   }
 }
 
-async function afterLoginBoot() {
-  // hide login, show the app
+function showLogin(msg) {
+  showBlock(appShell);   // shell always visible
+  hide(appInner);
+  showBlock(loginCard);
+  if (loginOut && msg != null) loginOut.textContent = msg;
+}
+
+function showApp() {
+  showBlock(appShell);
   hide(loginCard);
-  if (appShell) appShell.style.display = 'block';
+  showBlock(appInner);
+}
+
+async function afterLoginBoot() {
+  showApp();
 
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
@@ -66,7 +97,6 @@ async function afterLoginBoot() {
   await hydrateBathrooms();
   await loadAttendanceCfg();
 }
-
 
 // --- Google Sign-In init ---
 async function waitForGoogle(timeoutMs = 8000) {
@@ -79,23 +109,23 @@ async function waitForGoogle(timeoutMs = 8000) {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
-  // Always start hidden
+  // Shell always present; decide whether to show login or app
+  showBlock(appShell);
   hide(loginCard);
-  hide(appShell);
+  hide(appInner);
 
-  // ✅ If session already valid, skip login UI entirely
+  // ✅ Session first
   const ok = await checkSession();
   if (ok) {
     await afterLoginBoot();
     return;
   }
 
-  // ❌ Not logged in: init Google button + show login card
+  // ❌ Not logged in → init GSI
   try {
     const clientId = document.querySelector('meta[name="google-client-id"]')?.content || '';
     if (!clientId) {
-      showBlock(loginCard);
-      loginOut.textContent = 'Missing google-client-id meta.';
+      showLogin('Missing google-client-id meta.');
       return;
     }
 
@@ -108,17 +138,15 @@ window.addEventListener('DOMContentLoaded', async () => {
     });
     gsi.renderButton(document.getElementById('g_id_signin'), { theme: 'outline', size: 'large' });
 
-    showBlock(loginCard);
-    loginOut.textContent = 'Please sign in…';
+    showLogin('Please sign in…');
   } catch (e) {
-    showBlock(loginCard);
-    loginOut.textContent = `Google init failed: ${e.message || e}`;
+    showLogin(`Google init failed: ${e.message || e}`);
   }
 });
 
 async function onGoogleCredential(resp) {
   try {
-    loginOut.textContent = 'Signing in...';
+    if (loginOut) loginOut.textContent = 'Signing in...';
 
     const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
       method: 'POST',
@@ -130,18 +158,9 @@ async function onGoogleCredential(resp) {
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
-    // ✅ hide login, show app
-    hide(loginCard);
-    if (appShell) appShell.style.display = 'block';
-
-    // Auto-run diag, load locations, and hydrate bathroom UI
-    document.getElementById('btnDiag')?.click();
-    await loadLocationsToEditor();
-    await hydrateBathrooms();
-    await loadAttendanceCfg();
-
+    await afterLoginBoot();
   } catch (e) {
-    loginOut.textContent = `Login failed: ${e.message || e}`;
+    showLogin(`Login failed: ${e.message || e}`);
   }
 }
 
@@ -154,61 +173,62 @@ async function adminFetch(pathOrUrl, init = {}) {
 /* ===============================
  * DIAGNOSTICS
  * =============================== */
-document.getElementById('btnPing').addEventListener('click', async () => {
-  diagOut.textContent = 'Pinging...';
+document.getElementById('btnPing')?.addEventListener('click', async () => {
+  if (diagOut) diagOut.textContent = 'Pinging...';
   try {
     const r = await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
     const text = await r.text();
-    diagOut.textContent = `HTTP ${r.status}\n\n${text}`;
+    if (diagOut) diagOut.textContent = `HTTP ${r.status}\n\n${text}`;
   } catch (e) {
-    diagOut.textContent = `Error: ${e.message || e}`;
+    if (diagOut) diagOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
-document.getElementById('btnDiag').addEventListener('click', async () => {
-  diagOut.textContent = 'Loading /admin/diag...';
+document.getElementById('btnDiag')?.addEventListener('click', async () => {
+  if (diagOut) diagOut.textContent = 'Loading /admin/diag...';
   try {
     const r = await adminFetch('/admin/diag', { method: 'GET' });
-    diagOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+    if (diagOut) diagOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
   } catch (e) {
-    diagOut.textContent = `Error: ${e.message || e}`;
+    if (diagOut) diagOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
 /* ===============================
  * ROSTER SYNC
  * =============================== */
-document.getElementById('btnSync').addEventListener('click', async () => {
-  syncOut.textContent = 'Syncing...';
+document.getElementById('btnSync')?.addEventListener('click', async () => {
+  if (syncOut) syncOut.textContent = 'Syncing...';
   try {
     const r = await adminFetch('/admin/sync', { method: 'POST' });
-    syncOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+    if (syncOut) syncOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
   } catch (e) {
-    syncOut.textContent = `Error: ${e.message || e}`;
+    if (syncOut) syncOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
 /* ===============================
  * SCHEDULE + CLASSES PUSH
  * =============================== */
-document.getElementById('btnPushSchedule').addEventListener('click', async () => {
-  scheduleOut.textContent = 'Pushing bell schedule + classes…';
+document.getElementById('btnPushSchedule')?.addEventListener('click', async () => {
+  if (scheduleOut) scheduleOut.textContent = 'Pushing bell schedule + classes…';
   try {
     const r = await adminFetch('/admin/push_schedule', { method: 'POST' });
     const text = await r.text();
-    scheduleOut.textContent = `HTTP ${r.status}\n\n${text}`;
+    if (scheduleOut) scheduleOut.textContent = `HTTP ${r.status}\n\n${text}`;
   } catch (e) {
-    scheduleOut.textContent = `Error: ${e.message || e}`;
+    if (scheduleOut) scheduleOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
 /* ===============================
  * LOCATIONS
  * =============================== */
-
 // Render table rows from a list of location objects:
 // { name, type, mode, visible }
 function renderLocationsTable(rows) {
+  if (!locationsTbody) return;
+
   locationsTbody.innerHTML = '';
   (rows || []).forEach((rec, idx) => {
     const tr = document.createElement('tr');
@@ -233,16 +253,21 @@ function renderLocationsTable(rows) {
     locationsTbody.appendChild(tr);
   });
 
-  locationsCountLabel.textContent =
-    rows && rows.length ? `${rows.length} locations (including hidden/class)` : 'No locations loaded yet.';
+  if (locationsCountLabel) {
+    locationsCountLabel.textContent =
+      rows && rows.length ? `${rows.length} locations (including hidden/class)` : 'No locations loaded yet.';
+  }
 }
 
 // Collect current table state into objects we can POST
 function gatherLocationsFromUI() {
   const out = [];
+  if (!locationsTbody) return out;
+
   locationsTbody.querySelectorAll('tr').forEach(tr => {
     const nameInput = tr.querySelector('.loc-name');
     if (!nameInput) return;
+
     const name = nameInput.value.trim();
     if (!name) return;
 
@@ -262,86 +287,79 @@ function gatherLocationsFromUI() {
 
 // Load locations (including hidden/class) from Worker
 async function loadLocationsToEditor() {
-  locationsOut.textContent = 'Loading locations...';
+  if (locationsOut) locationsOut.textContent = 'Loading locations...';
   try {
     // Public action is fine (origin-restricted by Worker)
     const r = await fetch(API_BASE, {
       method: 'POST',
       body: new URLSearchParams({ action: 'locations' }),
     });
+
     const ct = r.headers.get('content-type') || '';
     if (!ct.includes('application/json')) {
-      locationsOut.textContent = `Non-JSON:\n${await r.text()}`;
+      if (locationsOut) locationsOut.textContent = `Non-JSON:\n${await r.text()}`;
       return [];
     }
+
     const data = await r.json();
     const visibleNames = Array.isArray(data.locations) ? data.locations : [];
     const meta = Array.isArray(data.meta) ? data.meta : [];
 
-    // Prefer full meta from Worker (includes name/type/mode/visible).
-    // Fallback: build simple objects from visible list if meta is missing.
     const recs = meta.length
       ? meta
       : visibleNames.map(name => ({ name, type: '', mode: '', visible: true }));
 
     lastLoadedLocations = recs;
     renderLocationsTable(recs);
-    locationsOut.textContent = `Loaded ${recs.length} locations (meta + visibility).`;
-
+    if (locationsOut) locationsOut.textContent = `Loaded ${recs.length} locations (meta + visibility).`;
     return recs;
   } catch (e) {
-    locationsOut.textContent = `Error: ${e.message || e}`;
+    if (locationsOut) locationsOut.textContent = `Error: ${e.message || e}`;
     return [];
   }
 }
 
-// Load button
-document.getElementById('btnLoadLocations').addEventListener('click', loadLocationsToEditor);
+document.getElementById('btnLoadLocations')?.addEventListener('click', loadLocationsToEditor);
 
-// Push button
-document.getElementById('btnPushLocations').addEventListener('click', async () => {
+document.getElementById('btnPushLocations')?.addEventListener('click', async () => {
   try {
-    locationsOut.textContent = 'Pushing...';
+    if (locationsOut) locationsOut.textContent = 'Pushing...';
 
-    const arr = gatherLocationsFromUI();  // full objects
+    const arr = gatherLocationsFromUI();
     const r = await adminFetch('/admin/push_locations', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ locations: arr })
     });
 
-    locationsOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+    if (locationsOut) locationsOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
     lastLoadedLocations = arr.slice();
 
-    // Rehydrate bathrooms after location push
     await hydrateBathrooms();
   } catch (e) {
-    locationsOut.textContent = `Error: ${e.message || e}`;
+    if (locationsOut) locationsOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
-// Reset to last loaded
-document.getElementById('btnResetLocations').addEventListener('click', () => {
+document.getElementById('btnResetLocations')?.addEventListener('click', () => {
   if (!lastLoadedLocations.length) {
-    locationsOut.textContent = 'Nothing to reset — load locations first.';
+    if (locationsOut) locationsOut.textContent = 'Nothing to reset — load locations first.';
     return;
   }
   if (confirm('Reset to last loaded locations from Worker?')) {
     renderLocationsTable(lastLoadedLocations);
-    locationsOut.textContent = 'Editor reset to last loaded locations.';
+    if (locationsOut) locationsOut.textContent = 'Editor reset to last loaded locations.';
   }
 });
 
-// Add row (blank)
-document.getElementById('btnAddLocation').addEventListener('click', () => {
+document.getElementById('btnAddLocation')?.addEventListener('click', () => {
   const rows = gatherLocationsFromUI();
   rows.push({ name: '', type: '', mode: '', visible: true });
   lastLoadedLocations = rows.slice();
   renderLocationsTable(rows);
 });
 
-// Delete row (event delegation)
-locationsTbody.addEventListener('click', (ev) => {
+locationsTbody?.addEventListener('click', (ev) => {
   const btn = ev.target.closest('.btnLocDelete');
   if (!btn) return;
   const tr = btn.closest('tr');
@@ -349,9 +367,8 @@ locationsTbody.addEventListener('click', (ev) => {
 
   const rows = gatherLocationsFromUI();
   const idx = Array.prototype.indexOf.call(locationsTbody.children, tr);
-  if (idx >= 0 && idx < rows.length) {
-    rows.splice(idx, 1);
-  }
+  if (idx >= 0 && idx < rows.length) rows.splice(idx, 1);
+
   lastLoadedLocations = rows.slice();
   renderLocationsTable(rows);
 });
@@ -360,60 +377,69 @@ locationsTbody.addEventListener('click', (ev) => {
  * BATHROOM CAPS (helpers)
  * =============================== */
 async function getCap(location, gender /* 'M'|'F'|undefined */, useSession = true) {
-  // Reading can be done via public path (origin restricted), but session is fine too.
   const body = new URLSearchParams({ location });
   if (gender) body.set('gender', gender);
+
   const fetcher = useSession ? adminFetch : fetch;
   const r = await fetcher('/admin/bath_cap', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body: body.toString()
   });
+
   const ct = r.headers.get('content-type') || '';
-  if (!ct.includes('application/json')) return { ok:false, error:'non_json', status:r.status, text:await r.text() };
-  const data = await r.json().catch(()=> ({}));
-  return data;
+  if (!ct.includes('application/json')) {
+    return { ok:false, error:'non_json', status:r.status, text:await r.text() };
+  }
+  return await r.json().catch(() => ({}));
 }
+
 async function setCap(location, cap, gender /* optional */) {
   const body = new URLSearchParams({ location, cap: String(cap) });
   if (gender) body.set('gender', gender);
+
   const r = await adminFetch('/admin/bath_cap', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body: body.toString()
   });
+
   const ct = r.headers.get('content-type') || '';
   const text = await r.text();
   return { ok: r.ok && ct.includes('application/json'), status: r.status, text };
 }
 
+/* ===============================
+ * ATTENDANCE CFG
+ * =============================== */
 async function getAttendanceCfg() {
   const r = await adminFetch('/admin/attendance_cfg', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body: new URLSearchParams().toString()
   });
+
   const ct = r.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
     return { ok:false, error:'non_json', status:r.status, text: await r.text() };
   }
-  const data = await r.json().catch(() => ({}));
-  return data;
+  return await r.json().catch(() => ({}));
 }
 
 async function setAttendanceLateMin(minutes) {
   const body = new URLSearchParams({ late_min: String(minutes) });
+
   const r = await adminFetch('/admin/attendance_cfg', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
     body: body.toString()
   });
+
   const ct = r.headers.get('content-type') || '';
   if (!ct.includes('application/json')) {
     return { ok:false, error:'non_json', status:r.status, text: await r.text() };
   }
-  const data = await r.json().catch(() => ({}));
-  return data;
+  return await r.json().catch(() => ({}));
 }
 
 async function loadAttendanceCfg() {
@@ -429,41 +455,56 @@ async function loadAttendanceCfg() {
   }
 }
 
+document.getElementById('btnAttLoad')?.addEventListener('click', loadAttendanceCfg);
+
+document.getElementById('btnAttSave')?.addEventListener('click', async () => {
+  if (!attOut || !attLateInp) return;
+
+  const raw = attLateInp.value.trim();
+  const n = Number(raw);
+
+  if (!Number.isFinite(n) || n <= 0 || n >= 120) {
+    attOut.textContent = 'Enter a number between 1 and 119.';
+    return;
+  }
+
+  attOut.textContent = 'Saving…';
+  try {
+    const cfg = await setAttendanceLateMin(n);
+    if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
+    attOut.textContent = `Saved. Late after ${cfg.late_min} minute(s).`;
+  } catch (e) {
+    attOut.textContent = `Error: ${e.message || e}`;
+  }
+});
+
 /* ===============================
  * BATHROOM UI — hydrate, quick set, table
  * =============================== */
 async function hydrateBathrooms() {
-  // Get full state to list locations (requires session)
   try {
     const r = await adminFetch('/admin/state', { method: 'GET' });
     const ct = r.headers.get('content-type') || '';
     if (!r.ok || !ct.includes('application/json')) {
-      // Fallback to public locations endpoint
       await hydrateFromPublicLocations();
       return;
     }
-    const data = await r.json();
 
+    const data = await r.json().catch(() => ({}));
     const rawList = Array.isArray(data?.locations?.list) ? data.locations.list : [];
 
-    // Normalize to plain names
     const names = rawList
-      .map(loc =>
-        (loc && typeof loc === 'object')
-          ? String(loc.name || '').trim()
-          : String(loc || '').trim()
-      )
+      .map(loc => (loc && typeof loc === 'object') ? String(loc.name || '').trim() : String(loc || '').trim())
       .filter(Boolean);
 
-    const bathrooms = names
-      .filter(isBathroom)
-      .sort((a, b) => a.localeCompare(b));
+    const bathrooms = names.filter(isBathroom).sort((a,b)=>a.localeCompare(b));
 
-    // Populate select
-    bathSelect.innerHTML = '<option value="">Select bathroom…</option>' +
-      bathrooms.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    if (bathSelect) {
+      bathSelect.innerHTML =
+        '<option value="">Select bathroom…</option>' +
+        bathrooms.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+    }
 
-    // Build table
     await loadBathTable(bathrooms);
   } catch {
     await hydrateFromPublicLocations();
@@ -471,51 +512,44 @@ async function hydrateBathrooms() {
 }
 
 async function hydrateFromPublicLocations() {
-  // Public fallback if /admin/state not available
-  const locs = await loadLocationsToEditor(); // meta objects
+  const locs = await loadLocationsToEditor();
 
   const names = (locs || [])
     .map(rec => String(rec?.name || '').trim())
     .filter(Boolean);
 
-  const bathrooms = names
-    .filter(isBathroom)
-    .sort((a, b) => a.localeCompare(b));
+  const bathrooms = names.filter(isBathroom).sort((a,b)=>a.localeCompare(b));
 
-  bathSelect.innerHTML = '<option value="">Select bathroom…</option>' +
-    bathrooms.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  if (bathSelect) {
+    bathSelect.innerHTML =
+      '<option value="">Select bathroom…</option>' +
+      bathrooms.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  }
 
   await loadBathTable(bathrooms);
 }
 
 async function loadBathTable(bathrooms /* optional */) {
-  bathTableOut.textContent = 'Loading caps…';
+  if (bathTableOut) bathTableOut.textContent = 'Loading caps…';
+
   try {
     if (!bathrooms) {
-      // try refresh via state to get current location list
       const r = await adminFetch('/admin/state', { method: 'GET' });
       const data = await r.json().catch(()=> ({}));
       const rawList = Array.isArray(data?.locations?.list) ? data.locations.list : [];
 
       const names = rawList
-        .map(loc =>
-          (loc && typeof loc === 'object')
-            ? String(loc.name || '').trim()
-            : String(loc || '').trim()
-        )
+        .map(loc => (loc && typeof loc === 'object') ? String(loc.name || '').trim() : String(loc || '').trim())
         .filter(Boolean);
 
-      bathrooms = names
-        .filter(isBathroom)
-        .sort((a, b) => a.localeCompare(b));
+      bathrooms = names.filter(isBathroom).sort((a,b)=>a.localeCompare(b));
     }
 
-    bathTbody.innerHTML = '';
-    for (const loc of bathrooms) {
-      // Read ALL, M, F (M/F may fall back to ALL if not set on server)
-      const [all, m, f] = await Promise.all([
-        getCap(loc), getCap(loc, 'M'), getCap(loc, 'F')
-      ]);
+    if (bathTbody) bathTbody.innerHTML = '';
+
+    for (const loc of (bathrooms || [])) {
+      const [all, m, f] = await Promise.all([ getCap(loc), getCap(loc,'M'), getCap(loc,'F') ]);
+
       const tr = document.createElement('tr');
       tr.dataset.loc = loc;
 
@@ -535,12 +569,14 @@ async function loadBathTable(bathrooms /* optional */) {
           <button class="btn ghost btnRowRefresh">↻</button>
         </td>
       `;
-      bathTbody.appendChild(tr);
+
+      bathTbody?.appendChild(tr);
       wireBathRow(tr);
     }
-    bathTableOut.textContent = `Loaded ${bathTbody.children.length} bathrooms.`;
+
+    if (bathTableOut) bathTableOut.textContent = `Loaded ${bathTbody?.children?.length || 0} bathrooms.`;
   } catch (e) {
-    bathTableOut.textContent = `Error: ${e.message || e}`;
+    if (bathTableOut) bathTableOut.textContent = `Error: ${e.message || e}`;
   }
 }
 
@@ -551,25 +587,28 @@ function wireBathRow(tr) {
   const fInp   = tr.querySelector('.cap-f');
 
   tr.querySelector('.btnRowSaveAll')?.addEventListener('click', async () => {
-    if (!allInp.value) return alert('Enter ALL cap');
+    if (!allInp?.value) return alert('Enter ALL cap');
     const res = await setCap(loc, Number(allInp.value));
     toastRowResult(tr, res);
   });
+
   tr.querySelector('.btnRowSaveM')?.addEventListener('click', async () => {
-    if (!mInp.value) return alert('Enter M cap');
+    if (!mInp?.value) return alert('Enter M cap');
     const res = await setCap(loc, Number(mInp.value), 'M');
     toastRowResult(tr, res);
   });
+
   tr.querySelector('.btnRowSaveF')?.addEventListener('click', async () => {
-    if (!fInp.value) return alert('Enter F cap');
+    if (!fInp?.value) return alert('Enter F cap');
     const res = await setCap(loc, Number(fInp.value), 'F');
     toastRowResult(tr, res);
   });
+
   tr.querySelector('.btnRowRefresh')?.addEventListener('click', async () => {
     const [all, m, f] = await Promise.all([ getCap(loc), getCap(loc,'M'), getCap(loc,'F') ]);
-    allInp.value = Number(all?.cap) || '';
-    mInp.value   = Number(m?.cap)   || '';
-    fInp.value   = Number(f?.cap)   || '';
+    if (allInp) allInp.value = Number(all?.cap) || '';
+    if (mInp)   mInp.value   = Number(m?.cap)   || '';
+    if (fInp)   fInp.value   = Number(f?.cap)   || '';
   });
 }
 
@@ -582,114 +621,110 @@ function toastRowResult(tr, res) {
     tr.classList.add('row-bad');
     setTimeout(()=> tr.classList.remove('row-bad'), 1200);
   }
-  bathTableOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+  if (bathTableOut) bathTableOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
 }
 
 /* Quick-set buttons */
-document.getElementById('btnBathGetSelected').addEventListener('click', async () => {
+document.getElementById('btnBathGetSelected')?.addEventListener('click', async () => {
   try {
-    const loc = bathSelect.value.trim();
+    const loc = bathSelect?.value?.trim() || '';
     if (!loc) throw new Error('Select a bathroom first');
-    bathOut.textContent = 'Fetching caps...';
+    if (bathOut) bathOut.textContent = 'Fetching caps...';
+
     const [all, m, f] = await Promise.all([ getCap(loc), getCap(loc,'M'), getCap(loc,'F') ]);
-    capAllInp.value = Number(all?.cap) || '';
-    capMInp.value   = Number(m?.cap)   || '';
-    capFInp.value   = Number(f?.cap)   || '';
-    bathOut.textContent = `Loaded caps for "${loc}".`;
+
+    if (capAllInp) capAllInp.value = Number(all?.cap) || '';
+    if (capMInp)   capMInp.value   = Number(m?.cap)   || '';
+    if (capFInp)   capFInp.value   = Number(f?.cap)   || '';
+
+    if (bathOut) bathOut.textContent = `Loaded caps for "${loc}".`;
   } catch (e) {
-    bathOut.textContent = `Error: ${e.message || e}`;
+    if (bathOut) bathOut.textContent = `Error: ${e.message || e}`;
   }
 });
 
-document.getElementById('btnAttLoad')?.addEventListener('click', async () => {
-  await loadAttendanceCfg();
-});
+document.getElementById('btnBathSetAll')?.addEventListener('click', async () => {
+  const loc = bathSelect?.value?.trim() || '';
+  const cap = capAllInp?.value?.trim() || '';
+  if (!loc || !cap) return (bathOut && (bathOut.textContent = 'Select bathroom and enter ALL cap.'));
+  if (bathOut) bathOut.textContent = 'Setting ALL...';
 
-document.getElementById('btnAttSave')?.addEventListener('click', async () => {
-  if (!attOut || !attLateInp) return;
-  const raw = attLateInp.value.trim();
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0 || n >= 120) {
-    attOut.textContent = 'Enter a number between 1 and 119.';
-    return;
-  }
-  attOut.textContent = 'Saving…';
-  try {
-    const cfg = await setAttendanceLateMin(n);
-    if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
-    attOut.textContent = `Saved. Late after ${cfg.late_min} minute(s).`;
-  } catch (e) {
-    attOut.textContent = `Error: ${e.message || e}`;
-  }
-});
-
-document.getElementById('btnBathSetAll').addEventListener('click', async () => {
-  const loc = bathSelect.value.trim();
-  const cap = capAllInp.value.trim();
-  if (!loc || !cap) return (bathOut.textContent = 'Select bathroom and enter ALL cap.');
-  bathOut.textContent = 'Setting ALL...';
   const res = await setCap(loc, Number(cap));
-  bathOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
-  // update table row if present
-  const row = [...bathTbody.children].find(tr => tr.dataset.loc === loc);
-  if (row) row.querySelector('.cap-all').value = Number(cap);
+  if (bathOut) bathOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+
+  const row = [...(bathTbody?.children || [])].find(tr => tr.dataset.loc === loc);
+  row?.querySelector('.cap-all') && (row.querySelector('.cap-all').value = Number(cap));
 });
 
-document.getElementById('btnBathSetM').addEventListener('click', async () => {
-  const loc = bathSelect.value.trim();
-  const cap = capMInp.value.trim();
-  if (!loc || !cap) return (bathOut.textContent = 'Select bathroom and enter M cap.');
-  bathOut.textContent = 'Setting M...';
+document.getElementById('btnBathSetM')?.addEventListener('click', async () => {
+  const loc = bathSelect?.value?.trim() || '';
+  const cap = capMInp?.value?.trim() || '';
+  if (!loc || !cap) return (bathOut && (bathOut.textContent = 'Select bathroom and enter M cap.'));
+  if (bathOut) bathOut.textContent = 'Setting M...';
+
   const res = await setCap(loc, Number(cap), 'M');
-  bathOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
-  const row = [...bathTbody.children].find(tr => tr.dataset.loc === loc);
-  if (row) row.querySelector('.cap-m').value = Number(cap);
+  if (bathOut) bathOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+
+  const row = [...(bathTbody?.children || [])].find(tr => tr.dataset.loc === loc);
+  row?.querySelector('.cap-m') && (row.querySelector('.cap-m').value = Number(cap));
 });
 
-document.getElementById('btnBathSetF').addEventListener('click', async () => {
-  const loc = bathSelect.value.trim();
-  const cap = capFInp.value.trim();
-  if (!loc || !cap) return (bathOut.textContent = 'Select bathroom and enter F cap.');
-  bathOut.textContent = 'Setting F...';
+document.getElementById('btnBathSetF')?.addEventListener('click', async () => {
+  const loc = bathSelect?.value?.trim() || '';
+  const cap = capFInp?.value?.trim() || '';
+  if (!loc || !cap) return (bathOut && (bathOut.textContent = 'Select bathroom and enter F cap.'));
+  if (bathOut) bathOut.textContent = 'Setting F...';
+
   const res = await setCap(loc, Number(cap), 'F');
-  bathOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
-  const row = [...bathTbody.children].find(tr => tr.dataset.loc === loc);
-  if (row) row.querySelector('.cap-f').value = Number(cap);
+  if (bathOut) bathOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+
+  const row = [...(bathTbody?.children || [])].find(tr => tr.dataset.loc === loc);
+  row?.querySelector('.cap-f') && (row.querySelector('.cap-f').value = Number(cap));
 });
 
-document.getElementById('btnBathLoadTable').addEventListener('click', async () => {
-  bathTableOut.textContent = 'Reloading locations…';
+document.getElementById('btnBathLoadTable')?.addEventListener('click', async () => {
+  if (bathTableOut) bathTableOut.textContent = 'Reloading locations…';
   await hydrateBathrooms();
 });
 
 /* ===============================
  * DEVICE BIND / UNBIND
  * =============================== */
-document.getElementById('btnBind').addEventListener('click', async () => {
+document.getElementById('btnBind')?.addEventListener('click', async () => {
   try {
-    const dev = document.getElementById('bindDeviceId').value.trim();
-    const loc = document.getElementById('bindLocation').value.trim();
+    const dev = document.getElementById('bindDeviceId')?.value?.trim() || '';
+    const loc = document.getElementById('bindLocation')?.value?.trim() || '';
     if (!dev || !loc) throw new Error('device + location required');
-    bindOut.textContent = 'Binding...';
+
+    if (bindOut) bindOut.textContent = 'Binding...';
+
     const r = await adminFetch('/admin/bind', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
       body: new URLSearchParams({ device_id: dev, location: loc }).toString()
     });
-    bindOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
-  } catch (e) { bindOut.textContent = `Error: ${e.message || e}`; }
+
+    if (bindOut) bindOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+  } catch (e) {
+    if (bindOut) bindOut.textContent = `Error: ${e.message || e}`;
+  }
 });
 
-document.getElementById('btnUnbind').addEventListener('click', async () => {
+document.getElementById('btnUnbind')?.addEventListener('click', async () => {
   try {
-    const dev = document.getElementById('bindDeviceId').value.trim();
+    const dev = document.getElementById('bindDeviceId')?.value?.trim() || '';
     if (!dev) throw new Error('device required');
-    bindOut.textContent = 'Unbinding...';
+
+    if (bindOut) bindOut.textContent = 'Unbinding...';
+
     const r = await adminFetch('/admin/unbind', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
       body: new URLSearchParams({ device_id: dev }).toString()
     });
-    bindOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
-  } catch (e) { bindOut.textContent = `Error: ${e.message || e}`; }
+
+    if (bindOut) bindOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
+  } catch (e) {
+    if (bindOut) bindOut.textContent = `Error: ${e.message || e}`;
+  }
 });

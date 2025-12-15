@@ -23,7 +23,9 @@
 }
 
 /* main app hidden until session check says OK (JS will show it) */
-#appShell{ display:none; }
+#appShell{ display:block; }
+
+#appInner{ display:none; }
 
 html,body{
   height:100%;
