@@ -1,7 +1,7 @@
 // admin/admin.js — Admin UI with bathroom cap helpers (ALL / M / F)
 
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/,'') + '/';
-document.getElementById('apiBase').textContent = API_BASE;
+document.getElementById('apiBase')?.textContent = API_BASE;
 
 // Cards / outputs
 const loginCard = document.getElementById('loginCard');
@@ -56,20 +56,11 @@ async function checkSession() {
 }
 
 async function afterLoginBoot() {
-  // show app + run the same “post-login” actions you already do
+  // hide login, show the app
   hide(loginCard);
-  appShell && (
-    async function afterLoginBoot() {
-      hide(loginCard);
-      if (appShell) appShell.style.display = 'block';
+  if (appShell) appShell.style.display = 'block';
 
-      document.getElementById('btnDiag')?.click();
-      await loadLocationsToEditor();
-      await hydrateBathrooms();
-      await loadAttendanceCfg();
-    }
-  );
-
+  // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
   await loadLocationsToEditor();
   await hydrateBathrooms();
