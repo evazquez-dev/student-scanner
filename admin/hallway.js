@@ -83,23 +83,20 @@ async function waitForGoogle(timeoutMs = 8000) {
 window.addEventListener('DOMContentLoaded', async () => {
   dbg('DOMContentLoaded fired.');
 
-  // 1️⃣ Try cookie-based session bootstrap FIRST
-  try {
-    const booted = await tryBootstrapSession();
-    if (booted) {
-      dbg('Session bootstrap succeeded; skipping Google login');
-      return;
-    }
-  } catch (e) {
-    dbg('Session bootstrap check failed:', e && (e.message || e));
-    // fall through to Google login
+  // 1) ✅ Try cookie session bootstrap FIRST (same idea as teacher_attendance)
+  // If session is valid, this will show appShell + startPolling and we should stop here.
+  const booted = await tryBootstrapSession();
+  if (booted) {
+    dbg('Session bootstrap OK; skipping Google login UI.');
+    return;
   }
 
-  // 2️⃣ No session → fall back to Google Sign-In
+  // 2) ❌ No valid session → fall back to Google sign-in button
   try {
     if (!GOOGLE_CLIENT_ID) {
       dbg('No GOOGLE_CLIENT_ID meta found');
       show(loginCard);
+      hide(appShell);
       loginOut.textContent = 'Missing google-client-id meta.';
       return;
     }
@@ -123,9 +120,12 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     dbg('GSI button rendered, showing loginCard');
     show(loginCard);
+    hide(appShell);
+    loginOut.textContent = '—';
   } catch (e) {
     dbg('Google init failed:', e && (e.message || e));
     show(loginCard);
+    hide(appShell);
     loginOut.textContent = `Google init failed: ${e.message || e}`;
   }
 });
