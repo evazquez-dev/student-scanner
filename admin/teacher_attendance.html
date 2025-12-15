@@ -184,6 +184,9 @@
       font-weight:600;
     }
     .btn:hover{ box-shadow: 0 0 0 1px rgba(148,163,184,0.6); }
+    .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+    .btn-primary{ border-color: rgba(59,130,246,0.9); box-shadow: 0 0 0 1px rgba(59,130,246,0.35); }
+    .btn-primary:hover{ box-shadow: 0 0 0 2px rgba(59,130,246,0.35); }
 
     .error{
       margin-top:0.6rem;
@@ -208,6 +211,8 @@
       font-size:0.88rem;
     }
     .row:nth-child(odd){ background: rgba(15,23,42,0.55); }
+    .row--mismatch{ outline: 2px solid rgba(236,72,153,0.55); background: rgba(236,72,153,0.10) !important; }
+    .row--changed{ outline: 2px solid rgba(34,197,94,0.55); background: rgba(34,197,94,0.08) !important; }
     .row-header{
       background: transparent !important;
       color: var(--muted);
@@ -360,6 +365,7 @@
             </div>
 
             <button class="btn" id="refreshBtn">Refresh</button>
+            <button class="btn btn-primary" id="submitBtn" disabled>Submit changes</button>
             <button class="btn" id="copyCsvBtn">Copy CSV</button>
           </div>
 

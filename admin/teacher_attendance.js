@@ -22,6 +22,7 @@ const periodInput= document.getElementById('periodInput');
 const whenSelect = document.getElementById('whenSelect');
 const refreshBtn = document.getElementById('refreshBtn');
 const copyCsvBtn = document.getElementById('copyCsvBtn');
+const submitBtn = document.getElementById('submitBtn');
 
 const errBox     = document.getElementById('errBox');
 const subtitleRight = document.getElementById('subtitleRight');
@@ -272,11 +273,15 @@ async function fetchRosterSnapshotMap(){
   return { date: data.date, map };
 }
 
-async function fetchPreview(room, period, whenType){
+async function fetchPreview(room, period, whenType, opts = {}){
   const u = new URL('/admin/meeting/preview', API_BASE);
   u.searchParams.set('room', room);
   u.searchParams.set('period', period);
   u.searchParams.set('when', whenType);
+
+  if (opts.date) u.searchParams.set('date', String(opts.date));
+  if (opts.forceCompute) u.searchParams.set('force_compute', '1');
+  if (opts.ignoreOverrides) u.searchParams.set('ignore_overrides', '1');
 
   const r = await adminFetch(u, { method:'GET' });
   const data = await r.json().catch(()=>null);
@@ -286,30 +291,75 @@ async function fetchPreview(room, period, whenType){
   }
   return data;
 }
-
-function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
+function renderRows({ date, room, period, whenType, snapshotRows, computedRows, snapshotMap }){
   rowsEl.innerHTML = '';
   lastMergedRows = [];
 
+  // Map rows by OSIS for stable snapshot + computed scan suggestion
+  const snapBy = new Map();
+  for (const r of (snapshotRows || [])){
+    const osis = String(r?.osis || '').trim();
+    if (!osis) continue;
+    snapBy.set(osis, { codeLetter: String(r.codeLetter || '').trim().toUpperCase() || 'A' });
+  }
+
+  const compBy = new Map();
+  for (const r of (computedRows || [])){
+    const osis = String(r?.osis || '').trim();
+    if (!osis) continue;
+    compBy.set(osis, {
+      codeLetter: String(r.codeLetter || '').trim().toUpperCase() || 'A',
+      evidence: r.evidence || null
+    });
+  }
+
+  // For “end”: if a final snapshot exists, that’s the baseline (what will be sent).
+  // If no snapshot exists yet (current/unfinished period), baseline is the scan-computed suggestion.
+  const haveSnapshot = snapBy.size > 0;
+
   const overrides = loadOverrides(date, room, period);
 
-  // Sort by name (if known), else OSIS
-  const merged = previewRows.map(pr => {
-    const osis = String(pr.osis);
+  // Union keys
+  const allOsis = new Set([...snapBy.keys(), ...compBy.keys()]);
+  const merged = [];
+  for (const osis of allOsis){
+    const snapRec = snapBy.get(osis) || null;
+    const compRec = compBy.get(osis) || null;
+
     const snap = snapshotMap.get(osis) || null;
     const name = snap?.name || '(Unknown)';
     const zone = snap?.zone || '';
     const locLabel = snap?.locLabel || snap?.loc || '';
-    const suggested = pr.codeLetter || '';
-    const evidence = pr.evidence || null;
+
+    const snapshotLetter = snapRec?.codeLetter || '';
+    const scanSuggested  = compRec?.codeLetter || '';
+    const evidence = compRec?.evidence || null;
+
     const scanTime = evidence?.lastISO || evidence?.firstISO || null;
-    const scanStatus = evidence?.status || (suggested === 'A' ? 'Absent' : '');
+    const scanStatus = evidence?.status || (scanSuggested === 'A' ? 'Absent' : '');
     const scanRoom = evidence?.room || '';
-    const chosen = overrides[osis] || suggested || 'A';
 
-    return { osis, name, zone, locLabel, suggested, chosen, scanTime, scanStatus, scanRoom };
-  });
+    const baseline = (haveSnapshot ? snapshotLetter : scanSuggested) || 'A';
 
+    // UI “chosen” starts from baseline unless user previously tweaked locally
+    const chosen = (overrides[osis] || baseline || 'A').toUpperCase();
+
+    merged.push({
+      osis,
+      name,
+      zone,
+      locLabel,
+      snapshotLetter,
+      scanSuggested,
+      baseline,
+      chosen,
+      scanTime,
+      scanStatus,
+      scanRoom
+    });
+  }
+
+  // Sort by name then OSIS
   merged.sort((a,b) => {
     const an = String(a.name||'').toLowerCase();
     const bn = String(b.name||'').toLowerCase();
@@ -317,22 +367,34 @@ function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
     return String(a.osis).localeCompare(String(b.osis));
   });
 
+  // helper: refresh Submit button state
+  function updateSubmitState(){
+    const changes = merged.filter(r => (r.chosen || 'A') !== (r.baseline || 'A'));
+    if (submitBtn){
+      submitBtn.disabled = changes.length === 0;
+      submitBtn.textContent = changes.length ? `Submit changes (${changes.length})` : 'Submit changes';
+    }
+  }
+
   for(const r of merged){
+    const mismatch = r.snapshotLetter && r.scanSuggested && (r.snapshotLetter !== r.scanSuggested);
+    const changed  = (r.chosen || 'A') !== (r.baseline || 'A');
+
     const row = document.createElement('div');
-    row.className = 'row';
+    row.className = 'row' + (mismatch ? ' row--mismatch' : '') + (changed ? ' row--changed' : '');
 
     const c1 = document.createElement('div');
     c1.className = 'name';
+
     const top = document.createElement('div');
     top.className = 'top';
+
     const student = document.createElement('div');
     student.className = 'student';
     student.textContent = r.name;
 
     const dot = document.createElement('span');
     dot.className = 'zoneDot ' + zoneToDotClass(r.zone);
-
-    // “perspective name” shown on hover + accessibility
     const label = r.zone ? String(r.zone).replace(/_/g,' ') : 'unknown';
     dot.title = label;
     dot.setAttribute('aria-label', label);
@@ -340,23 +402,15 @@ function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
     top.appendChild(dot);
     top.appendChild(student);
 
-    // DESKTOP badge (chips are visible on desktop; dots on mobile)
-    if (r.zone) {
-      const chip = document.createElement('span');
-      chip.className = 'chip ' + zoneToChipClass(r.zone);
-      chip.textContent = String(r.zone).replace(/_/g, ' ');
-      chip.title = chip.textContent;
-      top.appendChild(chip);
-    }
-
     const sub = document.createElement('div');
     sub.className = 'subline';
-    // Show snapshot location, plus scan room mismatch hint if any
+
     const parts = [];
     if(r.locLabel) parts.push(r.locLabel);
-    if(r.scanRoom && r.scanRoom && r.scanRoom.toLowerCase() !== room.toLowerCase()){
+    if(r.scanRoom && r.scanRoom.toLowerCase() !== room.toLowerCase()){
       parts.push(`scan@${r.scanRoom}`);
     }
+    if (mismatch) parts.push(`mismatch (scan:${r.scanSuggested || '—'} vs snap:${r.snapshotLetter || '—'})`);
     sub.textContent = parts.join(' • ') || '—';
 
     c1.appendChild(top);
@@ -376,22 +430,35 @@ function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
       sel.appendChild(o);
     }
     sel.value = r.chosen || 'A';
-    sel.title = `Suggested: ${r.suggested || '—'}`;
+    sel.title = `Baseline: ${r.baseline || '—'} • Scan: ${r.scanSuggested || '—'} • Snapshot: ${r.snapshotLetter || '—'}`;
+
     sel.addEventListener('change', () => {
-      const o = loadOverrides(date, room, period);
-      o[r.osis] = sel.value;
-      saveOverrides(date, room, period, o);
-      setStatus(true, 'Saved');
+      r.chosen = String(sel.value || 'A').toUpperCase();
+
+      // Save locally as “only if changed”, otherwise clear
+      const obj = loadOverrides(date, room, period);
+      if (r.chosen !== (r.baseline || 'A')){
+        obj[r.osis] = r.chosen;
+      } else {
+        delete obj[r.osis];
+      }
+      saveOverrides(date, room, period, obj);
+
+      // Update row styles + submit state
+      row.className = 'row' + (mismatch ? ' row--mismatch' : '') + ((r.chosen || 'A') !== (r.baseline || 'A') ? ' row--changed' : '');
+      updateSubmitState();
     });
+
+    c3.style.textAlign = 'center';
     c3.appendChild(sel);
 
     const c4 = document.createElement('div');
-    c4.className = 'hide-sm muted';
-    c4.textContent = r.scanTime ? `${fmtClock(r.scanTime)} • ${r.scanStatus || ''}` : '—';
+    c4.className = 'hide-sm';
+    c4.textContent = r.scanTime ? fmtClock(r.scanTime) : '—';
 
     const c5 = document.createElement('div');
-    c5.className = 'hide-sm muted';
-    c5.textContent = r.locLabel || '—';
+    c5.className = 'hide-sm';
+    c5.textContent = r.zone ? String(r.zone).replace(/_/g,' ') : '—';
 
     row.appendChild(c1);
     row.appendChild(c2);
@@ -403,9 +470,10 @@ function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
     lastMergedRows.push(r);
   }
 
-  subtitleRight.textContent = `${room} • P${period} • ${whenType} • ${merged.length} students`;
-}
+  subtitleRight.textContent = `${room} • P${period} • ${whenType} • ${merged.length} students` + (haveSnapshot ? ' • (snapshot)' : ' • (live)');
 
+  updateSubmitState();
+}
 function buildCsv(date, room, period, whenType){
   // Output includes suggested and chosen (override)
   const lines = [];
@@ -419,7 +487,9 @@ function buildCsv(date, room, period, whenType){
       whenType,
       r.osis,
       r.name,
-      r.suggested,
+      r.snapshotLetter,
+      r.scanSuggested,
+      r.baseline,
       r.chosen,
       r.scanTime ? new Date(r.scanTime).toISOString() : '',
       r.scanStatus || '',
@@ -434,6 +504,50 @@ function buildCsv(date, room, period, whenType){
   }
 
   return lines.join('\n');
+}
+
+async function submitChanges(){
+  setErr('');
+  const room = normRoom(roomInput.value);
+  const periodLocal = normPeriod(periodInput.value);
+  const whenType = String(whenSelect.value || 'mid');
+  const date = dateText.textContent || '';
+
+  if(!room || !periodLocal){
+    setErr('Room + Period are required.');
+    return;
+  }
+
+  // Only send rows whose CHOSEN differs from BASELINE
+  const changes = (lastMergedRows || [])
+    .filter(r => (String(r.chosen||'A').toUpperCase() !== String(r.baseline||'A').toUpperCase()))
+    .map(r => ({ osis: String(r.osis), codeLetter: String(r.chosen||'A').toUpperCase() }));
+
+  if (!changes.length){
+    setErr('No changes to submit.');
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Submitting…';
+
+  const r = await adminFetch('/admin/teacher_att/submit', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ date, room, periodLocal, whenType, changes })
+  });
+
+  const data = await r.json().catch(()=>null);
+  if(!r.ok || !data?.ok){
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit changes';
+    throw new Error(data?.error || `submit HTTP ${r.status}`);
+  }
+
+  // Clear local overrides for this bucket (they’ve been persisted server-side)
+  saveOverrides(date, room, periodLocal, {});
+  setStatus(true, `Submitted ${data.applied_count || changes.length} change(s)`);
+  await refreshOnce();
 }
 
 async function refreshOnce(){
@@ -451,20 +565,26 @@ async function refreshOnce(){
   tickRefreshLabel();
   setStatus(true, 'Loading…');
 
-  // Parallel fetch: preview + hallway snapshot
-  const [snap, prev] = await Promise.all([
+  // Parallel fetch:
+  // 1) hallway snapshot (names + current zone/location)
+  // 2) SNAPSHOT view (stable): will return mid/final snapshot if it exists
+  // 3) COMPUTED view (scan-based): force compute, and ignore teacher overrides so we can highlight mismatches
+  const [snap, snapView, computed] = await Promise.all([
     fetchRosterSnapshotMap(),
-    fetchPreview(room, period, whenType),
+    fetchPreview(room, period, whenType, { forceCompute:false }),
+    fetchPreview(room, period, whenType, { forceCompute:true, ignoreOverrides:true })
   ]);
 
-  dateText.textContent = snap.date || prev.date || '—';
+  const date = snap.date || snapView.date || computed.date || '—';
+  dateText.textContent = date;
 
   renderRows({
-    date: snap.date || prev.date,
+    date,
     room,
     period,
     whenType,
-    previewRows: Array.isArray(prev.rows) ? prev.rows : [],
+    snapshotRows: Array.isArray(snapView.rows) ? snapView.rows : [],
+    computedRows: Array.isArray(computed.rows) ? computed.rows : [],
     snapshotMap: snap.map
   });
 
@@ -497,7 +617,14 @@ async function bootTeacherAttendance(){
     setStatus(false, 'Error');
   }));
 
-  copyCsvBtn.addEventListener('click', async () => {
+  
+
+  submitBtn?.addEventListener('click', () => submitChanges().catch(err => {
+    console.error(err);
+    setErr(err?.message || String(err));
+    setStatus(false, 'Error');
+  }));
+copyCsvBtn.addEventListener('click', async () => {
     const date = dateText.textContent || '';
     const room = normRoom(roomInput.value);
     const period = normPeriod(periodInput.value);
