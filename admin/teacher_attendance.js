@@ -608,18 +608,18 @@ document.addEventListener('visibilitychange', () => {
 });
 
 async function bootTeacherAttendance(){
-  // Prefill from URL (?room=316&period=3&when=mid) or localStorage
+  // Prefill from URL (?room=316&period=3) or localStorage
   const p = qs();
   const roomQ = p.get('room') || localStorage.getItem('teacher_att_room') || '';
   const perQ  = p.get('period') || localStorage.getItem('teacher_att_period') || '';
-  const whenQ = p.get('when') || localStorage.getItem('teacher_att_when') || 'mid';
   roomInput.value = roomQ;
   periodInput.value = perQ;
-  whenSelect.value = (whenQ === 'end') ? 'end' : 'mid';
+
+  // Teachers always operate on END
+  localStorage.removeItem('teacher_att_when');
 
   roomInput.addEventListener('change', ()=>localStorage.setItem('teacher_att_room', roomInput.value.trim()));
   periodInput.addEventListener('change', ()=>localStorage.setItem('teacher_att_period', periodInput.value.trim()));
-  whenSelect.addEventListener('change', ()=>localStorage.setItem('teacher_att_when', whenSelect.value));
 
   refreshBtn.addEventListener('click', () => refreshOnce().catch(err => {
     console.error(err);
