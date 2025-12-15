@@ -60,7 +60,7 @@
       padding: 1.5rem 1.75rem 1.25rem;
       box-shadow: 0 24px 80px rgba(0,0,0,0.65);
       text-align:center;
-      display:none;
+      display:block;
     }
     #loginCard h2{
       margin:0 0 0.4rem;
@@ -310,7 +310,7 @@
       <h2>Sign in</h2>
       <p>Use your school Google account to access attendance.</p>
       <div id="g_id_signin"></div>
-      <pre id="loginOut">—</pre>
+      <pre id="loginOut">Loading…</pre>
     </section>
 
     <!-- App -->
@@ -389,6 +389,8 @@
 
   <script type="module">
     const API_BASE = document.querySelector('meta[name="api-base"]')?.content || '';
+    const loginCard = document.getElementById('loginCard');
+    const loginOut  = document.getElementById('loginOut');
 
     async function getVersion(){
       try{
@@ -396,25 +398,37 @@
         const j = await r.json();
         return j?.id || j?.tag || null;
       }catch{
-        return null; // IMPORTANT: don't force reload on transient failures
+        return null;
       }
     }
 
-    // IMPORTANT: resolve JS relative to the *directory* even for "pretty URLs"
+    // Resolve JS relative to directory (works with pretty URLs)
     const baseDir = new URL('.', location.href);
 
-    const ver = (await getVersion()) || String(Date.now()); // bust cache on first load
-    const url = new URL('teacher_attendance.js', baseDir);
-    url.searchParams.set('v', ver);
-    await import(url.toString());
+    // Prefer server version; fallback to Date.now ONLY for cache-busting
+    const serverVer = await getVersion();
+    const ver = serverVer || String(Date.now());
 
-    // Auto-reload only when we can actually read a version
-    let last = ver;
+    try{
+      const url = new URL('teacher_attendance.js', baseDir);
+      url.searchParams.set('v', ver);
+      await import(url.toString());
+    }catch(e){
+      // ✅ never go blank again
+      if (loginCard) loginCard.style.display = 'block';
+      if (loginOut) loginOut.textContent = `JS failed to load:\n${e?.message || e}`;
+      console.error(e);
+      return;
+    }
+
+    // Only auto-reload when we have a real server version (avoid Date.now → real id flip reload)
+    let lastServer = serverVer;
     setInterval(async () => {
       const next = await getVersion();
-      if(!next) return;              // don't reload on failure
-      if(next !== last){
-        last = next;
+      if(!next) return;
+      if(!lastServer){ lastServer = next; return; }
+      if(next !== lastServer){
+        lastServer = next;
         location.reload();
       }
     }, 15000);

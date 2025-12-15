@@ -576,10 +576,6 @@ async function onGoogleCredential(resp){
     if(roomInput.value.trim() && periodInput.value.trim()){
       await refreshOnce();
     }
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) stopAutoRefresh();
-      else startAutoRefresh();
-    });
 
 
     if(roomInput.value.trim() && periodInput.value.trim()){
