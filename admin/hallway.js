@@ -82,6 +82,20 @@ async function waitForGoogle(timeoutMs = 8000) {
 // ===== LOGIN FLOW (same idea as admin.js) =====
 window.addEventListener('DOMContentLoaded', async () => {
   dbg('DOMContentLoaded fired.');
+
+  // 1️⃣ Try cookie-based session bootstrap FIRST
+  try {
+    const booted = await tryBootstrapSession();
+    if (booted) {
+      dbg('Session bootstrap succeeded; skipping Google login');
+      return;
+    }
+  } catch (e) {
+    dbg('Session bootstrap check failed:', e && (e.message || e));
+    // fall through to Google login
+  }
+
+  // 2️⃣ No session → fall back to Google Sign-In
   try {
     if (!GOOGLE_CLIENT_ID) {
       dbg('No GOOGLE_CLIENT_ID meta found');
@@ -89,6 +103,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       loginOut.textContent = 'Missing google-client-id meta.';
       return;
     }
+
     dbg('Calling waitForGoogle()...');
     const gsi = await waitForGoogle();
     dbg('waitForGoogle resolved, initializing GSI');
@@ -99,11 +114,13 @@ window.addEventListener('DOMContentLoaded', async () => {
       ux_mode: 'popup',
       use_fedcm_for_prompt: true
     });
+
     dbg('GSI initialized; rendering button...');
     gsi.renderButton(
       document.getElementById('g_id_signin'),
       { theme: 'outline', size: 'large' }
     );
+
     dbg('GSI button rendered, showing loginCard');
     show(loginCard);
   } catch (e) {
@@ -150,6 +167,25 @@ async function onGoogleCredential(resp) {
 async function adminFetch(pathOrUrl, init = {}) {
   const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
   return fetch(u, { ...init, credentials: 'include' });
+}
+
+async function tryBootstrapSession() {
+  try {
+    const r = await adminFetch('/admin/session/check', { method: 'GET' });
+    if (!r.ok) return false;
+    const j = await r.json().catch(() => null);
+    if (!j?.ok) return false;
+
+    // session is valid → skip login UI
+    hide(loginCard);
+    show(appShell);
+    setStatus(true, 'Live');
+    startPolling();
+    return true;
+  } catch (e) {
+    dbg('session bootstrap failed:', e?.message || e);
+    return false;
+  }
 }
 
 function inferFloor(locLabel, rawLoc) {
