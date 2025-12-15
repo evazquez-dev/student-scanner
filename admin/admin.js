@@ -32,10 +32,40 @@ const bathTbody  = document.getElementById('bathTbody');
 const attOut     = document.getElementById('attOut');
 const attLateInp = document.getElementById('attLateMinutes');
 
+const appShell = document.getElementById('appShell');
+
+function showBlock(el){ el && (el.style.display = 'block'); }
+function showFlex(el){ el && (el.style.display = 'flex'); } // if you ever need it
+
 function show(el){ el && (el.style.display = ''); }
 function hide(el){ el && (el.style.display = 'none'); }
 function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function isBathroom(name){ return String(name||'').toLowerCase().startsWith('bathroom ('); }
+
+async function checkSession() {
+  try {
+    const r = await fetch(new URL('/admin/session/check', API_BASE), {
+      method: 'GET',
+      credentials: 'include'
+    });
+    const data = await r.json().catch(() => ({}));
+    return !!(r.ok && data && data.ok);
+  } catch {
+    return false;
+  }
+}
+
+async function afterLoginBoot() {
+  // show app + run the same “post-login” actions you already do
+  hide(loginCard);
+  appShell && (appShell.style.display = '');
+
+  document.getElementById('btnDiag')?.click();
+  await loadLocationsToEditor();
+  await hydrateBathrooms();
+  await loadAttendanceCfg();
+}
+
 
 // --- Google Sign-In init ---
 async function waitForGoogle(timeoutMs = 8000) {
@@ -48,13 +78,26 @@ async function waitForGoogle(timeoutMs = 8000) {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // Always start hidden
+  hide(loginCard);
+  hide(appShell);
+
+  // ✅ If session already valid, skip login UI entirely
+  const ok = await checkSession();
+  if (ok) {
+    await afterLoginBoot();
+    return;
+  }
+
+  // ❌ Not logged in: init Google button + show login card
   try {
     const clientId = document.querySelector('meta[name="google-client-id"]')?.content || '';
     if (!clientId) {
-      show(loginCard);
+      showBlock(loginCard);
       loginOut.textContent = 'Missing google-client-id meta.';
       return;
     }
+
     const gsi = await waitForGoogle();
     gsi.initialize({
       client_id: clientId,
@@ -63,9 +106,11 @@ window.addEventListener('DOMContentLoaded', async () => {
       use_fedcm_for_prompt: true
     });
     gsi.renderButton(document.getElementById('g_id_signin'), { theme: 'outline', size: 'large' });
-    show(loginCard);
+
+    showBlock(loginCard);
+    loginOut.textContent = 'Please sign in…';
   } catch (e) {
-    show(loginCard);
+    showBlock(loginCard);
     loginOut.textContent = `Google init failed: ${e.message || e}`;
   }
 });
@@ -73,21 +118,27 @@ window.addEventListener('DOMContentLoaded', async () => {
 async function onGoogleCredential(resp) {
   try {
     loginOut.textContent = 'Signing in...';
+
     const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
       body: new URLSearchParams({ id_token: resp.credential }).toString(),
       credentials: 'include'
     });
-    const data = await r.json().catch(()=> ({}));
+
+    const data = await r.json().catch(() => ({}));
     if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
+
+    // ✅ hide login, show app
     hide(loginCard);
+    if (typeof appShell !== 'undefined' && appShell) appShell.style.display = '';
 
     // Auto-run diag, load locations, and hydrate bathroom UI
     document.getElementById('btnDiag')?.click();
     await loadLocationsToEditor();
     await hydrateBathrooms();
     await loadAttendanceCfg();
+
   } catch (e) {
     loginOut.textContent = `Login failed: ${e.message || e}`;
   }
@@ -641,6 +692,3 @@ document.getElementById('btnUnbind').addEventListener('click', async () => {
     bindOut.textContent = `HTTP ${r.status}\n\n${await r.text()}`;
   } catch (e) { bindOut.textContent = `Error: ${e.message || e}`; }
 });
-
-// Initial locations load (helps when browsing before sign-in completes)
-loadLocationsToEditor();
