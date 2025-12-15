@@ -340,6 +340,15 @@ function renderRows({ date, room, period, whenType, previewRows, snapshotMap }){
     top.appendChild(dot);
     top.appendChild(student);
 
+    // DESKTOP badge (chips are visible on desktop; dots on mobile)
+    if (r.zone) {
+      const chip = document.createElement('span');
+      chip.className = 'chip ' + zoneToChipClass(r.zone);
+      chip.textContent = String(r.zone).replace(/_/g, ' ');
+      chip.title = chip.textContent;
+      top.appendChild(chip);
+    }
+
     const sub = document.createElement('div');
     sub.className = 'subline';
     // Show snapshot location, plus scan room mismatch hint if any
