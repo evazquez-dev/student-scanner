@@ -395,6 +395,9 @@
 
     async function getVersion(){
       try{
+        const apiOrigin = new URL(API_BASE).origin;
+        if (apiOrigin !== location.origin) return null; // avoid CORS noise on GitHub Pages
+
         const r = await fetch(new URL('/version', API_BASE), { cache: 'no-store' });
         const j = await r.json();
         return j?.id || j?.tag || null;
@@ -404,7 +407,21 @@
     }
 
     // Resolve JS relative to directory (works with pretty URLs)
-    const baseDir = new URL(location.href.endsWith('/') ? location.href : location.href + '/');
+    const here = new URL(location.href);
+
+    // If we are at /admin/teacher_attendance (or /admin/teacher_attendance/),
+    // force baseDir to /admin/ so we can load /admin/teacher_attendance.js
+    let pathname = here.pathname;
+
+    // normalize: treat no-slash as slash
+    if (!pathname.endsWith('/')) pathname += '/';
+
+    // if the last folder is teacher_attendance, go up one
+    if (pathname.endsWith('/teacher_attendance/')) {
+      pathname = pathname.replace(/teacher_attendance\/$/, '');
+    }
+
+    const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; fallback to Date.now ONLY for cache-busting
     const serverVer = await getVersion();
