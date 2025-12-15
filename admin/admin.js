@@ -58,7 +58,17 @@ async function checkSession() {
 async function afterLoginBoot() {
   // show app + run the same “post-login” actions you already do
   hide(loginCard);
-  appShell && (appShell.style.display = '');
+  appShell && (
+    async function afterLoginBoot() {
+      hide(loginCard);
+      if (appShell) appShell.style.display = 'block';
+
+      document.getElementById('btnDiag')?.click();
+      await loadLocationsToEditor();
+      await hydrateBathrooms();
+      await loadAttendanceCfg();
+    }
+  );
 
   document.getElementById('btnDiag')?.click();
   await loadLocationsToEditor();
@@ -131,7 +141,7 @@ async function onGoogleCredential(resp) {
 
     // ✅ hide login, show app
     hide(loginCard);
-    if (typeof appShell !== 'undefined' && appShell) appShell.style.display = '';
+    if (appShell) appShell.style.display = 'block';
 
     // Auto-run diag, load locations, and hydrate bathroom UI
     document.getElementById('btnDiag')?.click();
