@@ -3,10 +3,10 @@
 /* ===============================
  * BASE + ELEMENTS
  * =============================== */
-const API_BASE =
-  (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/, '') + '/';
+const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/, '') + '/';
 
-document.getElementById('apiBase')?.textContent = API_BASE;
+const apiBaseEl = document.getElementById('apiBase');
+if (apiBaseEl) apiBaseEl.textContent = API_BASE;
 
 // Cards / outputs
 const loginCard = document.getElementById('loginCard');
