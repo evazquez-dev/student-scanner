@@ -292,6 +292,22 @@
       text-align:center;
     }
 
+    /* Attendance code colors */
+    .codeSelect--P{
+      border-color: var(--ok);
+      color: var(--ok);
+    }
+
+    .codeSelect--L{
+      border-color: var(--warn);
+      color: var(--warn);
+    }
+
+    .codeSelect--A{
+      border-color: var(--bad);
+      color: var(--bad);
+    }
+
     .muted{ color: var(--muted); font-variant-numeric: tabular-nums; }
     .mono{ font-variant-numeric: tabular-nums; }
 
@@ -356,13 +372,13 @@
               <label for="periodInput">Period (local)</label>
               <select id="periodInput"></select>
             </div>
-            <div class="field">
+            <!-- <div class="field">
               <label for="whenSelect">When</label>
               <select id="whenSelect">
                 <option value="mid">mid (no absents)</option>
                 <option value="end">end (include absents)</option>
               </select>
-            </div>
+            </div> -->
 
             <button class="btn" id="refreshBtn">Refresh</button>
             <button class="btn btn-primary" id="submitBtn" disabled>Submit changes</button>

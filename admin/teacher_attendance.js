@@ -19,7 +19,7 @@ const refreshText= document.getElementById('refreshText');
 
 const roomInput  = document.getElementById('roomInput');
 const periodInput= document.getElementById('periodInput');
-const whenSelect = document.getElementById('whenSelect');
+// const whenSelect = document.getElementById('whenSelect');
 const refreshBtn = document.getElementById('refreshBtn');
 const copyCsvBtn = document.getElementById('copyCsvBtn');
 const submitBtn = document.getElementById('submitBtn');
@@ -429,7 +429,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     const c3 = document.createElement('div');
     const sel = document.createElement('select');
-    sel.className = 'codeSelect';
+    sel.className = 'codeSelect codeSelect--' + (r.chosen || 'A');
     for(const opt of ['P','L','A']){
       const o = document.createElement('option');
       o.value = opt;
@@ -441,6 +441,9 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     sel.addEventListener('change', () => {
       r.chosen = String(sel.value || 'A').toUpperCase();
+
+      // update color
+      sel.className = 'codeSelect codeSelect--' + r.chosen;
 
       // Save locally as “only if changed”, otherwise clear
       const obj = loadOverrides(date, room, period);
@@ -517,7 +520,7 @@ async function submitChanges(){
   setErr('');
   const room = normRoom(roomInput.value);
   const periodLocal = normPeriod(periodInput.value);
-  const whenType = String(whenSelect.value || 'mid');
+  const whenType = 'end';
   const date = dateText.textContent || '';
 
   if(!room || !periodLocal){
@@ -561,7 +564,7 @@ async function refreshOnce(){
   setErr('');
   const room = normRoom(roomInput.value);
   const period = normPeriod(periodInput.value);
-  const whenType = String(whenSelect.value || 'mid');
+  const whenType = 'end';
 
   if(!room || !period){
     setErr('Room + Period are required.');
@@ -635,7 +638,7 @@ copyCsvBtn.addEventListener('click', async () => {
     const date = dateText.textContent || '';
     const room = normRoom(roomInput.value);
     const period = normPeriod(periodInput.value);
-    const whenType = String(whenSelect.value || 'mid');
+    const whenType = 'end';
 
     const csv = buildCsv(date, room, period, whenType);
     try{
