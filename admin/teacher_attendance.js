@@ -67,45 +67,6 @@ async function waitForGoogle(timeoutMs = 8000){
   return window.google.accounts.id;
 }
 
-async function initLogin(){
-  try {
-    const gsi = await waitForGoogle();
-
-    gsi.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: async (resp) => {
-        loginOut.textContent = 'Verifying…';
-
-        const r = await fetch(API_BASE + 'admin/login', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ id_token: resp.credential })
-        });
-
-        const data = await r.json().catch(() => null);
-
-        if (!r.ok || !data?.ok) {
-          throw new Error(data?.error || 'Login failed');
-        }
-
-        loginOut.textContent = 'Signed in';
-        onAuthed();
-      }
-    });
-
-    gsi.renderButton(
-      document.getElementById('g_id_signin'),
-      { theme: 'outline', size: 'large' }
-    );
-
-    loginOut.textContent = 'Ready';
-  } catch (err) {
-    loginOut.textContent = 'Login unavailable';
-    console.error(err);
-  }
-}
-
 // Always include cookies for admin requests
 async function adminFetch(pathOrUrl, init = {}){
   const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
@@ -779,5 +740,3 @@ async function onGoogleCredential(resp){
     loginOut.textContent = `Login failed: ${e?.message || e}`;
   }
 }
-
-document.addEventListener('DOMContentLoaded', initLogin);
