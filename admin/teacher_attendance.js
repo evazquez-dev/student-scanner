@@ -33,6 +33,13 @@ const debugEl = document.getElementById('debugLog');
 
 let IS_AUTHED = false;
 
+// Cosmetic labels for attendance codes (keep values as A/L/P for API payloads)
+const CODE_LABELS = { P: 'Present', L: 'Late', A: 'Absent' };
+function codeLabel(code){
+  const c = String(code || '').trim().toUpperCase();
+  return CODE_LABELS[c] || (c || '—');
+}
+
 function onAuthed(){
   IS_AUTHED = true;
   hide(loginCard);
@@ -378,7 +385,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     if(r.scanRoom && r.scanRoom.toLowerCase() !== room.toLowerCase()){
       parts.push(`scan@${r.scanRoom}`);
     }
-    if (mismatch) parts.push(`mismatch (scan:${r.scanSuggested || '—'} vs snap:${r.snapshotLetter || '—'})`);
+    if (mismatch) parts.push(`mismatch (scan:${codeLabel(r.scanSuggested)} vs snap:${codeLabel(r.snapshotLetter)})`);
     sub.textContent = parts.join(' • ') || '—';
 
     c1.appendChild(top);
@@ -394,11 +401,11 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     for(const opt of ['P','L','A']){
       const o = document.createElement('option');
       o.value = opt;
-      o.textContent = opt;
+      o.textContent = codeLabel(opt);
       sel.appendChild(o);
     }
     sel.value = r.chosen || 'A';
-    sel.title = `Baseline: ${r.baseline || '—'} • Scan: ${r.scanSuggested || '—'} • Snapshot: ${r.snapshotLetter || '—'}`;
+    sel.title = `Baseline: ${codeLabel(r.baseline)} • Scan: ${codeLabel(r.scanSuggested)} • Snapshot: ${codeLabel(r.snapshotLetter)}`;
 
     sel.addEventListener('change', () => {
       r.chosen = String(sel.value || 'A').toUpperCase();
