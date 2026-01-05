@@ -414,59 +414,204 @@ function renderRaw(rows){
   }
 }
 
-async function runReport(){
-  const osis = document.getElementById('studentOsis')?.value
-            || parseOsisFromInput(document.getElementById('studentSearch')?.value);
+// -------- Loading / Busy UI for Run --------
+let REPORT_BUSY = false;
 
+function ensureBusyUI(){
+  // 1) Inject CSS once
+  if (!document.getElementById('busyStyles')) {
+    const st = document.createElement('style');
+    st.id = 'busyStyles';
+    st.textContent = `
+      .btn.is-loading{ position:relative; padding-right:34px; }
+      .btn.is-loading::after{
+        content:'';
+        position:absolute;
+        right:12px;
+        top:50%;
+        width:14px;height:14px;
+        margin-top:-7px;
+        border-radius:999px;
+        border:2px solid rgba(255,255,255,0.25);
+        border-top-color: rgba(255,255,255,0.95);
+        animation: spin 0.8s linear infinite;
+      }
+      #busyOverlay{
+        position:absolute;
+        inset:0;
+        background: rgba(0,0,0,0.45);
+        backdrop-filter: blur(2px);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        border-radius:14px;
+        z-index:50;
+      }
+      #busyOverlay .box{
+        background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.90));
+        border: 1px solid rgba(148,163,184,.18);
+        box-shadow: 0 18px 60px rgba(0,0,0,.55);
+        border-radius: 12px;
+        padding: 14px 16px;
+        display:flex;
+        align-items:center;
+        gap:10px;
+      }
+      #busyOverlay .spinner{
+        width:16px;height:16px;
+        border-radius:999px;
+        border:2px solid rgba(255,255,255,0.25);
+        border-top-color: rgba(255,255,255,0.95);
+        animation: spin 0.8s linear infinite;
+      }
+      #busyOverlay .msg{
+        font-weight:700;
+      }
+      #busyOverlay .sub{
+        font-size:12px;
+        color: rgba(255,255,255,0.65);
+        margin-top:2px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    `;
+    document.head.appendChild(st);
+  }
+
+  // 2) Ensure overlay element exists (created lazily)
+  const appCard = document.getElementById('appCard');
+  if (!appCard) return;
+
+  if (!document.getElementById('busyOverlay')) {
+    // Make sure positioning works
+    if (getComputedStyle(appCard).position === 'static') {
+      appCard.style.position = 'relative';
+    }
+
+    const ov = document.createElement('div');
+    ov.id = 'busyOverlay';
+    ov.style.display = 'none';
+    ov.innerHTML = `
+      <div class="box" role="status" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <div>
+          <div class="msg">Running…</div>
+          <div class="sub">Please wait for results to load.</div>
+        </div>
+      </div>
+    `;
+    appCard.appendChild(ov);
+  }
+}
+
+function setReportBusy(on, message){
+  ensureBusyUI();
+
+  REPORT_BUSY = Boolean(on);
+
+  const btnRun = document.getElementById('btnRun');
+  const appCard = document.getElementById('appCard');
+  const ov = document.getElementById('busyOverlay');
+
+  const idsToDisable = ['studentSearch','studentSelect','startDate','endDate','btnRun','btnLogout'];
+  for (const id of idsToDisable){
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.disabled = REPORT_BUSY;
+  }
+
+  if (btnRun){
+    if (!btnRun.dataset.origText) btnRun.dataset.origText = btnRun.textContent || 'Run';
+    if (REPORT_BUSY){
+      btnRun.classList.add('is-loading');
+      btnRun.textContent = message || 'Running…';
+    } else {
+      btnRun.classList.remove('is-loading');
+      btnRun.textContent = btnRun.dataset.origText || 'Run';
+    }
+  }
+
+  if (appCard){
+    appCard.setAttribute('aria-busy', REPORT_BUSY ? 'true' : 'false');
+  }
+
+  if (ov){
+    if (REPORT_BUSY){
+      ov.querySelector('.msg') && (ov.querySelector('.msg').textContent = message || 'Running…');
+      ov.style.display = '';
+    } else {
+      ov.style.display = 'none';
+    }
+  }
+}
+
+async function runReport(){
+  if (REPORT_BUSY) return;
+
+  const sel = document.getElementById('studentSelect');
+  const osis = sel?.value || '';
   const start = document.getElementById('startDate')?.value || '';
   const end   = document.getElementById('endDate')?.value || '';
   const outEl = document.getElementById('out');
 
   if (!osis || !start || !end){
-    if (outEl) outEl.textContent = 'Pick a student (from suggestions) and choose a date range.';
+    if (outEl) outEl.textContent = 'Select a student and date range.';
     return;
   }
+
+  // Clear obvious areas immediately so the user sees "something happened"
+  setText('rawMeta', '');
+  const kpi = document.getElementById('kpiGrid'); if (kpi) kpi.innerHTML = '';
+  const bathTb = document.querySelector('#bathByPeriod tbody'); if (bathTb) bathTb.innerHTML = '';
+  const morningWrap = document.getElementById('morningTableWrap'); if (morningWrap) morningWrap.innerHTML = '';
+  const rawTb = document.querySelector('#rawTable tbody'); if (rawTb) rawTb.innerHTML = '';
+  const bathSummary = document.getElementById('bathSummary'); if (bathSummary) bathSummary.textContent = '';
 
   if (outEl) outEl.textContent = 'Loading scans...';
+  setReportBusy(true, 'Running…');
 
-  const url = new URL('/admin/scans_query', API_BASE);
-  url.searchParams.set('osis', osis);
-  url.searchParams.set('start', start);
-  url.searchParams.set('end', end);
-  url.searchParams.set('max', '5000');
+  try{
+    const url = new URL('/admin/scans_query', API_BASE);
+    url.searchParams.set('osis', osis);
+    url.searchParams.set('start', start);
+    url.searchParams.set('end', end);
+    url.searchParams.set('max', '5000');
 
-  const r = await fetch(url.toString(), { method:'GET', credentials:'include' });
-  const j = await r.json().catch(()=>({}));
+    const r = await fetch(url.toString(), { method:'GET', credentials:'include' });
+    const j = await r.json().catch(()=>({}));
 
-  if (!r.ok || !j.ok){
-    if (outEl) outEl.textContent = `Error: ${j.error || 'http_' + r.status}\n${JSON.stringify(j, null, 2)}`;
-    return;
-  }
+    if (!r.ok || !j.ok){
+      if (outEl) outEl.textContent = `Error: ${j.error || 'http_' + r.status}\n${JSON.stringify(j, null, 2)}`;
+      return;
+    }
 
-  const rows = Array.isArray(j.rows) ? j.rows : [];
-  const name = rows.find(x => x.name)?.name || '(name unknown)';
+    const rows = Array.isArray(j.rows) ? j.rows : [];
+    const name = rows.find(x => x.name)?.name || '(name unknown)';
 
-  document.getElementById('studentHeader').innerHTML =
-    `<div style="font-weight:700;">${esc(name)} <span class="mono">(${esc(osis)})</span></div>
-     <div class="small">Range: <span class="mono">${esc(start)}</span> → <span class="mono">${esc(end)}</span>${j.truncated ? ' (truncated)' : ''}</div>`;
+    document.getElementById('studentHeader').innerHTML =
+      `<div style="font-weight:700;">${esc(name)} <span class="mono">(${esc(osis)})</span></div>
+       <div class="small">Range: <span class="mono">${esc(start)}</span> → <span class="mono">${esc(end)}</span>${j.truncated ? ' (truncated)' : ''}</div>`;
 
-  setText('rawMeta', `Returned ${rows.length} scan(s). Truncated=${Boolean(j.truncated)}.`);
-  if (outEl) outEl.textContent = '';
+    setText('rawMeta', `Returned ${rows.length} scan(s). Truncated=${Boolean(j.truncated)}.`);
+    if (outEl) outEl.textContent = '';
 
-  // Compute
-  const morning = computeMorning(rows);
-  const bath = computeBathroom(rows);
+    // Compute
+    const morning = computeMorning(rows);
+    const bath = computeBathroom(rows);
 
-  // Render
-  renderKPIs(rows, morning, bath);
-  renderBathByPeriod(bath);
-  renderMorningTable(morning);
-  renderRaw(rows);
+    // Render
+    renderKPIs(rows, morning, bath);
+    renderBathByPeriod(bath);
+    renderMorningTable(morning);
+    renderRaw(rows);
 
-  const bathSummary = document.getElementById('bathSummary');
-  if (bathSummary){
-    bathSummary.textContent =
-      `Sessions: ${bath.sessions.length}. Missing OUT: ${bath.missingOut.length}. Missing IN: ${bath.missingIn.length}. Denied: ${bath.denied.length}.`;
+    if (bathSummary){
+      bathSummary.textContent =
+        `Sessions: ${bath.sessions.length}. Missing OUT: ${bath.missingOut.length}. Missing IN: ${bath.missingIn.length}. Denied: ${bath.denied.length}.`;
+    }
+  } catch (e){
+    if (outEl) outEl.textContent = `Error: ${e?.message || e}`;
+  } finally {
+    setReportBusy(false);
   }
 }
 
