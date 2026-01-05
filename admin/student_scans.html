@@ -28,6 +28,28 @@
 
     /* --- Print helpers --- */
     @media print {
+      html, body {
+        background: #fff !important;
+        color: #000 !important;
+      }
+
+      /* Kill dark cards/gradients/shadows from admin.css */
+      .card, #appCard, #loginCard {
+        background: #fff !important;
+        color: #000 !important;
+        box-shadow: none !important;
+      }
+
+      /* Prevent random dark boxes from overlays/shadows */
+      *, *::before, *::after {
+        box-shadow: none !important;
+        text-shadow: none !important;
+        background-image: none !important;
+      }
+
+      /* Just in case the busy overlay ever exists */
+      #busyOverlay { display: none !important; }
+
       /* hide controls + debug */
       .topbar { display: none !important; }
       .no-print { display: none !important; }
