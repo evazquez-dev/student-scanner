@@ -419,105 +419,68 @@ async function boot(){
   const appCard   = document.getElementById('appCard');
   const loginOut  = document.getElementById('loginOut');
 
-  // Guardrails: avoid a blank page if the meta tags still have placeholders/missing values
+  // Wire logout (use the Worker route that actually exists)
+  document.getElementById('btnLogout')?.addEventListener('click', async () => {
+    try{
+      await adminFetch('/admin/session/logout', { method:'POST' });
+    }catch(e){}
+    location.reload();
+  });
+
+  // Default date range = last 7 calendar days (including today)
+  try{
+    const end = new Date();
+    const start = new Date(Date.now() - 6*24*3600*1000);
+    const endEl = document.getElementById('endDate');
+    const startEl = document.getElementById('startDate');
+    if (endEl) endEl.value = end.toISOString().slice(0,10);
+    if (startEl) startEl.value = start.toISOString().slice(0,10);
+  }catch(e){}
+
+  // Guardrails for missing placeholders
   const rawApiBase = (meta('api-base') || '').trim();
   if (!rawApiBase || /YOUR-WORKER|your-worker/i.test(rawApiBase)){
     show(loginCard, true);
     show(appCard, false);
     if (loginOut){
       loginOut.textContent =
-        'Config needed: update the <meta name="api-base"> tag in student_scans.html to your real Worker URL.';
+        'Config needed: update <meta name="api-base"> in student_scans.html to your real Worker URL.';
     }
     return;
   }
+
   const rawClientId = (meta('google-client-id') || '').trim();
   if (!rawClientId || /YOUR_GOOGLE_CLIENT_ID/i.test(rawClientId)){
     show(loginCard, true);
     show(appCard, false);
     if (loginOut){
       loginOut.textContent =
-        'Config needed: update the <meta name="google-client-id"> tag in student_scans.html to your real Google Client ID.';
+        'Config needed: update <meta name="google-client-id"> in student_scans.html to your real Google Client ID.';
     }
     return;
   }
 
-  let appReady = false;
-
-  async function bootAuthed(){
-    if (appReady) return;
-    appReady = true;
-
-    show(loginCard, false);
-    show(appCard, true);
-
-    // load roster
-    setText('out', 'Loading roster...');
-    let roster = [];
-    try {
-      roster = await loadRoster();
-    } catch (e){
-      setText('out', `Roster error: ${e.message || e}`);
-      return;
-    }
-
-    const sel = document.getElementById('room');
-    sel.innerHTML = `<option value="">(all rooms)</option>` + roster.rooms.map(r => `<option>${esc(r)}</option>`).join('');
-
-    // date range default last 7 days
-    const end = new Date();
-    const start = new Date(end.getTime() - 7*86400*1000);
-    document.getElementById('endDate').value = end.toISOString().slice(0,10);
-    document.getElementById('startDate').value = start.toISOString().slice(0,10);
-
-    // actions
-    document.getElementById('btnRun')?.addEventListener('click', async () => {
-      const room = sel.value || '';
-      const startDate = document.getElementById('startDate').value;
-      const endDate   = document.getElementById('endDate').value;
-      setText('out', 'Loading scans...');
-      try{
-        const rows = await loadScans({ room, startDate, endDate });
-        renderTable(rows);
-        setText('out', `Loaded ${rows.length} scans.`);
-      }catch(e){
-        setText('out', `Scan load error: ${e?.message || e}`);
-      }
-    });
-
-    document.getElementById('btnLogout')?.addEventListener('click', async () => {
-      try{
-        await adminFetch('/admin/logout', { method:'POST' });
-      }catch(e){}
-      // force "not authed" state
-      location.reload();
-    });
-  }
-
-  // auth (safe: don't crash the page if fetch fails)
+  // Try existing session first
   let sess = { ok:false };
   try{
     sess = await checkSession();
   }catch(e){
-    // e.g. Worker down / DNS error / blocked cookies
     sess = { ok:false, error: (e?.message || String(e)) };
   }
 
-  if (sess.ok){
-    await bootAuthed();
+  if (sess && sess.ok){
+    await bootAuthed(); // <-- use your TOP-LEVEL bootAuthed() (the good one)
     return;
   }
 
-  // Not authed → show login + render Google button (same flow as hallway.js)
+  // Not authed -> show login + Google button
   show(loginCard, true);
   show(appCard, false);
 
   if (sess && sess.error && loginOut){
     loginOut.textContent = `Session check failed: ${sess.error}`;
-  }
-
-  if (!GOOGLE_CLIENT_ID){
-    loginOut.textContent = 'Missing GOOGLE_CLIENT_ID meta tag.';
-    return;
+  } else if (loginOut){
+    loginOut.textContent = '';
   }
 
   try{
@@ -526,32 +489,36 @@ async function boot(){
 
     gsi.initialize({
       client_id: GOOGLE_CLIENT_ID,
+      ux_mode: 'popup',
+      use_fedcm_for_prompt: true,
       callback: async (resp) => {
         try{
-          loginOut.textContent = 'Logging in...';
+          if (loginOut) loginOut.textContent = 'Logging in...';
           const r = await loginWithGoogle(resp.credential);
+
           if (!r.ok){
-            loginOut.textContent = `Login failed: ${r.status} ${r.statusText}`;
+            const msg = r?.j?.error ? r.j.error : `http_${r.status}`;
+            if (loginOut) loginOut.textContent = `Login failed: ${msg}`;
             return;
           }
-          const data = await r.json().catch(()=>({ok:false}));
-          if (!data.ok){
-            loginOut.textContent = `Login failed: ${data.error || 'unknown error'}`;
-            return;
-          }
+
+          if (loginOut) loginOut.textContent = '';
           await bootAuthed();
         }catch(e){
-          loginOut.textContent = `Login failed: ${e?.message || e}`;
+          if (loginOut) loginOut.textContent = `Login failed: ${e?.message || e}`;
         }
-      },
-      ux_mode: 'popup',
-      use_fedcm_for_prompt: true
+      }
     });
 
-    gsi.renderButton(document.getElementById('g_id_signin'), { theme:'outline', size:'large' });
-    loginOut.textContent = '—';
+    gsi.renderButton(document.getElementById('g_id_signin'), {
+      theme: 'outline',
+      size: 'large'
+    });
+
+    // Optional: ask the browser to show the “One Tap” prompt if available
+    try{ gsi.prompt(); }catch(e){}
   }catch(e){
-    loginOut.textContent = `Google init failed: ${e?.message || e}`;
+    if (loginOut) loginOut.textContent = `Google init failed: ${e?.message || e}`;
   }
 }
 
