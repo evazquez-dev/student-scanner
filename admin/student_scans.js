@@ -419,6 +419,28 @@ async function boot(){
   const appCard   = document.getElementById('appCard');
   const loginOut  = document.getElementById('loginOut');
 
+  // Guardrails: avoid a blank page if the meta tags still have placeholders/missing values
+  const rawApiBase = (meta('api-base') || '').trim();
+  if (!rawApiBase || /YOUR-WORKER|your-worker/i.test(rawApiBase)){
+    show(loginCard, true);
+    show(appCard, false);
+    if (loginOut){
+      loginOut.textContent =
+        'Config needed: update the <meta name="api-base"> tag in student_scans.html to your real Worker URL.';
+    }
+    return;
+  }
+  const rawClientId = (meta('google-client-id') || '').trim();
+  if (!rawClientId || /YOUR_GOOGLE_CLIENT_ID/i.test(rawClientId)){
+    show(loginCard, true);
+    show(appCard, false);
+    if (loginOut){
+      loginOut.textContent =
+        'Config needed: update the <meta name="google-client-id"> tag in student_scans.html to your real Google Client ID.';
+    }
+    return;
+  }
+
   let appReady = false;
 
   async function bootAuthed(){
@@ -438,28 +460,48 @@ async function boot(){
       return;
     }
 
-    const sel = document.getElementById('studentSelect');
-    const search = document.getElementById('studentSearch');
+    const sel = document.getElementById('room');
+    sel.innerHTML = `<option value="">(all rooms)</option>` + roster.rooms.map(r => `<option>${esc(r)}</option>`).join('');
 
-    renderRoster(sel, roster, '');
-    search?.addEventListener('input', () => renderRoster(sel, roster, search.value));
-    document.getElementById('btnRun')?.addEventListener('click', runReport);
+    // date range default last 7 days
+    const end = new Date();
+    const start = new Date(end.getTime() - 7*86400*1000);
+    document.getElementById('endDate').value = end.toISOString().slice(0,10);
+    document.getElementById('startDate').value = start.toISOString().slice(0,10);
+
+    // actions
+    document.getElementById('btnRun')?.addEventListener('click', async () => {
+      const room = sel.value || '';
+      const startDate = document.getElementById('startDate').value;
+      const endDate   = document.getElementById('endDate').value;
+      setText('out', 'Loading scans...');
+      try{
+        const rows = await loadScans({ room, startDate, endDate });
+        renderTable(rows);
+        setText('out', `Loaded ${rows.length} scans.`);
+      }catch(e){
+        setText('out', `Scan load error: ${e?.message || e}`);
+      }
+    });
+
+    document.getElementById('btnLogout')?.addEventListener('click', async () => {
+      try{
+        await adminFetch('/admin/logout', { method:'POST' });
+      }catch(e){}
+      // force "not authed" state
+      location.reload();
+    });
   }
 
-  // wire logout
-  document.getElementById('btnLogout')?.addEventListener('click', async () => {
-    await logout();
-    location.reload();
-  });
+  // auth (safe: don't crash the page if fetch fails)
+  let sess = { ok:false };
+  try{
+    sess = await checkSession();
+  }catch(e){
+    // e.g. Worker down / DNS error / blocked cookies
+    sess = { ok:false, error: (e?.message || String(e)) };
+  }
 
-  // set default date range = last 7 days
-  const end = new Date();
-  const start = new Date(Date.now() - 6*24*3600*1000);
-  document.getElementById('endDate').value = end.toISOString().slice(0,10);
-  document.getElementById('startDate').value = start.toISOString().slice(0,10);
-
-  // auth
-  const sess = await checkSession();
   if (sess.ok){
     await bootAuthed();
     return;
@@ -469,22 +511,32 @@ async function boot(){
   show(loginCard, true);
   show(appCard, false);
 
+  if (sess && sess.error && loginOut){
+    loginOut.textContent = `Session check failed: ${sess.error}`;
+  }
+
   if (!GOOGLE_CLIENT_ID){
-    loginOut.textContent = 'Missing meta google-client-id';
+    loginOut.textContent = 'Missing GOOGLE_CLIENT_ID meta tag.';
     return;
   }
 
   try{
-    loginOut.textContent = 'Loading…';
-    const gsi = await waitForGoogle();
+    await waitForGoogle();
+    const gsi = window.google.accounts.id;
+
     gsi.initialize({
       client_id: GOOGLE_CLIENT_ID,
       callback: async (resp) => {
         try{
-          loginOut.textContent = 'Signing in…';
-          const res = await loginWithGoogle(resp.credential);
-          if (!res.ok){
-            loginOut.textContent = `Login failed (HTTP ${res.status})\n${JSON.stringify(res.j, null, 2)}`;
+          loginOut.textContent = 'Logging in...';
+          const r = await loginWithGoogle(resp.credential);
+          if (!r.ok){
+            loginOut.textContent = `Login failed: ${r.status} ${r.statusText}`;
+            return;
+          }
+          const data = await r.json().catch(()=>({ok:false}));
+          if (!data.ok){
+            loginOut.textContent = `Login failed: ${data.error || 'unknown error'}`;
             return;
           }
           await bootAuthed();
@@ -495,6 +547,7 @@ async function boot(){
       ux_mode: 'popup',
       use_fedcm_for_prompt: true
     });
+
     gsi.renderButton(document.getElementById('g_id_signin'), { theme:'outline', size:'large' });
     loginOut.textContent = '—';
   }catch(e){
