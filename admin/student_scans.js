@@ -118,6 +118,46 @@ async function logout(){
 }
 
 let APP_READY = false;
+let ROSTER_CACHE = [];
+
+function rosterLabel(s){
+  return `${s.name} (${s.osis})`;
+}
+
+function fillStudentDatalist(roster){
+  const dl = document.getElementById('studentDatalist');
+  if (!dl) return;
+  dl.innerHTML = roster.map(s => `<option value="${esc(rosterLabel(s))}"></option>`).join('');
+}
+
+function parseOsisFromInput(value){
+  const v = String(value || '').trim();
+
+  // If they typed just the OSIS
+  if (/^\d{6,12}$/.test(v)) return v;
+
+  // If they picked "Name (OSIS)"
+  const m = v.match(/\(([^)]+)\)\s*$/);
+  if (m && m[1]) return m[1].trim();
+
+  return '';
+}
+
+function setPickedStudent(osis){
+  const hidden = document.getElementById('studentOsis');
+  const hint = document.getElementById('studentPickHint');
+  if (hidden) hidden.value = osis || '';
+
+  if (hint){
+    if (!osis) {
+      hint.textContent = '';
+    } else {
+      const s = ROSTER_CACHE.find(x => x.osis === osis);
+      hint.textContent = s ? `Selected: ${s.name} (${s.osis})` : `Selected OSIS: ${osis}`;
+    }
+  }
+}
+
 async function bootAuthed(){
   if (APP_READY) return;
   APP_READY = true;
@@ -130,20 +170,35 @@ async function bootAuthed(){
 
   // load roster
   setText('out', 'Loading roster...');
-  let roster = [];
   try {
-    roster = await loadRoster();
+    ROSTER_CACHE = await loadRoster();
   } catch (e){
     setText('out', `Roster error: ${e.message || e}`);
     return;
   }
 
-  const sel = document.getElementById('studentSelect');
+  fillStudentDatalist(ROSTER_CACHE);
+  setText('out', '');
+
   const search = document.getElementById('studentSearch');
 
-  renderRoster(sel, roster, '');
+  // When user types / picks a suggestion, update hidden OSIS
+  search?.addEventListener('input', () => {
+    const osis = parseOsisFromInput(search.value);
+    setPickedStudent(osis);
+  });
 
-  search?.addEventListener('input', () => renderRoster(sel, roster, search.value));
+  // If they tab/blur out, try to resolve exact match by name (optional nice-to-have)
+  search?.addEventListener('change', () => {
+    let osis = parseOsisFromInput(search.value);
+    if (!osis){
+      const v = String(search.value || '').trim().toLowerCase();
+      const exact = ROSTER_CACHE.find(s => s.name.toLowerCase() === v);
+      if (exact) osis = exact.osis;
+    }
+    setPickedStudent(osis);
+  });
+
   document.getElementById('btnRun')?.addEventListener('click', runReport);
 }
 
@@ -360,14 +415,15 @@ function renderRaw(rows){
 }
 
 async function runReport(){
-  const sel = document.getElementById('studentSelect');
-  const osis = sel?.value || '';
+  const osis = document.getElementById('studentOsis')?.value
+            || parseOsisFromInput(document.getElementById('studentSearch')?.value);
+
   const start = document.getElementById('startDate')?.value || '';
   const end   = document.getElementById('endDate')?.value || '';
   const outEl = document.getElementById('out');
 
   if (!osis || !start || !end){
-    if (outEl) outEl.textContent = 'Select a student and date range.';
+    if (outEl) outEl.textContent = 'Pick a student (from suggestions) and choose a date range.';
     return;
   }
 
