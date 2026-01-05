@@ -547,8 +547,10 @@ function setReportBusy(on, message){
 async function runReport(){
   if (REPORT_BUSY) return;
 
-  const sel = document.getElementById('studentSelect');
-  const osis = sel?.value || '';
+  const searchVal = document.getElementById('studentSearch')?.value || '';
+  const osis =
+    (document.getElementById('studentOsis')?.value || parseOsisFromInput(searchVal) || '').trim();
+
   const start = document.getElementById('startDate')?.value || '';
   const end   = document.getElementById('endDate')?.value || '';
   const outEl = document.getElementById('out');
