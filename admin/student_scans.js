@@ -5,14 +5,24 @@ const TZ = 'America/New_York';
 function meta(name){
   return document.querySelector(`meta[name="${name}"]`)?.content || '';
 }
-const API_BASE = meta('api-base');
-const GOOGLE_CLIENT_ID = meta('google-client-id');
+// Match hallway.js / teacher_attendance.js: normalize base URL and read client id from meta
+const API_BASE = (meta('api-base') || '').replace(/\/*$/, '') + '/';
+const GOOGLE_CLIENT_ID = meta('google-client-id') || '';
 
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 async function adminFetch(path, init={}){
   const url = new URL(path, API_BASE);
   return fetch(url.toString(), { ...init, credentials:'include' });
+}
+
+async function waitForGoogle(timeoutMs = 8000){
+  const start = Date.now();
+  while(!window.google?.accounts?.id){
+    if(Date.now() - start > timeoutMs) throw new Error('Google script failed to load');
+    await new Promise(r => setTimeout(r, 50));
+  }
+  return window.google.accounts.id;
 }
 
 function dtParts(iso){
@@ -82,20 +92,59 @@ async function checkSession(){
   return r.json().catch(()=>({ok:false}));
 }
 
+async function tryBootstrapSession(){
+  try{
+    const sess = await checkSession();
+    return Boolean(sess && sess.ok);
+  }catch{
+    return false;
+  }
+}
+
 async function loginWithGoogle(idToken){
-  const body = new URLSearchParams({ id_token: idToken }).toString();
-  const r = await fetch(new URL('/admin/login', API_BASE).toString(), {
-    method:'POST',
-    headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
-    body,
-    credentials:'include'
+  // Match hallway.js / teacher_attendance.js: cookie session created by Worker
+  const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: new URLSearchParams({ id_token: idToken }).toString(),
+    credentials: 'include'
   });
   const j = await r.json().catch(()=>({}));
-  return { ok: r.ok && j && j.ok, status:r.status, j };
+  return { ok: Boolean(r.ok && j && j.ok), status: r.status, j };
 }
 
 async function logout(){
   await adminFetch('/admin/logout', { method:'POST' }).catch(()=>{});
+}
+
+let APP_READY = false;
+async function bootAuthed(){
+  if (APP_READY) return;
+  APP_READY = true;
+
+  const loginCard = document.getElementById('loginCard');
+  const appCard   = document.getElementById('appCard');
+
+  show(loginCard, false);
+  show(appCard, true);
+
+  // load roster
+  setText('out', 'Loading roster...');
+  let roster = [];
+  try {
+    roster = await loadRoster();
+  } catch (e){
+    setText('out', `Roster error: ${e.message || e}`);
+    return;
+  }
+
+  const sel = document.getElementById('studentSelect');
+  const search = document.getElementById('studentSearch');
+
+  renderRoster(sel, roster, '');
+
+  search?.addEventListener('input', () => renderRoster(sel, roster, search.value));
+  document.getElementById('btnRun')?.addEventListener('click', runReport);
 }
 
 async function loadRoster(){
@@ -370,6 +419,33 @@ async function boot(){
   const appCard   = document.getElementById('appCard');
   const loginOut  = document.getElementById('loginOut');
 
+  let appReady = false;
+
+  async function bootAuthed(){
+    if (appReady) return;
+    appReady = true;
+
+    show(loginCard, false);
+    show(appCard, true);
+
+    // load roster
+    setText('out', 'Loading roster...');
+    let roster = [];
+    try {
+      roster = await loadRoster();
+    } catch (e){
+      setText('out', `Roster error: ${e.message || e}`);
+      return;
+    }
+
+    const sel = document.getElementById('studentSelect');
+    const search = document.getElementById('studentSearch');
+
+    renderRoster(sel, roster, '');
+    search?.addEventListener('input', () => renderRoster(sel, roster, search.value));
+    document.getElementById('btnRun')?.addEventListener('click', runReport);
+  }
+
   // wire logout
   document.getElementById('btnLogout')?.addEventListener('click', async () => {
     await logout();
@@ -384,53 +460,46 @@ async function boot(){
 
   // auth
   const sess = await checkSession();
-  if (!sess.ok){
-    show(loginCard, true);
-    show(appCard, false);
+  if (sess.ok){
+    await bootAuthed();
+    return;
+  }
 
-    if (!GOOGLE_CLIENT_ID){
-      loginOut.textContent = 'Missing meta google-client-id';
-      return;
-    }
+  // Not authed → show login + render Google button (same flow as hallway.js)
+  show(loginCard, true);
+  show(appCard, false);
 
-    const btnDiv = document.getElementById('gsiBtn');
-    google.accounts.id.initialize({
+  if (!GOOGLE_CLIENT_ID){
+    loginOut.textContent = 'Missing meta google-client-id';
+    return;
+  }
+
+  try{
+    loginOut.textContent = 'Loading…';
+    const gsi = await waitForGoogle();
+    gsi.initialize({
       client_id: GOOGLE_CLIENT_ID,
       callback: async (resp) => {
-        loginOut.textContent = 'Logging in...';
-        const res = await loginWithGoogle(resp.credential);
-        if (!res.ok){
-          loginOut.textContent = `Login failed (HTTP ${res.status})\n${JSON.stringify(res.j, null, 2)}`;
-          return;
+        try{
+          loginOut.textContent = 'Signing in…';
+          const res = await loginWithGoogle(resp.credential);
+          if (!res.ok){
+            loginOut.textContent = `Login failed (HTTP ${res.status})\n${JSON.stringify(res.j, null, 2)}`;
+            return;
+          }
+          await bootAuthed();
+        }catch(e){
+          loginOut.textContent = `Login failed: ${e?.message || e}`;
         }
-        location.reload();
-      }
+      },
+      ux_mode: 'popup',
+      use_fedcm_for_prompt: true
     });
-    google.accounts.id.renderButton(btnDiv, { theme:'outline', size:'large' });
-    return;
+    gsi.renderButton(document.getElementById('g_id_signin'), { theme:'outline', size:'large' });
+    loginOut.textContent = '—';
+  }catch(e){
+    loginOut.textContent = `Google init failed: ${e?.message || e}`;
   }
-
-  show(loginCard, false);
-  show(appCard, true);
-
-  // load roster
-  setText('out', 'Loading roster...');
-  let roster = [];
-  try {
-    roster = await loadRoster();
-  } catch (e){
-    setText('out', `Roster error: ${e.message || e}`);
-    return;
-  }
-
-  const sel = document.getElementById('studentSelect');
-  const search = document.getElementById('studentSearch');
-
-  renderRoster(sel, roster, '');
-
-  search?.addEventListener('input', () => renderRoster(sel, roster, search.value));
-
-  document.getElementById('btnRun')?.addEventListener('click', runReport);
 }
 
 document.addEventListener('DOMContentLoaded', boot);
