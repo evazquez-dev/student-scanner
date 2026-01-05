@@ -200,6 +200,7 @@ async function bootAuthed(){
   });
 
   document.getElementById('btnRun')?.addEventListener('click', runReport);
+  document.getElementById('btnPrint')?.addEventListener('click', () => window.print());
 }
 
 async function loadRoster(){
@@ -512,7 +513,7 @@ function setReportBusy(on, message){
   const appCard = document.getElementById('appCard');
   const ov = document.getElementById('busyOverlay');
 
-  const idsToDisable = ['studentSearch','studentSelect','startDate','endDate','btnRun','btnLogout'];
+  const idsToDisable = ['studentSearch','studentSelect','startDate','endDate','btnRun','btnPrint','btnLogout'];
   for (const id of idsToDisable){
     const el = document.getElementById(id);
     if (!el) continue;
