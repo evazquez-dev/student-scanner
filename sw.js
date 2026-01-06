@@ -74,3 +74,21 @@ async function cacheFirst(req) {
   }
   return res;
 }
+
+self.addEventListener('message', (event) => {
+  const msg = event.data || {};
+  if (msg.type !== 'GET_SW_VERSION') return;
+
+  const payload = { type: 'SW_VERSION', version: VERSION };
+
+  // Preferred: respond over MessageChannel if provided
+  if (event.ports && event.ports[0]) {
+    event.ports[0].postMessage(payload);
+    return;
+  }
+
+  // Fallback: respond directly to the sending client
+  if (event.source && event.source.postMessage) {
+    event.source.postMessage(payload);
+  }
+});

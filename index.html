@@ -326,6 +326,7 @@
       <span class="pill" id="locationPill" style="margin-left:6px; cursor:pointer;" title="Click to change location">Set location</span>
       <span class="pill" id="batteryPill" style="margin-left:6px">🔋 --%</span>
       <span class="pill" id="netPill" style="margin-left:6px">Wi-Fi …</span>
+      <span class="pill" id="swVersionPill" style="margin-left:6px">v?</span>
     </h1>
     <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter.</div>
 
@@ -518,6 +519,8 @@
   const outModalCancel = document.getElementById('outModalCancel');
   const outReasonButtons = Array.from(document.querySelectorAll('.out-reason-btn') || []);
 
+  const swVersionPill = document.getElementById('swVersionPill');
+
   // Runtime state
   let IS_MODAL_OPEN = false;
   let IS_LOCATION_LOCKED = false;
@@ -525,6 +528,46 @@
   let DEBUG_BUFFER = '';
   let DEBUG_LAST_TS = 0;
   let DEBUG_EVENTS = [];
+
+  async function getServiceWorkerVersion(){
+    if (!('serviceWorker' in navigator)) return null;
+
+    // Wait until SW is ready/controlling (best effort)
+    try { await navigator.serviceWorker.ready; } catch {}
+
+    if (!navigator.serviceWorker.controller) return null;
+
+    return await new Promise((resolve) => {
+      const ch = new MessageChannel();
+      const timer = setTimeout(() => resolve(null), 1500);
+
+      ch.port1.onmessage = (ev) => {
+        clearTimeout(timer);
+        const data = ev.data || {};
+        if (data.type === 'SW_VERSION') resolve(data.version || null);
+        else resolve(null);
+      };
+
+      navigator.serviceWorker.controller.postMessage({ type: 'GET_SW_VERSION' }, [ch.port2]);
+    });
+  }
+
+  async function refreshVersionPill(){
+    if (!swVersionPill) return;
+
+    const v = await getServiceWorkerVersion();
+    if (v) swVersionPill.textContent = v;
+    else swVersionPill.textContent = 'no-sw';
+  }
+
+  refreshVersionPill();
+
+  // If a new SW takes control after refresh, update the pill
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      refreshVersionPill();
+    });
+  }
 
   function clearManualInput() {
     if (!manualInput) return;
