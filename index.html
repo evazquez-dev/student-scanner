@@ -935,6 +935,7 @@
     }
   
     CURRENT_CLASS_PERIOD_KEY = key;
+    syncClassSessionFromServer();
   
     // Rebuild "present" + "OUT" from localStorage for this bucket
     hydrateClassPresentFromStorage(key);
@@ -1625,6 +1626,62 @@
     } catch (_) {
       // logging failures shouldn't break the kiosk
     }
+  }
+
+  async function apiClassSessionState(periodId){
+    const body = new URLSearchParams();
+    body.set('action', 'class_session_state');
+    body.set('location', getLocation() || '');
+    body.set('period_id', String(periodId || ''));
+
+    try{
+      const r = await fetch(API_BASE, { method:'POST', body });
+      const data = await r.json().catch(()=>null);
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  async function syncClassSessionFromServer(){
+    const loc = getLocation();
+    if (!isClassKiosk(loc)) return;
+    if (!CURRENT_CLASS_PERIOD_KEY) return;
+
+    const data = await apiClassSessionState(CURRENT_CLASS_PERIOD_KEY);
+    if (!data || !data.ok) return;
+
+    const students = data.students || {};
+    const serverOut = new Set();
+
+    __HYDRATING_OUT = true;
+    try{
+      for (const [osis, rec] of Object.entries(students)){
+        const out = rec && rec.out;
+
+        if (out && out.isOut && out.outSinceISO){
+          serverOut.add(osis);
+          if (!OUT_OF_CLASS[osis]){
+            addClassOutEntry(osis, '', out.reason || 'Teacher', new Date(out.outSinceISO));
+          }
+        }
+
+        if (rec && rec.firstInISO) {
+          const ms = Date.parse(rec.firstInISO);
+          if (ms && !CLASS_PRESENT[osis]) CLASS_PRESENT[osis] = { firstIn: ms, lastIn: ms };
+        }
+      }
+
+      for (const osis of Object.keys(OUT_OF_CLASS)){
+        if (!serverOut.has(osis)) {
+          clearClassOutEntry(osis);
+        }
+      }
+    } finally {
+      __HYDRATING_OUT = false;
+    }
+
+    ensureClassOutVisibility();
   }
 
   async function apiGetLocations(){
@@ -2419,6 +2476,10 @@
     if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     promptForLocation(true);
   });
+
+  setInterval(() => {
+    syncClassSessionFromServer();
+  }, 5000);
 
   // Wake Lock (keep screen on)
   let wakeLock = null;

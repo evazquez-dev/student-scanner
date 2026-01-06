@@ -80,6 +80,33 @@ async function adminFetch(pathOrUrl, init = {}){
   return fetch(u, { ...init, credentials:'include' });
 }
 
+async function fetchClassSessionState(date, room, periodLocal){
+  const u = new URL('/admin/class_session/state', API_BASE);
+  u.searchParams.set('date', String(date || ''));
+  u.searchParams.set('room', String(room || ''));
+  u.searchParams.set('periodLocal', String(periodLocal || ''));
+
+  const r = await adminFetch(u, { method:'GET' });
+  const data = await r.json().catch(()=>null);
+  if(!r.ok || !data?.ok) {
+    throw new Error(data?.error || `class_session/state HTTP ${r.status}`);
+  }
+  return data;
+}
+
+async function toggleClassSessionOutIn({ date, room, periodLocal, osis }){
+  const r = await adminFetch('/admin/class_session/toggle', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ date, room, periodLocal, osis })
+  });
+  const data = await r.json().catch(()=>null);
+  if(!r.ok || !data?.ok) {
+    throw new Error(data?.error || `class_session/toggle HTTP ${r.status}`);
+  }
+  return data;
+}
+
 async function populateDropdowns(){
   const opts = await fetchTeacherOptions();
 
@@ -259,7 +286,7 @@ async function fetchPreview(room, period, whenType, opts = {}){
   }
   return data;
 }
-function renderRows({ date, room, period, whenType, snapshotRows, computedRows, snapshotMap }){
+function renderRows({ date, room, period, whenType, snapshotRows, computedRows, snapshotMap, sessionState }){
   rowsEl.innerHTML = '';
   lastMergedRows = [];
 
@@ -436,7 +463,40 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     const c5 = document.createElement('div');
     c5.className = 'hide-sm';
-    c5.textContent = r.zone ? String(r.zone).replace(/_/g,' ') : '—';
+
+    const sessRec = sessionState?.students ? sessionState.students[r.osis] : null;
+    const isOut = !!(sessRec?.out && sessRec.out.isOut);
+    const outSinceISO = sessRec?.out?.outSinceISO || null;
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-mini ' + (isOut ? 'btn-in' : 'btn-out');
+    btn.textContent = isOut ? 'IN' : 'OUT';
+    btn.title = isOut && outSinceISO ? `Out since ${outSinceISO}` : 'Toggle Out/In';
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try{
+        const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis: r.osis });
+        if (!sessionState) sessionState = { ok:true, students:{} };
+        if (!sessionState.students) sessionState.students = {};
+        sessionState.students[r.osis] = sessionState.students[r.osis] || { osis: r.osis };
+        sessionState.students[r.osis].out = sessionState.students[r.osis].out || {};
+        sessionState.students[r.osis].out.isOut = !!res.isOut;
+        if (res.isOut && res.outSinceISO) {
+          sessionState.students[r.osis].out.outSinceISO = res.outSinceISO;
+        } else {
+          delete sessionState.students[r.osis].out.outSinceISO;
+        }
+
+        btn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
+        btn.textContent = res.isOut ? 'IN' : 'OUT';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    c5.appendChild(btn);
 
     row.appendChild(c1);
     row.appendChild(c2);
@@ -556,6 +616,13 @@ async function refreshOnce(){
   const date = snap.date || snapView.date || computed.date || '—';
   dateText.textContent = date;
 
+  let sessionState = null;
+  try{
+    sessionState = await fetchClassSessionState(date, room, period);
+  }catch(_){
+    sessionState = null;
+  }
+
   renderRows({
     date,
     room,
@@ -563,7 +630,8 @@ async function refreshOnce(){
     whenType,
     snapshotRows: Array.isArray(snapView.rows) ? snapView.rows : [],
     computedRows: Array.isArray(computed.rows) ? computed.rows : [],
-    snapshotMap: snap.map
+    snapshotMap: snap.map,
+    sessionState
   });
 
   setStatus(true, 'Live');
