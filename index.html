@@ -967,22 +967,28 @@
   function maybeResetClassStateForPeriod(res) {
     const loc = getLocation();
     if (!isClassKiosk(loc)) return;
-  
+
     const key = deriveKioskPeriodKeyFromResponse(res);
     if (!key) return;
-  
+
+    const changed = (!CURRENT_CLASS_PERIOD_KEY || CURRENT_CLASS_PERIOD_KEY !== key);
+
     // If we already have a period and it changes → new class, reset state
     if (CURRENT_CLASS_PERIOD_KEY && CURRENT_CLASS_PERIOD_KEY !== key) {
       logClassTimeoutsForCurrentPeriod();
       resetClassSessionState();
     }
-  
+
     CURRENT_CLASS_PERIOD_KEY = key;
-    syncClassSessionFromServer();
-  
+
     // Rebuild "present" + "OUT" from localStorage for this bucket
     hydrateClassPresentFromStorage(key);
     hydrateOutOfClassFromStorage(key);
+
+    // Only sync from server when the period changes (or first set)
+    if (changed) {
+      syncClassSessionFromServer();
+    }
   }
     
   function classifyLocationType(locationName){
@@ -2045,7 +2051,32 @@
           return;
         }
 
+        noteClassActivity();
         const osis = String(res.osis || '').trim();
+
+        // If worker tells us this student is currently OUT (from teacher page), mirror it locally
+        if (res && res.session_out && res.session_out.isOut && res.session_out.outSinceISO) {
+          if (!OUT_OF_CLASS[osis]) {
+            addClassOutEntry(
+              osis,
+              res.name || '',
+              res.session_out.reason || 'Teacher',
+              new Date(res.session_out.outSinceISO)
+            );
+          }
+        } else {
+          // If server says not out, clear locally (optional; comment out if you prefer "local-only" history)
+          if (OUT_OF_CLASS[osis]) {
+            clearClassOutEntry(osis);
+          }
+        }
+
+        // If server knows first-in, set present
+        if (res && res.session_firstInISO && !CLASS_PRESENT[osis]) {
+          const ms = Date.parse(res.session_firstInISO);
+          if (ms) CLASS_PRESENT[osis] = { firstIn: ms, lastIn: ms };
+        }
+
         const wasOut = !!OUT_OF_CLASS[osis];
         const isPresent = !!CLASS_PRESENT[osis];
 
@@ -2520,9 +2551,36 @@
     promptForLocation(true);
   });
 
-  setInterval(() => {
-    syncClassSessionFromServer();
-  }, 5000);
+  // ---- Smarter class-session polling (cuts Worker hits a LOT) ----
+  let __CLASS_SYNC_TIMER = null;
+  let LAST_CLASS_ACTIVITY_MS = 0;
+
+  // Tune these:
+  const CLASS_SYNC_POLL_MS = 60_000;      // poll at most once per minute
+  const CLASS_SYNC_IDLE_MS = 2 * 60_000;  // stop polling if no scans for 2 minutes
+
+  function noteClassActivity() {
+    LAST_CLASS_ACTIVITY_MS = Date.now();
+  }
+
+  function startClassSyncLoop() {
+    if (__CLASS_SYNC_TIMER) clearInterval(__CLASS_SYNC_TIMER);
+
+    __CLASS_SYNC_TIMER = setInterval(async () => {
+      const loc = getLocation();
+      if (!isClassKiosk(loc)) return;
+
+      // If we don't know the current period, do nothing
+      if (!CURRENT_CLASS_PERIOD_KEY) return;
+
+      // If kiosk is just sitting open with no scans, stop hammering the worker
+      if (Date.now() - LAST_CLASS_ACTIVITY_MS > CLASS_SYNC_IDLE_MS) return;
+
+      await syncClassSessionFromServer();
+    }, CLASS_SYNC_POLL_MS);
+  }
+
+  startClassSyncLoop();
 
   // Wake Lock (keep screen on)
   let wakeLock = null;
