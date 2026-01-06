@@ -16,6 +16,7 @@ const statusDot  = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const dateText   = document.getElementById('dateText');
 const refreshText= document.getElementById('refreshText');
+const currentPeriodText = document.getElementById('currentPeriodText');
 
 const roomInput  = document.getElementById('roomInput');
 const periodInput= document.getElementById('periodInput');
@@ -117,8 +118,8 @@ async function populateDropdowns(){
 
   // PERIOD: always prefer Worker’s current periodLocal; fallback to savedPeriod
   const preferredPeriod = String(opts.current_period_local || '').trim() || savedPeriod;
-  fillSelect(periodInput, opts.periods || [], 'Select period…', preferredPeriod);
-
+  const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
+  fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
 }
 
 async function fetchTeacherOptions(){
@@ -140,15 +141,24 @@ function fillSelect(el, items, placeholder, preferredValue){
   ph.textContent = placeholder || 'Select…';
   el.appendChild(ph);
 
-  for(const v of (items || [])){
+  for(const item of (items || [])){
     const opt = document.createElement('option');
-    opt.value = String(v);
-    opt.textContent = String(v);
+
+    if(item && typeof item === 'object'){
+      const value = (item.value ?? item.id ?? item.local ?? '');
+      const label = (item.label ?? item.text ?? value);
+      opt.value = String(value);
+      opt.textContent = String(label);
+    } else {
+      opt.value = String(item);
+      opt.textContent = String(item);
+    }
+
     el.appendChild(opt);
   }
 
-  if(preferredValue && items?.includes(preferredValue)){
-    el.value = preferredValue;
+  if(preferredValue != null && String(preferredValue).trim() !== ''){
+    el.value = String(preferredValue);
   }
 }
 
@@ -643,6 +653,41 @@ document.addEventListener('visibilitychange', () => {
   else startAutoRefresh();
 });
 
+let CURRENT_PERIOD_TIMER = null;
+
+function renderCurrentPeriod(opts){
+  if(!currentPeriodText) return;
+
+  const cur = String(opts?.current_period_local || '').trim();
+  if(!cur){
+    currentPeriodText.textContent = 'Current: —';
+    return;
+  }
+
+  // If Worker provides pretty labels (e.g., "4 (10:48 AM - 11:42 AM)"), use them
+  let label = cur;
+  const po = opts?.period_options;
+  if(Array.isArray(po)){
+    const found = po.find(x => String(x?.value) === cur);
+    if(found?.label) label = String(found.label);
+  }
+
+  currentPeriodText.textContent = `Current: ${label}`;
+}
+
+function startCurrentPeriodTicker(){
+  if(CURRENT_PERIOD_TIMER) return;
+
+  // Update periodically so it stays correct as periods change
+  CURRENT_PERIOD_TIMER = setInterval(async () => {
+    if(!IS_AUTHED) return;
+    try{
+      const opts = await fetchTeacherOptions();
+      renderCurrentPeriod(opts);
+    }catch(_){}
+  }, 60000);
+}
+
 async function bootTeacherAttendance(){
   // Prefill from URL (?room=316&period=3) or localStorage
   const p = qs();
@@ -706,13 +751,29 @@ copyCsvBtn.addEventListener('click', async () => {
     try{
       const opts = await fetchTeacherOptions();
 
+      // Always show current period in the header pill
+      renderCurrentPeriod(opts);
+      startCurrentPeriodTicker();
+
       const savedRoom   = localStorage.getItem('teacher_att_room') || '';
       const savedPeriod = localStorage.getItem('teacher_att_period') || '';
 
-      fillSelect(roomInput, opts.rooms || [], 'Select room…', savedRoom);
-      fillSelect(periodInput, opts.periods || [], 'Select period…', savedPeriod);
+      // Prefer URL params if present, otherwise prefer Worker current period, otherwise fall back
+      const urlRoom   = (qs().get('room')   || '').trim();
+      const urlPeriod = (qs().get('period') || '').trim();
 
-      // If nothing saved, keep them blank
+      const preferredRoom   = urlRoom || savedRoom || '';
+      const preferredPeriod =
+        urlPeriod ||
+        String(opts.current_period_local || '').trim() ||
+        savedPeriod ||
+        '';
+
+      // Support period labels with time ranges if provided by Worker
+      const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
+
+      fillSelect(roomInput, opts.rooms || [], 'Select room…', preferredRoom);
+      fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
     }catch(e){
       // Don’t block the page if options fail — teachers can still type if you revert to inputs later
       console.warn('options load failed', e);
