@@ -8,6 +8,38 @@ const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || ''
   .replace(/\/*$/, '') + '/';
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
 
+const THEME_KEY = 'teacher_att_theme';
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+
+function getTheme(){
+  const t = String(document.documentElement?.dataset?.theme || '').trim().toLowerCase();
+  return (t === 'light') ? 'light' : 'dark';
+}
+
+function setTheme(theme){
+  const t = (String(theme || '').toLowerCase() === 'light') ? 'light' : 'dark';
+  document.documentElement.dataset.theme = t;
+  try{ localStorage.setItem(THEME_KEY, t); }catch{}
+  updateThemeToggleUI();
+}
+
+function updateThemeToggleUI(){
+  if(!themeToggleBtn) return;
+  const t = getTheme();
+  themeToggleBtn.textContent = (t === 'light') ? '☀️ Light' : '🌙 Dark';
+  themeToggleBtn.title = (t === 'light') ? 'Switch to dark mode' : 'Switch to light mode';
+  themeToggleBtn.setAttribute('aria-pressed', String(t === 'light'));
+}
+
+function initThemeToggle(){
+  if(!themeToggleBtn) return;
+  // dataset is set early in HTML; just sync UI + wire click handler
+  updateThemeToggleUI();
+  themeToggleBtn.addEventListener('click', () => {
+    setTheme(getTheme() === 'light' ? 'dark' : 'light');
+  });
+}
+
 const loginCard  = document.getElementById('loginCard');
 const loginOut   = document.getElementById('loginOut');
 const appShell   = document.getElementById('appShell');
@@ -24,7 +56,6 @@ const roomInput  = document.getElementById('roomInput');
 const periodInput= document.getElementById('periodInput');
 // const whenSelect = document.getElementById('whenSelect');
 const refreshBtn = document.getElementById('refreshBtn');
-const copyCsvBtn = document.getElementById('copyCsvBtn');
 const submitBtn = document.getElementById('submitBtn');
 
 const errBox     = document.getElementById('errBox');
@@ -572,37 +603,6 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
   updateSubmitState();
 }
-function buildCsv(date, room, period, whenType){
-  // Output includes suggested and chosen (override)
-  const lines = [];
-  lines.push(['date','room','period','when','osis','name','suggested','chosen','scan_time','scan_status','snapshot_zone','snapshot_loc'].join(','));
-
-  for(const r of lastMergedRows){
-    const vals = [
-      date,
-      room,
-      period,
-      whenType,
-      r.osis,
-      r.name,
-      r.snapshotLetter,
-      r.scanSuggested,
-      r.baseline,
-      r.chosen,
-      r.scanTime ? new Date(r.scanTime).toISOString() : '',
-      r.scanStatus || '',
-      r.zone || '',
-      r.locLabel || ''
-    ].map(v => {
-      const s = String(v ?? '');
-      // simple CSV quoting
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-    });
-    lines.push(vals.join(','));
-  }
-
-  return lines.join('\n');
-}
 
 async function submitChanges(){
   setErr('');
@@ -740,6 +740,7 @@ function startCurrentPeriodTicker(){
 }
 
 async function bootTeacherAttendance(){
+  initThemeToggle();
   // Prefill from URL (?room=316&period=3) or localStorage
   const p = qs();
   const roomQ = p.get('room') || localStorage.getItem('teacher_att_room') || '';
@@ -766,28 +767,6 @@ async function bootTeacherAttendance(){
     setErr(err?.message || String(err));
     setStatus(false, 'Error');
   }));
-  copyCsvBtn.addEventListener('click', async () => {
-    const date = dateText.textContent || '';
-    const room = normRoom(roomInput.value);
-    const period = normPeriod(periodInput.value);
-    const whenType = 'end';
-
-    const csv = buildCsv(date, room, period, whenType);
-    try{
-      await navigator.clipboard.writeText(csv);
-      setStatus(true, 'CSV copied');
-    }catch{
-      // fallback
-      const ta = document.createElement('textarea');
-      ta.value = csv;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-      setStatus(true, 'CSV copied');
-    }
-  });
-
   
   try{
     const r = await adminFetch('/admin/session/check', { method:'GET' });
@@ -907,17 +886,31 @@ async function onGoogleCredential(resp){
     show(appShell);
     setStatus(true, 'Live');
     IS_AUTHED = true;
+
+    // ✅ preserve defaults after login
     try{
-      await populateDropdowns();
+      const qs = new URLSearchParams(location.search);
+
+      const preferredRoom =
+        (qs.get('room') || '').trim() ||
+        (localStorage.getItem(LS_ROOM) || '').trim() ||
+        (roomInput.value || '').trim();
+
+      const preferredPeriod =
+        (qs.get('period') || '').trim() ||
+        (localStorage.getItem(LS_PERIOD) || '').trim() ||
+        (periodInput.value || '').trim();
+
+      const opts = await loadOptions();
+      fillSelect(roomInput, opts.rooms || [], 'Select room…', preferredRoom);
+      fillSelect(periodInput, opts.periods || [], 'Select period…', preferredPeriod);
+
+      try{ periodInput.dispatchEvent(new Event('change')); }catch{}
     }catch(e){
       console.warn('options load failed', e);
     }
+
     startAutoRefresh();
-
-    if(roomInput.value.trim() && periodInput.value.trim()){
-      await refreshOnce();
-    }
-
 
     if(roomInput.value.trim() && periodInput.value.trim()){
       await refreshOnce();
