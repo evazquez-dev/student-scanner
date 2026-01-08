@@ -338,6 +338,14 @@
       .zoneDot{ display:inline-block; }  /* show dots on mobile */
       .chip{ display:none; }             /* hide badges on mobile */
     }
+    
+    /* Hide the Out/In column entirely when not on the current period */
+    #tableBox.noOutIn .row{
+      grid-template-columns: minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
+    }
+    #tableBox.noOutIn .row-header{
+      grid-template-columns: minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
+    }
   </style>
 </head>
 
@@ -415,7 +423,7 @@
               <div class="mono hide-sm">OSIS</div>
               <div style="text-align:center;">Code</div>
               <div class="hide-sm">Scan</div>
-              <div class="hide-sm">Out/In</div>
+              <div class="hide-sm" id="outInHeader">Out/In</div>
             </div>
             <div id="rows"></div>
           </div>

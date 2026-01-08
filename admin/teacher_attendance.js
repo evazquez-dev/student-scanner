@@ -17,6 +17,8 @@ const statusText = document.getElementById('statusText');
 const dateText   = document.getElementById('dateText');
 const refreshText= document.getElementById('refreshText');
 const currentPeriodText = document.getElementById('currentPeriodText');
+const tableBox = document.getElementById('tableBox');
+const outInHeader = document.getElementById('outInHeader');
 
 const roomInput  = document.getElementById('roomInput');
 const periodInput= document.getElementById('periodInput');
@@ -33,6 +35,7 @@ const DEBUG = false;
 const debugEl = document.getElementById('debugLog');
 
 let IS_AUTHED = false;
+let CURRENT_PERIOD_LOCAL = ''; // updated by renderCurrentPeriod()
 
 // Cosmetic labels for attendance codes (keep values as A/L/P for API payloads)
 const CODE_LABELS = { P: 'Present', L: 'Late', A: 'Absent' };
@@ -300,6 +303,14 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   rowsEl.innerHTML = '';
   lastMergedRows = [];
 
+  // Only show Out/In for the current period (and only if current period is known)
+  const cur = String(CURRENT_PERIOD_LOCAL || '').trim();
+  const allowOutIn = !!cur && (String(period || '').trim() === cur);
+
+  // Collapse the Out/In column + hide header when not allowed
+  if (tableBox) tableBox.classList.toggle('noOutIn', !allowOutIn);
+  if (outInHeader) outInHeader.style.display = allowOutIn ? '' : 'none';
+
   // Map rows by OSIS for stable snapshot + computed scan suggestion
   const snapBy = new Map();
   for (const r of (snapshotRows || [])){
@@ -388,6 +399,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const row = document.createElement('div');
     row.className = 'row' + (mismatch ? ' row--mismatch' : '') + (changed ? ' row--changed' : '');
 
+    let outInBtn = null; // set only if allowOutIn column is rendered
+
     const c1 = document.createElement('div');
     c1.className = 'name';
 
@@ -462,6 +475,17 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       // Update row styles + submit state
       row.className = 'row' + (mismatch ? ' row--mismatch' : '') + ((r.chosen || 'A') !== (r.baseline || 'A') ? ' row--changed' : '');
       updateSubmitState();
+
+      // Enable Out/In only if Present or Late
+      if (outInBtn){
+        const canToggle = (r.chosen === 'P' || r.chosen === 'L');
+        outInBtn.disabled = !canToggle;
+        if (canToggle) {
+          outInBtn.title = outInBtn.dataset.toggleTitle || 'Toggle Out/In';
+        } else {
+          outInBtn.title = 'Mark Present (P) or Late (L) to enable Out/In';
+        }
+      }
     });
 
     c3.style.textAlign = 'center';
@@ -471,54 +495,80 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     c4.className = 'hide-sm';
     c4.textContent = r.scanTime ? fmtClock(r.scanTime) : '—';
 
-    const c5 = document.createElement('div');
-    c5.className = 'hide-sm';
-
-    const sessRec = sessionState?.students ? sessionState.students[r.osis] : null;
-    const isOut = !!(sessRec?.out && sessRec.out.isOut);
-    const outSinceISO = sessRec?.out?.outSinceISO || null;
-
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn btn-mini ' + (isOut ? 'btn-in' : 'btn-out');
-    btn.textContent = isOut ? 'IN' : 'OUT';
-    btn.title = isOut && outSinceISO ? `Out since ${outSinceISO}` : 'Toggle Out/In';
-
-    btn.addEventListener('click', async () => {
-      btn.disabled = true;
-      try{
-        const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis: r.osis });
-        if (!sessionState) sessionState = { ok:true, students:{} };
-        if (!sessionState.students) sessionState.students = {};
-        sessionState.students[r.osis] = sessionState.students[r.osis] || { osis: r.osis };
-        sessionState.students[r.osis].out = sessionState.students[r.osis].out || {};
-        sessionState.students[r.osis].out.isOut = !!res.isOut;
-        if (res.isOut && res.outSinceISO) {
-          sessionState.students[r.osis].out.outSinceISO = res.outSinceISO;
-        } else {
-          delete sessionState.students[r.osis].out.outSinceISO;
-        }
-
-        btn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
-        btn.textContent = res.isOut ? 'IN' : 'OUT';
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
-    c5.appendChild(btn);
-
     row.appendChild(c1);
     row.appendChild(c2);
     row.appendChild(c3);
     row.appendChild(c4);
-    row.appendChild(c5);
+
+    // Out/In only if selected period matches current period
+    if (allowOutIn) {
+      const c5 = document.createElement('div');
+      c5.className = 'hide-sm';
+
+      const sessRec = sessionState?.students ? sessionState.students[r.osis] : null;
+      const isOut = !!(sessRec?.out && sessRec.out.isOut);
+      const outSinceISO = sessRec?.out?.outSinceISO || null;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-mini ' + (isOut ? 'btn-in' : 'btn-out');
+      btn.textContent = isOut ? 'IN' : 'OUT';
+      btn.title = (isOut && outSinceISO) ? `Out since ${outSinceISO}` : 'Toggle Out/In';
+
+      // store "real" tooltip so we can restore after being disabled
+      btn.dataset.toggleTitle = btn.title;
+
+      // Enable Out/In only if Present or Late
+      outInBtn = btn;
+      const canToggleInitial = (r.chosen === 'P' || r.chosen === 'L');
+      btn.disabled = !canToggleInitial;
+      if (!canToggleInitial) btn.title = 'Mark Present (P) or Late (L) to enable Out/In';
+
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try{
+          const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis: r.osis });
+          if (!sessionState) sessionState = { ok:true, students:{} };
+          if (!sessionState.students) sessionState.students = {};
+          sessionState.students[r.osis] = sessionState.students[r.osis] || { osis: r.osis };
+          sessionState.students[r.osis].out = sessionState.students[r.osis].out || {};
+          sessionState.students[r.osis].out.isOut = !!res.isOut;
+          if (res.isOut && res.outSinceISO) {
+            sessionState.students[r.osis].out.outSinceISO = res.outSinceISO;
+          } else {
+            delete sessionState.students[r.osis].out.outSinceISO;
+          }
+
+          btn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
+          btn.textContent = res.isOut ? 'IN' : 'OUT';
+
+          // refresh "real" tooltip
+          btn.dataset.toggleTitle = (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
+          btn.title = btn.dataset.toggleTitle;
+        } finally {
+          // stay disabled if not Present/Late
+          const canToggleNow = (r.chosen === 'P' || r.chosen === 'L');
+          btn.disabled = !canToggleNow;
+          if (!canToggleNow) {
+            btn.title = 'Mark Present (P) or Late (L) to enable Out/In';
+          } else {
+            btn.title = btn.dataset.toggleTitle || 'Toggle Out/In';
+          }
+        }
+      });
+
+      c5.appendChild(btn);
+      row.appendChild(c5);
+    }
 
     rowsEl.appendChild(row);
     lastMergedRows.push(r);
   }
 
-  subtitleRight.textContent = `${room} • P${period} • ${whenType} • ${merged.length} students` + (haveSnapshot ? ' • (snapshot)' : ' • (live)');
+  subtitleRight.textContent =
+    `${room} • P${period} • ${whenType} • ${merged.length} students` +
+    (haveSnapshot ? ' • (snapshot)' : ' • (live)') +
+    (allowOutIn ? '' : ' • (Out/In hidden)');
 
   updateSubmitState();
 }
@@ -659,6 +709,7 @@ function renderCurrentPeriod(opts){
   if(!currentPeriodText) return;
 
   const cur = String(opts?.current_period_local || '').trim();
+  CURRENT_PERIOD_LOCAL = cur;
   if(!cur){
     currentPeriodText.textContent = 'Current: —';
     return;
