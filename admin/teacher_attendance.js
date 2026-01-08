@@ -715,7 +715,7 @@ async function bootTeacherAttendance(){
     setErr(err?.message || String(err));
     setStatus(false, 'Error');
   }));
-copyCsvBtn.addEventListener('click', async () => {
+  copyCsvBtn.addEventListener('click', async () => {
     const date = dateText.textContent || '';
     const room = normRoom(roomInput.value);
     const period = normPeriod(periodInput.value);
@@ -779,6 +779,7 @@ copyCsvBtn.addEventListener('click', async () => {
       console.warn('options load failed', e);
     }
 
+    startAutoRefresh();
 
     // Auto-refresh once if room+period prefilled
     if(roomInput.value.trim() && periodInput.value.trim()){
