@@ -461,13 +461,56 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const sub = document.createElement('div');
     sub.className = 'subline';
 
-    const parts = [];
-    if(r.locLabel) parts.push(r.locLabel);
-    if(r.scanRoom && r.scanRoom.toLowerCase() !== room.toLowerCase()){
-      parts.push(`scan@${r.scanRoom}`);
+    // Normalize labels so "RM 112" / "Room 112" / "112" compare cleanly
+    const normRoomKey = (s) => String(s || '')
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '')
+      .replace(/^rm/, '')
+      .replace(/^room/, '')
+      .replace(/[^a-z0-9]/g, '');
+
+    const selectedRoomKey = normRoomKey(room);
+
+    // Only highlight wrong-room when viewing the CURRENT period (same rule as Out/In)
+    const isCurrentPeriodView = allowOutIn;
+
+    // Determine wrong-room: student is in class zone, has a locLabel, and it doesn't match selected room
+    const studentRoomKey = normRoomKey(r.locLabel);
+    const isWrongRoomNow =
+      isCurrentPeriodView &&
+      String(r.zone || '') === 'class' &&
+      !!studentRoomKey &&
+      !!selectedRoomKey &&
+      (studentRoomKey !== selectedRoomKey);
+
+    // Build subline as spans so we can style only the location part
+    let added = false;
+    const addSep = () => {
+      if (added) sub.appendChild(document.createTextNode(' • '));
+      added = true;
+    };
+    const addTextPart = (text, className) => {
+      addSep();
+      const span = document.createElement('span');
+      if (className) span.className = className;
+      span.textContent = text;
+      sub.appendChild(span);
+    };
+
+    if (r.locLabel) {
+      addTextPart(r.locLabel, isWrongRoomNow ? 'sublinePart--wrongRoom' : '');
     }
-    if (mismatch) parts.push(`mismatch (scan:${codeLabel(r.scanSuggested)} vs snap:${codeLabel(r.snapshotLetter)})`);
-    sub.textContent = parts.join(' • ') || '—';
+
+    if (r.scanRoom && r.scanRoom.toLowerCase() !== room.toLowerCase()) {
+      addTextPart(`scan@${r.scanRoom}`, '');
+    }
+
+    if (mismatch) {
+      addTextPart(`mismatch (scan:${codeLabel(r.scanSuggested)} vs snap:${codeLabel(r.snapshotLetter)})`, '');
+    }
+
+    if (!added) sub.textContent = '—';
 
     c1.appendChild(top);
     c1.appendChild(sub);
