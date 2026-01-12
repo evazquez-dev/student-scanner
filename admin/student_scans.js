@@ -316,6 +316,95 @@ function computeBathroom(rows){
   return { sessions, missingOut, missingIn, denied, byPeriod };
 }
 
+function courseLabel(r){
+  return String(r?.courseSection || r?.course_section || '').trim();
+}
+
+function fmtWhenShort(iso){
+  if (!iso) return '—';
+  const p = dtParts(iso);
+  return `${p.dateKey} ${p.timeStr.slice(0,5)}`;
+}
+
+function computeCourses(rows, bath){
+  const byCourse = new Map();
+
+  // From raw scans
+  for (const r of rows){
+    const c = courseLabel(r);
+    if (!c) continue;
+
+    let cur = byCourse.get(c);
+    if (!cur){
+      cur = { course:c, scans:0, denied:0, periods:new Set(), firstISO:null, lastISO:null, bathSessions:0, bathMinutes:0 };
+      byCourse.set(c, cur);
+    }
+
+    cur.scans += 1;
+
+    const typ = allowedType(r.allowed);
+    if (typ === 'denied' || typ === 'denied_full') cur.denied += 1;
+
+    const pid = String(r.periodId || '').trim();
+    if (pid) cur.periods.add(pid);
+
+    const t = String(r.whenISO || '');
+    if (t){
+      if (!cur.firstISO || t < cur.firstISO) cur.firstISO = t;
+      if (!cur.lastISO  || t > cur.lastISO)  cur.lastISO  = t;
+    }
+  }
+
+  // From bathroom sessions (attribute session to the start scan's courseSection)
+  for (const s of (bath?.sessions || [])){
+    const c = courseLabel(s?.start);
+    if (!c) continue;
+
+    let cur = byCourse.get(c);
+    if (!cur){
+      cur = { course:c, scans:0, denied:0, periods:new Set(), firstISO:null, lastISO:null, bathSessions:0, bathMinutes:0 };
+      byCourse.set(c, cur);
+    }
+    cur.bathSessions += 1;
+    cur.bathMinutes  += Number(s.durMin || 0);
+  }
+
+  return byCourse;
+}
+
+function renderCoursesOverview(byCourse){
+  const tb = document.querySelector('#coursesTable tbody');
+  const summary = document.getElementById('coursesSummary');
+  if (!tb) return;
+
+  tb.innerHTML = '';
+
+  const arr = [...(byCourse?.values() || [])]
+    .sort((a,b)=> (b.scans - a.scans) || a.course.localeCompare(b.course, undefined, { sensitivity:'base' }));
+
+  if (summary){
+    summary.textContent = arr.length
+      ? `Found ${arr.length} course/advisor label(s) in this range.`
+      : 'No CourseSection data found in this range.';
+  }
+
+  for (const c of arr){
+    const periods = [...c.periods].sort((a,b)=> String(a).localeCompare(String(b), undefined, { numeric:true }));
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${esc(c.course)}</td>
+      <td class="mono">${esc(periods.join(', '))}</td>
+      <td>${esc(c.scans)}</td>
+      <td>${esc(c.bathSessions)}</td>
+      <td>${esc(Math.round(c.bathMinutes))}</td>
+      <td>${esc(c.denied)}</td>
+      <td class="mono">${esc(fmtWhenShort(c.firstISO))}</td>
+      <td class="mono">${esc(fmtWhenShort(c.lastISO))}</td>
+    `;
+    tb.appendChild(tr);
+  }
+}
+
 function renderKPIs(rows, morning, bath){
   const el = document.getElementById('kpiGrid');
   if (!el) return;
@@ -568,6 +657,8 @@ async function runReport(){
   const morningWrap = document.getElementById('morningTableWrap'); if (morningWrap) morningWrap.innerHTML = '';
   const rawTb = document.querySelector('#rawTable tbody'); if (rawTb) rawTb.innerHTML = '';
   const bathSummary = document.getElementById('bathSummary'); if (bathSummary) bathSummary.textContent = '';
+  const coursesTb = document.querySelector('#coursesTable tbody'); if (coursesTb) coursesTb.innerHTML = '';
+  setText('coursesSummary', '');
 
   if (outEl) outEl.textContent = 'Loading scans...';
   setReportBusy(true, 'Running…');
@@ -600,6 +691,7 @@ async function runReport(){
     // Compute
     const morning = computeMorning(rows);
     const bath = computeBathroom(rows);
+    renderCoursesOverview(courses);
 
     // Render
     renderKPIs(rows, morning, bath);
