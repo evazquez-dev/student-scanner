@@ -68,6 +68,37 @@ const debugEl = document.getElementById('debugLog');
 let IS_AUTHED = false;
 let CURRENT_PERIOD_LOCAL = ''; // updated by renderCurrentPeriod()
 
+const ADVISOR_PERIODS = new Set(['LCH1','LCH2','FM1','FM2','ADV']);
+let TEACHER_OPTS_CACHE = null;
+
+const roomLabelEl = document.querySelector('label[for="roomInput"]');
+
+function isAdvisorPeriod(p){
+  return ADVISOR_PERIODS.has(String(p||'').trim().toUpperCase());
+}
+
+function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
+  const period = String(periodInput?.value || '').trim();
+
+  const advisorMode = isAdvisorPeriod(period);
+  const items = advisorMode
+    ? (opts?.advisors_by_period?.[String(period).trim().toUpperCase()] || [])
+    : (opts?.rooms || []);
+
+  if (roomLabelEl) roomLabelEl.textContent = advisorMode ? 'Advisor' : 'Room';
+
+  // Keep selection only if it exists in the new list
+  const current = String(preferredRoom || roomInput.value || '').trim();
+  const keep = current && items.some(x => String(x) === current) ? current : '';
+
+  fillSelect(roomInput, items, advisorMode ? 'Select advisor…' : 'Select room…', keep);
+
+  // If we had to clear it, also clear saved room so we don't “stick” wrong mode
+  if (!keep) {
+    try { localStorage.setItem('teacher_att_room', ''); } catch {}
+  }
+}
+
 // Cosmetic labels for attendance codes (keep values as A/L/P for API payloads)
 const CODE_LABELS = { P: 'Present', L: 'Late', A: 'Absent' };
 function codeLabel(code){
@@ -794,8 +825,11 @@ async function bootTeacherAttendance(){
   // Teachers always operate on END
   localStorage.removeItem('teacher_att_when');
 
-  roomInput.addEventListener('change', ()=>localStorage.setItem('teacher_att_room', roomInput.value.trim()));
-  periodInput.addEventListener('change', ()=>localStorage.setItem('teacher_att_period', periodInput.value.trim()));
+  roomInput.addEventListener('change', ()=>localStorage.setItem('teacher_att_room', roomInput.value.trim()));  
+  periodInput.addEventListener('change', ()=>{
+    localStorage.setItem('teacher_att_period', periodInput.value.trim());
+    if (TEACHER_OPTS_CACHE) applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE);
+  });
 
   refreshBtn.addEventListener('click', () => refreshOnce().catch(err => {
     console.error(err);
@@ -823,6 +857,7 @@ async function bootTeacherAttendance(){
     // Populate dropdowns (PeriodLocal + Class Rooms)
     try{
       const opts = await fetchTeacherOptions();
+      TEACHER_OPTS_CACHE = opts;
 
       // Always show current period in the header pill
       renderCurrentPeriod(opts);
@@ -845,8 +880,8 @@ async function bootTeacherAttendance(){
       // Support period labels with time ranges if provided by Worker
       const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
 
-      fillSelect(roomInput, opts.rooms || [], 'Select room…', preferredRoom);
       fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
+      applyRoomDropdownFromOpts(opts, preferredRoom);
     }catch(e){
       // Don’t block the page if options fail — teachers can still type if you revert to inputs later
       console.warn('options load failed', e);
