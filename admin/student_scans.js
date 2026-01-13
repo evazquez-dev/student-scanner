@@ -691,6 +691,7 @@ async function runReport(){
     // Compute
     const morning = computeMorning(rows);
     const bath = computeBathroom(rows);
+    const courses = computeCourses(rows, bath);
     renderCoursesOverview(courses);
 
     // Render
