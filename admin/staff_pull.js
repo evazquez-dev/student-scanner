@@ -231,9 +231,13 @@ async function loadSelectedContext(){
 
   // Enable buttons
   pullBtn.disabled = false;
-  // Release is enabled if they're currently marked as with_staff/social_worker (best-effort)
-  const isHeld = st && String(st.zone||'') === 'with_staff' && String(st.loc||'') === 'social_worker';
-  releaseBtn.disabled = !isHeld;
+  // Release is enabled if they're currently held
+  const heldBy = String(st?.held_by_email || '').toLowerCase();
+  const me     = String(WHO?.email || '').toLowerCase();
+  const isAdmin = String(WHO?.role || '') === 'admin';
+
+  const canRelease = !!heldBy && (isAdmin || (me && heldBy === me));
+  releaseBtn.disabled = !canRelease;
 }
 
 async function pullStudent(osis){
