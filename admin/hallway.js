@@ -252,6 +252,8 @@ function zoneToChipClass(zone) {
       return 'zone-chip--class';
     case 'lunch':
       return 'zone-chip--lunch';
+    case 'with_staff':
+      return 'zone-chip--staff';
     case 'off_campus':
       return 'zone-chip--offcampus';
     default:
@@ -281,6 +283,7 @@ function renderSummary(data) {
     { key: 'bathroom',   label: 'In Bathroom',  className: 'summary-item--bathroom' },
     { key: 'class',      label: 'In Class',     className: 'summary-item--class' },
     { key: 'lunch',      label: 'At Lunch',     className: 'summary-item--lunch' },
+    { key: 'with_staff', label: 'With Staff',   className: 'summary-item--staff' },
     { key: 'off_campus', label: 'Off Campus',   className: 'summary-item--offcampus' }
   ];
 
@@ -325,7 +328,7 @@ function renderLocations(data) {
     for (const s of arr) {
       if (!activeZones.has(s.zone)) continue;
 
-      const floor = inferFloor(locLabel, s.loc);
+      const floor = (s.zone === 'with_staff') ? 'With Staff' : inferFloor(locLabel, s.loc);
       if (!rowsByFloor.has(floor)) rowsByFloor.set(floor, []);
       rowsByFloor.get(floor).push({
         ...s,
@@ -435,7 +438,7 @@ function renderLocations(data) {
       const chip = document.createElement('span');
       const zone = s.zone || '';
       chip.className = 'zone-chip ' + zoneToChipClass(zone);
-      chip.textContent = zone.toUpperCase();
+      chip.textContent = String(zone || '').toUpperCase().replace(/_/g, ' ');
 
       name.appendChild(chip);
       col1.appendChild(name);

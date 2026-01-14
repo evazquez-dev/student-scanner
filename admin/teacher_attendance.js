@@ -237,6 +237,7 @@ function zoneToChipClass(zone){
     case 'bathroom': return 'chip--bath';
     case 'class': return 'chip--class';
     case 'lunch': return 'chip--lunch';
+    case 'with_staff': return 'chip--staff';
     case 'off_campus': return 'chip--off';
     default: return '';
   }
@@ -248,6 +249,7 @@ function zoneToDotClass(zone){
     case 'bathroom': return 'zoneDot--bath';
     case 'class': return 'zoneDot--class';
     case 'lunch': return 'zoneDot--lunch';
+    case 'with_staff': return 'zoneDot--staff';
     case 'off_campus': return 'zoneDot--off';
     default: return '';
   }

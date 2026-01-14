@@ -36,6 +36,11 @@
       --class-soft: rgba(245,158,11,0.15);
       --lunch: #8b5cf6;
       --lunch-soft: rgba(139,92,246,0.15);
+
+
+      /* NEW theme color for with_staff */
+      --staff: #14b8a6;
+      --staff-soft: rgba(20,184,166,0.15);
     }
     * { box-sizing: border-box; }
     body {
@@ -221,6 +226,11 @@
       background-color: var(--lunch-soft);
       border-color: rgba(139,92,246,0.65);
     }
+
+    .summary-item--staff {
+      background-color: var(--staff-soft);
+      border-color: rgba(20,184,166,0.65);
+    }
     .summary-item--danger,
     .summary-item--offcamp,
     .summary-item--offcampus {
@@ -328,6 +338,11 @@
     .zone-chip--lunch {
       border-color: var(--lunch);
       color: var(--lunch);
+    }
+
+    .zone-chip--staff {
+      border-color: var(--staff);
+      color: var(--staff);
     }
     .zone-chip--offcamp,
     .zone-chip--offcampus,
