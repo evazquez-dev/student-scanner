@@ -312,6 +312,7 @@ function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
   // If we had to clear it, also clear saved room so we don't “stick” wrong mode
   if (!keep) {
     try { localStorage.setItem('teacher_att_room', ''); } catch {}
+    try { sessionStorage.setItem('teacher_att_room', ''); } catch {}
   }
 }
 
@@ -439,7 +440,15 @@ function fillSelect(el, items, placeholder, preferredValue){
   }
 
   if(preferredValue != null && String(preferredValue).trim() !== ''){
-    el.value = String(preferredValue);
+    const pv = String(preferredValue).trim();
+    el.value = pv;
+
+    // If it didn't stick (value not found), try first token fallback
+    // e.g. "4 (10:48 AM - 11:42 AM)" -> "4"
+    if(!el.value && pv){
+      const head = pv.split(/\s+/)[0];
+      if(head && head !== pv) el.value = head;
+    }
   }
 }
 
@@ -1270,18 +1279,56 @@ async function bootTeacherAttendance(){
   initViewToggle();
   // Prefill from URL (?room=316&period=3) or localStorage
   const p = qs();
-  const roomQ = p.get('room') || localStorage.getItem('teacher_att_room') || '';
-  const perQ  = p.get('period') || localStorage.getItem('teacher_att_period') || '';
+  const roomQ =
+    p.get('room') ||
+    sessionStorage.getItem('teacher_att_room') ||
+    localStorage.getItem('teacher_att_room') ||
+    '';
+
+  const perQ  =
+    p.get('period') ||
+    sessionStorage.getItem('teacher_att_period') ||
+    localStorage.getItem('teacher_att_period') ||
+    '';
   roomInput.value = roomQ;
   periodInput.value = perQ;
+
+  // Keep last non-empty room/period across browser reload (Cmd+R / Ctrl+R)
+  window.addEventListener('beforeunload', () => {
+    try{
+      const r = String(roomInput?.value || '').trim();
+      const p = String(periodInput?.value || '').trim();
+      if (r) sessionStorage.setItem('teacher_att_room', r);
+      if (p) sessionStorage.setItem('teacher_att_period', p);
+    }catch{}
+  });
 
   // Teachers always operate on END
   localStorage.removeItem('teacher_att_when');
 
-  roomInput.addEventListener('change', ()=>localStorage.setItem('teacher_att_room', roomInput.value.trim()));  
-  periodInput.addEventListener('change', ()=>{
-    localStorage.setItem('teacher_att_period', periodInput.value.trim());
+  roomInput.addEventListener('change', (ev) => {
+    const v = roomInput.value.trim();
+    localStorage.setItem('teacher_att_room', v);
+
+    // Auto-refresh on real user pick only, and only if changed
+    if (ev?.isTrusted && v !== LAST_UI_PICK.room) {
+      LAST_UI_PICK.room = v;
+      scheduleUserPickRefresh();
+    }
+  });
+
+  periodInput.addEventListener('change', (ev) => {
+    const v = periodInput.value.trim();
+    localStorage.setItem('teacher_att_period', v);
+
+    // Period can change advisor-mode room list; update rooms first
     if (TEACHER_OPTS_CACHE) applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE);
+
+    // Auto-refresh on real user pick only, and only if changed
+    if (ev?.isTrusted && v !== LAST_UI_PICK.period) {
+      LAST_UI_PICK.period = v;
+      scheduleUserPickRefresh();
+    }
   });
 
   refreshBtn.addEventListener('click', () => refreshOnce().catch(err => {
@@ -1355,8 +1402,15 @@ async function bootTeacherAttendance(){
       renderCurrentPeriod(opts);
       startCurrentPeriodTicker();
 
-      const savedRoom   = localStorage.getItem('teacher_att_room') || '';
-      const savedPeriod = localStorage.getItem('teacher_att_period') || '';
+      const savedRoom =
+        sessionStorage.getItem('teacher_att_room') ||
+        localStorage.getItem('teacher_att_room') ||
+        '';
+
+      const savedPeriod =
+        sessionStorage.getItem('teacher_att_period') ||
+        localStorage.getItem('teacher_att_period') ||
+        '';
 
       // Prefer URL params if present, otherwise prefer Worker current period, otherwise fall back
       const urlRoom   = (qs().get('room')   || '').trim();
@@ -1365,8 +1419,8 @@ async function bootTeacherAttendance(){
       const preferredRoom   = urlRoom || savedRoom || '';
       const preferredPeriod =
         urlPeriod ||
-        String(opts.current_period_local || '').trim() ||
         savedPeriod ||
+        String(opts.current_period_local || '').trim() ||
         '';
 
       // Support period labels with time ranges if provided by Worker
@@ -1374,6 +1428,9 @@ async function bootTeacherAttendance(){
 
       fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
       applyRoomDropdownFromOpts(opts, preferredRoom);
+
+      LAST_UI_PICK.room = roomInput.value.trim();
+      LAST_UI_PICK.period = periodInput.value.trim();
     }catch(e){
       // Don’t block the page if options fail — teachers can still type if you revert to inputs later
       console.warn('options load failed', e);
@@ -1416,6 +1473,29 @@ if (document.readyState === 'loading') {
   window.addEventListener('DOMContentLoaded', () => bootTeacherAttendance().catch(console.error));
 } else {
   bootTeacherAttendance().catch(console.error);
+}
+
+let LAST_UI_PICK = { room: '', period: '' };
+let _pickRefreshT = null;
+
+function scheduleUserPickRefresh(){
+  if (_pickRefreshT) clearTimeout(_pickRefreshT);
+  _pickRefreshT = setTimeout(() => {
+    const room = normRoom(roomInput?.value);
+    const period = normPeriod(periodInput?.value);
+    if (!room || !period) return;
+
+    if (window.__refreshing) return;
+    window.__refreshing = true;
+
+    refreshOnce()
+      .catch(err => {
+        console.error(err);
+        setErr(err?.message || String(err));
+        setStatus(false, 'Error');
+      })
+      .finally(() => (window.__refreshing = false));
+  }, 50);
 }
 
 let autoTimer = null;
@@ -1482,8 +1562,15 @@ async function onGoogleCredential(resp){
       renderCurrentPeriod(opts);
       startCurrentPeriodTicker();
 
-      const savedRoom   = localStorage.getItem('teacher_att_room') || '';
-      const savedPeriod = localStorage.getItem('teacher_att_period') || '';
+      const savedRoom =
+        sessionStorage.getItem('teacher_att_room') ||
+        localStorage.getItem('teacher_att_room') ||
+        '';
+
+      const savedPeriod =
+        sessionStorage.getItem('teacher_att_period') ||
+        localStorage.getItem('teacher_att_period') ||
+        '';
 
       const q = new URLSearchParams(location.search);
       const urlRoom   = (q.get('room') || '').trim();
@@ -1492,14 +1579,17 @@ async function onGoogleCredential(resp){
       const preferredRoom = urlRoom || savedRoom || '';
       const preferredPeriod =
         urlPeriod ||
-        String(opts.current_period_local || '').trim() ||
         savedPeriod ||
+        String(opts.current_period_local || '').trim() ||
         '';
 
       const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
 
       fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
       applyRoomDropdownFromOpts(opts, preferredRoom);
+
+      LAST_UI_PICK.room = roomInput.value.trim();
+      LAST_UI_PICK.period = periodInput.value.trim();
 
       // persist + trigger any dependent UI logic
       try{ periodInput.dispatchEvent(new Event('change')); }catch{}
