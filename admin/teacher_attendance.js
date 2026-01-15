@@ -295,6 +295,29 @@ function saveOverrides(date, room, period, obj){
   }catch{}
 }
 
+// Persist checkbox selection across auto-refreshes (scoped to date + room + period)
+function selectionKey(date, room, period){
+  return `teacher_att_selected:${String(date||'')}:${String(room||'').toLowerCase()}:${String(period||'')}`;
+}
+
+function loadSelection(date, room, period){
+  try{
+    const raw = localStorage.getItem(selectionKey(date, room, period));
+    const arr = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.map(x => String(x||'').trim()).filter(Boolean));
+  }catch{
+    return new Set();
+  }
+}
+
+function saveSelection(date, room, period, set){
+  try{
+    const arr = Array.from(set || []).map(x => String(x||'').trim()).filter(Boolean);
+    localStorage.setItem(selectionKey(date, room, period), JSON.stringify(arr));
+  }catch{}
+}
+
 function setErr(msg){
   if(!msg){
     errBox.style.display='none';
@@ -363,6 +386,12 @@ function clearSelection(){
     if (ui?.cbEl) ui.cbEl.checked = false;
   }
   updateBulkUI();
+
+  // persist for this view
+  const date = dateText.textContent || '';
+  const room = normRoom(roomInput.value);
+  const periodLocal = normPeriod(periodInput.value);
+  saveSelection(date, room, periodLocal, SELECTED_OSIS);
 }
 
 async function applyBulkCodeToSelected(){
@@ -534,7 +563,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   ROW_UI = new Map();
   ROW_DATA = new Map();
   CURRENT_OSIS_LIST = [];
-  SELECTED_OSIS = new Set();
+  // restore selection for this view (survives auto-refresh)
+  SELECTED_OSIS = loadSelection(date, room, period);
   updateBulkUI();
 
   // Only show Out/In for the current period (and only if current period is known)
@@ -619,6 +649,13 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
   // Bulk selection context for this view
   CURRENT_OSIS_LIST = merged.map(r => r.osis);
+  // prune selection to what's visible now
+  const visible = new Set(CURRENT_OSIS_LIST);
+  let pruned = false;
+  for (const osis of Array.from(SELECTED_OSIS)){
+    if (!visible.has(osis)) { SELECTED_OSIS.delete(osis); pruned = true; }
+  }
+  if (pruned) saveSelection(date, room, period, SELECTED_OSIS);
   updateBulkUI();
 
   // helper: refresh Submit button state (global)
@@ -644,6 +681,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       if (cb.checked) SELECTED_OSIS.add(r.osis);
       else SELECTED_OSIS.delete(r.osis);
       updateBulkUI();
+      saveSelection(date, room, period, SELECTED_OSIS);
     });
     c0.appendChild(cb);
 
@@ -1070,6 +1108,13 @@ async function bootTeacherAttendance(){
       }
     }
     updateBulkUI();
+    // persist selection for this view
+    saveSelection(
+      dateText.textContent || '',
+      normRoom(roomInput.value),
+      normPeriod(periodInput.value),
+      SELECTED_OSIS
+    );
   });
 
   try{
