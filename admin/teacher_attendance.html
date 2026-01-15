@@ -567,6 +567,10 @@
       .bulkActions{ width:100%; }
       .bulkSelect{ width:100%; min-width: 0; }
       .bulkActions .btn{ width:100%; }
+      #tableBox.noOutIn .row,
+      #tableBox.noOutIn .row-header{
+        grid-template-columns: 28px minmax(0,2fr) minmax(0,0.9fr);
+      }
     }
 
     /* Hide the Out/In column entirely when not on the current period */

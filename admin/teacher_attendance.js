@@ -76,8 +76,11 @@ function applyView(){
     return;
   }
   const v = getView();
+  const bulkBar = document.getElementById('bulkBar');
+  
+  if (bulkBar) bulkBar.style.display = (v === 'attendance') ? '' : 'none';
   if (tableBox) tableBox.style.display = (v === 'attendance') ? '' : 'none';
-  if (outInBox) outInBox.style.display = (v === 'organizer') ? '' : 'none';
+  if (outInBox) outInBox.style.display = (v === 'organizer') ? 'block' : 'none';
 
   // Optional: swap label/icon so it's obvious what you'll switch to
   if (viewToggleBtn) viewToggleBtn.textContent = (v === 'organizer') ? '📋 Attendance' : '🧭 Organizer';
