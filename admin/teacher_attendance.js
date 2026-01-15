@@ -7,9 +7,24 @@
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '')
   .replace(/\/*$/, '') + '/';
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
-
 const THEME_KEY = 'teacher_att_theme';
 const themeToggleBtn = document.getElementById('themeToggleBtn');
+
+// Mobile view toggle (Attendance vs Out/In Organizer)
+const VIEW_KEY = 'teacher_att_view'; // 'attendance' | 'organizer'
+const viewToggleBtn = document.getElementById('viewToggleBtn');
+
+// Organizer DOM (optional; only present if you added the Organizer markup in HTML)
+const outInBox  = document.getElementById('outInBox');
+const outInHint = document.getElementById('outInHint');
+const outListEl = document.getElementById('outList');
+const inListEl  = document.getElementById('inList');
+const outCountEl = document.getElementById('outCount');
+const inCountEl  = document.getElementById('inCount');
+
+// Last rendered context (for organizer view)
+let LAST_CTX = null;           // { date, room, period }
+let LAST_SESSION_STATE = null; // object returned by /admin/class_session/state
 
 function getTheme(){
   const t = String(document.documentElement?.dataset?.theme || '').trim().toLowerCase();
@@ -38,6 +53,198 @@ function initThemeToggle(){
   themeToggleBtn.addEventListener('click', () => {
     setTheme(getTheme() === 'light' ? 'dark' : 'light');
   });
+}
+
+/******************** Mobile view toggle + Organizer ********************/
+function isMobileNow(){
+  try { return window.matchMedia('(max-width: 900px)').matches; } catch { return false; }
+}
+function getView(){
+  const v = String(localStorage.getItem(VIEW_KEY) || 'attendance').toLowerCase().trim();
+  return (v === 'organizer') ? 'organizer' : 'attendance';
+}
+function setView(v){
+  const vv = (String(v||'').toLowerCase().trim() === 'organizer') ? 'organizer' : 'attendance';
+  localStorage.setItem(VIEW_KEY, vv);
+  applyView();
+}
+function applyView(){
+  // Mobile-only behavior; desktop always stays in table view
+  if (!isMobileNow()) {
+    if (tableBox) tableBox.style.display = '';
+    if (outInBox) outInBox.style.display = 'none';
+    return;
+  }
+  const v = getView();
+  if (tableBox) tableBox.style.display = (v === 'attendance') ? '' : 'none';
+  if (outInBox) outInBox.style.display = (v === 'organizer') ? '' : 'none';
+
+  // Optional: swap label/icon so it's obvious what you'll switch to
+  if (viewToggleBtn) viewToggleBtn.textContent = (v === 'organizer') ? '📋 Attendance' : '🧭 Organizer';
+
+  if (v === 'organizer') renderOutInOrganizer();
+}
+function initViewToggle(){
+  if (!viewToggleBtn) return; // user hasn't added the HTML button
+  viewToggleBtn.addEventListener('click', () => {
+    setView(getView() === 'organizer' ? 'attendance' : 'organizer');
+  });
+
+  // Re-apply view if screen size changes
+  try{
+    const mq = window.matchMedia('(max-width: 900px)');
+    mq.addEventListener?.('change', applyView);
+  }catch(_){}
+
+  applyView();
+}
+
+function getSessionOutRec(osis){
+  const key = String(osis || '').trim();
+  if (!key) return null;
+  return LAST_SESSION_STATE?.students?.[key]?.out || null;
+}
+function isStudentOut(osis){
+  const o = getSessionOutRec(osis);
+  return !!(o && o.isOut);
+}
+function getOutSince(osis){
+  const o = getSessionOutRec(osis);
+  return o?.outSinceISO || null;
+}
+
+// Organizer renderer: OUT first, then IN.
+function renderOutInOrganizer(){
+  if (!outInBox || !outListEl || !inListEl) return;
+
+  // Need a recently-rendered table context (room/period/date)
+  const ctx = LAST_CTX || {
+    date: (dateText?.textContent || ''),
+    room: normRoom(roomInput?.value || ''),
+    period: normPeriod(periodInput?.value || '')
+  };
+
+  const date = String(ctx.date || '').trim();
+  const room = String(ctx.room || '').trim();
+  const period = String(ctx.period || '').trim();
+
+  // Same gating as the table column
+  const cur = String(CURRENT_PERIOD_LOCAL || '').trim();
+  const allowOutIn = !!cur && (String(period || '').trim() === cur);
+
+  const merged = Array.isArray(lastMergedRows) ? lastMergedRows : [];
+  const outs = [];
+  const ins  = [];
+
+  for (const r of merged){
+    const osis = String(r?.osis || '').trim();
+    if (!osis) continue;
+    const out = isStudentOut(osis);
+    const item = { r, osis, isOut: out, outSinceISO: getOutSince(osis) };
+    (out ? outs : ins).push(item);
+  }
+
+  // Hint
+  if (outInHint){
+    if (!allowOutIn) {
+      outInHint.textContent =
+        `Out/In is only enabled for the CURRENT period.\nSelected: P${period || '—'} • Current: P${cur || '—'}\n(Buttons are disabled until you pick the current period.)`;
+    } else {
+      outInHint.textContent = `Out/In is enabled (current period P${cur}). OUT students appear first.`;
+    }
+  }
+
+  if (outCountEl) outCountEl.textContent = String(outs.length);
+  if (inCountEl)  inCountEl.textContent  = String(ins.length);
+
+  function makeRow({ r, osis, isOut, outSinceISO }){
+    const wrap = document.createElement('div');
+    wrap.className = 'outInRow ' + (isOut ? 'outInRow--out' : 'outInRow--in');
+
+    const info = document.createElement('div');
+    info.className = 'outInInfo';
+
+    const nm = document.createElement('div');
+    nm.className = 'outInName';
+    nm.textContent = r?.name || '(Unknown)';
+
+    const meta = document.createElement('div');
+    meta.className = 'outInMeta';
+    const code = (r?.chosen || 'A');
+    const tail = outSinceISO ? ` • since ${outSinceISO}` : '';
+    meta.textContent = `${osis} • ${codeLabel(code)}${tail}`;
+
+    info.appendChild(nm);
+    info.appendChild(meta);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-mini ' + (isOut ? 'btn-in' : 'btn-out');
+    btn.textContent = isOut ? 'IN' : 'OUT';
+
+    const canToggle = allowOutIn && (code === 'P' || code === 'L');
+    btn.disabled = !canToggle;
+    btn.title = canToggle
+      ? ((isOut && outSinceISO) ? `Out since ${outSinceISO}` : 'Toggle Out/In')
+      : (!allowOutIn ? 'Pick the current period to enable Out/In' : 'Mark Present (P) or Late (L) to enable Out/In');
+
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      try{
+        const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis });
+
+        // Keep shared session state updated
+        if (!LAST_SESSION_STATE) LAST_SESSION_STATE = { ok:true, students:{} };
+        if (!LAST_SESSION_STATE.students) LAST_SESSION_STATE.students = {};
+        LAST_SESSION_STATE.students[osis] = LAST_SESSION_STATE.students[osis] || { osis };
+        LAST_SESSION_STATE.students[osis].out = LAST_SESSION_STATE.students[osis].out || {};
+        LAST_SESSION_STATE.students[osis].out.isOut = !!res.isOut;
+        if (res.isOut && res.outSinceISO) {
+          LAST_SESSION_STATE.students[osis].out.outSinceISO = res.outSinceISO;
+        } else {
+          delete LAST_SESSION_STATE.students[osis].out.outSinceISO;
+        }
+
+        // Update table row button too (if present)
+        const ui = ROW_UI.get(osis);
+        if (ui?.outInBtn){
+          ui.outInBtn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
+          ui.outInBtn.textContent = res.isOut ? 'IN' : 'OUT';
+          ui.outInBtn.dataset.toggleTitle =
+            (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
+
+          const rowRec = ROW_DATA.get(osis);
+          const canToggleNow = allowOutIn && (rowRec?.chosen === 'P' || rowRec?.chosen === 'L');
+          ui.outInBtn.disabled = !canToggleNow;
+          ui.outInBtn.title = canToggleNow
+            ? (ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In')
+            : (!allowOutIn ? 'Pick the current period to enable Out/In' : 'Mark Present (P) or Late (L) to enable Out/In');
+        }
+
+        renderOutInOrganizer(); // reorder OUT/IN groups
+      } catch(e){
+        setErr(e?.message || String(e));
+        setStatus(false, 'Error');
+
+        // restore enabled state if still allowed
+        const rowRec = ROW_DATA.get(osis) || r;
+        const codeNow = (rowRec?.chosen || 'A');
+        const canToggleNow = allowOutIn && (codeNow === 'P' || codeNow === 'L');
+        btn.disabled = !canToggleNow;
+      }
+    });
+
+    wrap.appendChild(info);
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  outListEl.innerHTML = '';
+  inListEl.innerHTML  = '';
+
+  for (const it of outs) outListEl.appendChild(makeRow(it));
+  for (const it of ins)  inListEl.appendChild(makeRow(it));
 }
 
 const loginCard  = document.getElementById('loginCard');
@@ -455,6 +662,7 @@ async function applyBulkCodeToSelected(){
   }
 
   saveOverrides(date, room, periodLocal, overrides);
+  renderOutInOrganizer();
   updateSubmitButtons();
 
   // Persist to Worker now (AttendanceDO teacher overrides)
@@ -815,6 +1023,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           outInBtn.title = 'Mark Present (P) or Late (L) to enable Out/In';
         }
       }
+      renderOutInOrganizer();
     });
 
     c3.style.textAlign = 'center';
@@ -881,6 +1090,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           // refresh "real" tooltip
           btn.dataset.toggleTitle = (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
           btn.title = btn.dataset.toggleTitle;
+          renderOutInOrganizer();
         } finally {
           // stay disabled if not Present/Late
           const canToggleNow = (r.chosen === 'P' || r.chosen === 'L');
@@ -905,6 +1115,12 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     `${room} • P${period} • ${whenType} • ${merged.length} students` +
     (haveSnapshot ? ' • (snapshot)' : ' • (live)') +
     (allowOutIn ? '' : ' • (Out/In hidden)');
+
+  // cache last context for Organizer view
+  LAST_CTX = { date, room, period };
+  LAST_SESSION_STATE = sessionState || LAST_SESSION_STATE;
+
+  renderOutInOrganizer();
 
   updateBulkUI();
   updateSubmitButtons();
@@ -1048,6 +1264,7 @@ function startCurrentPeriodTicker(){
 
 async function bootTeacherAttendance(){
   initThemeToggle();
+  initViewToggle();
   // Prefill from URL (?room=316&period=3) or localStorage
   const p = qs();
   const roomQ = p.get('room') || localStorage.getItem('teacher_att_room') || '';
