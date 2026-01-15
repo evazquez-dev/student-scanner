@@ -953,12 +953,14 @@ function stopAutoRefresh() {
 async function onGoogleCredential(resp){
   try{
     loginOut.textContent = 'Signing in...';
+
     const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
       method:'POST',
       headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
       body: new URLSearchParams({ id_token: resp.credential }).toString(),
       credentials:'include'
     });
+
     const data = await r.json().catch(()=>({}));
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
@@ -967,31 +969,58 @@ async function onGoogleCredential(resp){
     setStatus(true, 'Live');
     IS_AUTHED = true;
 
-    // ✅ preserve defaults after login
+    // ✅ NOW populate period + room immediately (same logic as bootTeacherAttendance)
     try{
-      const qs = new URLSearchParams(location.search);
+      // tiny yield helps some browsers commit Set-Cookie before the next fetch
+      await new Promise(res => setTimeout(res, 0));
 
-      const preferredRoom =
-        (qs.get('room') || '').trim() ||
-        (localStorage.getItem(LS_ROOM) || '').trim() ||
-        (roomInput.value || '').trim();
+      // small retry (handles rare cookie race / transient fetch hiccup)
+      let opts = null;
+      for(let i=0;i<3;i++){
+        try{
+          opts = await fetchTeacherOptions();
+          break;
+        }catch(e){
+          if(i===2) throw e;
+          await new Promise(res => setTimeout(res, 200*(i+1)));
+        }
+      }
 
+      TEACHER_OPTS_CACHE = opts;
+
+      // Current period pill
+      renderCurrentPeriod(opts);
+      startCurrentPeriodTicker();
+
+      const savedRoom   = localStorage.getItem('teacher_att_room') || '';
+      const savedPeriod = localStorage.getItem('teacher_att_period') || '';
+
+      const q = new URLSearchParams(location.search);
+      const urlRoom   = (q.get('room') || '').trim();
+      const urlPeriod = (q.get('period') || '').trim();
+
+      const preferredRoom = urlRoom || savedRoom || '';
       const preferredPeriod =
-        (qs.get('period') || '').trim() ||
-        (localStorage.getItem(LS_PERIOD) || '').trim() ||
-        (periodInput.value || '').trim();
+        urlPeriod ||
+        String(opts.current_period_local || '').trim() ||
+        savedPeriod ||
+        '';
 
-      const opts = await loadOptions();
-      fillSelect(roomInput, opts.rooms || [], 'Select room…', preferredRoom);
-      fillSelect(periodInput, opts.periods || [], 'Select period…', preferredPeriod);
+      const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
 
+      fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
+      applyRoomDropdownFromOpts(opts, preferredRoom);
+
+      // persist + trigger any dependent UI logic
       try{ periodInput.dispatchEvent(new Event('change')); }catch{}
+      try{ roomInput.dispatchEvent(new Event('change')); }catch{}
     }catch(e){
       console.warn('options load failed', e);
     }
 
     startAutoRefresh();
 
+    // Auto-refresh once if room+period are set
     if(roomInput.value.trim() && periodInput.value.trim()){
       await refreshOnce();
     }
