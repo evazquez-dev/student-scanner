@@ -57,6 +57,12 @@ const periodInput= document.getElementById('periodInput');
 // const whenSelect = document.getElementById('whenSelect');
 const refreshBtn = document.getElementById('refreshBtn');
 const submitBtn = document.getElementById('submitBtn');
+const submitBtnBottom = document.getElementById('submitBtnBottom');
+
+const selectAllCb = document.getElementById('selectAllCb');
+const bulkSelectedCountEl = document.getElementById('bulkSelectedCount');
+const bulkCodeSelect = document.getElementById('bulkCodeSelect');
+const applySelectedBtn = document.getElementById('applySelectedBtn');
 
 const errBox     = document.getElementById('errBox');
 const subtitleRight = document.getElementById('subtitleRight');
@@ -302,6 +308,163 @@ function setErr(msg){
 let lastRefreshTs = 0;
 let lastMergedRows = []; // for CSV button
 
+/******************** Bulk selection + apply ********************/
+let SELECTED_OSIS = new Set();
+let CURRENT_OSIS_LIST = [];         // [osis,...] for current rendered view
+let ROW_UI = new Map();             // osis -> { rowEl, cbEl, selEl, outInBtn }
+let ROW_DATA = new Map();           // osis -> row record object
+
+function countChanges(){
+  return (lastMergedRows || [])
+    .filter(r => (String(r.chosen||'A').toUpperCase() !== String(r.baseline||'A').toUpperCase()))
+    .length;
+}
+
+function updateSubmitButtons(){
+  const n = countChanges();
+  const label = n ? `Submit changes (${n})` : 'Submit changes';
+
+  if (submitBtn){
+    submitBtn.disabled = n === 0;
+    submitBtn.textContent = label;
+  }
+  if (submitBtnBottom){
+    submitBtnBottom.disabled = n === 0;
+    submitBtnBottom.textContent = label;
+  }
+}
+
+function updateBulkUI(){
+  const n = SELECTED_OSIS.size;
+
+  if (bulkSelectedCountEl){
+    bulkSelectedCountEl.textContent = `${n} selected`;
+  }
+  if (applySelectedBtn){
+    applySelectedBtn.disabled = n === 0;
+  }
+
+  if (selectAllCb){
+    const total = CURRENT_OSIS_LIST.length;
+    if (!total){
+      selectAllCb.checked = false;
+      selectAllCb.indeterminate = false;
+    } else {
+      selectAllCb.checked = (n === total);
+      selectAllCb.indeterminate = (n > 0 && n < total);
+    }
+  }
+}
+
+function clearSelection(){
+  SELECTED_OSIS.clear();
+  for (const osis of CURRENT_OSIS_LIST){
+    const ui = ROW_UI.get(osis);
+    if (ui?.cbEl) ui.cbEl.checked = false;
+  }
+  updateBulkUI();
+}
+
+async function applyBulkCodeToSelected(){
+  setErr('');
+
+  const room = normRoom(roomInput.value);
+  const periodLocal = normPeriod(periodInput.value);
+  const date = dateText.textContent || '';
+  const codeLetter = String(bulkCodeSelect?.value || '').trim().toUpperCase();
+  const osisList = Array.from(SELECTED_OSIS);
+
+  if (!osisList.length) return;
+
+  if (!room || !periodLocal){
+    setErr('Room + Period are required.');
+    return;
+  }
+
+  if (!['P','L','A'].includes(codeLetter)){
+    setErr('Pick an attendance code (P/L/A).');
+    return;
+  }
+
+  // Update local state + UI first (fast)
+  const overrides = loadOverrides(date, room, periodLocal);
+
+  for (const osis of osisList){
+    const r = ROW_DATA.get(osis);
+    const ui = ROW_UI.get(osis);
+    if (!r || !ui) continue;
+
+    r.chosen = codeLetter;
+
+    if (ui.selEl){
+      ui.selEl.value = codeLetter;
+      ui.selEl.className = 'codeSelect codeSelect--' + codeLetter;
+    }
+
+    const mismatch = !!r._mismatch;
+    const changed  = (r.chosen || 'A') !== (r.baseline || 'A');
+
+    if (ui.rowEl){
+      ui.rowEl.className =
+        'row' + (mismatch ? ' row--mismatch' : '') + (changed ? ' row--changed' : '');
+    }
+
+    // Save locally as “only if changed”, otherwise clear
+    if (changed) overrides[osis] = codeLetter;
+    else delete overrides[osis];
+
+    // Enable Out/In only if Present or Late
+    if (ui.outInBtn){
+      const canToggle = (codeLetter === 'P' || codeLetter === 'L');
+      ui.outInBtn.disabled = !canToggle;
+      if (canToggle) {
+        ui.outInBtn.title = ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In';
+      } else {
+        ui.outInBtn.title = 'Mark Present (P) or Late (L) to enable Out/In';
+      }
+    }
+  }
+
+  saveOverrides(date, room, periodLocal, overrides);
+  updateSubmitButtons();
+
+  // Persist to Worker now (AttendanceDO teacher overrides)
+  if (applySelectedBtn){
+    applySelectedBtn.disabled = true;
+    applySelectedBtn.textContent = `Updating (${osisList.length})…`;
+  }
+
+  try{
+    const r = await adminFetch('/admin/attendance/override_batch', {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body: JSON.stringify({
+        date,
+        room,
+        periodLocal,
+        rows: osisList.map(osis => ({ osis, codeLetter }))
+      })
+    });
+
+    const data = await r.json().catch(()=>null);
+    if (!r.ok || !data?.ok) throw new Error(data?.error || `override_batch HTTP ${r.status}`);
+
+    setStatus(true, `Updated ${data.wrote ?? osisList.length} student(s)`);
+    clearSelection();
+  } catch(e){
+    setErr(e?.message || String(e));
+    setStatus(false, 'Error');
+  } finally {
+    if (applySelectedBtn){
+      applySelectedBtn.textContent = 'Change selected';
+      applySelectedBtn.disabled = (SELECTED_OSIS.size === 0);
+    }
+    updateBulkUI();
+  }
+}
+/******************** End bulk selection ********************/
+
+
 function tickRefreshLabel(){
   if(!lastRefreshTs){
     refreshText.textContent = 'Never';
@@ -366,6 +529,13 @@ async function fetchPreview(room, period, whenType, opts = {}){
 function renderRows({ date, room, period, whenType, snapshotRows, computedRows, snapshotMap, sessionState }){
   rowsEl.innerHTML = '';
   lastMergedRows = [];
+
+  // reset selection + per-row element refs
+  ROW_UI = new Map();
+  ROW_DATA = new Map();
+  CURRENT_OSIS_LIST = [];
+  SELECTED_OSIS = new Set();
+  updateBulkUI();
 
   // Only show Out/In for the current period (and only if current period is known)
   const cur = String(CURRENT_PERIOD_LOCAL || '').trim();
@@ -447,14 +617,12 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     return String(a.osis).localeCompare(String(b.osis));
   });
 
-  // helper: refresh Submit button state
-  function updateSubmitState(){
-    const changes = merged.filter(r => (r.chosen || 'A') !== (r.baseline || 'A'));
-    if (submitBtn){
-      submitBtn.disabled = changes.length === 0;
-      submitBtn.textContent = changes.length ? `Submit changes (${changes.length})` : 'Submit changes';
-    }
-  }
+  // Bulk selection context for this view
+  CURRENT_OSIS_LIST = merged.map(r => r.osis);
+  updateBulkUI();
+
+  // helper: refresh Submit button state (global)
+  // NOTE: updateSubmitButtons() uses lastMergedRows
 
   for(const r of merged){
     const mismatch = r.snapshotLetter && r.scanSuggested && (r.snapshotLetter !== r.scanSuggested);
@@ -462,6 +630,22 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     const row = document.createElement('div');
     row.className = 'row' + (mismatch ? ' row--mismatch' : '') + (changed ? ' row--changed' : '');
+
+    // stash mismatch flag for bulk updater
+    r._mismatch = mismatch;
+
+    // selection checkbox (left column)
+    const c0 = document.createElement('div');
+    c0.className = 'selCell';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = SELECTED_OSIS.has(r.osis);
+    cb.addEventListener('change', () => {
+      if (cb.checked) SELECTED_OSIS.add(r.osis);
+      else SELECTED_OSIS.delete(r.osis);
+      updateBulkUI();
+    });
+    c0.appendChild(cb);
 
     let outInBtn = null; // set only if allowOutIn column is rendered
 
@@ -581,7 +765,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
       // Update row styles + submit state
       row.className = 'row' + (mismatch ? ' row--mismatch' : '') + ((r.chosen || 'A') !== (r.baseline || 'A') ? ' row--changed' : '');
-      updateSubmitState();
+      updateSubmitButtons();
 
       // Enable Out/In only if Present or Late
       if (outInBtn){
@@ -598,10 +782,16 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     c3.style.textAlign = 'center';
     c3.appendChild(sel);
 
+    // store per-row refs for bulk actions
+    const uiRef = { rowEl: row, cbEl: cb, selEl: sel, outInBtn: null };
+    ROW_UI.set(r.osis, uiRef);
+    ROW_DATA.set(r.osis, r);
+
     const c4 = document.createElement('div');
     c4.className = 'hide-sm';
     c4.textContent = r.scanTime ? fmtClock(r.scanTime) : '—';
 
+    row.appendChild(c0);
     row.appendChild(c1);
     row.appendChild(c2);
     row.appendChild(c3);
@@ -627,6 +817,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
       // Enable Out/In only if Present or Late
       outInBtn = btn;
+      try{ uiRef.outInBtn = btn; }catch{}
       const canToggleInitial = (r.chosen === 'P' || r.chosen === 'L');
       btn.disabled = !canToggleInitial;
       if (!canToggleInitial) btn.title = 'Mark Present (P) or Late (L) to enable Out/In';
@@ -677,7 +868,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     (haveSnapshot ? ' • (snapshot)' : ' • (live)') +
     (allowOutIn ? '' : ' • (Out/In hidden)');
 
-  updateSubmitState();
+  updateBulkUI();
+  updateSubmitButtons();
 }
 
 async function submitChanges(){
@@ -702,26 +894,27 @@ async function submitChanges(){
     return;
   }
 
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Submitting…';
+  if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+  if (submitBtnBottom){ submitBtnBottom.disabled = true; submitBtnBottom.textContent = 'Submitting…'; }
+  try{
+    const r = await adminFetch('/admin/teacher_att/submit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ date, room, periodLocal, whenType, changes })
+    });
 
-  const r = await adminFetch('/admin/teacher_att/submit', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ date, room, periodLocal, whenType, changes })
-  });
+    const data = await r.json().catch(()=>null);
+    if(!r.ok || !data?.ok){
+      throw new Error(data?.error || `submit HTTP ${r.status}`);
+    }
 
-  const data = await r.json().catch(()=>null);
-  if(!r.ok || !data?.ok){
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Submit changes';
-    throw new Error(data?.error || `submit HTTP ${r.status}`);
+    // Clear local overrides for this bucket (they’ve been persisted server-side)
+    saveOverrides(date, room, periodLocal, {});
+    setStatus(true, `Submitted ${data.applied_count || changes.length} change(s)`);
+    await refreshOnce();
+  } finally {
+    updateSubmitButtons();
   }
-
-  // Clear local overrides for this bucket (they’ve been persisted server-side)
-  saveOverrides(date, room, periodLocal, {});
-  setStatus(true, `Submitted ${data.applied_count || changes.length} change(s)`);
-  await refreshOnce();
 }
 
 async function refreshOnce(){
@@ -846,7 +1039,39 @@ async function bootTeacherAttendance(){
     setErr(err?.message || String(err));
     setStatus(false, 'Error');
   }));
-  
+
+
+  submitBtnBottom?.addEventListener('click', () => submitChanges().catch(err => {
+    console.error(err);
+    setErr(err?.message || String(err));
+    setStatus(false, 'Error');
+    updateSubmitButtons();
+  }));
+
+  applySelectedBtn?.addEventListener('click', () => applyBulkCodeToSelected().catch(err => {
+    console.error(err);
+    setErr(err?.message || String(err));
+    setStatus(false, 'Error');
+  }));
+
+  selectAllCb?.addEventListener('change', () => {
+    const on = !!selectAllCb.checked;
+    if (!on) {
+      SELECTED_OSIS.clear();
+      for (const osis of CURRENT_OSIS_LIST){
+        const ui = ROW_UI.get(osis);
+        if (ui?.cbEl) ui.cbEl.checked = false;
+      }
+    } else {
+      SELECTED_OSIS = new Set(CURRENT_OSIS_LIST);
+      for (const osis of CURRENT_OSIS_LIST){
+        const ui = ROW_UI.get(osis);
+        if (ui?.cbEl) ui.cbEl.checked = true;
+      }
+    }
+    updateBulkUI();
+  });
+
   try{
     const r = await adminFetch('/admin/session/check', { method:'GET' });
     const data = await r.json().catch(()=>({}));

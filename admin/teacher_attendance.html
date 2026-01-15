@@ -295,7 +295,7 @@
     }
     .row{
       display:grid;
-      grid-template-columns: minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr) minmax(0,1fr);
+      grid-template-columns: 34px minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr) minmax(0,1fr);
       gap:0.5rem;
       padding:0.35rem 0.15rem;
       border-radius:0.6rem;
@@ -410,22 +410,81 @@
     .muted{ color: var(--muted); font-variant-numeric: tabular-nums; }
     .mono{ font-variant-numeric: tabular-nums; }
 
+    .selCell{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .selCell input{
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    /* Bulk actions bar (sticky at bottom of the card) */
+    .bulkBar{
+      margin-top: 0.75rem;
+      position: sticky;
+      bottom: 0;
+      z-index: 50;
+      display:flex;
+      gap:0.6rem;
+      align-items:center;
+      justify-content:space-between;
+      padding:0.65rem 0.75rem;
+      border:1px solid var(--card-border);
+      background: var(--pill-bg);
+      border-radius: 0.9rem;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+      backdrop-filter: blur(10px);
+    }
+    .bulkLeft{
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .bulkActions{
+      display:flex;
+      gap:0.5rem;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .bulkSelect{
+      padding:0.55rem 0.65rem;
+      border-radius:0.75rem;
+      border:1px solid var(--border-strong);
+      background: var(--control-bg);
+      color: var(--fg);
+      outline:none;
+      font-size:0.92rem;
+      font-weight:700;
+      min-width: 160px;
+    }
+
     @media (max-width: 900px){
       .controls{ grid-template-columns: 1fr 1fr 1fr; }
       .controls .btn{ width:100%; }
-      .row{ grid-template-columns: minmax(0,2fr) minmax(0,0.9fr) minmax(0,0.9fr); }
+      .row{ grid-template-columns: 28px minmax(0,2fr) minmax(0,0.9fr); }
       .hide-sm{ display:none; }
 
       .zoneDot{ display:inline-block; }  /* show dots on mobile */
       .chip{ display:none; }             /* hide badges on mobile */
+
+      .bulkBar{ flex-direction:column; align-items:stretch; }
+      .bulkActions{ width:100%; }
+      .bulkSelect{ width:100%; min-width: 0; }
+      .bulkActions .btn{ width:100%; }
     }
 
     /* Hide the Out/In column entirely when not on the current period */
     #tableBox.noOutIn .row{
-      grid-template-columns: minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
+      grid-template-columns: 34px minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
     }
     #tableBox.noOutIn .row-header{
-      grid-template-columns: minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
+      grid-template-columns: 34px minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
     }
   </style>
 </head>
@@ -500,6 +559,9 @@
 
           <div class="table" id="tableBox">
             <div class="row row-header">
+              <div class="selCell" style="justify-content:center;">
+                <input type="checkbox" id="selectAllCb" aria-label="Select all students" title="Select all" />
+              </div>
               <div>Student</div>
               <div class="mono hide-sm">OSIS</div>
               <div style="text-align:center;">Code</div>
@@ -508,6 +570,22 @@
             </div>
             <div id="rows"></div>
           </div>
+
+          <div class="bulkBar" id="bulkBar">
+            <div class="bulkLeft">
+              <span id="bulkSelectedCount">0 selected</span>
+            </div>
+            <div class="bulkActions">
+              <select id="bulkCodeSelect" class="bulkSelect" aria-label="Bulk attendance code">
+                <option value="P">Present</option>
+                <option value="L">Late</option>
+                <option value="A">Absent</option>
+              </select>
+              <button class="btn" id="applySelectedBtn" disabled>Change selected</button>
+              <button class="btn btn-primary" id="submitBtnBottom" disabled>Submit changes</button>
+            </div>
+          </div>
+
         </section>
       </main>
     </div>
