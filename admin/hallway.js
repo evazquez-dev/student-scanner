@@ -22,6 +22,8 @@ const listSubtitle    = document.getElementById('listSubtitle');
 const DEFAULT_ACTIVE_ZONES = new Set(['hallway', 'bathroom']); // initial behavior = what you have now
 let activeZones = new Set(DEFAULT_ACTIVE_ZONES);
 let lastSnapshot = null;
+let userToggledZones = false;
+let didAutoSetZones = false;
 
 const POLL_MS = 10_000;
 let lastRefreshTs = null;
@@ -250,6 +252,8 @@ function zoneToChipClass(zone) {
       return 'zone-chip--bath';
     case 'class':
       return 'zone-chip--class';
+    case 'after_school':
+      return 'zone-chip--class';
     case 'lunch':
       return 'zone-chip--lunch';
     case 'with_staff':
@@ -278,10 +282,17 @@ function renderSummary(data) {
   dateText.textContent = date || '';
   summarySubtitle.textContent = total ? `Total tracked: ${total}` : '';
 
+  const isAfterSchool = !!data.after_school_mode;
+
   const defs = [
     { key: 'hallway',    label: 'In Hallway',   className: 'summary-item--hallway' },
     { key: 'bathroom',   label: 'In Bathroom',  className: 'summary-item--bathroom' },
-    { key: 'class',      label: 'In Class',     className: 'summary-item--class' },
+
+    // During after-school mode we show AFTER SCHOOL instead of IN CLASS
+    ...(isAfterSchool
+      ? [{ key: 'after_school', label: 'After School', className: 'summary-item--class' }]
+      : [{ key: 'class',        label: 'In Class',     className: 'summary-item--class' }]),
+
     { key: 'lunch',      label: 'At Lunch',     className: 'summary-item--lunch' },
     { key: 'with_staff', label: 'With Staff',   className: 'summary-item--staff' },
     { key: 'off_campus', label: 'Off Campus',   className: 'summary-item--offcampus' }
@@ -481,6 +492,7 @@ summaryGrid.addEventListener('click', (ev) => {
   const item = ev.target.closest('.summary-item');
   if (!item || !item.dataset.zoneKey) return;
   const key = item.dataset.zoneKey;
+  userToggledZones = true;
 
   if (activeZones.has(key)) {
     activeZones.delete(key);
@@ -532,6 +544,12 @@ async function fetchSnapshotOnce() {
   dbg('fetchSnapshotOnce: data ok, rendering summary and locations');
   setStatus(true, 'Live');
   lastSnapshot = data;
+
+  // AUTO-SELECT after_school zone during after-school mode (first load only)
+  if (!userToggledZones && !didAutoSetZones && data.after_school_mode) {
+    activeZones = new Set(['after_school']);
+    didAutoSetZones = true;
+  }
   renderSummary(data);
   renderLocations(data);
 }
