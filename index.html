@@ -76,6 +76,17 @@
       --pill-bg:#eaf7ea;
       --pill-fg:#0a7c2f;
     }
+
+    body[data-theme="after_school"] {
+      /* After school = warm orange theme */
+      --bg-main:#2a1605;
+      --card-bg:#fff7ed;
+      --panel-bg:#ffedd5;
+      --panel-border:#fdba74;
+      --accent:#ea580c;
+      --pill-bg:#fff7ed;
+      --pill-fg:#c2410c;
+    }
     
     .card {
       width:min(920px, 96vw);
@@ -851,6 +862,16 @@
     const v = String(current || '').toLowerCase().trim();
     return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
   }
+  function isFrontEntranceLocation(loc) {
+    const current = loc || getLocation();
+    const meta = getLocationMeta(current);
+    const mode = String((meta && meta.mode) || '').toLowerCase();
+    if (mode === 'front_entrance' || mode === 'main_entrance' || mode === 'entrance') return true;
+    const v = String(current || '').toLowerCase();
+    return v.includes('front entrance') || v.includes('main entrance') || v.includes('front door');
+  }
+
+
   function lunchSlotFromLocation(loc){ return String(loc||'').toLowerCase().includes('2') ? 2 : 1; }
   function normalizeLunchValue(s){
     const v = String(s||'').toLowerCase().replace(/\s+/g,'').replace('lunch','').replace('group','').replace('l','');
@@ -2030,6 +2051,28 @@
           return;
         }
 
+        // ✅ AFTER SCHOOL MODE: everyone is allowed; treat this as a room check-in
+        if (String(kioskMode).toLowerCase() === 'after_school') {
+          // After school isn't a "class session" (no OUT modal, no period buckets)
+          resetClassSessionState();
+          try { closeOutModalForClass(); } catch (_) {}
+
+          // Force after-school theme (even though this is a class scanner)
+          document.body.setAttribute('data-theme', 'after_school');
+
+          const label = `After School — ${loc}`;
+          beepGood();
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: '', when });
+          showSuccess(res.name, code, label, '', when);
+
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'after_school_in' });
+          setStatus('Ready. Scan next card…');
+          return;
+        } else {
+          // If we were previously in after-school theme, restore the normal class theme
+          document.body.setAttribute('data-theme', 'class');
+        }
+
         // Not allowed in this room
         if (!kioskAllowed) {
           const attendance = 'Not allowed';
@@ -2136,6 +2179,17 @@
           await handleClassBackIn(ctx);
           return;
         }
+      }
+
+      // ---- AFTER SCHOOL EXIT (Front Entrance) ----
+      if (!!res.after_school_mode && isFrontEntranceLocation(loc)) {
+        const label = 'Off Campus (after school)';
+        beepNeutralUp();
+        updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: '', when });
+        showSuccess(res.name, code, label, '', when);
+        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'after_school_out' });
+        setStatus('Ready. Scan next card…');
+        return;
       }
 
       // Senior Lunch (toggle OUT/IN)
