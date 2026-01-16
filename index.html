@@ -2549,7 +2549,12 @@
   }
 
   async function promptForLocation(force=false){
-    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
+    if (IS_LOCATION_LOCKED) {
+      // Only warn if the user is explicitly trying to change the location
+      if (force) alert(`This device is locked to ${getLocation()}.`);
+      updateLocationPill();
+      return getLocation();
+    }
     if (!force && getLocation()) { updateLocationPill(); return; }
 
     const modal = document.getElementById('locModal');
@@ -2601,7 +2606,6 @@
   })();
 
   document.getElementById('locationPill').addEventListener('click', () => {
-    if (IS_LOCATION_LOCKED) { alert(`This device is locked to ${getLocation()}.`); return; }
     promptForLocation(true);
   });
 
