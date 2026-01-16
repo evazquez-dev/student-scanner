@@ -287,35 +287,9 @@
     </div>
   </div>
 
-  <script type="module">
-    (async () => {
-      const API_BASE = document.querySelector('meta[name="api-base"]')?.content || '';
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./nav.js" defer></script>
 
-      async function getVersion(){
-        try{
-          const apiOrigin = new URL(API_BASE).origin;
-          if (apiOrigin !== location.origin) return null; // avoid CORS noise on GitHub Pages
-          const r = await fetch(new URL('/version', API_BASE), { cache: 'no-store' });
-          const j = await r.json();
-          return j?.id || j?.tag || null;
-        }catch{ return null; }
-      }
-
-      // Resolve JS relative to directory (works with pretty URLs)
-      const here = new URL(location.href);
-      let pathname = here.pathname;
-      if (!pathname.endsWith('/')) pathname += '/';
-      if (pathname.endsWith('/staff_pull/')) {
-        pathname = pathname.replace(/staff_pull\/$/, '');
-      }
-      const baseDir = new URL(here.origin + pathname);
-
-      const v = await getVersion();
-      const s = document.createElement('script');
-      s.src = new URL('staff_pull.js' + (v ? ('?v=' + encodeURIComponent(v)) : ''), baseDir).toString();
-      s.defer = true;
-      document.body.appendChild(s);
-    })();
-  </script>
+  <script src="./staff_pull.js" defer></script>
 </body>
 </html>

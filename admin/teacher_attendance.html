@@ -742,10 +742,14 @@
     // force baseDir to /admin/ so we can load /admin/teacher_attendance.js
     let pathname = here.pathname;
 
-    // normalize: treat no-slash as slash
-    if (!pathname.endsWith('/')) pathname += '/';
+    // If we're on a file like /admin/teacher_attendance.html, drop the filename
+    if (pathname.endsWith('.html')) {
+      pathname = pathname.replace(/[^/]+$/, ''); // => /admin/
+    } else if (!pathname.endsWith('/')) {
+      pathname += '/';
+    }
 
-    // if the last folder is teacher_attendance, go up one
+    // If we're on a pretty URL folder /admin/teacher_attendance/, go up to /admin/
     if (pathname.endsWith('/teacher_attendance/')) {
       pathname = pathname.replace(/teacher_attendance\/$/, '');
     }

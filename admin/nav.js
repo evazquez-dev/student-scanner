@@ -155,8 +155,12 @@
     drawer.appendChild(footer);
 
     function setOpen(on) {
-      document.body.classList.toggle('ssNav-open', !!on);
-      try { localStorage.setItem(LS_OPEN, on ? '1' : '0'); } catch {}
+      const open = !!on;
+      document.body.classList.toggle('ssNav-open', open);
+      btn.textContent = open ? '✕' : '☰';
+      btn.title = open ? 'Close navigation' : 'Open navigation';
+      btn.setAttribute('aria-label', btn.title);
+      try { localStorage.setItem(LS_OPEN, open ? '1' : '0'); } catch {}
     }
 
     btn.addEventListener('click', () => setOpen(!document.body.classList.contains('ssNav-open')));

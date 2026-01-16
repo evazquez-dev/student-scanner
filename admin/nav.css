@@ -42,6 +42,15 @@ body.ssNav-offset #ssNavToggle{ top:56px; }
   gap:10px;
 }
 
+#ssNavToggle{
+  transition: left 160ms ease-out, top 160ms ease-out;
+}
+
+/* when open, move the toggle to the drawer’s outer edge */
+body.ssNav-open #ssNavToggle{
+  left: calc(min(280px, 84vw) + 12px);
+}
+
 body.ssNav-open #ssNavDrawer{ transform: translateX(0); }
 body.ssNav-open #ssNavBackdrop{ display:block; }
 
