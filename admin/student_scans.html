@@ -16,6 +16,9 @@
   <!-- Google Identity Services (same pattern as other admin pages) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./nav.js" defer></script>
+
   <style>
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
     .row > * { flex: 0 0 auto; }
@@ -78,10 +81,6 @@
       <div>
         <div style="font-weight:700;">Student Scan Report</div>
         <div class="small">Scans sheet = source of truth</div>
-      </div>
-      <div class="rowBtns">
-        <a class="btn ghost" href="./admin.html">Admin</a>
-        <button class="btn ghost" id="btnLogout" type="button">Logout</button>
       </div>
     </header>
 

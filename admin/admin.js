@@ -69,9 +69,10 @@ async function checkSession() {
       credentials: 'include'
     });
     const data = await r.json().catch(() => ({}));
-    return !!(r.ok && data && data.ok);
+    if (!r.ok || !data?.ok) return { ok:false };
+    return { ok:true, email: data.email || '', role: data.role || '' };
   } catch {
-    return false;
+    return { ok:false };
   }
 }
 
@@ -115,8 +116,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   hide(appInner);
 
   // ✅ Session first
-  const ok = await checkSession();
-  if (ok) {
+  const sess = await checkSession();
+  if (sess.ok) {
+    if (String(sess.role || '') !== 'admin') {
+      showLogin(`Signed in as ${sess.email || 'unknown'} but not authorized for Admin Dashboard.`);
+      return;
+    }
     await afterLoginBoot();
     return;
   }
@@ -157,6 +162,10 @@ async function onGoogleCredential(resp) {
 
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    if (String(data.role || '') !== 'admin') {
+      showLogin(`Signed in as ${data.email || 'unknown'} but not authorized for Admin Dashboard.`);
+      return;
+    }
 
     await afterLoginBoot();
   } catch (e) {

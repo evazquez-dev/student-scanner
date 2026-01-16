@@ -282,20 +282,14 @@ async function boot(){
     const data = await r.json().catch(()=>({}));
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
-    // Role gate: only social_worker or admin can use this page
+    // No role gate here.
+    // The Worker enforces Staff Pull membership via KV (STAFF_PULL_ROLES_KEY).
     const role = String(data.role || '').trim();
-    if(!(role === 'admin' || role === 'social_worker')){
-      hide(appShell);
-      show(loginCard);
-      loginOut.textContent = `Signed in as ${data.email || 'unknown'} but not authorized for Staff Pull (role=${role}).`;
-      setStatus(false, 'Not authorized');
-      return;
-    }
-
     WHO = { email: data.email || '', role };
     hide(loginCard);
     show(appShell);
     setStatus(true, 'Live');
+    
   }catch(e){
     // Need login
     hide(appShell);
@@ -397,14 +391,7 @@ async function onGoogleCredential(resp){
     const data = await r.json().catch(()=>({}));
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
-    // Must be social_worker or admin to proceed
     const role = String(data.role || '').trim();
-    if(!(role === 'admin' || role === 'social_worker')){
-      loginOut.textContent = `Signed in as ${data.email || 'unknown'} but not authorized (role=${role}).`;
-      setStatus(false, 'Not authorized');
-      return;
-    }
-
     WHO = { email: data.email || '', role };
 
     hide(loginCard);

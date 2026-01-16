@@ -2,7 +2,7 @@
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '')
   .replace(/\/*$/, '') + '/';
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
-const SNAPSHOT_PATH = '/admin/hallway_state';
+const SNAPSHOT_PATH = '/admin/hallway_state_monitor';
 
 const loginCard  = document.getElementById('loginCard');
 const loginOut   = document.getElementById('loginOut');
@@ -521,16 +521,27 @@ async function fetchSnapshotOnce() {
     data = JSON.parse(text);
   } catch (_) {
     dbg('fetchSnapshotOnce: JSON parse failed, raw text:', text);
-    throw new Error('Bad JSON from /admin/hallway_state');
+    throw new Error(`Bad JSON from ${SNAPSHOT_PATH}`);
   }
 
   // Handle expired session
-  if (r.status === 401 || r.status === 403) {
-    dbg('fetchSnapshotOnce: unauthorized, showing login');
+  if (r.status === 401) {
+    dbg('fetchSnapshotOnce: unauthorized (401), showing login');
     setStatus(false, 'Unauthorized');
     hide(appShell);
     show(loginCard);
     loginOut.textContent = 'Session expired. Please sign in again.';
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+    return;
+  }
+
+  if (r.status === 403) {
+    dbg('fetchSnapshotOnce: forbidden (403), not authorized for hallway monitor');
+    setStatus(false, 'Not authorized');
+    hide(appShell);
+    show(loginCard);
+    loginOut.textContent = 'Not authorized for the Hallway Monitor page.';
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = null;
     return;
