@@ -135,9 +135,72 @@
       linksWrap.appendChild(a);
     }
 
+    // ===== Theme (shared) =====
+    const THEME_KEY = 'ss_theme_v1';
+    const LEGACY_THEME_KEYS = ['teacher_att_theme', 'staff_pull_theme'];
+
+    function resolveTheme(){
+      // 1) dataset already set?
+      const cur = String(document.documentElement?.dataset?.theme || '').trim().toLowerCase();
+      if (cur === 'light' || cur === 'dark') return cur;
+
+      // 2) shared key
+      let t = '';
+      try { t = String(localStorage.getItem(THEME_KEY) || '').trim().toLowerCase(); } catch {}
+      if (t === 'light' || t === 'dark') return t;
+
+      // 3) migrate legacy keys
+      for (const k of LEGACY_THEME_KEYS){
+        try{
+          const v = String(localStorage.getItem(k) || '').trim().toLowerCase();
+          if (v === 'light' || v === 'dark'){
+            try{ localStorage.setItem(THEME_KEY, v); }catch{}
+            return v;
+          }
+        }catch{}
+      }
+
+      // 4) system default
+      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+        ? 'light' : 'dark';
+    }
+
+    function applyTheme(theme){
+      const t = (String(theme || '').toLowerCase() === 'light') ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+      try{ localStorage.setItem(THEME_KEY, t); }catch{}
+      try{ window.dispatchEvent(new CustomEvent('ss-theme-change', { detail:{ theme:t } })); }catch{}
+    }
+
+    // Ensure something is set (in case the page didn't bootstrap early)
+    applyTheme(resolveTheme());
+
     const footer = document.createElement('div');
     footer.className = 'ssNavFooter';
 
+    const themeBtn = document.createElement('button');
+    themeBtn.className = 'ssNavBtn';
+    themeBtn.type = 'button';
+
+    const syncThemeBtn = () => {
+      const t = resolveTheme();
+      themeBtn.textContent = (t === 'light') ? '☀️ Light' : '🌙 Dark';
+      themeBtn.title = (t === 'light') ? 'Switch to dark mode' : 'Switch to light mode';
+      themeBtn.setAttribute('aria-pressed', String(t === 'light'));
+    };
+
+    syncThemeBtn();
+    themeBtn.addEventListener('click', () => {
+      const next = (resolveTheme() === 'light') ? 'dark' : 'light';
+      applyTheme(next);
+      syncThemeBtn();
+    });
+
+    // keep label in sync if another tab/page changes it
+    window.addEventListener('storage', (e) => { if (e.key === THEME_KEY) syncThemeBtn(); });
+    window.addEventListener('ss-theme-change', syncThemeBtn);
+
+    // ===== Logout =====
     const logoutBtn = document.createElement('button');
     logoutBtn.className = 'ssNavBtn';
     logoutBtn.type = 'button';
@@ -147,6 +210,7 @@
       location.reload();
     });
 
+    footer.appendChild(themeBtn);
     footer.appendChild(logoutBtn);
 
     drawer.appendChild(title);

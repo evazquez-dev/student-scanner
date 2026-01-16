@@ -12,7 +12,7 @@ const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || ''
   .replace(/\/*$/, '') + '/';
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
 
-const THEME_KEY = 'staff_pull_theme';
+const THEME_KEY = 'ss_theme_v1';
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 
 function getTheme(){

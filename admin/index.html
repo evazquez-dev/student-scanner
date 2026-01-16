@@ -15,6 +15,26 @@
   <link rel="stylesheet" href="./admin.css">
   <link rel="stylesheet" href="./nav.css">
   <script src="./nav.js" defer></script>
+  <script>
+    // Theme bootstrap: apply saved theme ASAP to avoid flash.
+    (function(){
+      try{
+        var key = 'ss_theme_v1';
+        var t = localStorage.getItem(key);
+
+        // migrate legacy (one-time)
+        if(!t){
+          t = localStorage.getItem('teacher_att_theme') || localStorage.getItem('staff_pull_theme');
+          if(t) localStorage.setItem(key, t);
+        }
+
+        if(!t){
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = t;
+      }catch(e){}
+    })();
+  </script>
 </head>
 <body>
   <main class="wrap">
