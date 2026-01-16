@@ -423,6 +423,55 @@
       background: rgba(241,245,249,0.95);
       border-color: rgba(100,116,139,0.55);
     }
+    
+    /* ---- Fix “summary buttons” in light mode ---- */
+    :root[data-theme="light"] .summary-item{
+      background: rgba(255,255,255,0.88);
+      border-color: rgba(148,163,184,0.70);
+    }
+
+    /* In light mode, use real background (not background-color) so it overrides the dark gradient */
+    :root[data-theme="light"] .summary-item--hallway{
+      background: var(--accent-soft);
+      border-color: rgba(34,197,94,0.45);
+    }
+    :root[data-theme="light"] .summary-item--bathroom{
+      background: var(--bath-soft);
+      border-color: rgba(56,189,248,0.45);
+    }
+    :root[data-theme="light"] .summary-item--class,
+    :root[data-theme="light"] .summary-item--after_school{
+      background: var(--class-soft);
+      border-color: rgba(245,158,11,0.50);
+    }
+    :root[data-theme="light"] .summary-item--lunch{
+      background: var(--lunch-soft);
+      border-color: rgba(139,92,246,0.50);
+    }
+    :root[data-theme="light"] .summary-item--staff{
+      background: var(--staff-soft);
+      border-color: rgba(20,184,166,0.50);
+    }
+    :root[data-theme="light"] .summary-item--danger,
+    :root[data-theme="light"] .summary-item--offcamp,
+    :root[data-theme="light"] .summary-item--offcampus{
+      background: var(--danger-soft);
+      border-color: rgba(239,68,68,0.50);
+    }
+
+    /* Hover/active outlines that actually look good on white */
+    :root[data-theme="light"] .summary-item--clickable:hover{
+      box-shadow: 0 0 0 2px rgba(100,116,139,0.28);
+    }
+    :root[data-theme="light"] .summary-item--active{
+      box-shadow: 0 0 0 2px rgba(15,23,42,0.22);
+      border-color: rgba(15,23,42,0.22);
+    }
+
+    /* Also fix the dark divider line between location groups */
+    :root[data-theme="light"] .loc-group{
+      border-top-color: rgba(148,163,184,0.55);
+    }
   </style>
 </head>
 <body>
