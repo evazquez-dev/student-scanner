@@ -109,6 +109,143 @@
           <pre id="scheduleOut" class="pane">—</pre>
         </section>
 
+        <!-- Data overviews (read-only) -->
+        <section class="card" id="overviewCard">
+          <h2>Data overviews</h2>
+          <div class="row">
+            <div class="col">
+              <div class="muted">Read-only snapshots of what the Worker currently has stored.</div>
+            </div>
+            <div class="col right">
+              <button id="btnRefreshOverviews" class="btn">Refresh all</button>
+            </div>
+          </div>
+
+          <details open style="margin-top:10px;">
+            <summary><strong>Bound devices</strong> <span id="bindingsCountLabel" class="muted"></span></summary>
+            <div class="row" style="gap:8px; margin-top:8px;">
+              <button id="btnLoadBindings" class="btn ghost">Refresh</button>
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="min-width:240px;">Device ID</th>
+                    <th>Bound location</th>
+                  </tr>
+                </thead>
+                <tbody id="bindingsTbody"></tbody>
+              </table>
+            </div>
+            <pre id="bindingsOut" class="pane">—</pre>
+          </details>
+
+          <details style="margin-top:10px;">
+            <summary><strong>Bell schedule (current)</strong> <span id="bellCountLabel" class="muted"></span></summary>
+            <div class="row" style="gap:8px; margin-top:8px;">
+              <button id="btnLoadBell" class="btn ghost">Refresh</button>
+              <span id="bellMeta" class="muted"></span>
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:80px;">Period</th>
+                    <th style="width:120px;">Start</th>
+                    <th style="width:120px;">End</th>
+                  </tr>
+                </thead>
+                <tbody id="bellTbody"></tbody>
+              </table>
+            </div>
+            <pre id="bellOut" class="pane">—</pre>
+          </details>
+
+          <details style="margin-top:10px;">
+            <summary><strong>Period map</strong> <span id="periodMapCountLabel" class="muted"></span></summary>
+            <div class="row" style="gap:8px; margin-top:8px;">
+              <button id="btnLoadPeriodMap" class="btn ghost">Refresh</button>
+              <span id="periodMapMeta" class="muted"></span>
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:140px;">PeriodLocal</th>
+                    <th>Abbreviation(s)</th>
+                    <th style="width:80px;">Send?</th>
+                  </tr>
+                </thead>
+                <tbody id="periodMapTbody"></tbody>
+              </table>
+            </div>
+            <pre id="periodMapOut" class="pane">—</pre>
+          </details>
+
+          <details style="margin-top:10px;">
+            <summary><strong>Period room map (Student_Period_Room_Map)</strong> <span id="classesSummaryCountLabel" class="muted"></span></summary>
+            <div class="row" style="gap:8px; margin-top:8px;">
+              <button id="btnLoadClassesSummary" class="btn ghost">Refresh</button>
+              <span id="classesSummaryMeta" class="muted"></span>
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:100px;">Period</th>
+                    <th style="width:110px;">Filled</th>
+                    <th style="width:90px;">%</th>
+                    <th style="width:120px;">Unique rooms</th>
+                    <th>Sample rooms</th>
+                  </tr>
+                </thead>
+                <tbody id="classesSummaryTbody"></tbody>
+              </table>
+            </div>
+            <pre id="classesSummaryOut" class="pane">—</pre>
+          </details>
+
+          <details style="margin-top:10px;">
+            <summary><strong>Regents students</strong> <span id="regentsCountLabel" class="muted"></span></summary>
+            <div class="row" style="gap:8px; margin-top:8px;">
+              <button id="btnLoadRegentsSummary" class="btn ghost">Refresh</button>
+              <span id="regentsMeta" class="muted"></span>
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Lunch</th>
+                    <th style="width:110px;">Count</th>
+                  </tr>
+                </thead>
+                <tbody id="regentsByLunchTbody"></tbody>
+              </table>
+            </div>
+            <pre id="regentsOut" class="pane">—</pre>
+          </details>
+
+          <details style="margin-top:10px;">
+            <summary><strong>Staff Pull authorized users</strong> <span id="staffPullCountLabel" class="muted"></span></summary>
+            <div class="row" style="gap:8px; margin-top:8px;">
+              <button id="btnLoadStaffPullRoles" class="btn ghost">Refresh</button>
+              <span id="staffPullMeta" class="muted"></span>
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="min-width:260px;">Email</th>
+                    <th>Title</th>
+                  </tr>
+                </thead>
+                <tbody id="staffPullRolesTbody"></tbody>
+              </table>
+            </div>
+            <pre id="staffPullOut" class="pane">—</pre>
+          </details>
+        </section>
+
         <!-- Class kiosk attendance -->
         <section class="card" id="attendanceCard">
           <h2>Class kiosk attendance</h2>

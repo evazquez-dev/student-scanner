@@ -25,6 +25,36 @@ const bathTableOut = document.getElementById('bathTableOut');
 const bindOut      = document.getElementById('bindOut');
 const scheduleOut  = document.getElementById('scheduleOut');
 
+// Overviews (read-only)
+const bindingsOut         = document.getElementById('bindingsOut');
+const bindingsTbody       = document.getElementById('bindingsTbody');
+const bindingsCountLabel  = document.getElementById('bindingsCountLabel');
+
+const bellOut             = document.getElementById('bellOut');
+const bellTbody           = document.getElementById('bellTbody');
+const bellCountLabel      = document.getElementById('bellCountLabel');
+const bellMeta            = document.getElementById('bellMeta');
+
+const periodMapOut        = document.getElementById('periodMapOut');
+const periodMapTbody      = document.getElementById('periodMapTbody');
+const periodMapCountLabel = document.getElementById('periodMapCountLabel');
+const periodMapMeta       = document.getElementById('periodMapMeta');
+
+const classesSummaryOut        = document.getElementById('classesSummaryOut');
+const classesSummaryTbody      = document.getElementById('classesSummaryTbody');
+const classesSummaryCountLabel = document.getElementById('classesSummaryCountLabel');
+const classesSummaryMeta       = document.getElementById('classesSummaryMeta');
+
+const regentsOut          = document.getElementById('regentsOut');
+const regentsByLunchTbody = document.getElementById('regentsByLunchTbody');
+const regentsCountLabel   = document.getElementById('regentsCountLabel');
+const regentsMeta         = document.getElementById('regentsMeta');
+
+const staffPullOut        = document.getElementById('staffPullOut');
+const staffPullRolesTbody = document.getElementById('staffPullRolesTbody');
+const staffPullCountLabel = document.getElementById('staffPullCountLabel');
+const staffPullMeta       = document.getElementById('staffPullMeta');
+
 // In-memory copy of last loaded locations (full meta)
 let lastLoadedLocations = [];
 
@@ -97,6 +127,7 @@ async function afterLoginBoot() {
   await loadLocationsToEditor();
   await hydrateBathrooms();
   await loadAttendanceCfg();
+  await refreshOverviews();
 }
 
 // --- Google Sign-In init ---
@@ -229,6 +260,247 @@ document.getElementById('btnPushSchedule')?.addEventListener('click', async () =
     if (scheduleOut) scheduleOut.textContent = `Error: ${e.message || e}`;
   }
 });
+
+/* ===============================
+ * DATA OVERVIEWS (read-only)
+ * =============================== */
+function fmtTs(ts){
+  const n = Number(ts);
+  if (!Number.isFinite(n) || !n) return '';
+  try { return new Date(n).toLocaleString(); } catch { return String(ts); }
+}
+function fmtPct(p){
+  const n = Number(p);
+  if (!Number.isFinite(n)) return '';
+  return (n * 100).toFixed(1) + '%';
+}
+
+async function getAdminJson(path) {
+  const r = await adminFetch(path, { method: 'GET' });
+  const ct = r.headers.get('content-type') || '';
+  const text = await r.text();
+  if (!ct.includes('application/json')) {
+    return { ok:false, status:r.status, text, data:null };
+  }
+  let data = null;
+  try { data = JSON.parse(text); } catch { data = null; }
+  return { ok: !!data, status:r.status, text, data };
+}
+
+async function loadBindings() {
+  if (bindingsOut) bindingsOut.textContent = 'Loading…';
+  try {
+    const res = await getAdminJson('/admin/bindings?limit=1000');
+    if (!res.ok) {
+      if (bindingsOut) bindingsOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+      return;
+    }
+    const data = res.data || {};
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+
+    if (bindingsCountLabel) bindingsCountLabel.textContent = rows.length ? `(${rows.length})` : '(0)';
+
+    if (bindingsTbody) {
+      bindingsTbody.innerHTML = rows.map(r => {
+        const device = esc(r?.device_id || '');
+        const loc = esc(r?.location || '');
+        return `<tr><td class="mono">${device}</td><td>${loc}</td></tr>`;
+      }).join('') || '<tr><td colspan="2" class="muted">No bound devices.</td></tr>';
+    }
+
+    const tail = data?.cursor ? `\nnext cursor: ${data.cursor}` : '';
+    if (bindingsOut) bindingsOut.textContent = `HTTP ${res.status}\n\nOK. ${rows.length} binding(s).${tail}`;
+  } catch (e) {
+    if (bindingsOut) bindingsOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
+async function loadBellSchedule() {
+  if (bellOut) bellOut.textContent = 'Loading…';
+  try {
+    const res = await getAdminJson('/admin/bell_schedule');
+    if (!res.ok) {
+      if (bellOut) bellOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+      return;
+    }
+    const data = res.data || {};
+    const periods = Array.isArray(data.periods) ? data.periods : [];
+    if (bellCountLabel) bellCountLabel.textContent = periods.length ? `(${periods.length})` : '(0)';
+    if (bellMeta) bellMeta.textContent = [data.date, data.tz, (data.ts ? ('ts: ' + fmtTs(data.ts)) : '')].filter(Boolean).join(' • ');
+
+    if (bellTbody) {
+      bellTbody.innerHTML = periods.map(p => {
+        const id = esc(p?.id || '');
+        const s  = esc(p?.start || '');
+        const e  = esc(p?.end || '');
+        return `<tr><td class="mono">${id}</td><td class="mono">${s}</td><td class="mono">${e}</td></tr>`;
+      }).join('') || '<tr><td colspan="3" class="muted">No schedule stored.</td></tr>';
+    }
+
+    if (bellOut) bellOut.textContent = `HTTP ${res.status}\n\nOK.`;
+  } catch (e) {
+    if (bellOut) bellOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
+async function loadPeriodMap() {
+  if (periodMapOut) periodMapOut.textContent = 'Loading…';
+  try {
+    const res = await getAdminJson('/admin/period_map_legacy');
+    if (!res.ok) {
+      if (periodMapOut) periodMapOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+      return;
+    }
+    const data = res.data || {};
+    const periods = (data.periods && typeof data.periods === 'object') ? data.periods : {};
+    const keys = Object.keys(periods).sort((a,b)=>String(a).localeCompare(String(b), undefined, { sensitivity:'base' }));
+
+    if (periodMapCountLabel) periodMapCountLabel.textContent = keys.length ? `(${keys.length})` : '(0)';
+    if (periodMapMeta) periodMapMeta.textContent = data.ts ? ('ts: ' + fmtTs(data.ts)) : '';
+
+    if (periodMapTbody) {
+      periodMapTbody.innerHTML = keys.map(local => {
+        const cfg = periods[local] || {};
+        const abbrs = Array.isArray(cfg.abbrs) ? cfg.abbrs : [];
+        const send = (cfg.send === true);
+        return `<tr><td class="mono">${esc(local)}</td><td class="mono">${esc(abbrs.join(', '))}</td><td class="mono">${send ? 'yes' : 'no'}</td></tr>`;
+      }).join('') || '<tr><td colspan="3" class="muted">No period_map stored.</td></tr>';
+    }
+
+    if (periodMapOut) periodMapOut.textContent = `HTTP ${res.status}\n\nOK.`;
+  } catch (e) {
+    if (periodMapOut) periodMapOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
+async function loadClassesSummary() {
+  if (classesSummaryOut) classesSummaryOut.textContent = 'Loading…';
+  try {
+    const res = await getAdminJson('/admin/student_classes_summary');
+    if (!res.ok) {
+      if (classesSummaryOut) classesSummaryOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+      return;
+    }
+    const data = res.data || {};
+    const periods = Array.isArray(data.periods) ? data.periods : [];
+    const rosterTotal = Number(data.roster_total || 0) || 0;
+    const studentsInMap = Number(data.students_in_map || 0) || 0;
+
+    if (classesSummaryCountLabel) classesSummaryCountLabel.textContent = periods.length ? `(${periods.length})` : '(0)';
+    if (classesSummaryMeta) {
+      const bits = [];
+      if (data.date) bits.push(data.date);
+      if (data.ts) bits.push('ts: ' + fmtTs(data.ts));
+      if (rosterTotal) bits.push(`roster: ${rosterTotal}`);
+      if (studentsInMap) bits.push(`in map: ${studentsInMap}`);
+      classesSummaryMeta.textContent = bits.join(' • ');
+    }
+
+    if (classesSummaryTbody) {
+      classesSummaryTbody.innerHTML = periods.map(row => {
+        const pid = esc(row?.period || '');
+        const filled = Number(row?.filled || 0) || 0;
+        const denom = rosterTotal || studentsInMap || 0;
+        const fillText = denom ? `${filled}/${denom}` : String(filled);
+        const pct = fmtPct(row?.pct);
+        const uniq = Number(row?.unique_rooms || 0) || 0;
+        const sample = Array.isArray(row?.sample_rooms) ? row.sample_rooms.join(', ') : '';
+        return `<tr>
+          <td class="mono">${pid}</td>
+          <td class="mono">${esc(fillText)}</td>
+          <td class="mono">${esc(pct)}</td>
+          <td class="mono">${esc(String(uniq))}</td>
+          <td class="mono">${esc(sample)}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="5" class="muted">No Student_Period_Room_Map stored.</td></tr>';
+    }
+
+    if (classesSummaryOut) classesSummaryOut.textContent = `HTTP ${res.status}\n\nOK.`;
+  } catch (e) {
+    if (classesSummaryOut) classesSummaryOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
+async function loadRegentsSummary() {
+  if (regentsOut) regentsOut.textContent = 'Loading…';
+  try {
+    const res = await getAdminJson('/admin/regents_students_summary');
+    if (!res.ok) {
+      if (regentsOut) regentsOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+      return;
+    }
+    const data = res.data || {};
+    const total = Number(data.total_students || 0) || 0;
+    const cnt   = Number(data.regents_students || 0) || 0;
+    const by = (data.by_lunch && typeof data.by_lunch === 'object') ? data.by_lunch : {};
+
+    if (regentsCountLabel) regentsCountLabel.textContent = total ? `(${cnt}/${total})` : `(${cnt})`;
+    if (regentsMeta) {
+      const bits = [];
+      if (data.roster_ts) bits.push('roster ts: ' + fmtTs(data.roster_ts));
+      if (typeof data.pct === 'number') bits.push('pct: ' + fmtPct(data.pct));
+      regentsMeta.textContent = bits.join(' • ');
+    }
+
+    const lunchRows = Object.entries(by).map(([l, c]) => ({ lunch: l, count: Number(c || 0) || 0 }))
+      .sort((a,b) => (b.count - a.count) || String(a.lunch).localeCompare(String(b.lunch), undefined, { sensitivity:'base' }));
+
+    if (regentsByLunchTbody) {
+      regentsByLunchTbody.innerHTML = lunchRows.map(r => {
+        return `<tr><td class="mono">${esc(r.lunch)}</td><td class="mono">${esc(String(r.count))}</td></tr>`;
+      }).join('') || '<tr><td colspan="2" class="muted">No Regents_Prep students flagged.</td></tr>';
+    }
+
+    if (regentsOut) regentsOut.textContent = `HTTP ${res.status}\n\nOK.`;
+  } catch (e) {
+    if (regentsOut) regentsOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
+async function loadStaffPullRoles() {
+  if (staffPullOut) staffPullOut.textContent = 'Loading…';
+  try {
+    const res = await getAdminJson('/admin/staff_pull_roles');
+    if (!res.ok) {
+      if (staffPullOut) staffPullOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+      return;
+    }
+    const data = res.data || {};
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+
+    if (staffPullCountLabel) staffPullCountLabel.textContent = rows.length ? `(${rows.length})` : '(0)';
+    if (staffPullMeta) staffPullMeta.textContent = data.ts ? ('ts: ' + fmtTs(data.ts)) : '';
+
+    if (staffPullRolesTbody) {
+      staffPullRolesTbody.innerHTML = rows.map(r => {
+        return `<tr><td class="mono">${esc(r?.email || '')}</td><td class="mono">${esc(r?.title || '')}</td></tr>`;
+      }).join('') || '<tr><td colspan="2" class="muted">No staff_pull allowlist stored.</td></tr>';
+    }
+
+    if (staffPullOut) staffPullOut.textContent = `HTTP ${res.status}\n\nOK.`;
+  } catch (e) {
+    if (staffPullOut) staffPullOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
+async function refreshOverviews() {
+  await Promise.all([
+    loadBindings(),
+    loadBellSchedule(),
+    loadPeriodMap(),
+    loadClassesSummary(),
+    loadRegentsSummary(),
+    loadStaffPullRoles()
+  ]);
+}
+
+document.getElementById('btnRefreshOverviews')?.addEventListener('click', refreshOverviews);
+document.getElementById('btnLoadBindings')?.addEventListener('click', loadBindings);
+document.getElementById('btnLoadBell')?.addEventListener('click', loadBellSchedule);
+document.getElementById('btnLoadPeriodMap')?.addEventListener('click', loadPeriodMap);
+document.getElementById('btnLoadClassesSummary')?.addEventListener('click', loadClassesSummary);
+document.getElementById('btnLoadRegentsSummary')?.addEventListener('click', loadRegentsSummary);
+document.getElementById('btnLoadStaffPullRoles')?.addEventListener('click', loadStaffPullRoles);
 
 /* ===============================
  * LOCATIONS
