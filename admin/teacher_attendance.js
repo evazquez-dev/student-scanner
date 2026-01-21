@@ -696,6 +696,9 @@ function stageBulkCodeToSelected(){
 
   setStatus(true, `Staged ${osisList.length} student(s) as ${codeLabel(codeLetter)} — click Submit changes.`);
   updateBulkUI();
+  // After staging bulk changes, clear selection so checkboxes uncheck
+  clearSelection();        // clears SELECTED_OSIS, unchecks row checkboxes, persists selection
+  if (bulkCodeSelect) bulkCodeSelect.value = '';  // back to "Unselected…"
 }
 /******************** End bulk selection ********************/
 
