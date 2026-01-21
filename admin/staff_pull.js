@@ -103,6 +103,97 @@ function fmtClock(iso){
   return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
 }
 
+function clearEl(el){
+  if(!el) return;
+  while(el.firstChild) el.removeChild(el.firstChild);
+}
+
+function renderScheduleTable(sch){
+  if(!schedBox) return;
+
+  clearEl(schedBox);
+
+  if(!sch || !sch.now){
+    schedBox.textContent = 'No bell/schedule context right now.';
+    return;
+  }
+
+  const rowsRaw = (Array.isArray(sch.window) && sch.window.length)
+    ? sch.window
+    : [sch.prev, sch.now, sch.next].filter(Boolean);
+
+  // one before + focus + one after
+  const rows = rowsRaw.slice(0, 3);
+  const focusPid = String(sch.now?.periodLocal || '');
+
+  const wrap = document.createElement('div');
+  wrap.className = 'schedTableWrap';
+
+  const tbl = document.createElement('table');
+  tbl.className = 'schedTable';
+
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  for (const h of ['Period','Time','Room','Course']){
+    const th = document.createElement('th');
+    th.textContent = h;
+    trh.appendChild(th);
+  }
+  thead.appendChild(trh);
+  tbl.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  for (const r of rows){
+    if(!r) continue;
+
+    const tr = document.createElement('tr');
+    const isFocus = (focusPid && String(r.periodLocal) === focusPid);
+    if(isFocus) tr.classList.add('schedRow--current');
+
+    // Period
+    const tdP = document.createElement('td');
+    const pill = document.createElement('span');
+    pill.className = 'schedPill';
+
+    const dot = document.createElement('span');
+    dot.className = 'schedDot';
+
+    const pid = String(r.periodLocal ?? '—');
+    const pLabel = (/^\d+$/.test(pid) ? `P${pid}` : pid);
+
+    const ptxt = document.createElement('span');
+    ptxt.textContent = pLabel;
+
+    pill.appendChild(dot);
+    pill.appendChild(ptxt);
+    tdP.appendChild(pill);
+
+    // Time
+    const tdT = document.createElement('td');
+    tdT.textContent = String(r.range || '').trim() || '—';
+
+    // Room
+    const tdR = document.createElement('td');
+    tdR.textContent = String(r.room || '').trim() || '—';
+
+    // Course
+    const tdC = document.createElement('td');
+    tdC.textContent = String(r.course || '').trim() || '—';
+
+    tr.appendChild(tdP);
+    tr.appendChild(tdT);
+    tr.appendChild(tdR);
+    tr.appendChild(tdC);
+
+    tbody.appendChild(tr);
+  }
+
+  tbl.appendChild(tbody);
+  wrap.appendChild(tbl);
+  schedBox.appendChild(wrap);
+}
+
 function fillResults(filterText){
   const q = String(filterText || '').trim().toLowerCase();
   const max = 80;
@@ -215,17 +306,7 @@ async function loadSelectedContext(){
   }
 
   // Schedule
-  if (!sch || !sch.now){
-    schedBox.textContent = 'No bell/schedule context right now.';
-  } else {
-    const now = sch.now;
-    const next = sch.next;
-    const nowTxt = `NOW: P${now.periodLocal} ${now.range || ''} — ${now.room || '—'}` + (now.course ? ` (${now.course})` : '');
-    const nextTxt = next
-      ? `NEXT: P${next.periodLocal} ${next.range || ''} — ${next.room || '—'}` + (next.course ? ` (${next.course})` : '')
-      : 'NEXT: —';
-    schedBox.textContent = nowTxt + '\n' + nextTxt;
-  }
+  renderScheduleTable(sch);
 
   selectedMeta.textContent = SELECTED_OSIS;
 
