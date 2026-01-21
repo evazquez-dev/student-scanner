@@ -251,6 +251,126 @@
       display:none;
       white-space: pre-wrap;
     }
+
+    /* =======================
+   CURRENT LOCATION CARD
+   (match hallway/teacher_attendance palette)
+   ======================= */
+
+    /* Zone palette */
+    :root{
+      --hall: #22c55e;
+      --hall-soft: rgba(34,197,94,0.12);
+
+      --bath: #38bdf8;
+      --bath-soft: rgba(56,189,248,0.12);
+
+      --class: #f59e0b;
+      --class-soft: rgba(245,158,11,0.15);
+
+      --lunch: #8b5cf6;
+      --lunch-soft: rgba(139,92,246,0.15);
+
+      --staff: #14b8a6;
+      --staff-soft: rgba(20,184,166,0.15);
+
+      --off: #ef4444;
+      --off-soft: rgba(239,68,68,0.14);
+    }
+
+    /* Card */
+    .locCard{
+      border: 1px solid var(--border-strong);
+      background: var(--control-bg);
+      border-radius: 0.9rem;
+      padding: 0.65rem 0.75rem;
+      display:flex;
+      flex-direction:column;
+      gap:0.25rem;
+    }
+
+    .locTitle{
+      font-weight: 900;
+      font-size: 0.98rem;
+      line-height: 1.15;
+    }
+
+    .locSub{
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.25;
+    }
+
+    .locMetaRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:0.45rem;
+      align-items:center;
+    }
+
+    .locPill{
+      display:inline-flex;
+      align-items:center;
+      gap:0.35rem;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: var(--pill-bg);
+      padding: 0.18rem 0.55rem;
+      font-size: 0.74rem;
+      color: var(--muted);
+      white-space:nowrap;
+    }
+    .locPillDot{
+      width:6px;
+      height:6px;
+      border-radius:999px;
+      background: var(--muted);
+    }
+
+    /* Zone chip (same vibe as hallway) */
+    .zone-chip{
+      font-size: 0.68rem;
+      padding: 0.10rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid rgba(55,65,81,0.9);
+      background: rgba(15,23,42,0.9);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    /* Zone chip colors */
+    .zone-chip--hall   { border-color: var(--hall);  color: var(--hall); }
+    .zone-chip--bath   { border-color: var(--bath);  color: var(--bath); }
+    .zone-chip--class  { border-color: var(--class); color: var(--class); }
+    .zone-chip--lunch  { border-color: var(--lunch); color: var(--lunch); }
+    .zone-chip--staff  { border-color: var(--staff); color: var(--staff); }
+    .zone-chip--off    { border-color: var(--off);   color: var(--off); }
+
+    /* Card background by zone */
+    .locCard--hall   { background: var(--hall-soft);  border-color: rgba(34,197,94,0.45); }
+    .locCard--bath   { background: var(--bath-soft);  border-color: rgba(56,189,248,0.50); }
+    .locCard--class  { background: var(--class-soft); border-color: rgba(245,158,11,0.55); }
+    .locCard--lunch  { background: var(--lunch-soft); border-color: rgba(139,92,246,0.55); }
+    .locCard--staff  { background: var(--staff-soft); border-color: rgba(20,184,166,0.55); }
+    .locCard--off    { background: var(--off-soft);   border-color: rgba(239,68,68,0.55); }
+
+    /* In light mode, make the chip bg feel less “dark blob” */
+    :root[data-theme="light"] .zone-chip{
+      background: rgba(241,245,249,0.95);
+      border-color: rgba(100,116,139,0.55);
+    }
+
+    /* Minor second line under current location (stale "Last known") */
+    .locSub--minor{
+      font-size: 0.78rem;
+      opacity: 0.85;
+      margin-top: 0.15rem;
+    }
+
+    /* Optional: alias class names used by other pages */
+    .zone-chip--offcampus{ border-color: var(--off); color: var(--off); }
+    .zone-chip--after_school{ border-color: var(--class); color: var(--class); }
   </style>
 </head>
 
@@ -279,6 +399,10 @@
           <div class="pill">
             <span>📅</span>
             <span id="dateText">—</span>
+          </div>
+          <div class="pill">
+            <span>🕒</span>
+            <span id="currentPeriodText">Current: —</span>
           </div>
           <div class="pill">
             <span>👤</span>
@@ -312,7 +436,7 @@
           <div class="error" id="errBox"></div>
 
           <div class="list" style="margin-top:1rem;">
-            <div class="muted">Current</div>
+            <div class="muted">Current Location</div>
             <div id="curBox" class="mono">—</div>
 
             <div class="muted" style="margin-top:0.5rem;">Schedule</div>

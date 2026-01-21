@@ -47,6 +47,7 @@ const statusText = document.getElementById('statusText');
 const dateText   = document.getElementById('dateText');
 const whoText    = document.getElementById('whoText');
 const refreshText= document.getElementById('refreshText');
+const currentPeriodText = document.getElementById('currentPeriodText');
 
 const studentSearch = document.getElementById('studentSearch');
 const studentSelect = document.getElementById('studentSelect');
@@ -101,6 +102,234 @@ function fmtClock(iso){
   const d = new Date(iso);
   if(Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
+
+function fmtMDTimeNY(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString([], {
+    timeZone: 'America/New_York',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+let _CURPER_TIMER = null;
+
+async function fetchTeacherOptionsForPill_(){
+  const r = await adminFetch('/admin/teacher_att/options', { method:'GET' });
+  const data = await r.json().catch(()=>null);
+  if(!r.ok || !data?.ok){
+    throw new Error(data?.error || `teacher_att/options HTTP ${r.status}`);
+  }
+  return data;
+}
+
+function renderCurrentPeriodPill_(opts){
+  if(!currentPeriodText) return;
+
+  const cur = String(opts?.current_period_local || '').trim();
+  if(!cur){
+    currentPeriodText.textContent = 'Current: —';
+    return;
+  }
+
+  // Prefer pretty label from period_options (e.g. "4 (10:48 AM - 11:42 AM)")
+  let label = cur;
+  const po = opts?.period_options;
+  if(Array.isArray(po)){
+    const found = po.find(x => String(x?.value) === cur);
+    if(found?.label) label = String(found.label);
+  }
+
+  currentPeriodText.textContent = `Current: ${label}`;
+}
+
+function startCurrentPeriodTicker_(){
+  if(_CURPER_TIMER) return;
+
+  _CURPER_TIMER = setInterval(async () => {
+    if(document.hidden) return;
+    try{
+      const opts = await fetchTeacherOptionsForPill_();
+      renderCurrentPeriodPill_(opts);
+    }catch(_){}
+  }, 60000);
+}
+
+async function initCurrentPeriodPill_(){
+  if(!currentPeriodText) return;
+
+  currentPeriodText.textContent = 'Current: —';
+
+  // Small retry (cookie races / transient fetch)
+  let opts = null;
+  for(let i=0;i<3;i++){
+    try{
+      opts = await fetchTeacherOptionsForPill_();
+      break;
+    }catch(e){
+      if(i===2) throw e;
+      await new Promise(r => setTimeout(r, 200*(i+1)));
+    }
+  }
+
+  renderCurrentPeriodPill_(opts);
+  startCurrentPeriodTicker_();
+}
+
+function nycDateISO(){
+  // YYYY-MM-DD in America/New_York
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(new Date());
+
+  const y = parts.find(p => p.type === 'year')?.value || '';
+  const m = parts.find(p => p.type === 'month')?.value || '';
+  const d = parts.find(p => p.type === 'day')?.value || '';
+  return `${y}-${m}-${d}`;
+}
+
+function isoToNycDate(iso){
+  if(!iso) return '';
+  const dt = new Date(iso);
+  if (Number.isNaN(dt.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(dt);
+
+  const y = parts.find(p => p.type === 'year')?.value || '';
+  const m = parts.find(p => p.type === 'month')?.value || '';
+  const d = parts.find(p => p.type === 'day')?.value || '';
+  return `${y}-${m}-${d}`;
+}
+
+function isStateFromToday(st){
+  const today = nycDateISO();
+
+  const d = String(st?.date || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d === today;
+
+  const u = String(st?.updated_at || '').trim();
+  if (u) return isoToNycDate(u) === today;
+
+  return false;
+}
+
+function zoneToChipClass(zone){
+  switch(String(zone || '')){
+    case 'hallway':      return 'zone-chip--hall';
+    case 'bathroom':     return 'zone-chip--bath';
+    case 'class':
+    case 'after_school': return 'zone-chip--class';
+    case 'lunch':        return 'zone-chip--lunch';
+    case 'with_staff':   return 'zone-chip--staff';
+    case 'off_campus':   return 'zone-chip--off';
+    default:             return 'zone-chip--off';
+  }
+}
+
+function zoneToCardClass(zone){
+  switch(String(zone || '')){
+    case 'hallway':      return 'locCard--hall';
+    case 'bathroom':     return 'locCard--bath';
+    case 'class':
+    case 'after_school': return 'locCard--class';
+    case 'lunch':        return 'locCard--lunch';
+    case 'with_staff':   return 'locCard--staff';
+    case 'off_campus':   return 'locCard--off';
+    default:             return 'locCard--off';
+  }
+}
+
+function fmtDateTimeShort(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  // local display is fine here; “today” logic uses NYC date above
+  return d.toLocaleString([], { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function renderCurrentLocation(st){
+  const fromToday = isStateFromToday(st);
+
+  // Capture "last known" from whatever we received, even if it's stale
+  const lkLabel = String(st?.location_label || st?.loc || '').trim();
+  const lkZone  = String(st?.zone || '').trim();
+  const lkTs    = st?.updated_at ? (fmtMDTimeNY(st.updated_at) || fmtDateTimeShort(st.updated_at)) : '';
+  const lastKnownLine = (lkLabel || lkZone || lkTs)
+    ? `Last known: ${lkLabel || '—'}${lkZone ? ` (${lkZone.replace(/_/g,' ')})` : ''}${lkTs ? ` • ${lkTs}` : ''}`
+    : '';
+
+  // If stale (or missing), force Off Campus messaging
+  const zone  = (!st || !fromToday) ? 'off_campus' : String(st.zone || '');
+  const label = (!st || !fromToday) ? 'Off Campus' : String(st.location_label || st.loc || '—');
+
+  const updatedText = st?.updated_at
+    ? ((!st || !fromToday)
+        ? `Last update: ${lkTs || fmtDateTimeShort(st.updated_at)}`
+        : `Updated: ${fmtClock(st.updated_at)}`)
+    : ((!st || !fromToday) ? '' : 'Updated: —');
+
+  // Reset + base card
+  curBox.innerHTML = '';
+  curBox.className = `locCard ${zoneToCardClass(zone)}`;
+
+  // Title
+  const title = document.createElement('div');
+  title.className = 'locTitle';
+  title.textContent = label || '—';
+
+  // Meta row (zone chip + updated pill)
+  const meta = document.createElement('div');
+  meta.className = 'locMetaRow';
+
+  const chip = document.createElement('span');
+  chip.className = `zone-chip ${zoneToChipClass(zone)}`;
+  chip.textContent = String(zone || 'off_campus').replace(/_/g,' ');
+  meta.appendChild(chip);
+
+  if (updatedText){
+    const upd = document.createElement('span');
+    upd.className = 'locPill';
+    upd.innerHTML = `<span class="locPillDot"></span><span>${updatedText}</span>`;
+    meta.appendChild(upd);
+  }
+
+  // Main subline
+  const sub = document.createElement('div');
+  sub.className = 'locSub';
+
+  if(!st || !fromToday){
+    sub.textContent = 'They have not entered the building today.';
+  } else {
+    const bits = [];
+    const heldBy = String(st.held_by_title || st.held_by_email || '').trim();
+    const heldSince = st.held_by_since ? fmtClock(st.held_by_since) : '';
+    if (heldBy) bits.push(`With: ${heldBy}`);
+    if (heldSince) bits.push(`since ${heldSince}`);
+    sub.textContent = bits.join(' • ') || '—';
+  }
+
+  // Append
+  curBox.appendChild(title);
+  curBox.appendChild(meta);
+  curBox.appendChild(sub);
+
+  // Stale extra line: "Last known: ..."
+  if ((!st || !fromToday) && lastKnownLine){
+    const sub2 = document.createElement('div');
+    sub2.className = 'locSub locSub--minor';
+    sub2.textContent = lastKnownLine;
+    curBox.appendChild(sub2);
+  }
+
+  return fromToday;
 }
 
 function clearEl(el){
@@ -295,15 +524,8 @@ async function loadSelectedContext(){
   const st = data.state || null;
   const sch = data.schedule || null;
 
-  // Current location
-  if (!st || !st.date){
-    curBox.textContent = 'No location state (treat as Off Campus)';
-  } else {
-    const label = st.location_label || st.loc || '—';
-    const zone  = st.zone || '';
-    const upd   = st.updated_at ? fmtClock(st.updated_at) : '—';
-    curBox.textContent = `${label}  [zone=${zone}]  (updated ${upd})`;
-  }
+  // Current location (prettier + stale-day protection)
+  const isTodayState = renderCurrentLocation(st);
 
   // Schedule
   renderScheduleTable(sch);
@@ -313,7 +535,7 @@ async function loadSelectedContext(){
   // Enable buttons
   pullBtn.disabled = false;
   // Release is enabled if they're currently held
-  const heldBy = String(st?.held_by_email || '').toLowerCase();
+  const heldBy = String((isTodayState ? st?.held_by_email : '') || '').toLowerCase();
   const me     = String(WHO?.email || '').toLowerCase();
   const isAdmin = String(WHO?.role || '') === 'admin';
 
@@ -401,6 +623,7 @@ async function boot(){
 
     await loadOptions();
     whoText.textContent = WHO?.email ? `${WHO.email} (${WHO.role})` : '—';
+    try{ await initCurrentPeriodPill_(); }catch(_){}
 
     // Initial list
     fillResults('');
