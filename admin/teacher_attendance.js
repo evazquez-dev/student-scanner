@@ -272,7 +272,6 @@ const submitBtnBottom = document.getElementById('submitBtnBottom');
 const selectAllCb = document.getElementById('selectAllCb');
 const bulkSelectedCountEl = document.getElementById('bulkSelectedCount');
 const bulkCodeSelect = document.getElementById('bulkCodeSelect');
-const applySelectedBtn = document.getElementById('applySelectedBtn');
 
 const errBox     = document.getElementById('errBox');
 const subtitleRight = document.getElementById('subtitleRight');
@@ -582,8 +581,12 @@ function updateBulkUI(){
   if (bulkSelectedCountEl){
     bulkSelectedCountEl.textContent = `${n} selected`;
   }
-  if (applySelectedBtn){
-    applySelectedBtn.disabled = n === 0;
+  if (bulkCodeSelect){
+    // only allow staging when something is selected
+    bulkCodeSelect.disabled = (n === 0);
+
+    // if nothing selected, force dropdown back to "Unselected…"
+    if (n === 0) bulkCodeSelect.value = '';
   }
 
   if (selectAllCb){
@@ -613,28 +616,39 @@ function clearSelection(){
   saveSelection(date, room, periodLocal, SELECTED_OSIS);
 }
 
-async function applyBulkCodeToSelected(){
+function stageBulkCodeToSelected(){
   setErr('');
 
   const room = normRoom(roomInput.value);
   const periodLocal = normPeriod(periodInput.value);
   const date = dateText.textContent || '';
+
   const codeLetter = String(bulkCodeSelect?.value || '').trim().toUpperCase();
   const osisList = Array.from(SELECTED_OSIS);
 
-  if (!osisList.length) return;
+  // Require an explicit bulk choice
+  if (!codeLetter) return;
+
+  if (!osisList.length){
+    setErr('Select one or more students first.');
+    // reset dropdown back to Unselected so it doesn’t look “applied”
+    if (bulkCodeSelect) bulkCodeSelect.value = '';
+    return;
+  }
 
   if (!room || !periodLocal){
     setErr('Room + Period are required.');
+    if (bulkCodeSelect) bulkCodeSelect.value = '';
     return;
   }
 
   if (!['P','L','A'].includes(codeLetter)){
     setErr('Pick an attendance code (P/L/A).');
+    if (bulkCodeSelect) bulkCodeSelect.value = '';
     return;
   }
 
-  // Update local state + UI first (fast)
+  // Update local state + UI (same style as individual dropdown changes)
   const overrides = loadOverrides(date, room, periodLocal);
 
   for (const osis of osisList){
@@ -650,7 +664,7 @@ async function applyBulkCodeToSelected(){
     }
 
     const mismatch = !!r._mismatch;
-    const changed  = (r.chosen || 'A') !== (r.baseline || 'A');
+    const changed  = (String(r.chosen||'A') !== String(r.baseline||'A'));
 
     if (ui.rowEl){
       ui.rowEl.className =
@@ -665,51 +679,23 @@ async function applyBulkCodeToSelected(){
     if (ui.outInBtn){
       const canToggle = (codeLetter === 'P' || codeLetter === 'L');
       ui.outInBtn.disabled = !canToggle;
-      if (canToggle) {
-        ui.outInBtn.title = ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In';
-      } else {
-        ui.outInBtn.title = 'Mark Present (P) or Late (L) to enable Out/In';
-      }
+      ui.outInBtn.title = canToggle
+        ? (ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In')
+        : 'Mark Present (P) or Late (L) to enable Out/In';
     }
   }
 
   saveOverrides(date, room, periodLocal, overrides);
-  renderOutInOrganizer();
+
+  // IMPORTANT: Submit changes remains the only thing that writes to Worker + logs.
   updateSubmitButtons();
+  renderOutInOrganizer();
 
-  // Persist to Worker now (AttendanceDO teacher overrides)
-  if (applySelectedBtn){
-    applySelectedBtn.disabled = true;
-    applySelectedBtn.textContent = `Updating (${osisList.length})…`;
-  }
+  // Force deliberate next choice
+  if (bulkCodeSelect) bulkCodeSelect.value = '';
 
-  try{
-    const r = await adminFetch('/admin/attendance/override_batch', {
-      method:'POST',
-      headers:{ 'content-type':'application/json' },
-      body: JSON.stringify({
-        date,
-        room,
-        periodLocal,
-        rows: osisList.map(osis => ({ osis, codeLetter }))
-      })
-    });
-
-    const data = await r.json().catch(()=>null);
-    if (!r.ok || !data?.ok) throw new Error(data?.error || `override_batch HTTP ${r.status}`);
-
-    setStatus(true, `Updated ${data.wrote ?? osisList.length} student(s)`);
-    clearSelection();
-  } catch(e){
-    setErr(e?.message || String(e));
-    setStatus(false, 'Error');
-  } finally {
-    if (applySelectedBtn){
-      applySelectedBtn.textContent = 'Change selected';
-      applySelectedBtn.disabled = (SELECTED_OSIS.size === 0);
-    }
-    updateBulkUI();
-  }
+  setStatus(true, `Staged ${osisList.length} student(s) as ${codeLabel(codeLetter)} — click Submit changes.`);
+  updateBulkUI();
 }
 /******************** End bulk selection ********************/
 
@@ -1353,11 +1339,11 @@ async function bootTeacherAttendance(){
     updateSubmitButtons();
   }));
 
-  applySelectedBtn?.addEventListener('click', () => applyBulkCodeToSelected().catch(err => {
-    console.error(err);
-    setErr(err?.message || String(err));
-    setStatus(false, 'Error');
-  }));
+  bulkCodeSelect?.addEventListener('change', (ev) => {
+    // Only on real user changes (avoid programmatic resets)
+    if (ev && ev.isTrusted === false) return;
+    stageBulkCodeToSelected();
+  });
 
   selectAllCb?.addEventListener('change', () => {
     const on = !!selectAllCb.checked;
