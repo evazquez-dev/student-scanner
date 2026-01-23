@@ -283,22 +283,61 @@ const debugEl = document.getElementById('debugLog');
 let IS_AUTHED = false;
 let CURRENT_PERIOD_LOCAL = ''; // updated by renderCurrentPeriod()
 
-const ADVISOR_PERIODS = new Set(['LCH1','LCH2','FM1','FM2','ADV']);
+// Real advisor-mode periods (backend buckets by advisor label)
+const ADVISOR_PERIODS = new Set(['FM1','FM2','ADV']);
+
+// Lunch periods: UI shows advisor label, but API calls must use the real room (Caf / 315 / etc)
+const LUNCH_ADVISOR_UI_PERIODS = new Set(['LCH1','LCH2']);
+
 let TEACHER_OPTS_CACHE = null;
 
 const roomLabelEl = document.querySelector('label[for="roomInput"]');
 
+// For lunch periods we keep the picked advisor label so we can display it.
+let UI_LUNCH_ADVISOR_LABEL = '';
+
+function periodKey(p){
+  return String(p||'').trim().toUpperCase();
+}
+
 function isAdvisorPeriod(p){
-  return ADVISOR_PERIODS.has(String(p||'').trim().toUpperCase());
+  return ADVISOR_PERIODS.has(periodKey(p));
+}
+
+function isLunchAdvisorUiPeriod(p){
+  return LUNCH_ADVISOR_UI_PERIODS.has(periodKey(p));
+}
+
+function resolveRoomForApi(periodLocal, pickedLabel){
+  const p = periodKey(periodLocal);
+  const picked = String(pickedLabel||'').trim();
+  UI_LUNCH_ADVISOR_LABEL = '';
+
+  if (!picked) return '';
+
+  if (isLunchAdvisorUiPeriod(p)) {
+    UI_LUNCH_ADVISOR_LABEL = picked;
+    const map = TEACHER_OPTS_CACHE?.lunch_advisor_to_room?.[p] || {};
+    const resolved = String(map?.[picked] || '').trim();
+    return resolved || picked; // fallback if map missing
+  }
+
+  return picked;
 }
 
 function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
   const period = String(periodInput?.value || '').trim();
 
-  const advisorMode = isAdvisorPeriod(period);
-  const items = advisorMode
-    ? (opts?.advisors_by_period?.[String(period).trim().toUpperCase()] || [])
-    : (opts?.rooms || []);
+  const pKey = periodKey(period);
+
+  const lunchUi = isLunchAdvisorUiPeriod(pKey);
+  const advisorMode = lunchUi || isAdvisorPeriod(pKey);
+
+  const items = lunchUi
+    ? (opts?.lunch_advisors_by_period?.[pKey] || [])
+    : advisorMode
+      ? (opts?.advisors_by_period?.[pKey] || [])
+      : (opts?.rooms || []);
 
   if (roomLabelEl) roomLabelEl.textContent = advisorMode ? 'Advisor' : 'Room';
 
@@ -611,16 +650,18 @@ function clearSelection(){
 
   // persist for this view
   const date = dateText.textContent || '';
-  const room = normRoom(roomInput.value);
+  const picked = normRoom(roomInput.value);
   const periodLocal = normPeriod(periodInput.value);
+  const room = normRoom(resolveRoomForApi(periodLocal, picked));
   saveSelection(date, room, periodLocal, SELECTED_OSIS);
 }
 
 function stageBulkCodeToSelected(){
   setErr('');
 
-  const room = normRoom(roomInput.value);
+  const picked = normRoom(roomInput.value);
   const periodLocal = normPeriod(periodInput.value);
+  const room = normRoom(resolveRoomForApi(periodLocal, picked));
   const date = dateText.textContent || '';
 
   const codeLetter = String(bulkCodeSelect?.value || '').trim().toUpperCase();
@@ -1112,8 +1153,13 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     lastMergedRows.push(r);
   }
 
+  const roomDisplay =
+    (isLunchAdvisorUiPeriod(period) && UI_LUNCH_ADVISOR_LABEL)
+      ? (UI_LUNCH_ADVISOR_LABEL === room ? UI_LUNCH_ADVISOR_LABEL : `${UI_LUNCH_ADVISOR_LABEL} (${room})`)
+      : room;
+
   subtitleRight.textContent =
-    `${room} • P${period} • ${whenType} • ${merged.length} students` +
+    `${roomDisplay} • P${period} • ${whenType} • ${merged.length} students` +
     (haveSnapshot ? ' • (snapshot)' : ' • (live)') +
     (allowOutIn ? '' : ' • (Out/In hidden)');
 
@@ -1129,8 +1175,9 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
 async function submitChanges(){
   setErr('');
-  const room = normRoom(roomInput.value);
+  const picked = normRoom(roomInput.value);          // advisor label during lunch
   const periodLocal = normPeriod(periodInput.value);
+  const room = normRoom(resolveRoomForApi(periodLocal, picked)); // real room for API
   const whenType = 'end';
   const date = dateText.textContent || '';
 
@@ -1165,7 +1212,15 @@ async function submitChanges(){
 
     // Clear local overrides for this bucket (they’ve been persisted server-side)
     saveOverrides(date, room, periodLocal, {});
-    setStatus(true, `Submitted ${data.applied_count || changes.length} change(s)`);
+    const msg =
+      data?.deferred
+        ? (data?.mode === 'past_pending_end'
+            ? 'Saved. This will be included when the period-end snapshot runs.'
+            : 'Saved. Will be included in the period-end snapshot.')
+        : (data?.gas?.ok
+            ? 'Saved. Updates sent (delta only).'
+            : (data?.gas ? 'Saved, but GAS push failed.' : 'Saved.'));
+    setStatus(true, msg);
     await refreshOnce();
   } finally {
     updateSubmitButtons();
@@ -1174,8 +1229,9 @@ async function submitChanges(){
 
 async function refreshOnce(){
   setErr('');
-  const room = normRoom(roomInput.value);
+  const picked = normRoom(roomInput.value); // advisor label during lunch
   const period = normPeriod(periodInput.value);
+  const room = normRoom(resolveRoomForApi(period, picked)); // real room for API
   const whenType = 'end';
 
   if(!room || !period){
