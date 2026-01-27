@@ -2160,6 +2160,34 @@
 
         // Present in class and not currently out → open Out-of-Class modal
         if (isPresent && !wasOut) {
+
+          // 🍽️ LUNCH OVERRIDE (Caf during LCH1/LCH2):
+          // No "where are you going?" modal; repeat scans are ignored (but still logged).
+          const pNow = String((res && (res.current_period || res.next_period)) || '').trim().toUpperCase();
+          const isLunchPeriod = (pNow === 'LCH1' || pNow === 'LCH2');
+          const isCaf = String(loc || '').toLowerCase().includes('caf');
+          if (isLunchPeriod && isCaf) {
+            const attendance = res.attendance || 'Present';
+            const attSlug = String(attendance).toLowerCase();
+            const allowedValue = `kiosk_ok_repeat:${attSlug}`;
+
+            // Optional: touch lastIn (doesn't change the "present" state)
+            if (CLASS_PRESENT[osis]) CLASS_PRESENT[osis].lastIn = Date.now();
+
+            beepNeutralUp();
+            updateRowToSuccess(row, {
+              name: res.name,
+              code,
+              lockerNum: attendance,
+              lockerColor: shouldRoom,
+              when
+            });
+            showSuccess(res.name, code, attendance, shouldRoom, when);
+            apiLog({ whenISO, code, source:'pwa', resolved:res, allowed: allowedValue });
+            setStatus('Ready. Scan next card…');
+            return;
+          }
+
           beepNeutralDown();
           CURRENT_CLASS_PENDING = { row, code, when, res, osis, shouldRoom };
           row.innerHTML =
