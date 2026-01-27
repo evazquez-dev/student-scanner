@@ -239,6 +239,13 @@ function fmtShortTs(iso) {
   if (Number.isNaN(d.getTime())) return iso;
   return fmtClock(d);
 }
+function fmtScheduledRoom(room, kind) {
+  const r = String(room || '').trim();
+  if (!r) return '—';
+
+  const pretty = (/^\d+$/.test(r)) ? `RM ${r}` : (/^caf$/i.test(r) ? 'Caf' : r);
+  return (kind === 'next') ? `→ ${pretty}` : pretty;
+}
 
 /**
  * Map zone string from API → CSS class for mini badge.
@@ -419,17 +426,22 @@ function renderLocations(data) {
     h2.textContent = 'Bathroom visits today';
 
     const h3 = document.createElement('div');
-    h3.className = 'row-source';
-    h3.textContent = 'Location';
+    h3.className = 'row-sched';
+    h3.textContent = 'Scheduled';
 
     const h4 = document.createElement('div');
-    h4.className = 'row-ts';
-    h4.textContent = 'Last seen';
+    h4.className = 'row-source';
+    h4.textContent = 'Location';
+
+    const h5 = document.createElement('div');
+    h5.className = 'row-ts';
+    h5.textContent = 'Last seen';
 
     headerRow.appendChild(h1);
     headerRow.appendChild(h2);
     headerRow.appendChild(h3);
     headerRow.appendChild(h4);
+    headerRow.appendChild(h5);
     list.appendChild(headerRow);
 
     for (const s of rows) {
@@ -458,26 +470,32 @@ function renderLocations(data) {
       // col2: bathroom visits today
       const col2 = document.createElement('div');
       col2.className = 'row-bath';
-      const visits = (typeof s.bathroom_visits === 'number') ? s.bathroom_visits : 0;
+      const visits = Number.isFinite(Number(s.bathroom_visits)) ? Math.max(0, Math.trunc(Number(s.bathroom_visits))) : 0;
       col2.textContent = visits;
 
-      // col3: location (plus raw source if you like)
+      // col3: scheduled room (based on current/next period)
       const col3 = document.createElement('div');
-      col3.className = 'row-source';
+      col3.className = 'row-sched';
+      col3.textContent = fmtScheduledRoom(s.scheduled_room, s.scheduled_kind);
+
+      // col4: location (plus raw source if you like)
+      const col4 = document.createElement('div');
+      col4.className = 'row-source';
       const locText = s.locLabel || s.loc || '';
-      col3.textContent = s.source
+      col4.textContent = s.source
         ? `${locText} • ${s.source}`
         : locText;
 
-      // col4: last timestamp
-      const col4 = document.createElement('div');
-      col4.className = 'row-ts';
-      col4.textContent = fmtShortTs(s.updated_at);
+      // col5: last timestamp
+      const col5 = document.createElement('div');
+      col5.className = 'row-ts';
+      col5.textContent = fmtShortTs(s.updated_at);
 
       row.appendChild(col1);
       row.appendChild(col2);
       row.appendChild(col3);
       row.appendChild(col4);
+      row.appendChild(col5);
       list.appendChild(row);
     }
 

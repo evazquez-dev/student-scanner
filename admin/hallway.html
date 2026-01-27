@@ -285,7 +285,12 @@
     }
     .row {
       display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(0,0.8fr) minmax(0,1fr) minmax(0, 1.2fr);
+      grid-template-columns:
+        minmax(0, 2fr)      /* Student */
+        minmax(0, 0.8fr)    /* Bathroom visits */
+        minmax(0, 0.9fr)    /* Scheduled room */
+        minmax(0, 1fr)      /* Location */
+        minmax(0, 1.2fr);   /* Last seen */
       gap: 0.4rem;
       font-size: 0.8rem;
       padding: 0.25rem 0.1rem;
@@ -305,6 +310,10 @@
     }
     .row-osis {
       color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .row-sched {
+      text-align: center;
       font-variant-numeric: tabular-nums;
     }
     .row-bath {
