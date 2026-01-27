@@ -398,7 +398,7 @@ async function waitForGoogle(timeoutMs = 8000){
 // Always include cookies for admin requests
 async function adminFetch(pathOrUrl, init = {}){
   const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
-  return fetch(u, { ...init, credentials:'include' });
+  return fetch(u, { ...init, credentials:'include', cache:'no-store' });
 }
 
 async function fetchClassSessionState(date, room, periodLocal){
@@ -793,6 +793,7 @@ async function fetchPreview(room, period, whenType, opts = {}){
   u.searchParams.set('period', period);
   u.searchParams.set('when', whenType);
 
+  if (opts.fresh) u.searchParams.set('fresh', '1');
   if (opts.date) u.searchParams.set('date', String(opts.date));
   if (opts.forceCompute) u.searchParams.set('force_compute', '1');
   if (opts.ignoreOverrides) u.searchParams.set('ignore_overrides', '1');
