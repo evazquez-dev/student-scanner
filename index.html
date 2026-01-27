@@ -1002,6 +1002,9 @@
 
     CURRENT_CLASS_PERIOD_KEY = key;
 
+    // Refresh header label now that we know the period
+    updateHeaderForLocation();
+
     // Rebuild "present" + "OUT" from localStorage for this bucket
     hydrateClassPresentFromStorage(key);
     hydrateOutOfClassFromStorage(key);
@@ -1583,7 +1586,13 @@
 
     if (isSeniorOutIn() || isBathroomLocation(loc)) col.textContent = 'In/Out';
     else if (isLunchLocation(loc)) col.textContent = 'Allowed?';
-    else if (isClassKiosk(loc)) col.textContent = 'Attendance';
+    else if (isClassKiosk(loc)) {
+      // 🍽️ LUNCH POLISH: Caf during LCH1/LCH2 should read "Lunch" (not "Attendance")
+      const key = String(CURRENT_CLASS_PERIOD_KEY || '').trim().toUpperCase();
+      const isLunchPeriod = (key === 'LCH1' || key === 'LCH2');
+      const isCaf = String(loc || '').toLowerCase().includes('caf');
+      col.textContent = (isLunchPeriod && isCaf) ? 'Lunch' : 'Attendance';
+    }
     else col.textContent = 'Locker';
 
     if (!isClassKiosk(loc)) {
