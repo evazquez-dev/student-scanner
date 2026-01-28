@@ -269,6 +269,17 @@ const refreshBtn = document.getElementById('refreshBtn');
 const submitBtn = document.getElementById('submitBtn');
 const submitBtnBottom = document.getElementById('submitBtnBottom');
 
+// After-school toggle button (only visible during after-school window)
+const afterSchoolBtn = document.getElementById('afterSchoolBtn');
+const periodField = document.getElementById('periodField');
+
+// Table header cells (for mode-specific labels)
+const thSel = document.getElementById('thSel');
+const thStudent = document.getElementById('thStudent');
+const thOsis = document.getElementById('thOsis');
+const thCode = document.getElementById('thCode');
+const thScan = document.getElementById('thScan');
+
 const selectAllCb = document.getElementById('selectAllCb');
 const bulkSelectedCountEl = document.getElementById('bulkSelectedCount');
 const bulkCodeSelect = document.getElementById('bulkCodeSelect');
@@ -282,6 +293,14 @@ const debugEl = document.getElementById('debugLog');
 
 let IS_AUTHED = false;
 let CURRENT_PERIOD_LOCAL = ''; // updated by renderCurrentPeriod()
+
+// ---------- After-school teacher view (room-only) ----------
+const MODE_KEY = 'teacher_att_mode_v1'; // 'class' | 'after_school'
+const AS_ROOM_KEY = 'teacher_att_as_room';
+let PAGE_MODE = 'class';
+let AFTER_SCHOOL_ELIGIBLE = false;      // Worker schedule says we're in after-school window
+let AFTER_SCHOOL_OPTS_CACHE = null;     // /admin/after_school/options
+let LAST_CLASS_PICK = { room: '', period: '' };
 
 // Real advisor-mode periods (backend buckets by advisor label)
 const ADVISOR_PERIODS = new Set(['FM1','FM2','ADV']);
@@ -401,6 +420,234 @@ async function adminFetch(pathOrUrl, init = {}){
   return fetch(u, { ...init, credentials:'include', cache:'no-store' });
 }
 
+// ---------- After-school view helpers ----------
+function getStoredMode(){
+  const v = String(localStorage.getItem(MODE_KEY) || '').toLowerCase().trim();
+  return (v === 'after_school') ? 'after_school' : 'class';
+}
+
+function setStoredMode(mode){
+  const m = (String(mode||'') === 'after_school') ? 'after_school' : 'class';
+  try{ localStorage.setItem(MODE_KEY, m); }catch{}
+}
+
+async function fetchAfterSchoolOptions(){
+  const r = await adminFetch('/admin/after_school/options', { method:'GET' });
+  const data = await r.json().catch(()=>null);
+  if (!r.ok || !data?.ok) {
+    throw new Error(data?.error || `after_school/options HTTP ${r.status}`);
+  }
+  return data;
+}
+
+async function fetchAfterSchoolRoom(homeRoomLabel, dateOpt){
+  const u = new URL('/admin/after_school/room', API_BASE);
+  u.searchParams.set('room', String(homeRoomLabel || '').trim());
+  if (dateOpt) u.searchParams.set('date', String(dateOpt));
+
+  const r = await adminFetch(u, { method:'GET' });
+  const data = await r.json().catch(()=>null);
+  if (!r.ok || !data?.ok) {
+    throw new Error(data?.error || `after_school/room HTTP ${r.status}`);
+  }
+  return data;
+}
+
+async function afterSchoolToggle({ date, homeRoomLabel, osis, to }){
+  // Prefer the admin endpoint (cookie-auth). If it doesn't exist yet, fall back to public log.
+  try{
+    const r = await adminFetch('/admin/after_school/toggle', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ date, room: homeRoomLabel, osis, to })
+    });
+
+    if (r.status === 404) throw new Error('no_admin_toggle');
+    const data = await r.json().catch(()=>null);
+    if (!r.ok || !data?.ok) {
+      throw new Error(data?.error || `after_school/toggle HTTP ${r.status}`);
+    }
+    return data;
+  } catch(e){
+    // Fallback: use public action=log endpoint (requires ORIGIN_OK)
+    if (String(e?.message || '').includes('no_admin_toggle') || String(e?.message || '').includes('404')){
+      const whenISO = new Date().toISOString();
+      const params = new URLSearchParams();
+      params.set('action', 'log');
+      params.set('whenISO', whenISO);
+      params.set('date', String(date || ''));
+      params.set('code', String(osis || ''));
+      params.set('osis', String(osis || ''));
+      params.set('source', 'teacher_attendance');
+      params.set('device_id', 'teacher_attendance');
+
+      const target = (String(to||'').toLowerCase() === 'out') ? 'out' : 'in';
+      if (target === 'out') {
+        params.set('location', 'Hallway');
+        params.set('allowed', 'class_out:Teacher');
+      } else {
+        params.set('location', String(homeRoomLabel || '').trim());
+        params.set('allowed', 'after_school:Teacher');
+      }
+
+      const rr = await fetch(API_BASE, {
+        method: 'POST',
+        headers: { 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: params.toString(),
+        cache: 'no-store'
+      });
+
+      if (!rr.ok) {
+        const t = await rr.text().catch(()=> '');
+        throw new Error(`toggle_fallback_failed HTTP ${rr.status} ${t}`);
+      }
+      return { ok:true, did:'fallback' };
+    }
+    throw e;
+  }
+}
+
+function setAfterSchoolButtonUI(){
+  if (!afterSchoolBtn) return;
+  if (!AFTER_SCHOOL_ELIGIBLE) {
+    afterSchoolBtn.style.display = 'none';
+    return;
+  }
+  afterSchoolBtn.style.display = '';
+  afterSchoolBtn.textContent = (PAGE_MODE === 'after_school') ? '📚 Class View' : '🌙 After School';
+  afterSchoolBtn.title = (PAGE_MODE === 'after_school')
+    ? 'Switch back to the normal class-period view'
+    : 'Switch to after-school homeroom view (room-only)';
+}
+
+function buildAfterSchoolRoomList(asOpts){
+  const assigned = (asOpts?.assigned_rooms || [])
+    .map(x => String(x?.label || '').trim())
+    .filter(Boolean);
+  const all = (asOpts?.rooms || []).map(x => String(x || '').trim()).filter(Boolean);
+  const seen = new Set();
+  const out = [];
+  for (const r of [...assigned, ...all]) {
+    const k = r.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
+}
+
+function applyAfterSchoolRoomDropdown(asOpts, preferredRoom = ''){
+  const items = buildAfterSchoolRoomList(asOpts);
+  if (roomLabelEl) roomLabelEl.textContent = 'Room';
+  fillSelect(roomInput, items, 'Select room…', preferredRoom);
+}
+
+function applyModeUI(){
+  const isAS = (PAGE_MODE === 'after_school');
+
+  // Toggle layout bits
+  if (periodField) periodField.style.display = isAS ? 'none' : '';
+  if (periodInput) periodInput.disabled = !!isAS;
+
+  // Submitting/bulk is class-only
+  const bulkBar = document.getElementById('bulkBar');
+  if (submitBtn) submitBtn.style.display = isAS ? 'none' : '';
+  if (submitBtnBottom) submitBtnBottom.style.display = isAS ? 'none' : '';
+  if (bulkBar) bulkBar.style.display = isAS ? 'none' : '';
+
+  // Hide the mobile organizer button in after-school mode (it is class-session based)
+  if (viewToggleBtn) viewToggleBtn.style.display = isAS ? 'none' : '';
+  if (outInBox) outInBox.style.display = isAS ? 'none' : (isMobileNow() && getView() === 'organizer' ? 'block' : 'none');
+
+  // Table shape
+  if (tableBox) tableBox.classList.toggle('afterSchoolMode', !!isAS);
+
+  // Header labels
+  if (thStudent) thStudent.textContent = 'Student';
+  if (thCode) thCode.textContent = isAS ? 'Current' : 'Code';
+  if (outInHeader) outInHeader.textContent = isAS ? 'In/Out' : 'Out/In';
+
+  setAfterSchoolButtonUI();
+}
+
+async function refreshAfterSchoolEligibility(){
+  try{
+    const opts = await fetchAfterSchoolOptions();
+    AFTER_SCHOOL_OPTS_CACHE = opts;
+    AFTER_SCHOOL_ELIGIBLE = !!opts?.after_school_mode;
+  }catch(_){
+    AFTER_SCHOOL_ELIGIBLE = false;
+    AFTER_SCHOOL_OPTS_CACHE = null;
+  }
+
+  // If the window ended, force back to class view
+  if (!AFTER_SCHOOL_ELIGIBLE && PAGE_MODE === 'after_school') {
+    PAGE_MODE = 'class';
+    setStoredMode('class');
+  }
+
+  setAfterSchoolButtonUI();
+  applyModeUI();
+}
+
+async function enterAfterSchoolMode(){
+  // Save class picks so we can restore
+  LAST_CLASS_PICK = {
+    room: String(roomInput?.value || '').trim(),
+    period: String(periodInput?.value || '').trim()
+  };
+
+  PAGE_MODE = 'after_school';
+  setStoredMode('after_school');
+
+  if (!AFTER_SCHOOL_OPTS_CACHE) {
+    await refreshAfterSchoolEligibility();
+  }
+
+  const savedAsRoom =
+    (qs().get('room') || '').trim() ||
+    sessionStorage.getItem(AS_ROOM_KEY) ||
+    localStorage.getItem(AS_ROOM_KEY) ||
+    LAST_CLASS_PICK.room ||
+    '';
+
+  applyAfterSchoolRoomDropdown(AFTER_SCHOOL_OPTS_CACHE, savedAsRoom);
+  try{ periodInput.value = ''; }catch{}
+  applyModeUI();
+
+  // Refresh immediately if room is set
+  if (roomInput.value.trim()) {
+    await refreshOnce();
+  }
+}
+
+async function exitAfterSchoolMode(){
+  PAGE_MODE = 'class';
+  setStoredMode('class');
+
+  // Restore dropdowns from cached teacher options
+  try{
+    if (TEACHER_OPTS_CACHE) {
+      const periodItems = Array.isArray(TEACHER_OPTS_CACHE.period_options)
+        ? TEACHER_OPTS_CACHE.period_options
+        : (TEACHER_OPTS_CACHE.periods || []);
+
+      const preferredPeriod = LAST_CLASS_PICK.period || String(TEACHER_OPTS_CACHE.current_period_local || '').trim() || '';
+      fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
+      applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE, LAST_CLASS_PICK.room || '');
+    }
+  }catch(_){
+    // ignore
+  }
+
+  applyModeUI();
+
+  // Refresh immediately if room+period are set
+  if (roomInput.value.trim() && periodInput.value.trim()) {
+    await refreshOnce();
+  }
+}
+
 async function fetchClassSessionState(date, room, periodLocal){
   const u = new URL('/admin/class_session/state', API_BASE);
   u.searchParams.set('date', String(date || ''));
@@ -501,6 +748,7 @@ function zoneToChipClass(zone){
     case 'class': return 'chip--class';
     case 'lunch': return 'chip--lunch';
     case 'with_staff': return 'chip--staff';
+    case 'after_school': return 'chip--class';
     case 'off_campus': return 'chip--off';
     default: return '';
   }
@@ -513,6 +761,7 @@ function zoneToDotClass(zone){
     case 'class': return 'zoneDot--class';
     case 'lunch': return 'zoneDot--lunch';
     case 'with_staff': return 'zoneDot--staff';
+    case 'after_school': return 'zoneDot--class';
     case 'off_campus': return 'zoneDot--off';
     default: return '';
   }
@@ -1175,6 +1424,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 }
 
 async function submitChanges(){
+  if (PAGE_MODE === 'after_school') return;
   setErr('');
   const picked = normRoom(roomInput.value);          // advisor label during lunch
   const periodLocal = normPeriod(periodInput.value);
@@ -1228,7 +1478,117 @@ async function submitChanges(){
   }
 }
 
-async function refreshOnce(){
+function shortZoneLabel(zone){
+  const z = String(zone || '').trim();
+  if (!z) return 'Unknown';
+  if (z === 'off_campus') return 'Off Campus';
+  if (z === 'with_staff') return 'With Staff';
+  if (z === 'after_school') return 'After School';
+  return z.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
+}
+
+function renderAfterSchoolRows({ date, homeRoomLabel, rows }){
+  if (tableBox) tableBox.classList.add('afterSchoolMode');
+
+  // header labels (3 cols: Student • Current • In/Out)
+  if (thStudent) thStudent.textContent = 'Student';
+  if (thCode) thCode.textContent = 'Current';
+  if (outInHeader) outInHeader.textContent = 'In/Out';
+
+  rowsEl.innerHTML = '';
+  lastMergedRows = [];
+
+  const list = Array.isArray(rows) ? rows : [];
+
+  // Sort by name
+  list.sort((a,b) => String(a?.name||'').localeCompare(String(b?.name||''), undefined, { sensitivity:'base' }));
+
+  for (const r of list){
+    const osis = String(r?.osis || '').trim();
+    if (!osis) continue;
+
+    const inRoom = !!r?.in_room;
+    const zone = String(r?.zone || '').trim();
+    const locLabel = String(r?.locLabel || r?.loc || '').trim();
+
+    const row = document.createElement('div');
+    row.className = 'row';
+
+    // c1: Student block
+    const c1 = document.createElement('div');
+    c1.className = 'name';
+
+    const top = document.createElement('div');
+    top.className = 'top';
+
+    const dot = document.createElement('span');
+    dot.className = 'zoneDot ' + zoneToDotClass(zone);
+    dot.title = shortZoneLabel(zone);
+    dot.setAttribute('aria-label', shortZoneLabel(zone));
+
+    const student = document.createElement('div');
+    student.className = 'student';
+    student.textContent = String(r?.name || '(Unknown)');
+
+    top.appendChild(dot);
+    top.appendChild(student);
+
+    if (zone) {
+      const chip = document.createElement('span');
+      chip.className = 'chip ' + zoneToChipClass(zone);
+      chip.textContent = String(zone).replace(/_/g, ' ');
+      top.appendChild(chip);
+    }
+
+    const sub = document.createElement('div');
+    sub.className = 'subline';
+    const nowTxt = locLabel ? locLabel : shortZoneLabel(zone);
+    sub.textContent = `${osis} • Now: ${nowTxt}`;
+
+    c1.appendChild(top);
+    c1.appendChild(sub);
+
+    // c2: Current
+    const c2 = document.createElement('div');
+    c2.className = 'mono muted';
+    c2.textContent = inRoom ? 'IN ROOM' : shortZoneLabel(zone);
+
+    // c3: In/Out button
+    const c3 = document.createElement('div');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-mini ' + (inRoom ? 'btn-out' : 'btn-in');
+    btn.textContent = inRoom ? 'OUT' : 'IN';
+    btn.title = inRoom ? 'Send to Hallway' : 'Bring back into the room';
+
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try{
+        await afterSchoolToggle({ date, homeRoomLabel, osis, to: inRoom ? 'out' : 'in' });
+      }catch(e){
+        setErr(e?.message || String(e));
+        setStatus(false, 'Error');
+      }finally{
+        // Re-pull so we reflect real scans (bathroom, off-campus, etc.)
+        if (window.__refreshing) return;
+        window.__refreshing = true;
+        refreshOnce().catch(()=>{}).finally(() => (window.__refreshing = false));
+      }
+    });
+
+    c3.appendChild(btn);
+
+    row.appendChild(c1);
+    row.appendChild(c2);
+    row.appendChild(c3);
+    rowsEl.appendChild(row);
+  }
+
+  subtitleRight.textContent = `${String(homeRoomLabel || '').trim()} • After School • ${list.length} students`;
+  dateText.textContent = date || '—';
+}
+
+async function refreshClassOnce(){
   setErr('');
   const picked = normRoom(roomInput.value); // advisor label during lunch
   const period = normPeriod(periodInput.value);
@@ -1244,10 +1604,6 @@ async function refreshOnce(){
   tickRefreshLabel();
   setStatus(true, 'Loading…');
 
-  // Parallel fetch:
-  // 1) hallway snapshot (names + current zone/location)
-  // 2) SNAPSHOT view (stable): will return mid/final snapshot if it exists
-  // 3) COMPUTED view (scan-based): force compute, and ignore teacher overrides so we can highlight mismatches
   const [snap, snapView, computed] = await Promise.all([
     fetchRosterSnapshotMap(),
     fetchPreview(room, period, whenType, { forceCompute:false }),
@@ -1264,6 +1620,9 @@ async function refreshOnce(){
     sessionState = null;
   }
 
+  // ensure normal layout class
+  if (tableBox) tableBox.classList.remove('afterSchoolMode');
+
   renderRows({
     date,
     room,
@@ -1276,6 +1635,29 @@ async function refreshOnce(){
   });
 
   setStatus(true, 'Live');
+}
+
+async function refreshAfterSchoolOnce(){
+  setErr('');
+  const homeRoomLabel = normRoom(roomInput.value);
+  if (!homeRoomLabel){
+    setErr('Room is required.');
+    return;
+  }
+
+  lastRefreshTs = Date.now();
+  tickRefreshLabel();
+  setStatus(true, 'Loading…');
+
+  const data = await fetchAfterSchoolRoom(homeRoomLabel);
+  const date = String(data?.date || '').trim();
+  renderAfterSchoolRows({ date, homeRoomLabel, rows: data?.rows || [] });
+  setStatus(true, 'Live');
+}
+
+async function refreshOnce(){
+  if (PAGE_MODE === 'after_school') return refreshAfterSchoolOnce();
+  return refreshClassOnce();
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -1317,25 +1699,43 @@ function startCurrentPeriodTicker(){
       const opts = await fetchTeacherOptions();
       renderCurrentPeriod(opts);
     }catch(_){}
+
+    // Keep after-school eligibility + button in sync as the schedule shifts
+    try{ await refreshAfterSchoolEligibility(); }catch(_){}
   }, 60000);
 }
 
 async function bootTeacherAttendance(){
   initThemeToggle();
   initViewToggle();
+
+  // Restore mode preference (will only activate after-school if Worker says we're in that window)
+  PAGE_MODE = getStoredMode();
+
   // Prefill from URL (?room=316&period=3) or localStorage
   const p = qs();
-  const roomQ =
-    p.get('room') ||
-    sessionStorage.getItem('teacher_att_room') ||
-    localStorage.getItem('teacher_att_room') ||
-    '';
+  const roomQ = (PAGE_MODE === 'after_school')
+    ? (
+        p.get('room') ||
+        sessionStorage.getItem(AS_ROOM_KEY) ||
+        localStorage.getItem(AS_ROOM_KEY) ||
+        ''
+      )
+    : (
+        p.get('room') ||
+        sessionStorage.getItem('teacher_att_room') ||
+        localStorage.getItem('teacher_att_room') ||
+        ''
+      );
 
-  const perQ  =
-    p.get('period') ||
-    sessionStorage.getItem('teacher_att_period') ||
-    localStorage.getItem('teacher_att_period') ||
-    '';
+  const perQ  = (PAGE_MODE === 'after_school')
+    ? ''
+    : (
+        p.get('period') ||
+        sessionStorage.getItem('teacher_att_period') ||
+        localStorage.getItem('teacher_att_period') ||
+        ''
+      );
   roomInput.value = roomQ;
   periodInput.value = perQ;
 
@@ -1344,8 +1744,12 @@ async function bootTeacherAttendance(){
     try{
       const r = String(roomInput?.value || '').trim();
       const p = String(periodInput?.value || '').trim();
-      if (r) sessionStorage.setItem('teacher_att_room', r);
-      if (p) sessionStorage.setItem('teacher_att_period', p);
+      if (PAGE_MODE === 'after_school') {
+        if (r) sessionStorage.setItem(AS_ROOM_KEY, r);
+      } else {
+        if (r) sessionStorage.setItem('teacher_att_room', r);
+        if (p) sessionStorage.setItem('teacher_att_period', p);
+      }
     }catch{}
   });
 
@@ -1354,7 +1758,10 @@ async function bootTeacherAttendance(){
 
   roomInput.addEventListener('change', (ev) => {
     const v = roomInput.value.trim();
-    localStorage.setItem('teacher_att_room', v);
+    try {
+      if (PAGE_MODE === 'after_school') localStorage.setItem(AS_ROOM_KEY, v);
+      else localStorage.setItem('teacher_att_room', v);
+    } catch {}
 
     // Auto-refresh on real user pick only, and only if changed
     if (ev?.isTrusted && v !== LAST_UI_PICK.room) {
@@ -1364,6 +1771,7 @@ async function bootTeacherAttendance(){
   });
 
   periodInput.addEventListener('change', (ev) => {
+    if (PAGE_MODE === 'after_school') return;
     const v = periodInput.value.trim();
     localStorage.setItem('teacher_att_period', v);
 
@@ -1375,6 +1783,16 @@ async function bootTeacherAttendance(){
       LAST_UI_PICK.period = v;
       scheduleUserPickRefresh();
     }
+  });
+
+  afterSchoolBtn?.addEventListener('click', () => {
+    if (!AFTER_SCHOOL_ELIGIBLE) return;
+    const go = (PAGE_MODE === 'after_school') ? exitAfterSchoolMode : enterAfterSchoolMode;
+    go().catch(err => {
+      console.error(err);
+      setErr(err?.message || String(err));
+      setStatus(false, 'Error');
+    });
   });
 
   refreshBtn.addEventListener('click', () => refreshOnce().catch(err => {
@@ -1477,6 +1895,17 @@ async function bootTeacherAttendance(){
 
       LAST_UI_PICK.room = roomInput.value.trim();
       LAST_UI_PICK.period = periodInput.value.trim();
+
+      // After-school eligibility (button only shows during the after-school window)
+      await refreshAfterSchoolEligibility();
+
+      // If the user last used after-school view and it's currently available, enter it now
+      if (PAGE_MODE === 'after_school' && AFTER_SCHOOL_ELIGIBLE) {
+        await enterAfterSchoolMode();
+      } else {
+        PAGE_MODE = 'class';
+        applyModeUI();
+      }
     }catch(e){
       // Don’t block the page if options fail — teachers can still type if you revert to inputs later
       console.warn('options load failed', e);
@@ -1484,9 +1913,11 @@ async function bootTeacherAttendance(){
 
     startAutoRefresh();
 
-    // Auto-refresh once if room+period prefilled
-    if(roomInput.value.trim() && periodInput.value.trim()){
-      await refreshOnce();
+    // Auto-refresh once if selections are already picked
+    if (PAGE_MODE === 'after_school') {
+      if (roomInput.value.trim()) await refreshOnce();
+    } else {
+      if(roomInput.value.trim() && periodInput.value.trim()) await refreshOnce();
     }
   }catch(e){
     // Need login
@@ -1529,7 +1960,8 @@ function scheduleUserPickRefresh(){
   _pickRefreshT = setTimeout(() => {
     const room = normRoom(roomInput?.value);
     const period = normPeriod(periodInput?.value);
-    if (!room || !period) return;
+    if (!room) return;
+    if (PAGE_MODE !== 'after_school' && !period) return;
 
     if (window.__refreshing) return;
     window.__refreshing = true;

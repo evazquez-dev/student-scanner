@@ -587,6 +587,17 @@
     #tableBox.noOutIn .row-header{
       grid-template-columns: 34px minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
     }
+
+    /* After-school mode: 3-column table (Student • Current • In/Out) */
+    #tableBox.afterSchoolMode .row,
+    #tableBox.afterSchoolMode .row-header{
+      grid-template-columns: minmax(0,2fr) minmax(0,1.2fr) auto;
+    }
+    #tableBox.afterSchoolMode #thSel,
+    #tableBox.afterSchoolMode #thOsis,
+    #tableBox.afterSchoolMode #thScan{
+      display:none;
+    }
   </style>
 </head>
 
@@ -625,6 +636,9 @@
             <span>⏱</span>
             <span id="refreshText">Never</span>
           </div>
+
+          <!-- After-school toggle (only shown when Worker is in after-school window) -->
+          <button class="btn" id="afterSchoolBtn" type="button" style="display:none;">🌙 After School</button>
         </div>
       </header>
 
@@ -640,7 +654,7 @@
               <label for="roomInput">Room</label>
               <select id="roomInput"></select>
             </div>
-            <div class="field">
+            <div class="field" id="periodField">
               <label for="periodInput">Period (local)</label>
               <select id="periodInput"></select>
             </div>
@@ -681,13 +695,13 @@
 
           <div class="table" id="tableBox">
             <div class="row row-header">
-              <div class="selCell" style="justify-content:center;">
+              <div class="selCell" id="thSel" style="justify-content:center;">
                 <input type="checkbox" id="selectAllCb" aria-label="Select all students" title="Select all" />
               </div>
-              <div>Student</div>
-              <div class="mono hide-sm">OSIS</div>
-              <div style="text-align:center;">Code</div>
-              <div class="hide-sm">Scan</div>
+              <div id="thStudent">Student</div>
+              <div class="mono hide-sm" id="thOsis">OSIS</div>
+              <div style="text-align:center;" id="thCode">Code</div>
+              <div class="hide-sm" id="thScan">Scan</div>
               <div class="hide-sm" id="outInHeader">Out/In</div>
             </div>
             <div id="rows"></div>
