@@ -116,6 +116,15 @@ function getOutSince(osis){
   return o?.outSinceISO || null;
 }
 
+
+function getSessionFirstInISO(osis){
+  const key = String(osis || '').trim();
+  if (!key) return null;
+  return LAST_SESSION_STATE?.students?.[key]?.firstInISO || null;
+}
+function hasSessionFirstIn(osis){
+  return !!getSessionFirstInISO(osis);
+}
 // Organizer renderer: OUT first, then IN.
 function renderOutInOrganizer(){
   if (!outInBox || !outListEl || !inListEl) return;
@@ -185,11 +194,17 @@ function renderOutInOrganizer(){
     btn.className = 'btn btn-mini ' + (isOut ? 'btn-in' : 'btn-out');
     btn.textContent = isOut ? 'IN' : 'OUT';
 
-    const canToggle = allowOutIn && (code === 'P' || code === 'L');
+    const codeIsPL = (code === 'P' || code === 'L');
+    const hasFirstIn = hasSessionFirstIn(osis);
+    const canToggle = allowOutIn && codeIsPL && hasFirstIn;
     btn.disabled = !canToggle;
     btn.title = canToggle
       ? ((isOut && outSinceISO) ? `Out since ${outSinceISO}` : 'Toggle Out/In')
-      : (!allowOutIn ? 'Pick the current period to enable Out/In' : 'Mark Present (P) or Late (L) to enable Out/In');
+      : (!allowOutIn
+          ? 'Pick the current period to enable Out/In'
+          : (!codeIsPL
+              ? 'Mark Present (P) or Late (L) to enable Out/In'
+              : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
 
     btn.addEventListener('click', async () => {
       if (btn.disabled) return;
@@ -218,11 +233,17 @@ function renderOutInOrganizer(){
             (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
 
           const rowRec = ROW_DATA.get(osis);
-          const canToggleNow = allowOutIn && (rowRec?.chosen === 'P' || rowRec?.chosen === 'L');
+          const codeIsPL = (rowRec?.chosen === 'P' || rowRec?.chosen === 'L');
+          const hasFirstIn = hasSessionFirstIn(osis);
+          const canToggleNow = allowOutIn && codeIsPL && hasFirstIn;
           ui.outInBtn.disabled = !canToggleNow;
           ui.outInBtn.title = canToggleNow
             ? (ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In')
-            : (!allowOutIn ? 'Pick the current period to enable Out/In' : 'Mark Present (P) or Late (L) to enable Out/In');
+            : (!allowOutIn
+                ? 'Pick the current period to enable Out/In'
+                : (!codeIsPL
+                    ? 'Mark Present (P) or Late (L) to enable Out/In'
+                    : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
         }
 
         renderOutInOrganizer(); // reorder OUT/IN groups
@@ -233,7 +254,9 @@ function renderOutInOrganizer(){
         // restore enabled state if still allowed
         const rowRec = ROW_DATA.get(osis) || r;
         const codeNow = (rowRec?.chosen || 'A');
-        const canToggleNow = allowOutIn && (codeNow === 'P' || codeNow === 'L');
+        const codeIsPL = (codeNow === 'P' || codeNow === 'L');
+        const hasFirstIn = hasSessionFirstIn(osis);
+        const canToggleNow = allowOutIn && codeIsPL && hasFirstIn;
         btn.disabled = !canToggleNow;
       }
     });
@@ -967,11 +990,15 @@ function stageBulkCodeToSelected(){
 
     // Enable Out/In only if Present or Late
     if (ui.outInBtn){
-      const canToggle = (codeLetter === 'P' || codeLetter === 'L');
+      const codeIsPL = (codeLetter === 'P' || codeLetter === 'L');
+      const hasFirstIn = hasSessionFirstIn(osis);
+      const canToggle = codeIsPL && hasFirstIn;
       ui.outInBtn.disabled = !canToggle;
       ui.outInBtn.title = canToggle
         ? (ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In')
-        : 'Mark Present (P) or Late (L) to enable Out/In';
+        : (!codeIsPL
+            ? 'Mark Present (P) or Late (L) to enable Out/In'
+            : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
     }
   }
 
@@ -1305,14 +1332,18 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       row.className = 'row' + (mismatch ? ' row--mismatch' : '') + ((r.chosen || 'A') !== (r.baseline || 'A') ? ' row--changed' : '');
       updateSubmitButtons();
 
-      // Enable Out/In only if Present or Late
+      // Enable Out/In only if Present or Late AND first scan into room exists
       if (outInBtn){
-        const canToggle = (r.chosen === 'P' || r.chosen === 'L');
+        const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
+        const hasFirstIn = hasSessionFirstIn(r.osis);
+        const canToggle = codeIsPL && hasFirstIn;
         outInBtn.disabled = !canToggle;
         if (canToggle) {
           outInBtn.title = outInBtn.dataset.toggleTitle || 'Toggle Out/In';
         } else {
-          outInBtn.title = 'Mark Present (P) or Late (L) to enable Out/In';
+          outInBtn.title = !codeIsPL
+            ? 'Mark Present (P) or Late (L) to enable Out/In'
+            : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)';
         }
       }
       renderOutInOrganizer();
@@ -1357,9 +1388,15 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       // Enable Out/In only if Present or Late
       outInBtn = btn;
       try{ uiRef.outInBtn = btn; }catch{}
-      const canToggleInitial = (r.chosen === 'P' || r.chosen === 'L');
+      const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
+      const hasFirstIn = !!(sessRec && sessRec.firstInISO);
+      const canToggleInitial = codeIsPL && hasFirstIn;
       btn.disabled = !canToggleInitial;
-      if (!canToggleInitial) btn.title = 'Mark Present (P) or Late (L) to enable Out/In';
+      if (!canToggleInitial) {
+        btn.title = !codeIsPL
+          ? 'Mark Present (P) or Late (L) to enable Out/In'
+          : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)';
+      }
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
