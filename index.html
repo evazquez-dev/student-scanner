@@ -1125,30 +1125,63 @@
 
   // Bathroom (IN lists) — gendered
   function bathBucketKeyG(g){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}|${(g||'').toUpperCase()}`; }
-  function loadBathMap(){ try { return JSON.parse(localStorage.getItem(BATH_KEY) || '{}'); } catch { return {}; } }
-  function saveBathMap(map){ localStorage.setItem(BATH_KEY, JSON.stringify(map)); }
-  function getBathSet(g){ const map = loadBathMap(); return map[bathBucketKeyG(g)] || []; }
-  function setBathSet(g, list){ const map = loadBathMap(); map[bathBucketKeyG(g)] = list; saveBathMap(map); }
-  function isInBathroomG(g, osis){ return getBathSet(g).some(x => x.osis === String(osis||'').trim()); }
-  function addInBathroomG(g, osis, name, when=new Date(), cls=''){
-    osis = String(osis||'').trim();
-    if (!osis) return;
-  
-    const list = getBathSet(g);
-    const rec = {
-      osis,
-      name: String(name || '').trim(),
-      sinceISO: when.toISOString()
-    };
-    if (cls) rec.cls = String(cls);
-  
-    const idx = list.findIndex(x => x.osis === osis);
-    if (idx >= 0) list.splice(idx, 1, rec);
-    else list.unshift(rec);
-  
-    setBathSet(g, list);
+  // ---- Bathroom occupancy is GLOBAL (derived from worker StudentLocationDO) ----
+  let __BATH_STATE = { ts:0, loc:'', rowsM:[], rowsF:[], capM:BATHROOM_CAPACITY_DEFAULT, capF:BATHROOM_CAPACITY_DEFAULT };
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+  async function getBathroomStateRemote(loc){
+    const body = new URLSearchParams({ action: 'bath_state', location: loc });
+    const r = await fetch(API_BASE, { method: 'POST', body });
+    const ct = r.headers.get('content-type') || '';
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !ct.includes('application/json') || !data?.ok) {
+      throw new Error(data?.error || `bath_state_failed_${r.status}`);
+    }
+    return data;
   }
-  function removeFromBathroomG(g, osis){ setBathSet(g, getBathSet(g).filter(x => x.osis !== String(osis||'').trim())); }
+
+  async function refreshBathState(force=false){
+    const loc = getLocation();
+    if (!isBathroomLocation(loc)) return null;
+
+    const now = Date.now();
+    if (!force && __BATH_STATE.loc === loc && (now - __BATH_STATE.ts) < 5000) return __BATH_STATE;
+
+    const [capM, capF, state] = await Promise.all([
+      getBathroomCapacity(loc, 'M'),
+      getBathroomCapacity(loc, 'F'),
+      getBathroomStateRemote(loc)
+    ]);
+
+    const rows = Array.isArray(state?.students) ? state.students : [];
+    const rowsM = [];
+    const rowsF = [];
+
+    for (const r of rows) {
+      const sex = (String(r.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
+      const rec = {
+        osis: String(r.osis || '').trim(),
+        name: String(r.name || '').trim(),
+        sinceISO: String(r.sinceISO || '')
+      };
+      if (!rec.osis) continue;
+      if (sex === 'F') rowsF.push(rec); else rowsM.push(rec);
+    }
+
+    __BATH_STATE = { ts: now, loc, rowsM, rowsF, capM, capF };
+    return __BATH_STATE;
+  }
+
+  function getBathSet(g){
+    const GG = String(g || '').toUpperCase();
+    return (GG === 'F') ? (__BATH_STATE.rowsF || []) : (__BATH_STATE.rowsM || []);
+  }
+
+  function isInBathroomG(g, osis){
+    osis = String(osis || '').trim();
+    return getBathSet(g).some(x => x.osis === osis);
+  }
 
   async function getBathroomCapacityRemote(loc, gender) {
     if (__LOCATIONS_CAPS && __LOCATIONS_CAPS[loc] && typeof __LOCATIONS_CAPS[loc] === 'object') {
@@ -1165,8 +1198,8 @@
     } catch { return BATHROOM_CAPACITY_DEFAULT; }
   }
   async function getBathroomCapacity(loc, gender){
-    const key = String(loc||'').toLowerCase();
-    if (BATH_CAP_CACHE[key]) return BATH_CAP_CACHE[key];
+    const key = `${String(loc||'').toLowerCase()}|${String(gender||'ALL').toUpperCase()}`;
+    if (Object.prototype.hasOwnProperty.call(BATH_CAP_CACHE, key)) return BATH_CAP_CACHE[key];
     const cap = await getBathroomCapacityRemote(loc, gender);
     BATH_CAP_CACHE[key] = cap;
     return cap;
@@ -1181,14 +1214,12 @@
     panelF.style.display = show ? '' : 'none';
     if (!show) return;
 
-    const [capM, capF] = await Promise.all([ getBathroomCapacity(loc, 'M'), getBathroomCapacity(loc, 'F') ]);
-    const bodyM = document.getElementById('bathBodyM');
-    const bodyF = document.getElementById('bathBodyF');
-    const titleM = document.getElementById('bathPanelTitleM');
-    const titleF = document.getElementById('bathPanelTitleF');
+    const state = await refreshBathState(true);
+    const capM = state?.capM ?? BATHROOM_CAPACITY_DEFAULT;
+    const capF = state?.capF ?? BATHROOM_CAPACITY_DEFAULT;
 
-    const rowsM = getBathSet('M');
-    const rowsF = getBathSet('F');
+    const rowsM = state?.rowsM ?? [];
+    const rowsF = state?.rowsF ?? [];
 
     if (titleM) titleM.textContent = `Currently IN — ${loc} (M cap ${capM})`;
     if (titleF) titleF.textContent = `Currently IN — ${loc} (F cap ${capF})`;
@@ -1231,25 +1262,6 @@
     setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
   }
 
-  async function manualClearBathroom(g){
-    const loc = getLocation() || '';
-    if (!isBathroomLocation(loc)){ setStatus('Not a bathroom location.'); return; }
-    const items = getBathSet(g);
-    if (!items.length){ setStatus(`Nothing to clear for ${g}.`); return; }
-
-    setStatus(`Clearing Bathroom (${g})…`);
-    const nowISO = new Date().toISOString();
-    await apiManualClear(loc, items.map(r => ({
-      osis: r.osis,
-      name: r.name || '',
-      sex: g // 'M' or 'F'
-    })));
-    setBathSet(g, []);
-    await renderBathList();
-    setStatus(`Bathroom (${g}) cleared.`);
-    setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
-  }
-  /* ---------- END minimal add ---------- */
 
   /* ============================================================
    * CLASS MODE: OUT-OF-CLASS BUCKET + MODAL
@@ -1492,13 +1504,16 @@
     btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (M)…');
     try {
       const loc = getLocation();
+      await refreshBathState(true);
       const list = getBathSet('M');
       if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
       if (!list.length) { setStatus('Nothing to clear.'); return; }
   
       const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'M' }));
       const res = await apiManualClear(loc, items);
-      setBathSet('M', []);
+      await sleep(400);
+      await renderBathList();
+      await sleep(900);
       await renderBathList();
       setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (M).`);
     } catch (err) {
@@ -1514,13 +1529,16 @@
     btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (F)…');
     try {
       const loc = getLocation();
+      await refreshBathState(true);
       const list = getBathSet('F');
       if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
       if (!list.length) { setStatus('Nothing to clear.'); return; }
   
       const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'F' }));
       const res = await apiManualClear(loc, items);
-      setBathSet('F', []);
+      await sleep(400);
+      await renderBathList();
+      await sleep(900);
       await renderBathList();
       setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (F).`);
     } catch (err) {
@@ -2255,23 +2273,29 @@
         return;
       }
 
-      // Bathroom IN/OUT with per-gender capacity
+      // Bathroom IN/OUT with per-gender capacity (GLOBAL)
       if (isBathroomLocation(loc)) {
         const osis = String(res.osis || '').trim();
         const sex  = (String(res.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
-        const classNow = res.class_now || '';
-      
-        const wasIn = isInBathroomG(sex, osis);
-      
-        const cap = await getBathroomCapacity(loc, sex);
-        const list = getBathSet(sex);
-      
+
+        // Pull the latest global state for THIS bathroom
+        const state = await refreshBathState(true);
+        const list  = (sex === 'F') ? (state?.rowsF ?? []) : (state?.rowsM ?? []);
+        const cap   = (sex === 'F') ? (state?.capF ?? BATHROOM_CAPACITY_DEFAULT) : (state?.capM ?? BATHROOM_CAPACITY_DEFAULT);
+
+        const wasIn = list.some(x => x.osis === osis);
+
         if (wasIn) {
-          removeFromBathroomG(sex, osis);
-          await renderBathList();
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when });
           showSuccess(res.name, code, 'OUT', '', when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
+
+          // refresh after the worker updates the live location
+          await sleep(300);
+          await renderBathList();
+          await sleep(900);
+          await renderBathList();
+
           setStatus('Ready. Scan next card…');
           return;
         } else {
@@ -2283,11 +2307,16 @@
             setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
             return;
           }
-          addInBathroomG(sex, osis, res.name || '', when, classNow);
-          await renderBathList();
+
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when });
           showSuccess(res.name, code, 'IN', '', when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`in_${sex}` });
+
+          await sleep(300);
+          await renderBathList();
+          await sleep(900);
+          await renderBathList();
+
           setStatus('Ready. Scan next card…');
           return;
         }
