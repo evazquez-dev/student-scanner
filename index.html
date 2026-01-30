@@ -1168,7 +1168,8 @@
       const rec = {
         osis: String(r.osis || '').trim(),
         name: String(r.name || '').trim(),
-        sinceISO: String(r.sinceISO || '')
+        sinceISO: String(r.sinceISO || ''),
+        cls: String(r.cls || '').trim(),
       };
       if (!rec.osis) continue;
       if (sex === 'F') rowsF.push(rec); else rowsM.push(rec);
