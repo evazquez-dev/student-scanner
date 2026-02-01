@@ -192,7 +192,8 @@ function renderOutInOrganizer(){
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn btn-mini ' + (isOut ? 'btn-in' : 'btn-out');
-    btn.textContent = isOut ? 'IN' : 'OUT';
+    btn.dataset.osis = String(osis || '').trim();
+    btn.textContent = (isOut && outSinceISO) ? `IN ${elapsedFromISO(outSinceISO)}` : (isOut ? 'IN' : 'OUT');
 
     const codeIsPL = (code === 'P' || code === 'L');
     const hasFirstIn = hasSessionFirstIn(osis);
@@ -228,7 +229,7 @@ function renderOutInOrganizer(){
         const ui = ROW_UI.get(osis);
         if (ui?.outInBtn){
           ui.outInBtn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
-          ui.outInBtn.textContent = res.isOut ? 'IN' : 'OUT';
+          ui.outInBtn.textContent = outBtnLabelFor(osis);
           ui.outInBtn.dataset.toggleTitle =
             (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
 
@@ -808,6 +809,65 @@ function overrideKey(date, room, period){
   return `teacher_att_override:${date}:${room.toLowerCase()}:${period}`;
 }
 
+/******************** Out elapsed timer (Out/In button) ********************/
+let OUT_ELAPSED_TIMER = null;
+
+function formatElapsedMs(ms){
+  ms = Math.max(0, ms || 0);
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+function elapsedFromISO(iso){
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  return formatElapsedMs(Date.now() - t);
+}
+
+function outBtnLabelFor(osis){
+  const out = getSessionOutRec(osis);
+  const isOut = !!out?.isOut;
+  const since = out?.outSinceISO || '';
+  if (isOut && since) return `IN ${elapsedFromISO(since)}`;
+  return isOut ? 'IN' : 'OUT';
+}
+
+function tickOutElapsed(){
+  // Table buttons
+  try{
+    for (const [osis, ui] of (ROW_UI || new Map()).entries()){
+      if (!ui?.outInBtn) continue;
+      const out = getSessionOutRec(osis);
+      if (out?.isOut && out?.outSinceISO) {
+        ui.outInBtn.textContent = `IN ${elapsedFromISO(out.outSinceISO)}`;
+      } else {
+        ui.outInBtn.textContent = out?.isOut ? 'IN' : 'OUT';
+      }
+    }
+  }catch(_){}
+
+  // Organizer buttons (mobile view)
+  try{
+    if (outInBox && outInBox.style.display !== 'none'){
+      outInBox.querySelectorAll('button[data-osis]').forEach(btn => {
+        const osis = String(btn.dataset.osis || '').trim();
+        if (!osis) return;
+        btn.textContent = outBtnLabelFor(osis);
+      });
+    }
+  }catch(_){}
+}
+
+function startOutElapsedTicker(){
+  if (OUT_ELAPSED_TIMER) return;
+  OUT_ELAPSED_TIMER = setInterval(tickOutElapsed, 1000);
+  tickOutElapsed(); // immediate paint
+}
+
 function loadOverrides(date, room, period){
   try{
     const raw = localStorage.getItem(overrideKey(date, room, period));
@@ -1379,7 +1439,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn btn-mini ' + (isOut ? 'btn-in' : 'btn-out');
-      btn.textContent = isOut ? 'IN' : 'OUT';
+      btn.dataset.osis = String(r.osis || '').trim();
+      btn.textContent = (isOut && outSinceISO) ? `IN ${elapsedFromISO(outSinceISO)}` : (isOut ? 'IN' : 'OUT');
       btn.title = (isOut && outSinceISO) ? `Out since ${outSinceISO}` : 'Toggle Out/In';
 
       // store "real" tooltip so we can restore after being disabled
@@ -1414,7 +1475,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           }
 
           btn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
-          btn.textContent = res.isOut ? 'IN' : 'OUT';
+          btn.textContent = outBtnLabelFor(r.osis);
 
           // refresh "real" tooltip
           btn.dataset.toggleTitle = (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
@@ -1454,6 +1515,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   LAST_CTX = { date, room, period };
   LAST_SESSION_STATE = sessionState || LAST_SESSION_STATE;
 
+  tickOutElapsed();
   renderOutInOrganizer();
 
   updateBulkUI();
@@ -1688,7 +1750,7 @@ async function refreshAfterSchoolOnce(){
 
   const data = await fetchAfterSchoolRoom(homeRoomLabel);
   const date = String(data?.date || '').trim();
-  renderAfterSchoolRows({ date, homeRoomLabel, rows: data?.rows || [] });
+  renderAfterSchoolRows({ date, homeRoomLabel, rows: (data?.students || data?.rows || []) });
   setStatus(true, 'Live');
 }
 
@@ -1745,6 +1807,7 @@ function startCurrentPeriodTicker(){
 async function bootTeacherAttendance(){
   initThemeToggle();
   initViewToggle();
+  startOutElapsedTicker();
 
   // Restore mode preference (will only activate after-school if Worker says we're in that window)
   PAGE_MODE = getStoredMode();
