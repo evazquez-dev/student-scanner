@@ -660,8 +660,30 @@
     (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
 
   function getLocationMeta(loc) {
-    const name = String(loc || getLocation() || '').trim();
-    return __LOCATIONS_META[name] || {};
+    const raw = String(loc || getLocation() || '').trim();
+    if (!raw) return {};
+
+    // Exact match first
+    if (__LOCATIONS_META && __LOCATIONS_META[raw]) return __LOCATIONS_META[raw];
+
+    // Common aliasing: "212" <-> "RM 212"
+    const stripped = raw.replace(/^RM\s*/i, '').trim();
+    if (stripped && __LOCATIONS_META && __LOCATIONS_META[stripped]) return __LOCATIONS_META[stripped];
+
+    const rm = stripped ? `RM ${stripped}` : '';
+    if (rm && __LOCATIONS_META && __LOCATIONS_META[rm]) return __LOCATIONS_META[rm];
+
+    // Case-insensitive fallback
+    if (__LOCATIONS_META) {
+      const rawL = raw.toLowerCase();
+      const strippedL = stripped.toLowerCase();
+      const rmL = rm ? rm.toLowerCase() : '';
+      for (const k of Object.keys(__LOCATIONS_META)) {
+        const kl = k.toLowerCase();
+        if (kl === rawL || kl === strippedL || (rmL && kl === rmL)) return __LOCATIONS_META[k];
+      }
+    }
+    return {};
   }
 
   /* ============================================================
@@ -1025,7 +1047,7 @@
     const name = String(locationName || '').trim();
     if (!name) return 'default';
   
-    const meta = __LOCATIONS_META[name];
+    const meta = getLocationMeta(name);
     if (meta && meta.type) return meta.type;
   
     const s = name.toLowerCase();
@@ -1849,6 +1871,41 @@
       if (data.ok && data.locked && data.location) { IS_LOCATION_LOCKED = true; setLocation(data.location); }
     } catch(_) {}
   }
+  let __LAST_LOCK_RECHECK_MS = 0;
+  let __LAST_LOC_META_REFRESH_MS = 0;
+  const LOCK_RECHECK_EVERY_MS = 60 * 1000;    // 1 minute
+  const LOC_META_MIN_INTERVAL_MS = 15 * 1000; // 15 seconds
+
+  function looksLikeRoomLabel_(s){
+    const t = String(s || '').trim();
+    if (!t) return false;
+    return /^(\s*RM\s*)?\d{2,4}[A-Z]?\s*$/i.test(t);
+  }
+
+  async function selfHealLockedDeviceModeOnScan_(){
+    const now = Date.now();
+
+    // Re-check server binding occasionally (especially if we think we're not locked)
+    if (navigator.onLine && (!IS_LOCATION_LOCKED || (now - __LAST_LOCK_RECHECK_MS) > LOCK_RECHECK_EVERY_MS)) {
+      __LAST_LOCK_RECHECK_MS = now;
+      try { await checkDeviceLock(); } catch(_) {}
+    }
+
+    const loc = getLocation();
+    if (!loc) return;
+
+    const meta = getLocationMeta(loc);
+    const missingMeta = !(meta && (meta.mode || meta.type));
+    const likelyStuck = IS_LOCATION_LOCKED && looksLikeRoomLabel_(loc) && !isClassKiosk(loc);
+
+    if (navigator.onLine && (missingMeta || likelyStuck) && (now - __LAST_LOC_META_REFRESH_MS) > LOC_META_MIN_INTERVAL_MS) {
+      __LAST_LOC_META_REFRESH_MS = now;
+      try { await apiGetLocations(); } catch(_) {}
+    }
+
+    // Recompute theme/header + mode-specific panels after any refresh
+    try { updateLocationPill(); } catch(_) {}
+  }
   async function apiRefreshRoster(){
     IS_REFRESHING = true;
     try {
@@ -2012,6 +2069,7 @@
 
   async function onScanAsync(scanned){
     const when = new Date();
+    await selfHealLockedDeviceModeOnScan_();
     const v = normalizeForLookup(scanned);
     if (!v.ok){
       beepBad();
