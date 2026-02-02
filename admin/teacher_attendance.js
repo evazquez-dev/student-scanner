@@ -1656,24 +1656,35 @@ function renderAfterSchoolRows({ date, homeRoomLabel, rows }){
     const c3 = document.createElement('div');
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn-mini ' + (inRoom ? 'btn-out' : 'btn-in');
-    btn.textContent = inRoom ? 'OUT' : 'IN';
-    btn.title = inRoom ? 'Send to Hallway' : 'Bring back into the room';
 
-    btn.addEventListener('click', async () => {
+    const isOffCampus = (zone === 'off_campus');
+    if (isOffCampus) {
+      // Student scanned out at Front Entrance — keep listed under home room,
+      // but don't allow teachers to override back to IN from the page.
+      btn.className = 'btn btn-mini';
+      btn.textContent = 'OFF';
+      btn.title = 'Off Campus — student scanned out (Front Entrance)';
       btn.disabled = true;
-      try{
-        await afterSchoolToggle({ date, homeRoomLabel, osis, to: inRoom ? 'out' : 'in' });
-      }catch(e){
-        setErr(e?.message || String(e));
-        setStatus(false, 'Error');
-      }finally{
-        // Re-pull so we reflect real scans (bathroom, off-campus, etc.)
-        if (window.__refreshing) return;
-        window.__refreshing = true;
-        refreshOnce().catch(()=>{}).finally(() => (window.__refreshing = false));
-      }
-    });
+    } else {
+      btn.className = 'btn btn-mini ' + (inRoom ? 'btn-out' : 'btn-in');
+      btn.textContent = inRoom ? 'OUT' : 'IN';
+      btn.title = inRoom ? 'Send to Hallway' : 'Bring back into the room';
+
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try{
+          await afterSchoolToggle({ date, homeRoomLabel, osis, to: inRoom ? 'out' : 'in' });
+        }catch(e){
+          setErr(e?.message || String(e));
+          setStatus(false, 'Error');
+        }finally{
+          // Re-pull so we reflect real scans (bathroom, off-campus, etc.)
+          if (window.__refreshing) return;
+          window.__refreshing = true;
+          refreshOnce().catch(()=>{}).finally(() => (window.__refreshing = false));
+        }
+      });
+    }
 
     c3.appendChild(btn);
 
