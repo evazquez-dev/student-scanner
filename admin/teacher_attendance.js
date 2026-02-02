@@ -125,6 +125,11 @@ function getSessionFirstInISO(osis){
 function hasSessionFirstIn(osis){
   return !!getSessionFirstInISO(osis);
 }
+
+function zoneBlocksOutIn(zone){
+  const z = String(zone || '').trim().toLowerCase();
+  return (z === 'with_staff');
+}
 // Organizer renderer: OUT first, then IN.
 function renderOutInOrganizer(){
   if (!outInBox || !outListEl || !inListEl) return;
@@ -195,17 +200,20 @@ function renderOutInOrganizer(){
     btn.dataset.osis = String(osis || '').trim();
     btn.textContent = (isOut && outSinceISO) ? `IN ${elapsedFromISO(outSinceISO)}` : (isOut ? 'IN' : 'OUT');
 
-    const codeIsPL = (code === 'P' || code === 'L');
+        const codeIsPL = (code === 'P' || code === 'L');
     const hasFirstIn = hasSessionFirstIn(osis);
-    const canToggle = allowOutIn && codeIsPL && hasFirstIn;
+    const blocked = zoneBlocksOutIn(r?.zone);
+    const canToggle = allowOutIn && codeIsPL && hasFirstIn && !blocked;
     btn.disabled = !canToggle;
     btn.title = canToggle
       ? ((isOut && outSinceISO) ? `Out since ${outSinceISO}` : 'Toggle Out/In')
-      : (!allowOutIn
-          ? 'Pick the current period to enable Out/In'
-          : (!codeIsPL
-              ? 'Mark Present (P) or Late (L) to enable Out/In'
-              : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
+      : (blocked
+          ? 'Disabled while student is With Staff'
+          : (!allowOutIn
+              ? 'Pick the current period to enable Out/In'
+              : (!codeIsPL
+                  ? 'Mark Present (P) or Late (L) to enable Out/In'
+                  : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)')));
 
     btn.addEventListener('click', async () => {
       if (btn.disabled) return;
@@ -236,15 +244,18 @@ function renderOutInOrganizer(){
           const rowRec = ROW_DATA.get(osis);
           const codeIsPL = (rowRec?.chosen === 'P' || rowRec?.chosen === 'L');
           const hasFirstIn = hasSessionFirstIn(osis);
-          const canToggleNow = allowOutIn && codeIsPL && hasFirstIn;
+          const blocked = zoneBlocksOutIn(rowRec?.zone);
+          const canToggleNow = allowOutIn && codeIsPL && hasFirstIn && !blocked;
           ui.outInBtn.disabled = !canToggleNow;
           ui.outInBtn.title = canToggleNow
             ? (ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In')
-            : (!allowOutIn
-                ? 'Pick the current period to enable Out/In'
-                : (!codeIsPL
-                    ? 'Mark Present (P) or Late (L) to enable Out/In'
-                    : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
+            : (blocked
+                ? 'Disabled while student is With Staff'
+                : (!allowOutIn
+                    ? 'Pick the current period to enable Out/In'
+                    : (!codeIsPL
+                        ? 'Mark Present (P) or Late (L) to enable Out/In'
+                        : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)')));
         }
 
         renderOutInOrganizer(); // reorder OUT/IN groups
@@ -257,8 +268,18 @@ function renderOutInOrganizer(){
         const codeNow = (rowRec?.chosen || 'A');
         const codeIsPL = (codeNow === 'P' || codeNow === 'L');
         const hasFirstIn = hasSessionFirstIn(osis);
-        const canToggleNow = allowOutIn && codeIsPL && hasFirstIn;
+        const blocked = zoneBlocksOutIn(rowRec?.zone);
+        const canToggleNow = allowOutIn && codeIsPL && hasFirstIn && !blocked;
         btn.disabled = !canToggleNow;
+        if (!canToggleNow) {
+          btn.title = blocked
+            ? 'Disabled while student is With Staff'
+            : (!allowOutIn
+                ? 'Pick the current period to enable Out/In'
+                : (!codeIsPL
+                    ? 'Mark Present (P) or Late (L) to enable Out/In'
+                    : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
+        }
       }
     });
 
@@ -1052,13 +1073,16 @@ function stageBulkCodeToSelected(){
     if (ui.outInBtn){
       const codeIsPL = (codeLetter === 'P' || codeLetter === 'L');
       const hasFirstIn = hasSessionFirstIn(osis);
-      const canToggle = codeIsPL && hasFirstIn;
+      const blocked = zoneBlocksOutIn(r?.zone);
+      const canToggle = codeIsPL && hasFirstIn && !blocked;
       ui.outInBtn.disabled = !canToggle;
       ui.outInBtn.title = canToggle
         ? (ui.outInBtn.dataset.toggleTitle || 'Toggle Out/In')
-        : (!codeIsPL
-            ? 'Mark Present (P) or Late (L) to enable Out/In'
-            : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
+        : (blocked
+            ? 'Disabled while student is With Staff'
+            : (!codeIsPL
+                ? 'Mark Present (P) or Late (L) to enable Out/In'
+                : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
     }
   }
 
@@ -1396,14 +1420,17 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       if (outInBtn){
         const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
         const hasFirstIn = hasSessionFirstIn(r.osis);
-        const canToggle = codeIsPL && hasFirstIn;
+        const blocked = zoneBlocksOutIn(r.zone);
+        const canToggle = codeIsPL && hasFirstIn && !blocked;
         outInBtn.disabled = !canToggle;
         if (canToggle) {
           outInBtn.title = outInBtn.dataset.toggleTitle || 'Toggle Out/In';
         } else {
-          outInBtn.title = !codeIsPL
-            ? 'Mark Present (P) or Late (L) to enable Out/In'
-            : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)';
+          outInBtn.title = blocked
+            ? 'Disabled while student is With Staff'
+            : (!codeIsPL
+                ? 'Mark Present (P) or Late (L) to enable Out/In'
+                : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
         }
       }
       renderOutInOrganizer();
@@ -1451,12 +1478,15 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       try{ uiRef.outInBtn = btn; }catch{}
       const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
       const hasFirstIn = !!(sessRec && sessRec.firstInISO);
-      const canToggleInitial = codeIsPL && hasFirstIn;
+      const blocked = zoneBlocksOutIn(r.zone);
+      const canToggleInitial = codeIsPL && hasFirstIn && !blocked;
       btn.disabled = !canToggleInitial;
       if (!canToggleInitial) {
-        btn.title = !codeIsPL
-          ? 'Mark Present (P) or Late (L) to enable Out/In'
-          : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)';
+        btn.title = blocked
+          ? 'Disabled while student is With Staff'
+          : (!codeIsPL
+              ? 'Mark Present (P) or Late (L) to enable Out/In'
+              : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
       }
 
       btn.addEventListener('click', async () => {
@@ -1482,11 +1512,18 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           btn.title = btn.dataset.toggleTitle;
           renderOutInOrganizer();
         } finally {
-          // stay disabled if not Present/Late
-          const canToggleNow = (r.chosen === 'P' || r.chosen === 'L');
+          // stay disabled unless Present/Late, first-in exists, and student is not With Staff
+          const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
+          const hasFirstInNow = !!(sessionState?.students?.[r.osis]?.firstInISO || sessRec?.firstInISO || hasSessionFirstIn(r.osis));
+          const blocked = zoneBlocksOutIn(r.zone);
+          const canToggleNow = codeIsPL && hasFirstInNow && !blocked;
           btn.disabled = !canToggleNow;
           if (!canToggleNow) {
-            btn.title = 'Mark Present (P) or Late (L) to enable Out/In';
+            btn.title = blocked
+              ? 'Disabled while student is With Staff'
+              : (!codeIsPL
+                  ? 'Mark Present (P) or Late (L) to enable Out/In'
+                  : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
           } else {
             btn.title = btn.dataset.toggleTitle || 'Toggle Out/In';
           }
