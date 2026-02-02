@@ -536,6 +536,7 @@
   const outReasonButtons = Array.from(document.querySelectorAll('.out-reason-btn') || []);
 
   const swVersionPill = document.getElementById('swVersionPill');
+  const ENABLE_CLASS_TIMEOUT_LOGS = false; // set true if you want per-student timeout logs at period change
 
   // Runtime state
   let IS_MODAL_OPEN = false;
@@ -1001,7 +1002,7 @@
 
     // If we already have a period and it changes → new class, reset state
     if (CURRENT_CLASS_PERIOD_KEY && CURRENT_CLASS_PERIOD_KEY !== key) {
-      logClassTimeoutsForCurrentPeriod();
+      if (ENABLE_CLASS_TIMEOUT_LOGS) logClassTimeoutsForCurrentPeriod();
       resetClassSessionState();
     }
 
