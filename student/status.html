@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+
+  <!-- COPY THESE FROM YOUR OTHER PAGES -->
+  <meta name="api-base" content="https://YOUR-WORKER.workers.dev/">
+  <meta name="google-client-id" content="YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com">
+
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+
+  <title>My Status</title>
+
+  <script>
+    (function(){
+      try{
+        var key = 'ss_theme_v1';
+        var t = localStorage.getItem(key);
+        if(!t){
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = t;
+      }catch(e){}
+    })();
+  </script>
+
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg: #050711;
+      --card-border: #1f2937;
+      --fg: #e5e7eb;
+      --muted: #9ca3af;
+
+      --page-bg: radial-gradient(circle at top, #020617, #000);
+      --login-bg: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94));
+      --card-bg: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.92));
+      --pill-bg: rgba(15,23,42,0.85);
+      --control-bg: rgba(2,6,23,0.35);
+
+      --border-strong: rgba(31,41,55,0.9);
+
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+
+      --hall: #22c55e;
+      --bath: #38bdf8;
+      --class: #f59e0b;
+      --lunch: #8b5cf6;
+      --staff: #14b8a6;
+      --off: #ef4444;
+
+      --hall-soft: rgba(34,197,94,0.12);
+      --bath-soft: rgba(56,189,248,0.12);
+      --class-soft: rgba(245,158,11,0.15);
+      --lunch-soft: rgba(139,92,246,0.14);
+      --staff-soft: rgba(20,184,166,0.12);
+      --off-soft: rgba(239,68,68,0.14);
+    }
+    :root[data-theme="light"]{
+      color-scheme: light;
+      --fg: #0f172a;
+      --muted: #334155;
+      --page-bg: radial-gradient(circle at top, #eef2ff, #ffffff);
+      --login-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.92));
+      --card-bg: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.92));
+      --pill-bg: rgba(255,255,255,0.85);
+      --control-bg: rgba(241,245,249,0.8);
+      --card-border: rgba(100,116,139,0.35);
+      --border-strong: rgba(100,116,139,0.35);
+    }
+
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      background: var(--page-bg);
+      color: var(--fg);
+    }
+    .shell{ max-width: 980px; margin: 0 auto; padding: 16px; }
+    section, header, main{ width:100%; }
+
+    #loginCard{
+      max-width: 520px;
+      margin: 10vh auto 0;
+      border: 1px solid var(--card-border);
+      background: var(--login-bg);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.35);
+      backdrop-filter: blur(10px);
+    }
+    #loginCard h2{ margin: 0 0 6px; }
+    #loginOut{ margin: 10px 0 0; font-size: 12px; color: var(--muted); white-space: pre-wrap; }
+
+    header{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-top: 6px;
+    }
+    header h1{ margin:0; font-size: 1.4rem; }
+    .sub{ color: var(--muted); font-size: 0.95rem; }
+
+    .pill-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
+    }
+    .pill{
+      display:inline-flex;
+      gap:8px;
+      align-items:center;
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--card-border);
+      background: var(--pill-bg);
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    .pill-dot{
+      width:10px;height:10px;border-radius:999px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: var(--warn);
+    }
+    .pill-dot--ok{ background: var(--ok); }
+    .pill-dot--bad{ background: var(--bad); }
+
+    .btn{
+      border: 1px solid var(--border-strong);
+      background: var(--control-bg);
+      color: var(--fg);
+      padding: 10px 12px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 800;
+    }
+
+    .layout{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    @media (max-width: 900px){
+      .layout{ grid-template-columns: 1fr; }
+    }
+
+    .card{
+      border: 1px solid var(--card-border);
+      background: var(--card-bg);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.25);
+      backdrop-filter: blur(10px);
+    }
+    .card h2{
+      margin:0 0 8px;
+      font-size: 1.05rem;
+      display:flex;
+      justify-content:space-between;
+      align-items:baseline;
+      gap:10px;
+    }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .muted{ color: var(--muted); }
+    .row{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding: 8px 0;
+      border-bottom: 1px dashed rgba(100,116,139,0.25);
+    }
+    .row:last-child{ border-bottom:none; }
+
+    .zone-chip{
+      font-size: 0.70rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(55,65,81,0.9);
+      background: rgba(15,23,42,0.9);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      white-space:nowrap;
+    }
+    :root[data-theme="light"] .zone-chip{
+      background: rgba(241,245,249,0.95);
+      border-color: rgba(100,116,139,0.55);
+    }
+    .zone-chip--hall   { border-color: var(--hall);  color: var(--hall); }
+    .zone-chip--bath   { border-color: var(--bath);  color: var(--bath); }
+    .zone-chip--class  { border-color: var(--class); color: var(--class); }
+    .zone-chip--lunch  { border-color: var(--lunch); color: var(--lunch); }
+    .zone-chip--staff  { border-color: var(--staff); color: var(--staff); }
+    .zone-chip--off    { border-color: var(--off);   color: var(--off); }
+  </style>
+</head>
+
+<body>
+  <div class="shell">
+
+    <!-- Login -->
+    <section id="loginCard">
+      <h2>Sign in</h2>
+      <p class="muted">Students only.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut">Loading…</pre>
+    </section>
+
+    <!-- App -->
+    <div id="appShell" style="display:none;">
+      <header>
+        <h1>My Status</h1>
+        <div class="sub">Current location + today’s class status.</div>
+
+        <div class="pill-row">
+          <div class="pill">
+            <span class="pill-dot" id="statusDot"></span>
+            <span id="statusText">Connecting…</span>
+          </div>
+          <div class="pill"><span>📅</span><span id="dateText">—</span></div>
+          <div class="pill"><span>👤</span><span id="whoText">—</span></div>
+          <div class="pill"><span>⏱</span><span id="refreshText">Never</span></div>
+          <button class="btn" id="themeToggleBtn" type="button">🌙 Dark</button>
+          <button class="btn" id="btnLogout" type="button">Log out</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="card" id="cardLoc">
+          <h2><span>Current Location</span><span class="muted mono" id="locUpdated">—</span></h2>
+          <div class="row">
+            <div class="muted">Zone</div>
+            <div id="locZone">—</div>
+          </div>
+          <div class="row">
+            <div class="muted">Location</div>
+            <div class="mono" id="locLabel">—</div>
+          </div>
+          <div class="row">
+            <div class="muted">Source</div>
+            <div class="mono" id="locSource">—</div>
+          </div>
+        </section>
+
+        <section class="card" id="cardClass">
+          <h2><span>This Period</span><span class="muted mono" id="classMeta">—</span></h2>
+          <div class="row">
+            <div class="muted">Scheduled</div>
+            <div class="mono" id="schedNow">—</div>
+          </div>
+          <div class="row">
+            <div class="muted">Attendance</div>
+            <div class="mono" id="attLine">—</div>
+          </div>
+          <div class="row">
+            <div class="muted">Out / In</div>
+            <div class="mono" id="outInLine">—</div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+  </div>
+
+  <script type="module">
+    (async () => {
+      // Import ./status.js with a cache-buster (same pattern as your admin pages)
+      const baseDir = new URL('.', location.href);
+      let bust = '';
+      try{
+        const API_BASE = document.querySelector('meta[name="api-base"]')?.content || '';
+        const apiOrigin = new URL(API_BASE).origin;
+        if (apiOrigin === location.origin) {
+          const r = await fetch(new URL('/version', API_BASE), { cache:'no-store' });
+          const j = await r.json();
+          if (j?.id) bust = `?v=${encodeURIComponent(j.id)}`;
+        }
+      }catch{}
+      await import(new URL('./status.js' + (bust || `?t=${Date.now()}`), baseDir));
+    })();
+  </script>
+</body>
+</html>
