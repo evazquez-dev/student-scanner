@@ -104,6 +104,7 @@
     const items = [
       { key:'teacher_attendance', label:'Teacher Attendance', href:'./teacher_attendance.html', badge:'staff' },
       { key:'student_scans',      label:'Student Scans',      href:'./student_scans.html',      badge:'reports' },
+      { key:'student_view', label:'Student View', href:'./student_view.html', badge:'student' },
       { key:'hallway',           label:'Hallway Monitor',    href:'./hallway.html',           badge:'monitor' },
       { key:'staff_pull',        label:'Staff Pull',         href:'./staff_pull.html',        badge:'pull' },
       { key:'admin',             label:'Admin Dashboard',    href:'./index.html',             badge:'admin' },
