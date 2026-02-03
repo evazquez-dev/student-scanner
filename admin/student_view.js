@@ -70,7 +70,7 @@ function showMenu(items){
     b.addEventListener('click', () => pick(it));
     menuEl.appendChild(b);
   }
-  menuEl.style.display = '';
+  menuEl.style.display = 'block';
 }
 
 let debounceT = null;
@@ -175,7 +175,7 @@ async function pick(it){
 async function boot(){
   // wire search box
   qEl.addEventListener('input', debounce((e)=>search(e.target.value), 180));
-  qEl.addEventListener('focus', ()=>{ if(menuEl.innerHTML) menuEl.style.display=''; });
+  qEl.addEventListener('focus', ()=>{ if(menuEl.innerHTML) menuEl.style.display='block'; });
   document.addEventListener('click', (e)=>{
     if(!menuEl.contains(e.target) && e.target !== qEl) showMenu([]);
   });
