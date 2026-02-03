@@ -83,10 +83,29 @@ function debounce(fn, ms){
 
 async function search(q){
   const qq = String(q || '').trim();
-  if(qq.length < 2){ showMenu([]); return; }
-  const r = await adminFetch(`/admin/roster/search?q=${encodeURIComponent(qq)}`, { method:'GET' });
-  const j = await r.json().catch(()=>null);
-  showMenu(j?.results || []);
+  if (qq.length < 2){
+    showMenu([]);
+    metaEl.textContent = 'Type at least 2 characters to search…';
+    return;
+  }
+
+  try{
+    const r = await adminFetch(`/admin/roster/search?q=${encodeURIComponent(qq)}`, { method:'GET' });
+    const text = await r.text().catch(()=> '');
+    let j = null; try{ j = JSON.parse(text); }catch(_){}
+
+    if(!r.ok || !j?.ok){
+      metaEl.textContent = `Roster search error: ${j?.error || `HTTP ${r.status}`} ${String(j?.detail || text).slice(0,160)}`;
+      showMenu([]);
+      return;
+    }
+
+    metaEl.textContent = `Matches: ${j.results?.length || 0}`;
+    showMenu(j.results || []);
+  }catch(e){
+    metaEl.textContent = `Roster search error: ${e?.message || e}`;
+    showMenu([]);
+  }
 }
 
 function fmtClock(iso){
