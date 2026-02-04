@@ -1263,6 +1263,24 @@
         <td>${esc(cls || '—')}</td>
       </tr>`;
     }
+
+  // ---- Bathroom occupancy auto-refresh (keeps list in sync with remote updates) ----
+  let __BATH_SYNC_TIMER = null;
+  const BATH_SYNC_POLL_MS = 12_000; // tweak if you want faster/slower
+
+  function stopBathAutoRefresh(){
+    if (__BATH_SYNC_TIMER) { clearInterval(__BATH_SYNC_TIMER); __BATH_SYNC_TIMER = null; }
+  }
+
+  function startBathAutoRefresh(){
+    stopBathAutoRefresh();
+    if (!isBathroomLocation(getLocation())) return;
+    __BATH_SYNC_TIMER = setInterval(() => {
+      // Don’t block UI; ignore transient failures.
+      renderBathList().catch(() => {});
+    }, BATH_SYNC_POLL_MS);
+  }
+
     
     bodyM.innerHTML = rowsM.map(rowHtml).join('');
     bodyF.innerHTML = rowsF.map(rowHtml).join('');
@@ -2718,7 +2736,7 @@
       };
       btnOK.onclick = () => {
         const val = sel.value.trim();
-        if (val) { setLocation(val); updateHeaderForLocation(); close(val); }
+        if (val) { setLocation(val); updateHeaderForLocation(); startBathAutoRefresh(); close(val); }
         else { alert('Please choose a location.'); }
       };
       btnX.onclick = () => close(getLocation());
@@ -2734,6 +2752,7 @@
     trimHistory();
     await promptForLocation(false);
     await renderBathList();
+    startBathAutoRefresh();
   })();
 
   document.getElementById('locationPill').addEventListener('click', () => {
