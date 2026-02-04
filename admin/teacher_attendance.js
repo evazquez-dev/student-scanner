@@ -1157,6 +1157,7 @@ async function fetchPreview(room, period, whenType, opts = {}){
   if (opts.date) u.searchParams.set('date', String(opts.date));
   if (opts.forceCompute) u.searchParams.set('force_compute', '1');
   if (opts.ignoreOverrides) u.searchParams.set('ignore_overrides', '1');
+  if (opts.advisor) u.searchParams.set('advisor', String(opts.advisor));
 
   const r = await adminFetch(u, { method:'GET' });
   const data = await r.json().catch(()=>null);
@@ -1751,10 +1752,9 @@ async function refreshClassOnce(){
   tickRefreshLabel();
   setStatus(true, 'Loading…');
 
-  const [snap, snapView, computed] = await Promise.all([
-    fetchRosterSnapshotMap(),
-    fetchPreview(room, period, whenType, { forceCompute:false }),
-    fetchPreview(room, period, whenType, { forceCompute:true, ignoreOverrides:true })
+  const [snap, comp] = await Promise.all([
+    fetchPreview(room, period, whenType, { forceCompute:false, advisor: UI_LUNCH_ADVISOR_LABEL }),
+    fetchPreview(room, period, whenType, { forceCompute:true, ignoreOverrides:true, advisor: UI_LUNCH_ADVISOR_LABEL })
   ]);
 
   const date = snap.date || snapView.date || computed.date || '—';
