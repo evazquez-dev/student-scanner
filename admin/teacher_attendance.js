@@ -1752,12 +1752,16 @@ async function refreshClassOnce(){
   tickRefreshLabel();
   setStatus(true, 'Loading…');
 
-  const [snap, comp] = await Promise.all([
-    fetchPreview(room, period, whenType, { forceCompute:false, advisor: UI_LUNCH_ADVISOR_LABEL }),
-    fetchPreview(room, period, whenType, { forceCompute:true, ignoreOverrides:true, advisor: UI_LUNCH_ADVISOR_LABEL })
+  // For lunch advisor views, pass the advisor label so the Worker can filter students correctly
+  const advisor = UI_LUNCH_ADVISOR_LABEL ? String(UI_LUNCH_ADVISOR_LABEL).trim() : '';
+
+  const [snap, snapView, computed] = await Promise.all([
+    fetchRosterSnapshotMap(),
+    fetchPreview(room, period, whenType, { forceCompute:false, advisor }),
+    fetchPreview(room, period, whenType, { forceCompute:true, ignoreOverrides:true, advisor })
   ]);
 
-  const date = snap.date || snapView.date || computed.date || '—';
+  const date = (snap && snap.date) || (snapView && snapView.date) || (computed && computed.date) || '—';
   dateText.textContent = date;
 
   let sessionState = null;
@@ -1775,9 +1779,9 @@ async function refreshClassOnce(){
     room,
     period,
     whenType,
-    snapshotRows: Array.isArray(snapView.rows) ? snapView.rows : [],
-    computedRows: Array.isArray(computed.rows) ? computed.rows : [],
-    snapshotMap: snap.map,
+    snapshotRows: Array.isArray(snapView?.rows) ? snapView.rows : [],
+    computedRows: Array.isArray(computed?.rows) ? computed.rows : [],
+    snapshotMap: (snap && snap.map) ? snap.map : new Map(),
     sessionState
   });
 
