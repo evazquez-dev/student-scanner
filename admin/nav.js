@@ -61,6 +61,10 @@
       const sr = await adminFetch('/admin/staff_pull/options', { method: 'GET' });
       out.can.staff_pull = sr.ok;
 
+      // Probe phone pass
+      const pr2 = await adminFetch('/admin/phone_pass/options', { method: 'GET' });
+      out.can.phone_pass = pr2.ok;
+
       return out;
     } catch {
       return { ok:false };
