@@ -2105,11 +2105,11 @@
     const row  = pushPendingRow(Date.now(), code, when);
 
     if (!navigator.onLine){
-      markRowQueued(row);
-      const q = JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');
-      q.push({ seq: Date.now(), code, whenISO: when.toISOString() });
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-      setStatus('Offline — queued');
+      // No offline queue — fail fast so we never replay stale scans later.
+      try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
+      updateRowToError(row, code, when, new Error('Offline (not recorded)'));
+      showOffline(code, when);
+      setStatus('Offline — NOT recorded');
       return;
     }
 
@@ -2427,15 +2427,11 @@
 
     } catch (err) {
       if (!navigator.onLine || err.name === 'AbortError'){
-        markRowQueued(row);
-        const q = JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]');
-        q.push({ seq: Date.now(), code, whenISO: when.toISOString() });
-        localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
-        setStatus('Offline — queued');
-        resultEl.innerHTML =
-          `<div class="err">Queued (offline)</div>
-           <div class="code">${esc(code)}</div>
-           <div class="muted">${fmtTime(when)}</div>`;
+        // No offline queue — fail fast so we never replay stale scans later.
+        try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
+        updateRowToError(row, code, when, err);
+        showOffline(code, when, err);
+        setStatus('Offline — NOT recorded');
       } else {
         updateRowToError(row, code, when, err);
         showError(err, code, when);
@@ -2532,35 +2528,24 @@
   }
 
   /* ============================================================
-   * QUEUE (offline retries)
+   * QUEUE (no queue)
    * ============================================================ */
-  function loadQueue(){ try{ return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]'); }catch{return [];} }
-  function saveQueue(q){ localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
-  async function flushQueue(){
-    if (!navigator.onLine) return;
-    const q = loadQueue(); if (!q.length) return;
-    const remain = [];
-    for (const item of q){
-      try{
-        const res = await apiLookup(item.code);
-        if (res.found){
-          updateRowToSuccess(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)), {
-            name: res.name, code: item.code,
-            lockerNum: res.locker_number, lockerColor: res.locker_color,
-            when: new Date(item.whenISO)
-          });
-          apiLog({ whenISO:item.whenISO, code:item.code, source:'pwa', resolved:res });
-        } else {
-          updateRowToNotFound(item.rowRef ?? pushPendingRow(item.seq, item.code, new Date(item.whenISO)),
-            item.code, new Date(item.whenISO), res.error, res.reason);
-        }
-      } catch { remain.push(item); }
-    }
-    saveQueue(remain);
-  }
-  window.addEventListener('online', flushQueue);
-  flushQueue();
+  // Offline queueing is intentionally DISABLED.
+  // Older builds queued scans in localStorage (QUEUE_KEY) and replayed them later,
+  // which caused out-of-date scans (previous days) to be applied.
+  // We also clear any legacy queue left on the device.
+  try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
 
+  function showOffline(code, when, err){
+    beepBad();
+    const extra = err ? ` — ${esc(err.message||String(err))}` : '';
+    resultEl.innerHTML =
+      `<div class="err">Offline (not recorded)</div>
+       <div class="code">${esc(code||'')}</div>
+       <div class="muted">${fmtTime(when)}${extra}</div>`;
+    setStatus('Ready.');
+  }
+  
   /* ============================================================
    * KEYBOARD WEDGE + MANUAL ENTRY
    * ============================================================ */
