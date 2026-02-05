@@ -7,6 +7,17 @@
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+  const BRAND = window.EAGLENEST_BRAND?.name || 'EagleNEST';
+  const MODULES = window.EAGLENEST_BRAND?.modules || {
+    teacher_attendance: 'Teacher Attendance',
+    student_scans: 'Student Scans',
+    student_view: 'Student View',
+    hallway: 'Hallway Monitor',
+    staff_pull: 'Staff Pull',
+    phone_pass: 'Phone Pass',
+    admin: 'Admin Dashboard'
+  };
+
   function adminFetch(path, init = {}) {
     const u = new URL(path, API_BASE);
     return fetch(u, { ...init, credentials: 'include' });
@@ -92,11 +103,11 @@
     const drawer = document.createElement('aside');
     drawer.id = 'ssNavDrawer';
     drawer.setAttribute('role', 'navigation');
-    drawer.setAttribute('aria-label', 'Student Scanner navigation');
+    drawer.setAttribute('aria-label', `${BRAND} navigation`);
 
     const title = document.createElement('div');
     title.className = 'ssNavTitle';
-    title.textContent = 'Student Scanner';
+    title.textContent = BRAND;
 
     const meta = document.createElement('div');
     meta.className = 'ssNavMeta';
@@ -106,13 +117,13 @@
     linksWrap.className = 'ssNavLinks';
 
     const items = [
-      { key:'teacher_attendance', label:'Teacher Attendance', href:'./teacher_attendance.html', badge:'staff' },
-      { key:'student_scans',      label:'Student Scans',      href:'./student_scans.html',      badge:'reports' },
-      { key:'student_view', label:'Student View', href:'./student_view.html', badge:'student' },
-      { key:'hallway',           label:'Hallway Monitor',    href:'./hallway.html',           badge:'monitor' },
-      { key:'staff_pull',        label:'Staff Pull',         href:'./staff_pull.html',        badge:'pull' },
-      { key:'phone_pass',        label:'Phone Pass',         href:'./phone_pass.html',        badge:'phones' },
-      { key:'admin',             label:'Admin Dashboard',    href:'./index.html',             badge:'admin' },
+      { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'staff' },
+      { key:'student_scans',      label: MODULES.student_scans || 'Scans Report',            href:'./student_scans.html',      badge:'reports' },
+      { key:'student_view',       label: MODULES.student_view || 'Student View',               href:'./student_view.html',       badge:'student' },
+      { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',                 href:'./hallway.html',            badge:'monitor' },
+      { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                   href:'./staff_pull.html',         badge:'pull' },
+      { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                   href:'./phone_pass.html',         badge:'phones' },
+      { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                   href:'./index.html',              badge:'admin' },
     ];
 
     const cur = currentFile();

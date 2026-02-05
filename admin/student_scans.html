@@ -10,7 +10,7 @@
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/" />
   <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com" />
 
-  <title>Student Scan Report</title>
+  <title>EagleNEST — Student Scan Report</title>
   <link rel="stylesheet" href="./admin.css" />
 
   <!-- Google Identity Services (same pattern as other admin pages) -->
@@ -22,6 +22,7 @@
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
 
   <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
 
   <script>
@@ -101,11 +102,11 @@
     }
   </style>
 </head>
-<body>
+<body data-module="student_scans">
   <div class="wrap">
     <header class="topbar">
       <div>
-        <div style="font-weight:700;">Student Scan Report</div>
+        <div style="font-weight:700;" data-brand-title>EagleNEST — Student Scan Report</div>
         <div class="small">Scans sheet = source of truth</div>
       </div>
     </header>
@@ -154,7 +155,7 @@
 
       <div id="printArea">
         <div class="print-only" style="font-weight:700; font-size:18px; margin-bottom:8px;">
-          Student Scan Report
+          <span data-brand-title>EagleNEST — Student Scan Report</span>
         </div>
 
         <div id="studentHeader" style="margin-bottom:10px;"></div>

@@ -17,8 +17,9 @@
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
 
-  <title>Teacher Attendance</title>
+  <title>EagleNEST — Teacher Attendance</title>
   <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
 
   <script>
@@ -601,7 +602,7 @@
   </style>
 </head>
 
-<body>
+<body data-module="teacher_attendance">
   <button id="viewToggleBtn" class="viewToggle" type="button" aria-label="Toggle out/in organizer">🧭 Organizer</button>
   <div class="shell">
 
@@ -616,7 +617,7 @@
     <!-- App -->
     <div id="appShell">
       <header>
-        <h1>Teacher Attendance</h1>
+        <h1 data-brand-title>EagleNEST — Teacher Attendance</h1>
         <div class="sub">Pulls scheduled roster + scan evidence from the Worker’s attendance durable object.</div>
 
         <div class="pill-row">

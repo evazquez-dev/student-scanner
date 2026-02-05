@@ -18,9 +18,10 @@
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
 
   <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
 
-  <title>Student Scanner — Hallway Monitor</title>
+  <title>EagleNEST — Hallway Monitor</title>
 
   <style>
     :root {
@@ -488,7 +489,7 @@
     }
   </style>
 </head>
-<body>
+<body data-module="hallway">
   <div class="shell">
     <!-- Login splash -->
     <section id="loginCard">
@@ -496,15 +497,15 @@
       <p>Sign in with your school Google account to view live hallway / bathroom activity.</p>
       <div id="g_id_signin"></div>
       <pre id="loginOut">—</pre>
-      <small>Requires the same admin role as the Student Scanner admin page.</small>
+      <small>Requires the same admin role as the EagleNEST admin page.</small>
     </section>
 
     <!-- Main app, only shown after login succeeds -->
     <div id="appShell">
       <header>
-        <h1>Live Hallway / Bathroom View</h1>
+        <h1 data-brand-title>EagleNEST — Hallway Monitor</h1>
         <div class="sub">
-          Current in-building movement based on scanner events. Updates every 10 seconds.
+          Current in-building movement based on EagleNEST events. Updates every 10 seconds.
         </div>
         <div class="pill-row">
           <div class="pill">

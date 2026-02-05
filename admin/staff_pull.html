@@ -17,7 +17,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
 
-  <title>Staff Pull</title>
+  <title>EagleNEST — Staff Pull</title>
 
   <script>
     // Theme bootstrap: apply saved theme ASAP to avoid flash.
@@ -374,7 +374,7 @@
   </style>
 </head>
 
-<body>
+<body data-module="staff_pull">
   <div class="shell">
 
     <!-- Login -->
@@ -388,7 +388,7 @@
     <!-- App -->
     <div id="appShell">
       <header>
-        <h1>Staff Pull</h1>
+        <h1 data-brand-title>EagleNEST — Staff Pull</h1>
         <div class="sub">Select a student, see their current room + next room, then Pull / Release.</div>
 
         <div class="pill-row">
@@ -463,6 +463,7 @@
   </div>
 
   <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
 
   <script src="./staff_pull.js" defer></script>

@@ -6,7 +6,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="./icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
   <link rel="apple-touch-icon" href="./icons/icon-192.png">
-  <title>Student Scanner</title>
+  <title>EagleNEST — Scanner Kiosk</title>
   
   <!-- PWA -->
   <link rel="manifest" href="./manifest.webmanifest" />
@@ -296,8 +296,9 @@
       touch-action:manipulation;
     }
   </style>
+  <script src="./brand.js" defer></script>
 </head>
-<body>
+<body data-module="kiosk">
   <!-- ============ LOCATION MODAL ============ -->
   <div id="locModal" style="background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center;">
     <div style="background:#fff; width:min(360px, 92vw); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2)">
@@ -332,7 +333,7 @@
 
   <!-- ============ MAIN CARD ============ -->
   <div class="card">
-    <h1>Student Scanner 
+    <h1><span data-brand-title>EagleNEST — Scanner Kiosk</span> 
       <span class="pill" id="onlinePill">Online</span>
       <span class="pill" id="locationPill" style="margin-left:6px; cursor:pointer;" title="Click to change location">Set location</span>
       <span class="pill" id="batteryPill" style="margin-left:6px">🔋 --%</span>
@@ -2153,7 +2154,7 @@
           showClassPopup(
             shouldRoom
               ? `You should be in ${shouldRoom} right now.`
-              : 'This scanner is only for your scheduled class period.'
+              : 'This EagleNEST kiosk is only for your scheduled class period.'
           );
           showClassRedirect(code, shouldRoom, when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
