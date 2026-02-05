@@ -111,6 +111,7 @@
       { key:'student_view', label:'Student View', href:'./student_view.html', badge:'student' },
       { key:'hallway',           label:'Hallway Monitor',    href:'./hallway.html',           badge:'monitor' },
       { key:'staff_pull',        label:'Staff Pull',         href:'./staff_pull.html',        badge:'pull' },
+      { key:'phone_pass',        label:'Phone Pass',         href:'./phone_pass.html',        badge:'phones' },
       { key:'admin',             label:'Admin Dashboard',    href:'./index.html',             badge:'admin' },
     ];
 
