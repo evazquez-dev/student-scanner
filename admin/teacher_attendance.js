@@ -330,6 +330,7 @@ const bulkSelectedCountEl = document.getElementById('bulkSelectedCount');
 const bulkCodeSelect = document.getElementById('bulkCodeSelect');
 
 const errBox     = document.getElementById('errBox');
+const optionsDiagBox = document.getElementById('optionsDiag');
 const subtitleRight = document.getElementById('subtitleRight');
 const rowsEl     = document.getElementById('rows');
 
@@ -735,11 +736,45 @@ async function populateDropdowns(){
 }
 
 async function fetchTeacherOptions(){
-  const r = await adminFetch('/admin/teacher_att/options', { method:'GET' });
-  const data = await r.json().catch(()=>null);
-  if(!r.ok || !data?.ok){
-    throw new Error(data?.error || `teacher_att/options HTTP ${r.status}`);
+  const endpoint = _optionsEndpoint();
+  const apiOrigin = _apiOrigin();
+  const sameOrigin = (apiOrigin === location.origin);
+
+  let r;
+  try{
+    r = await adminFetch('/admin/teacher_att/options', { method:'GET' });
+  }catch(cause){
+    const e = new Error('teacher_att/options request failed');
+    e.diag = {
+      endpoint,
+      status: 0,
+      statusText: 'FETCH_FAILED',
+      apiOrigin,
+      pageOrigin: location.origin,
+      sameOrigin,
+      cause: String(cause?.message || cause || '')
+    };
+    throw e;
   }
+
+  const raw = await r.text().catch(() => '');
+  let data = null;
+  try { data = raw ? JSON.parse(raw) : null; } catch {}
+
+  if(!r.ok || !data?.ok){
+    const e = new Error(data?.error || `teacher_att/options HTTP ${r.status}`);
+    e.diag = {
+      endpoint,
+      status: r.status,
+      statusText: r.statusText || '',
+      apiOrigin,
+      pageOrigin: location.origin,
+      sameOrigin,
+      bodySnippet: String(raw || '').replace(/\s+/g, ' ').slice(0, 260)
+    };
+    throw e;
+  }
+
   return data; // { periods:[...], rooms:[...], ... }
 }
 
@@ -936,6 +971,102 @@ function setErr(msg){
   }
   errBox.style.display='block';
   errBox.textContent = String(msg);
+}
+
+function _apiOrigin(){
+  try { return new URL(API_BASE).origin; } catch { return '(invalid api-base)'; }
+}
+function _optionsEndpoint(){
+  try { return new URL('/admin/teacher_att/options', API_BASE).toString(); }
+  catch { return '/admin/teacher_att/options'; }
+}
+function _isIOS(){
+  const ua = navigator.userAgent || '';
+  return /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function _isSafari(){
+  const ua = navigator.userAgent || '';
+  return /Safari/i.test(ua) && !/Chrome|CriOS|FxiOS|EdgiOS|OPiOS|Android/i.test(ua);
+}
+function clearOptionsDiag(){
+  if(!optionsDiagBox) return;
+  optionsDiagBox.style.display = 'none';
+  optionsDiagBox.className = 'diag';
+  optionsDiagBox.textContent = '';
+}
+function setOptionsDiag(level, lines){
+  if(!optionsDiagBox) return;
+  optionsDiagBox.style.display = 'block';
+  optionsDiagBox.className = `diag ${level === 'bad' ? 'diag--bad' : 'diag--warn'}`;
+  optionsDiagBox.textContent = Array.isArray(lines) ? lines.join('\n') : String(lines || '');
+}
+
+function showOptionsSnapshot(opts, context){
+  const periodItems = Array.isArray(opts?.period_options)
+    ? opts.period_options
+    : (Array.isArray(opts?.periods) ? opts.periods : []);
+
+  const rooms = Array.isArray(opts?.rooms) ? opts.rooms : [];
+  const advisorCount = Object.values(opts?.advisors_by_period || {})
+    .reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
+  const lunchAdvisorCount = Object.values(opts?.lunch_advisors_by_period || {})
+    .reduce((n, arr) => n + (Array.isArray(arr) ? arr.length : 0), 0);
+
+  const roomLikeTotal = rooms.length + advisorCount + lunchAdvisorCount;
+
+  // Only show warning when options are suspiciously empty.
+  if (periodItems.length === 0 || roomLikeTotal === 0) {
+    const apiOrigin = _apiOrigin();
+    const sameOrigin = (apiOrigin === location.origin);
+
+    setOptionsDiag('warn', [
+      `⚠️ Dropdown options diagnostics (${context})`,
+      `Time: ${new Date().toLocaleString()}`,
+      `Endpoint: ${_optionsEndpoint()}`,
+      `Periods: ${periodItems.length}`,
+      `Rooms: ${rooms.length}`,
+      `Advisor options: ${advisorCount}`,
+      `Lunch-advisor options: ${lunchAdvisorCount}`,
+      `Page origin: ${location.origin}`,
+      `API origin: ${apiOrigin}`,
+      `Same origin: ${sameOrigin ? 'yes' : 'no'}`,
+      `iOS: ${_isIOS() ? 'yes' : 'no'} | Safari: ${_isSafari() ? 'yes' : 'no'}`,
+      `Hint: Empty options + cross-origin often means cookie/session issues on iOS Safari.`
+    ]);
+  } else {
+    clearOptionsDiag();
+  }
+}
+
+function showOptionsError(err, context){
+  const d = err?.diag || {};
+  const apiOrigin = d.apiOrigin || _apiOrigin();
+  const sameOrigin = (typeof d.sameOrigin === 'boolean') ? d.sameOrigin : (apiOrigin === location.origin);
+  const statusLabel = d.status
+    ? `${d.status}${d.statusText ? ` ${d.statusText}` : ''}`
+    : 'network/cors';
+
+  const lines = [
+    `❌ Dropdown options diagnostics (${context})`,
+    `Time: ${new Date().toLocaleString()}`,
+    `Endpoint: ${d.endpoint || _optionsEndpoint()}`,
+    `Result: ${statusLabel}`,
+    `Message: ${err?.message || 'Unknown error'}`,
+    `Page origin: ${location.origin}`,
+    `API origin: ${apiOrigin}`,
+    `Same origin: ${sameOrigin ? 'yes' : 'no'}`,
+    `iOS: ${_isIOS() ? 'yes' : 'no'} | Safari: ${_isSafari() ? 'yes' : 'no'}`
+  ];
+
+  if (!sameOrigin) {
+    lines.push('Hint: Cross-site cookie auth can fail on iOS Safari.');
+  }
+  if (d.bodySnippet) {
+    lines.push(`Response snippet: ${d.bodySnippet}`);
+  }
+
+  setOptionsDiag('bad', lines);
 }
 
 let lastRefreshTs = 0;
@@ -2044,6 +2175,7 @@ async function bootTeacherAttendance(){
 
       fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
       applyRoomDropdownFromOpts(opts, preferredRoom);
+      showOptionsSnapshot(opts, 'boot');
 
       LAST_UI_PICK.room = roomInput.value.trim();
       LAST_UI_PICK.period = periodInput.value.trim();
@@ -2059,9 +2191,10 @@ async function bootTeacherAttendance(){
         applyModeUI();
       }
     }catch(e){
-      // Don’t block the page if options fail — teachers can still type if you revert to inputs later
       console.warn('options load failed', e);
+      showOptionsError(e, 'boot');
     }
+
 
     startAutoRefresh();
 
@@ -2217,6 +2350,7 @@ async function onGoogleCredential(resp){
 
       fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
       applyRoomDropdownFromOpts(opts, preferredRoom);
+      showOptionsSnapshot(opts, 'post-login');
 
       LAST_UI_PICK.room = roomInput.value.trim();
       LAST_UI_PICK.period = periodInput.value.trim();
@@ -2226,6 +2360,7 @@ async function onGoogleCredential(resp){
       try{ roomInput.dispatchEvent(new Event('change')); }catch{}
     }catch(e){
       console.warn('options load failed', e);
+      showOptionsError(e, 'post-login');
     }
 
     startAutoRefresh();

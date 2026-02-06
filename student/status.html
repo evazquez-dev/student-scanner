@@ -16,13 +16,18 @@
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
 
-  <title>My Status</title>
+  <title>EagleNEST — My Status</title>
+  <script src="../admin/brand.js"></script>
 
   <script>
     (function(){
       try{
-        var key = 'ss_theme_v1';
+        var key = (window.BRAND && window.BRAND.THEME_KEY) || 'eaglenest_theme_v1';
         var t = localStorage.getItem(key);
+        if(!t){
+          var legacy = localStorage.getItem('ss_theme_v1') || localStorage.getItem('teacher_att_theme') || localStorage.getItem('staff_pull_theme');
+          if(legacy){ t = legacy; localStorage.setItem(key, t); }
+        }
         if(!t){
           t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
         }
@@ -222,7 +227,7 @@
     <!-- App -->
     <div id="appShell" style="display:none;">
       <header>
-        <h1>My Status</h1>
+        <h1>EagleNEST My Status</h1>
         <div class="sub">Current location + today’s class status.</div>
 
         <div class="pill-row">
