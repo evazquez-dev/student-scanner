@@ -2199,6 +2199,7 @@ async function bootTeacherAttendance(){
   try{
     const r = await adminFetch('/admin/session/check', { method:'GET' });
     const data = await r.json().catch(()=>({}));
+    if (data?.sid) setStoredAdminSessionSid(String(data.sid));
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
     hide(loginCard);
@@ -2360,6 +2361,24 @@ async function onGoogleCredential(resp){
     });
 
     const data = await r.json().catch(()=>({}));
+
+    // IMPORTANT: read from r (fetch response), not resp (google callback payload)
+    const sidFromHeader = (r.headers.get("x-admin-session") || r.headers.get("X-Admin-Session") || "").trim();
+    const sidFromBody = typeof data?.sid === "string" ? data.sid.trim() : "";
+
+    if (sidFromBody) {
+      setStoredAdminSessionSid(sidFromBody);
+    } else if (sidFromHeader) {
+      setStoredAdminSessionSid(sidFromHeader);
+    }
+
+    window.__TA_LAST_LOGIN_DIAG = {
+      status: r.status,
+      sidFromHeader: !!sidFromHeader,
+      sidFromBody: !!sidFromBody,
+      expose: r.headers.get("access-control-expose-headers") || ""
+    };
+
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
     hide(loginCard);
