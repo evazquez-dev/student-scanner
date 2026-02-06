@@ -7,6 +7,8 @@
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '')
   .replace(/\/*$/, '') + '/';
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
+const ADMIN_SESSION_KEY = 'teacher_att_admin_session_v1';
+const ADMIN_SESSION_HEADER = 'x-admin-session';
 const THEME_KEY = 'ss_theme_v1';
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 
@@ -460,10 +462,67 @@ async function waitForGoogle(timeoutMs = 8000){
   return window.google.accounts.id;
 }
 
-// Always include cookies for admin requests
+function getStoredAdminSessionSid(){
+  try{
+    return String(
+      sessionStorage.getItem(ADMIN_SESSION_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_KEY) ||
+      ''
+    ).trim();
+  }catch{
+    return '';
+  }
+}
+
+function setStoredAdminSessionSid(sid){
+  const v = String(sid || '').trim();
+  if (!v) return;
+  try{ sessionStorage.setItem(ADMIN_SESSION_KEY, v); }catch{}
+  try{ localStorage.setItem(ADMIN_SESSION_KEY, v); }catch{}
+}
+
+function clearStoredAdminSessionSid(){
+  try{ sessionStorage.removeItem(ADMIN_SESSION_KEY); }catch{}
+  try{ localStorage.removeItem(ADMIN_SESSION_KEY); }catch{}
+}
+
+function stashAdminSessionFromResponse(resp){
+  try{
+    const sid = String(
+      resp?.headers?.get(ADMIN_SESSION_HEADER) ||
+      resp?.headers?.get('X-Admin-Session') ||
+      ''
+    ).trim();
+    if (sid) setStoredAdminSessionSid(sid);
+  }catch{}
+}
+
+// Always include cookie + optional header session for iOS cross-origin fallback
 async function adminFetch(pathOrUrl, init = {}){
   const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
-  return fetch(u, { ...init, credentials:'include', cache:'no-store' });
+
+  const headers = new Headers(init.headers || {});
+  const sid = getStoredAdminSessionSid();
+  if (sid && !headers.has(ADMIN_SESSION_HEADER)) {
+    headers.set(ADMIN_SESSION_HEADER, sid);
+  }
+
+  const resp = await fetch(u, {
+    ...init,
+    headers,
+    credentials: 'include',
+    cache: 'no-store'
+  });
+
+  // capture/refesh SID when Worker sends it
+  stashAdminSessionFromResponse(resp);
+
+  // stale header SID? force re-auth cleanly
+  if (resp.status === 401) {
+    clearStoredAdminSessionSid();
+  }
+
+  return resp;
 }
 
 // ---------- After-school view helpers ----------
@@ -2205,6 +2264,7 @@ async function bootTeacherAttendance(){
       if(roomInput.value.trim() && periodInput.value.trim()) await refreshOnce();
     }
   }catch(e){
+    clearStoredAdminSessionSid();
     // Need login
     hide(appShell);
     show(loginCard);
@@ -2287,11 +2347,10 @@ async function onGoogleCredential(resp){
   try{
     loginOut.textContent = 'Signing in...';
 
-    const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
+    const r = await adminFetch('/admin/session/login_google', {
       method:'POST',
       headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: new URLSearchParams({ id_token: resp.credential }).toString(),
-      credentials:'include'
+      body: new URLSearchParams({ id_token: resp.credential }).toString()
     });
 
     const data = await r.json().catch(()=>({}));
