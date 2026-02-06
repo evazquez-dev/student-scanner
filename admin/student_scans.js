@@ -7,14 +7,83 @@ function meta(name){
 }
 // Match hallway.js / teacher_attendance.js: normalize base URL and read client id from meta
 const API_BASE = (meta('api-base') || '').replace(/\/*$/, '') + '/';
+
+// ---- iOS cross-origin session fallback (Option 2) ----
+const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
+const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1'; // compatibility
+const ADMIN_SESSION_HEADER = 'x-admin-session';
+
+function getStoredAdminSessionSid() {
+  try {
+    return String(
+      sessionStorage.getItem(ADMIN_SESSION_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_KEY) ||
+      sessionStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      ''
+    ).trim();
+  } catch { return ''; }
+}
+
+function setStoredAdminSessionSid(sid) {
+  const v = String(sid || '').trim();
+  try {
+    if (!v) {
+      sessionStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      localStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      return;
+    }
+    sessionStorage.setItem(ADMIN_SESSION_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_KEY, v);
+    // keep teacher page compatibility
+    sessionStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+  } catch {}
+}
+
+function clearStoredAdminSessionSid() {
+  setStoredAdminSessionSid('');
+}
+
+function stashAdminSessionFromResponse(resp) {
+  try {
+    const sid = String(
+      resp?.headers?.get('x-admin-session') ||
+      resp?.headers?.get('X-Admin-Session') ||
+      ''
+    ).trim();
+    if (sid) setStoredAdminSessionSid(sid);
+  } catch {}
+}
+
+async function adminFetch(pathOrUrl, init = {}) {
+  const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
+  const headers = new Headers(init.headers || {});
+  const sid = getStoredAdminSessionSid();
+  if (sid && !headers.has(ADMIN_SESSION_HEADER)) headers.set(ADMIN_SESSION_HEADER, sid);
+
+  const resp = await fetch(u, {
+    ...init,
+    headers,
+    credentials: 'include',
+    cache: 'no-store'
+  });
+
+  stashAdminSessionFromResponse(resp);
+
+  if (resp.status === 401) {
+    try {
+      const j = await resp.clone().json();
+      if (j?.error === 'expired' || j?.error === 'no_session') clearStoredAdminSessionSid();
+    } catch {}
+  }
+  return resp;
+}
 const GOOGLE_CLIENT_ID = meta('google-client-id') || '';
 
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-async function adminFetch(path, init={}){
-  const url = new URL(path, API_BASE);
-  return fetch(url.toString(), { ...init, credentials:'include' });
-}
 
 async function waitForGoogle(timeoutMs = 8000){
   const start = Date.now();
@@ -102,19 +171,22 @@ async function tryBootstrapSession(){
 }
 
 async function loginWithGoogle(idToken){
-  // Match hallway.js / teacher_attendance.js: cookie session created by Worker
-  const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
+  const r = await adminFetch('/admin/session/login_google', {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    body: new URLSearchParams({ id_token: idToken }).toString(),
-    credentials: 'include'
+    body: new URLSearchParams({ id_token: idToken }).toString()
   });
   const j = await r.json().catch(()=>({}));
+  if (j?.sid) setStoredAdminSessionSid(String(j.sid));
+  stashAdminSessionFromResponse(r);
   return { ok: Boolean(r.ok && j && j.ok), status: r.status, j };
 }
 
 async function logout(){
-  await adminFetch('/admin/logout', { method:'POST' }).catch(()=>{});
+  try{
+    await adminFetch('/admin/session/logout', { method:'POST' });
+  }catch(_){}
+  clearStoredAdminSessionSid();
 }
 
 let APP_READY = false;
@@ -670,7 +742,7 @@ async function runReport(){
     url.searchParams.set('end', end);
     url.searchParams.set('max', '5000');
 
-    const r = await fetch(url.toString(), { method:'GET', credentials:'include' });
+    const r = await adminFetch(url, { method:'GET' });
     const j = await r.json().catch(()=>({}));
 
     if (!r.ok || !j.ok){

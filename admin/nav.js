@@ -1,7 +1,7 @@
 // admin/nav.js
 (() => {
-  const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '')
-    .replace(/\/*$/, '') + '/';
+  const metaApiBase = (document.querySelector('meta[name="api-base"]')?.content || '').trim();
+  const API_BASE = (metaApiBase ? metaApiBase.replace(/\/*$/, '') : location.origin) + '/';
 
   const LS_OPEN = 'ss_nav_open_v1';
 
@@ -26,6 +26,15 @@
     'student_scans_admin_session_v1',
     'admin_session_v1'
   ];
+
+  function clearStoredAdminSessionSid(){
+    try{
+      for (const k of NAV_SESSION_KEYS){
+        sessionStorage.removeItem(k);
+        localStorage.removeItem(k);
+      }
+    }catch{}
+  }
 
   function getStoredAdminSessionSid(){
     try{
@@ -136,6 +145,7 @@
   }
 
   function mountNav(access) {
+    if (document.getElementById('ssNavDrawer') || document.getElementById('ssNavToggle')) return;
     if (!access?.ok) return;
 
     if (wantsOffset()) document.body.classList.add('ssNav-offset');
@@ -277,6 +287,7 @@
     logoutBtn.textContent = 'Logout';
     logoutBtn.addEventListener('click', async () => {
       try { await adminFetch('/admin/session/logout', { method: 'POST' }); } catch {}
+      clearStoredAdminSessionSid();
       location.reload();
     });
 

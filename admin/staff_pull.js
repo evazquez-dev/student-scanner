@@ -10,6 +10,80 @@
 
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '')
   .replace(/\/*$/, '') + '/';
+
+// ---- iOS cross-origin session fallback (Option 2) ----
+const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
+const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1'; // compatibility
+const ADMIN_SESSION_HEADER = 'x-admin-session';
+
+function getStoredAdminSessionSid() {
+  try {
+    return String(
+      sessionStorage.getItem(ADMIN_SESSION_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_KEY) ||
+      sessionStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      ''
+    ).trim();
+  } catch { return ''; }
+}
+
+function setStoredAdminSessionSid(sid) {
+  const v = String(sid || '').trim();
+  try {
+    if (!v) {
+      sessionStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      localStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      return;
+    }
+    sessionStorage.setItem(ADMIN_SESSION_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_KEY, v);
+    // keep teacher page compatibility
+    sessionStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+  } catch {}
+}
+
+function clearStoredAdminSessionSid() {
+  setStoredAdminSessionSid('');
+}
+
+function stashAdminSessionFromResponse(resp) {
+  try {
+    const sid = String(
+      resp?.headers?.get('x-admin-session') ||
+      resp?.headers?.get('X-Admin-Session') ||
+      ''
+    ).trim();
+    if (sid) setStoredAdminSessionSid(sid);
+  } catch {}
+}
+
+async function adminFetch(pathOrUrl, init = {}) {
+  const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
+  const headers = new Headers(init.headers || {});
+  const sid = getStoredAdminSessionSid();
+  if (sid && !headers.has(ADMIN_SESSION_HEADER)) headers.set(ADMIN_SESSION_HEADER, sid);
+
+  const resp = await fetch(u, {
+    ...init,
+    headers,
+    credentials: 'include',
+    cache: 'no-store'
+  });
+
+  stashAdminSessionFromResponse(resp);
+
+  if (resp.status === 401) {
+    try {
+      const j = await resp.clone().json();
+      if (j?.error === 'expired' || j?.error === 'no_session') clearStoredAdminSessionSid();
+    } catch {}
+  }
+  return resp;
+}
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
 
 const THEME_KEY = 'ss_theme_v1';
@@ -89,12 +163,6 @@ async function waitForGoogle(timeoutMs = 8000){
     await new Promise(r=>setTimeout(r,50));
   }
   return window.google.accounts.id;
-}
-
-// Always include cookies for admin requests
-async function adminFetch(pathOrUrl, init = {}){
-  const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
-  return fetch(u, { ...init, credentials:'include' });
 }
 
 function fmtClock(iso){
@@ -686,13 +754,14 @@ async function boot(){
 async function onGoogleCredential(resp){
   try{
     loginOut.textContent = 'Signing in...';
-    const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
+    const r = await adminFetch('/admin/session/login_google', {
       method:'POST',
       headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: new URLSearchParams({ id_token: resp.credential }).toString(),
-      credentials:'include'
+      body: new URLSearchParams({ id_token: resp.credential }).toString()
     });
     const data = await r.json().catch(()=>({}));
+    if (data?.sid) setStoredAdminSessionSid(String(data.sid));
+    stashAdminSessionFromResponse(r);
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
     const role = String(data.role || '').trim();

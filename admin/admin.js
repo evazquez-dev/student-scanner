@@ -5,6 +5,56 @@
  * =============================== */
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/, '') + '/';
 
+// ---- iOS cross-origin session fallback (Option 2) ----
+const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
+const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1'; // compatibility
+const ADMIN_SESSION_HEADER = 'x-admin-session';
+
+function getStoredAdminSessionSid() {
+  try {
+    return String(
+      sessionStorage.getItem(ADMIN_SESSION_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_KEY) ||
+      sessionStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      ''
+    ).trim();
+  } catch { return ''; }
+}
+
+function setStoredAdminSessionSid(sid) {
+  const v = String(sid || '').trim();
+  try {
+    if (!v) {
+      sessionStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      localStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      return;
+    }
+    sessionStorage.setItem(ADMIN_SESSION_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_KEY, v);
+    // keep teacher page compatibility
+    sessionStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+  } catch {}
+}
+
+function clearStoredAdminSessionSid() {
+  setStoredAdminSessionSid('');
+}
+
+function stashAdminSessionFromResponse(resp) {
+  try {
+    const sid = String(
+      resp?.headers?.get('x-admin-session') ||
+      resp?.headers?.get('X-Admin-Session') ||
+      ''
+    ).trim();
+    if (sid) setStoredAdminSessionSid(sid);
+  } catch {}
+}
+
 const apiBaseEl = document.getElementById('apiBase');
 if (apiBaseEl) apiBaseEl.textContent = API_BASE;
 
@@ -184,15 +234,16 @@ async function onGoogleCredential(resp) {
   try {
     if (loginOut) loginOut.textContent = 'Signing in...';
 
-    const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: new URLSearchParams({ id_token: resp.credential }).toString(),
-      credentials: 'include'
+    const r = await adminFetch('/admin/session/login_google', {
+      method:'POST',
+      headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ id_token: resp.credential }).toString()
     });
-
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    const data = await r.json().catch(()=>({}));
+    if (data?.sid) setStoredAdminSessionSid(String(data.sid));
+    stashAdminSessionFromResponse(r);
+    if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    
     if (String(data.role || '') !== 'admin') {
       showLogin(`Signed in as ${data.email || 'unknown'} but not authorized for Admin Dashboard.`);
       return;

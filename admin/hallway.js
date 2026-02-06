@@ -1,6 +1,80 @@
 // ===== Helpers similar to admin.js =====
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '')
   .replace(/\/*$/, '') + '/';
+// ---- iOS cross-origin session fallback (Option 2) ----
+const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
+const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1'; // compatibility
+const ADMIN_SESSION_HEADER = 'x-admin-session';
+
+function getStoredAdminSessionSid() {
+  try {
+    return String(
+      sessionStorage.getItem(ADMIN_SESSION_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_KEY) ||
+      sessionStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      localStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
+      ''
+    ).trim();
+  } catch { return ''; }
+}
+
+function setStoredAdminSessionSid(sid) {
+  const v = String(sid || '').trim();
+  try {
+    if (!v) {
+      sessionStorage.removeItem(ADMIN_SESSION_KEY);
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      localStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
+      return;
+    }
+    sessionStorage.setItem(ADMIN_SESSION_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_KEY, v);
+    // keep teacher page compatibility
+    sessionStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+    localStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
+  } catch {}
+}
+
+function clearStoredAdminSessionSid() {
+  setStoredAdminSessionSid('');
+}
+
+function stashAdminSessionFromResponse(resp) {
+  try {
+    const sid = String(
+      resp?.headers?.get('x-admin-session') ||
+      resp?.headers?.get('X-Admin-Session') ||
+      ''
+    ).trim();
+    if (sid) setStoredAdminSessionSid(sid);
+  } catch {}
+}
+
+async function adminFetch(pathOrUrl, init = {}) {
+  const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
+  const headers = new Headers(init.headers || {});
+  const sid = getStoredAdminSessionSid();
+  if (sid && !headers.has(ADMIN_SESSION_HEADER)) headers.set(ADMIN_SESSION_HEADER, sid);
+
+  const resp = await fetch(u, {
+    ...init,
+    headers,
+    credentials: 'include',
+    cache: 'no-store'
+  });
+
+  stashAdminSessionFromResponse(resp);
+
+  if (resp.status === 401) {
+    try {
+      const j = await resp.clone().json();
+      if (j?.error === 'expired' || j?.error === 'no_session') clearStoredAdminSessionSid();
+    } catch {}
+  }
+  return resp;
+}
+
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
 const SNAPSHOT_PATH = '/admin/hallway_state_monitor';
 
@@ -137,20 +211,15 @@ async function onGoogleCredential(resp) {
     dbg('onGoogleCredential: received credential response');
     loginOut.textContent = 'Signing in...';
 
-    const r = await fetch(new URL('/admin/session/login_google', API_BASE), {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-      body: new URLSearchParams({ id_token: resp.credential }).toString(),
-      credentials: 'include'
+    const r = await adminFetch('/admin/session/login_google', {
+      method:'POST',
+      headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ id_token: resp.credential }).toString()
     });
-
-    dbg('login_google response status:', r.status);
-    const data = await r.json().catch(() => ({}));
-    dbg('login_google response body:', data);
-
-    if (!r.ok || !data.ok) {
-      throw new Error(data.error || `HTTP ${r.status}`);
-    }
+    const data = await r.json().catch(()=>({}));
+    if (data?.sid) setStoredAdminSessionSid(String(data.sid));
+    stashAdminSessionFromResponse(r);
+    if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
     dbg('Login OK; hiding loginCard and showing appShell');
     hide(loginCard);
@@ -163,12 +232,6 @@ async function onGoogleCredential(resp) {
     hide(appShell);
     loginOut.textContent = `Login failed: ${e.message || e}`;
   }
-}
-
-// Always include cookies for admin requests
-async function adminFetch(pathOrUrl, init = {}) {
-  const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
-  return fetch(u, { ...init, credentials: 'include' });
 }
 
 async function tryBootstrapSession() {
