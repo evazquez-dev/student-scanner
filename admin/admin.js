@@ -3,56 +3,61 @@
 /* ===============================
  * BASE + ELEMENTS
  * =============================== */
-const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/, '') + '/';
+const _metaApiBase = (document.querySelector('meta[name="api-base"]')?.content || '').trim();
+const API_BASE = ((_metaApiBase ? _metaApiBase.replace(/\/*$/, '') : window.location.origin) + '/');
 
 // ---- iOS cross-origin session fallback (Option 2) ----
-const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
-const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1'; // compatibility
 const ADMIN_SESSION_HEADER = 'x-admin-session';
+const ADMIN_SESSION_KEYS = [
+  'admin_session_v1',
+  'ss_admin_session_sid_v1',
+  'teacher_att_admin_session_v1',
+  'staff_pull_admin_session_v1',
+  'phone_pass_admin_session_v1',
+  'student_scans_admin_session_v1'
+];
 
-function getStoredAdminSessionSid() {
-  try {
-    return String(
-      sessionStorage.getItem(ADMIN_SESSION_KEY) ||
-      localStorage.getItem(ADMIN_SESSION_KEY) ||
-      sessionStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
-      localStorage.getItem(ADMIN_SESSION_LEGACY_KEY) ||
-      ''
-    ).trim();
-  } catch { return ''; }
-}
-
-function setStoredAdminSessionSid(sid) {
-  const v = String(sid || '').trim();
-  try {
-    if (!v) {
-      sessionStorage.removeItem(ADMIN_SESSION_KEY);
-      localStorage.removeItem(ADMIN_SESSION_KEY);
-      sessionStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
-      localStorage.removeItem(ADMIN_SESSION_LEGACY_KEY);
-      return;
+function getStoredAdminSessionSid(){
+  try{
+    for (const k of ADMIN_SESSION_KEYS){
+      const v = String(sessionStorage.getItem(k) || localStorage.getItem(k) || '').trim();
+      if (v) return v;
     }
-    sessionStorage.setItem(ADMIN_SESSION_KEY, v);
-    localStorage.setItem(ADMIN_SESSION_KEY, v);
-    // keep teacher page compatibility
-    sessionStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
-    localStorage.setItem(ADMIN_SESSION_LEGACY_KEY, v);
-  } catch {}
+  }catch{}
+  return '';
 }
 
-function clearStoredAdminSessionSid() {
-  setStoredAdminSessionSid('');
+function setStoredAdminSessionSid(sid){
+  const v = String(sid || '').trim();
+  if (!v) return;
+  try{
+    for (const k of ADMIN_SESSION_KEYS){
+      sessionStorage.setItem(k, v);
+      localStorage.setItem(k, v);
+    }
+  }catch{}
 }
 
-function stashAdminSessionFromResponse(resp) {
-  try {
-    const sid = String(
-      resp?.headers?.get('x-admin-session') ||
+function clearStoredAdminSessionSid(){
+  try{
+    for (const k of ADMIN_SESSION_KEYS){
+      sessionStorage.removeItem(k);
+      localStorage.removeItem(k);
+    }
+  }catch{}
+}
+
+function stashAdminSessionFromResponse(resp, data){
+  try{
+    const sidFromHeader = String(
+      resp?.headers?.get(ADMIN_SESSION_HEADER) ||
       resp?.headers?.get('X-Admin-Session') ||
       ''
     ).trim();
+    const sidFromBody = String(data?.sid || '').trim();
+    const sid = sidFromBody || sidFromHeader;
     if (sid) setStoredAdminSessionSid(sid);
-  } catch {}
+  }catch{}
 }
 
 const apiBaseEl = document.getElementById('apiBase');
@@ -142,18 +147,12 @@ function isBathroom(name){
 /* ===============================
  * SESSION + LOGIN FLOW
  * =============================== */
-async function checkSession() {
-  try {
-    const r = await fetch(new URL('/admin/session/check', API_BASE), {
-      method: 'GET',
-      credentials: 'include'
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data?.ok) return { ok:false };
-    return { ok:true, email: data.email || '', role: data.role || '' };
-  } catch {
-    return { ok:false };
-  }
+async function checkSession(){
+  const r = await adminFetch('/admin/session/check', { method:'GET' });
+  const data = await r.json().catch(()=>({ ok:false }));
+  stashAdminSessionFromResponse(r, data); // important
+  if (!r.ok || !data?.ok) return { ok:false };
+  return data;
 }
 
 function showLogin(msg) {
@@ -197,7 +196,13 @@ window.addEventListener('DOMContentLoaded', async () => {
   hide(appInner);
 
   // ✅ Session first
-  const sess = await checkSession();
+  let sess = { ok:false };
+  try {
+    sess = await checkSession();
+  } catch (e) {
+    console.warn('session check failed', e);
+    sess = { ok:false };
+  }
   if (sess.ok) {
     if (String(sess.role || '') !== 'admin') {
       showLogin(`Signed in as ${sess.email || 'unknown'} but not authorized for Admin Dashboard.`);
@@ -240,10 +245,10 @@ async function onGoogleCredential(resp) {
       body: new URLSearchParams({ id_token: resp.credential }).toString()
     });
     const data = await r.json().catch(()=>({}));
+    stashAdminSessionFromResponse(r, data);
     if (data?.sid) setStoredAdminSessionSid(String(data.sid));
-    stashAdminSessionFromResponse(r);
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
-    
+
     if (String(data.role || '') !== 'admin') {
       showLogin(`Signed in as ${data.email || 'unknown'} but not authorized for Admin Dashboard.`);
       return;
@@ -256,9 +261,24 @@ async function onGoogleCredential(resp) {
 }
 
 // Helper fetch that always includes cookies (session)
-async function adminFetch(pathOrUrl, init = {}) {
-  const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
-  return fetch(u, { ...init, credentials: 'include' });
+async function adminFetch(path, init = {}) {
+  const u = new URL(path, API_BASE);
+  const headers = new Headers(init.headers || {});
+  const sid = getStoredAdminSessionSid();
+  if (sid && !headers.has(ADMIN_SESSION_HEADER)) {
+    headers.set(ADMIN_SESSION_HEADER, sid);
+  }
+
+  const resp = await fetch(u, {
+    ...init,
+    headers,
+    credentials: 'include',
+    cache: 'no-store'
+  });
+
+  // store refreshed sid from headers (if present)
+  stashAdminSessionFromResponse(resp, null);
+  return resp;
 }
 
 /* ===============================
