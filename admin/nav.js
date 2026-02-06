@@ -18,9 +18,62 @@
     admin: 'Admin Dashboard'
   };
 
-  function adminFetch(path, init = {}) {
+  const ADMIN_SESSION_HEADER = 'x-admin-session';
+  const NAV_SESSION_KEYS = [
+    'teacher_att_admin_session_v1',
+    'staff_pull_admin_session_v1',
+    'phone_pass_admin_session_v1',
+    'student_scans_admin_session_v1',
+    'admin_session_v1'
+  ];
+
+  function getStoredAdminSessionSid(){
+    try{
+      for (const k of NAV_SESSION_KEYS){
+        const v = String(sessionStorage.getItem(k) || localStorage.getItem(k) || '').trim();
+        if (v) return v;
+      }
+    }catch{}
+    return '';
+  }
+
+  function setStoredAdminSessionSid(sid){
+    const v = String(sid || '').trim();
+    if (!v) return;
+    try{
+      for (const k of NAV_SESSION_KEYS){
+        sessionStorage.setItem(k, v);
+        localStorage.setItem(k, v);
+      }
+    }catch{}
+  }
+
+  function stashAdminSessionFromResponse(resp){
+    try{
+      const sid = String(
+        resp?.headers?.get(ADMIN_SESSION_HEADER) ||
+        resp?.headers?.get('X-Admin-Session') ||
+        ''
+      ).trim();
+      if (sid) setStoredAdminSessionSid(sid);
+    }catch{}
+  }
+
+  async function adminFetch(path, init = {}) {
     const u = new URL(path, API_BASE);
-    return fetch(u, { ...init, credentials: 'include' });
+    const headers = new Headers(init.headers || {});
+    const sid = getStoredAdminSessionSid();
+    if (sid && !headers.has(ADMIN_SESSION_HEADER)) headers.set(ADMIN_SESSION_HEADER, sid);
+
+    const resp = await fetch(u, {
+      ...init,
+      headers,
+      credentials: 'include',
+      cache: 'no-store'
+    });
+
+    stashAdminSessionFromResponse(resp);
+    return resp;
   }
 
   function currentFile() {

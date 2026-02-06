@@ -517,9 +517,15 @@ async function adminFetch(pathOrUrl, init = {}){
   // capture/refesh SID when Worker sends it
   stashAdminSessionFromResponse(resp);
 
-  // stale header SID? force re-auth cleanly
+  // Only clear SID when it's truly expired/bad, not every 401
   if (resp.status === 401) {
-    clearStoredAdminSessionSid();
+    try {
+      const j = await resp.clone().json().catch(() => null);
+      const err = String(j?.error || '').toLowerCase();
+      if (err === 'expired' || err === 'bad_session') {
+        clearStoredAdminSessionSid();
+      }
+    } catch {}
   }
 
   return resp;
