@@ -195,6 +195,20 @@ function fmtMDTimeNY(iso){
   });
 }
 
+function emailLocalPart(email){
+  const raw = String(email || '').trim();
+  if(!raw) return '';
+  const at = raw.indexOf('@');
+  return (at > 0 ? raw.slice(0, at) : raw).trim();
+}
+
+function allowedByLabel(rec){
+  const handle = emailLocalPart(rec?.phone_out_by_email);
+  if(handle) return handle; // preferred: xxxxxx from xxxxxx@theamericandreamschool.org
+  const title = String(rec?.phone_out_by_title || rec?.phone_out_by_role || '').trim();
+  return title; // fallback only if email is missing
+}
+
 let _CURPER_TIMER = null;
 
 async function fetchTeacherOptionsForPill_(){
@@ -611,7 +625,7 @@ async function loadSelectedContext(){
   // Phone status
   const out = st?.phone_out === true;
   const since = st?.phone_out_since ? fmtClock(st.phone_out_since) : '';
-  const by = st?.phone_out_by_title || st?.phone_out_by_email || '';
+  const by = allowedByLabel(st);
   phoneBox.textContent = out
     ? `OUT — picked up ${since ? ('@ ' + since) : ''}${by ? (' • by ' + by) : ''}`
     : 'IN — in locker';

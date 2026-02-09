@@ -790,9 +790,7 @@ async function boot(){
 
   // Wire logout (use the Worker route that actually exists)
   document.getElementById('btnLogout')?.addEventListener('click', async () => {
-    try{
-      await adminFetch('/admin/session/logout', { method:'POST' });
-    }catch(e){}
+    await logout();
     location.reload();
   });
 
