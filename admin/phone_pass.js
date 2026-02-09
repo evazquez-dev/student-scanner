@@ -837,7 +837,7 @@ async function loadActive(){
 
     const sub = document.createElement('div');
     sub.className = 'row-sub';
-    const by = s.phone_out_by_title ? String(s.phone_out_by_title) : (s.phone_out_by_email ? String(s.phone_out_by_email) : '');
+    const by = allowedByLabel(s);
     const since = s.phone_out_since ? `since ${fmtClock(s.phone_out_since)}` : '';
     const loc = s.cur_label ? `@ ${s.cur_label}` : (s.cur_loc ? `@ ${s.cur_loc}` : '');
     sub.textContent = [by ? `allowed by ${by}` : '', since, loc].filter(Boolean).join(' • ') || '—';
