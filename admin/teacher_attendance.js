@@ -50,6 +50,13 @@ function setSecretEnabled(v){
 }
 
 function initSecretMenu(){
+  // idempotent init (avoid duplicate listeners/menu)
+  if (SECRET_MENU.el) {
+    SECRET_MENU.enabled = isSecretEnabled();
+    renderSecretMenu();
+    return;
+  }
+
   SECRET_MENU.enabled = isSecretEnabled();
 
   const el = document.createElement('div');
@@ -106,7 +113,21 @@ function initSecretMenu(){
     on(){ setSecretEnabled(true); return 'TASecretBehavior: ON'; },
     off(){ setSecretEnabled(false); return 'TASecretBehavior: OFF'; },
     toggle(){ setSecretEnabled(!isSecretEnabled()); return `TASecretBehavior: ${isSecretEnabled() ? 'ON' : 'OFF'}`; },
-    status(){ return { enabled: isSecretEnabled(), open: SECRET_MENU.open, student: SECRET_MENU.student }; }
+    status(){ return { enabled: isSecretEnabled(), open: SECRET_MENU.open, student: SECRET_MENU.student }; },
+    async test(osis){
+      const key = String(osis || '').trim();
+      if (!key) throw new Error('osis_required');
+      const row = ROW_DATA.get(key);
+      if (!row) throw new Error(`osis_not_in_current_view:${key}`);
+      SECRET_MENU.student = {
+        osis: String(row.osis || key),
+        name: String(row.name || ''),
+        date: String(dateText?.textContent || ''),
+        room: normRoom(roomInput?.value || ''),
+        periodLocal: normPeriod(periodInput?.value || '')
+      };
+      return sendSecretBehaviorTest();
+    }
   };
 }
 
@@ -164,23 +185,23 @@ async function sendSecretBehaviorTest(){
   const s = SECRET_MENU.student;
   if (!s?.osis) throw new Error('No student selected');
 
-  const body = new URLSearchParams({
+  const payload = {
     date: String(s.date || ''),
     room: String(s.room || ''),
     periodLocal: String(s.periodLocal || ''),
     osis: String(s.osis || ''),
     name: String(s.name || ''),
-    event_key: 'test',
-    event_label: 'test',
+    eventKey: 'test',
+    eventLabel: 'test',
     source: 'teacher_attendance_secret_menu',
     whenISO: new Date().toISOString(),
-    meta_json: JSON.stringify({ ui: 'secret_menu', ver: 1 })
-  });
+    meta: { ui: 'secret_menu', ver: 1 }
+  };
 
-  const r = await adminFetch('/admin/behavior/log', {
+  const r = await adminFetch(SECRET_BEHAVIOR_ENDPOINT, {
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    body: body.toString()
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
   });
 
   const data = await r.json().catch(() => ({}));
@@ -1308,245 +1329,7 @@ let CURRENT_OSIS_LIST = [];         // [osis,...] for current rendered view
 let ROW_UI = new Map();             // osis -> { rowEl, cbEl, selEl, outInBtn }
 let ROW_DATA = new Map();           // osis -> row record object
 
-/******************** Secret behavior menu (console-toggle only) ********************/
-let SECRET_MENU_EL = null;
-let SECRET_MENU_TITLE_EL = null;
-let SECRET_MENU_TEST_BTN = null;
-let SECRET_MENU_CTX = null;
-let SECRET_MENU_BUSY = false;
-
-function isSecretBehaviorEnabled(){
-  return !!window.__TA_SECRET_BEHAVIOR_ENABLED;
-}
-
-function setSecretBehaviorEnabled(on){
-  window.__TA_SECRET_BEHAVIOR_ENABLED = !!on;
-  try{
-    if (document.body) {
-      document.body.classList.toggle('secretBehaviorOn', !!window.__TA_SECRET_BEHAVIOR_ENABLED);
-    }
-  }catch{}
-  if (!window.__TA_SECRET_BEHAVIOR_ENABLED) hideSecretBehaviorMenu();
-  return !!window.__TA_SECRET_BEHAVIOR_ENABLED;
-}
-
-function ensureSecretBehaviorStyles(){
-  if (document.getElementById('taSecretBehaviorStyles')) return;
-  const style = document.createElement('style');
-  style.id = 'taSecretBehaviorStyles';
-  style.textContent = `
-    #taSecretBehaviorMenu{position:fixed;z-index:9999;min-width:170px;background:#111827;color:#fff;border:1px solid rgba(255,255,255,.22);border-radius:10px;box-shadow:0 12px 28px rgba(0,0,0,.35);padding:6px;display:none}
-    #taSecretBehaviorMenu .title{font-size:11px;line-height:1.2;opacity:.76;padding:6px 8px 8px;max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    #taSecretBehaviorMenu .item{width:100%;border:0;background:transparent;color:#fff;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600}
-    #taSecretBehaviorMenu .item:hover{background:rgba(255,255,255,.12)}
-    #taSecretBehaviorMenu .item:disabled{opacity:.6;cursor:default}
-    body.secretBehaviorOn #rows .student{cursor:context-menu;text-decoration:underline dotted rgba(108,160,255,.9);text-underline-offset:2px}
-  `;
-  document.head.appendChild(style);
-}
-
-function hideSecretBehaviorMenu(){
-  if (SECRET_MENU_EL) SECRET_MENU_EL.style.display = 'none';
-  SECRET_MENU_CTX = null;
-}
-
-function clampSecretMenuPosition(x, y){
-  if (!SECRET_MENU_EL) return { x, y };
-  const pad = 8;
-  const vw = window.innerWidth || 1280;
-  const vh = window.innerHeight || 720;
-  const w = SECRET_MENU_EL.offsetWidth || 180;
-  const h = SECRET_MENU_EL.offsetHeight || 84;
-  const cx = Math.max(pad, Math.min(x, vw - w - pad));
-  const cy = Math.max(pad, Math.min(y, vh - h - pad));
-  return { x: cx, y: cy };
-}
-
-function ensureSecretBehaviorMenu(){
-  if (SECRET_MENU_EL) return SECRET_MENU_EL;
-
-  ensureSecretBehaviorStyles();
-
-  const menu = document.createElement('div');
-  menu.id = 'taSecretBehaviorMenu';
-
-  const title = document.createElement('div');
-  title.className = 'title';
-  title.textContent = 'Secret behavior';
-
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'item';
-  btn.textContent = 'test';
-  btn.addEventListener('click', async (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    await runSecretBehaviorAction('test');
-  });
-
-  menu.appendChild(title);
-  menu.appendChild(btn);
-  document.body.appendChild(menu);
-
-  document.addEventListener('click', (ev) => {
-    if (!menu || menu.style.display === 'none') return;
-    if (!menu.contains(ev.target)) hideSecretBehaviorMenu();
-  }, true);
-  document.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Escape') hideSecretBehaviorMenu();
-  });
-  window.addEventListener('resize', hideSecretBehaviorMenu);
-  window.addEventListener('scroll', hideSecretBehaviorMenu, true);
-
-  SECRET_MENU_EL = menu;
-  SECRET_MENU_TITLE_EL = title;
-  SECRET_MENU_TEST_BTN = btn;
-  return menu;
-}
-
-function openSecretBehaviorMenu(ev, ctx){
-  if (!isSecretBehaviorEnabled()) return;
-  const menu = ensureSecretBehaviorMenu();
-  SECRET_MENU_CTX = ctx || null;
-
-  const osis = String(ctx?.row?.osis || '').trim();
-  const name = String(ctx?.row?.name || '').trim() || '(Unknown)';
-  if (SECRET_MENU_TITLE_EL) SECRET_MENU_TITLE_EL.textContent = `${name} (${osis || 'no osis'})`;
-  if (SECRET_MENU_TEST_BTN) {
-    SECRET_MENU_TEST_BTN.disabled = !!SECRET_MENU_BUSY;
-    SECRET_MENU_TEST_BTN.textContent = SECRET_MENU_BUSY ? 'sending…' : 'test';
-  }
-
-  let x = Number(ev?.clientX);
-  let y = Number(ev?.clientY);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) {
-    const rect = ev?.currentTarget?.getBoundingClientRect?.();
-    x = rect ? rect.left + 10 : 24;
-    y = rect ? rect.bottom + 6 : 24;
-  }
-
-  menu.style.display = 'block';
-  const pos = clampSecretMenuPosition(x + 6, y + 6);
-  menu.style.left = `${pos.x}px`;
-  menu.style.top = `${pos.y}px`;
-}
-
-function secretCtxFromRow(date, room, period, row){
-  return {
-    date: String(date || '').trim(),
-    room: String(room || '').trim(),
-    period: String(period || '').trim(),
-    row: row || null
-  };
-}
-
-async function postSecretBehaviorTest(ctx){
-  const row = ctx?.row || {};
-  const osis = String(row?.osis || '').trim();
-  if (!osis) throw new Error('missing_osis');
-
-  const payload = {
-    date: String(ctx?.date || '').trim(),
-    room: String(ctx?.room || '').trim(),
-    periodLocal: String(ctx?.period || '').trim(),
-    osis,
-    name: String(row?.name || '').trim(),
-    eventKey: 'test',
-    eventLabel: 'test',
-    source: 'teacher_att_secret_menu',
-    meta: {
-      zone: String(row?.zone || ''),
-      locLabel: String(row?.locLabel || ''),
-      baseline: String(row?.baseline || ''),
-      chosen: String(row?.chosen || '')
-    }
-  };
-
-  const r = await adminFetch(SECRET_BEHAVIOR_ENDPOINT, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok || !data?.ok) {
-    const extra = data?.message ? ` — ${data.message}` : '';
-    throw new Error((data?.error || `behavior/log HTTP ${r.status}`) + extra);
-  }
-  return data;
-}
-
-async function runSecretBehaviorAction(actionKey){
-  if (!SECRET_MENU_CTX || actionKey !== 'test') {
-    hideSecretBehaviorMenu();
-    return null;
-  }
-  if (SECRET_MENU_BUSY) return null;
-
-  SECRET_MENU_BUSY = true;
-  if (SECRET_MENU_TEST_BTN) {
-    SECRET_MENU_TEST_BTN.disabled = true;
-    SECRET_MENU_TEST_BTN.textContent = 'sending…';
-  }
-
-  try{
-    const out = await postSecretBehaviorTest(SECRET_MENU_CTX);
-    setErr('');
-    try{
-      console.log('[TASecretBehavior] logged', {
-        submission_id: out?.submission_id || null,
-        osis: SECRET_MENU_CTX?.row?.osis || null,
-        event: 'test'
-      });
-    }catch{}
-    hideSecretBehaviorMenu();
-    return out;
-  } catch (e){
-    const msg = String(e?.message || e || 'failed');
-    setErr(`Secret behavior log failed: ${msg}`);
-    throw e;
-  } finally {
-    SECRET_MENU_BUSY = false;
-    if (SECRET_MENU_TEST_BTN) {
-      SECRET_MENU_TEST_BTN.disabled = false;
-      SECRET_MENU_TEST_BTN.textContent = 'test';
-    }
-  }
-}
-
-function installSecretBehaviorConsoleApi(){
-  ensureSecretBehaviorStyles();
-  if (!window[SECRET_BEHAVIOR_NAMESPACE]) {
-    Object.defineProperty(window, SECRET_BEHAVIOR_NAMESPACE, {
-      configurable: true,
-      enumerable: false,
-      value: {
-        on(){ return setSecretBehaviorEnabled(true); },
-        off(){ return setSecretBehaviorEnabled(false); },
-        toggle(){ return setSecretBehaviorEnabled(!isSecretBehaviorEnabled()); },
-        status(){ return { enabled: isSecretBehaviorEnabled() }; },
-        async test(osis){
-          const key = String(osis || '').trim();
-          const row = ROW_DATA.get(key);
-          if (!row) throw new Error(`osis_not_in_current_view:${key}`);
-          SECRET_MENU_CTX = secretCtxFromRow(
-            String(dateText?.textContent || ''),
-            normRoom(roomInput?.value || ''),
-            normPeriod(periodInput?.value || ''),
-            row
-          );
-          return runSecretBehaviorAction('test');
-        }
-      }
-    });
-  }
-
-  // always default to OFF unless explicitly enabled from console
-  if (typeof window.__TA_SECRET_BEHAVIOR_ENABLED === 'undefined') {
-    window.__TA_SECRET_BEHAVIOR_ENABLED = false;
-  }
-  setSecretBehaviorEnabled(!!window.__TA_SECRET_BEHAVIOR_ENABLED);
-}
+// (legacy secret-menu block removed; using initSecretMenu/SECRET_MENU only)
 
 function countChanges(){
   return (lastMergedRows || [])
@@ -2484,7 +2267,7 @@ async function bootTeacherAttendance(){
   initViewToggle();
   initSecretMenu();
   startOutElapsedTicker();
-  installSecretBehaviorConsoleApi();
+  // Secret console API is registered by initSecretMenu()
 
   // Restore mode preference (will only activate after-school if Worker says we're in that window)
   PAGE_MODE = getStoredMode();
@@ -2762,6 +2545,12 @@ let autoTimer = null;
 function startAutoRefresh() {
   stopAutoRefresh();
   autoTimer = setInterval(() => {
+    // Keep secret popup open until user acts/clicks away
+    if (isSecretEnabled() && SECRET_MENU.open) {
+      renderSecretMenu();
+      return;
+    }
+
     // don’t overlap requests
     if (window.__refreshing) return;
     window.__refreshing = true;
