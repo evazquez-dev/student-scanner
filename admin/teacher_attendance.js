@@ -1694,6 +1694,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const student = document.createElement('div');
     student.className = 'student';
     student.textContent = r.name;
+    student.style.cursor = 'pointer';
     student.addEventListener('click', (ev) => {
       openSecretMenuAtEvent(ev, {
         osis: r.osis,
