@@ -26,6 +26,169 @@ const inListEl  = document.getElementById('inList');
 const outCountEl = document.getElementById('outCount');
 const inCountEl  = document.getElementById('inCount');
 
+/******************** Secret behavior menu (persistent across refresh) ********************/
+const SECRET_FLAG_KEY = 'ta_secret_behavior_enabled_v1';
+
+const SECRET_MENU = {
+  enabled: false,
+  open: false,
+  x: 0,
+  y: 0,
+  student: null, // { osis, name, date, room, periodLocal }
+  el: null
+};
+
+function isSecretEnabled(){
+  if (SECRET_MENU.enabled) return true;
+  try { return localStorage.getItem(SECRET_FLAG_KEY) === '1'; } catch { return false; }
+}
+function setSecretEnabled(v){
+  SECRET_MENU.enabled = !!v;
+  try { localStorage.setItem(SECRET_FLAG_KEY, SECRET_MENU.enabled ? '1' : '0'); } catch {}
+  if (!SECRET_MENU.enabled) closeSecretMenu();
+  renderSecretMenu();
+}
+
+function initSecretMenu(){
+  SECRET_MENU.enabled = isSecretEnabled();
+
+  const el = document.createElement('div');
+  el.id = 'taSecretMenu';
+  el.style.position = 'fixed';
+  el.style.display = 'none';
+  el.style.zIndex = '99999';
+  el.style.minWidth = '120px';
+  el.style.background = 'var(--card, #111)';
+  el.style.border = '1px solid rgba(255,255,255,.18)';
+  el.style.borderRadius = '8px';
+  el.style.boxShadow = '0 10px 30px rgba(0,0,0,.35)';
+  el.style.padding = '6px';
+  el.style.backdropFilter = 'blur(6px)';
+  document.body.appendChild(el);
+  SECRET_MENU.el = el;
+
+  // menu click
+  el.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-act]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-act');
+    if (act === 'test') {
+      try{
+        await sendSecretBehaviorTest();
+        closeSecretMenu();
+        setStatus(true, 'Behavior test logged');
+      } catch(err){
+        setErr(err?.message || String(err));
+        setStatus(false, 'Behavior test failed');
+      }
+    }
+  });
+
+  // click-away closes
+  document.addEventListener('pointerdown', (e) => {
+    if (!SECRET_MENU.open) return;
+    if (SECRET_MENU.el && SECRET_MENU.el.contains(e.target)) return;
+    closeSecretMenu();
+  }, true);
+
+  // ESC closes
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && SECRET_MENU.open) closeSecretMenu();
+  });
+
+  // keep menu on-screen
+  window.addEventListener('resize', () => {
+    if (SECRET_MENU.open) renderSecretMenu();
+  });
+
+  // console-only controls
+  window.TASecretBehavior = {
+    on(){ setSecretEnabled(true); return 'TASecretBehavior: ON'; },
+    off(){ setSecretEnabled(false); return 'TASecretBehavior: OFF'; },
+    toggle(){ setSecretEnabled(!isSecretEnabled()); return `TASecretBehavior: ${isSecretEnabled() ? 'ON' : 'OFF'}`; },
+    status(){ return { enabled: isSecretEnabled(), open: SECRET_MENU.open, student: SECRET_MENU.student }; }
+  };
+}
+
+function openSecretMenuAtEvent(ev, studentCtx){
+  if (!isSecretEnabled()) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+
+  SECRET_MENU.open = true;
+  SECRET_MENU.x = ev.clientX;
+  SECRET_MENU.y = ev.clientY;
+  SECRET_MENU.student = studentCtx;
+  renderSecretMenu();
+}
+
+function closeSecretMenu(){
+  SECRET_MENU.open = false;
+  if (SECRET_MENU.el) SECRET_MENU.el.style.display = 'none';
+}
+
+function renderSecretMenu(){
+  const el = SECRET_MENU.el;
+  if (!el) return;
+
+  const canShow = isSecretEnabled() && SECRET_MENU.open && SECRET_MENU.student;
+  if (!canShow){
+    el.style.display = 'none';
+    return;
+  }
+
+  const s = SECRET_MENU.student;
+  el.innerHTML = `
+    <div style="font-size:11px;opacity:.8;padding:4px 6px 6px 6px;line-height:1.25;">
+      ${String(s.name || '(Unknown)')}<br>
+      <span style="opacity:.75">${String(s.osis || '')}</span>
+    </div>
+    <button data-act="test"
+      style="width:100%;text-align:left;padding:7px 8px;border:0;border-radius:6px;cursor:pointer;">
+      test
+    </button>
+  `;
+
+  // clamp to viewport
+  const w = 140;
+  const h = 92;
+  const x = Math.max(8, Math.min(SECRET_MENU.x, window.innerWidth - w - 8));
+  const y = Math.max(8, Math.min(SECRET_MENU.y, window.innerHeight - h - 8));
+
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.display = 'block';
+}
+
+async function sendSecretBehaviorTest(){
+  const s = SECRET_MENU.student;
+  if (!s?.osis) throw new Error('No student selected');
+
+  const body = new URLSearchParams({
+    date: String(s.date || ''),
+    room: String(s.room || ''),
+    periodLocal: String(s.periodLocal || ''),
+    osis: String(s.osis || ''),
+    name: String(s.name || ''),
+    event_key: 'test',
+    event_label: 'test',
+    source: 'teacher_attendance_secret_menu',
+    whenISO: new Date().toISOString(),
+    meta_json: JSON.stringify({ ui: 'secret_menu', ver: 1 })
+  });
+
+  const r = await adminFetch('/admin/behavior/log', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+    body: body.toString()
+  });
+
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data?.ok) {
+    throw new Error(data?.error || `behavior/log HTTP ${r.status}`);
+  }
+}
+
 // Last rendered context (for organizer view)
 let LAST_CTX = null;           // { date, room, period }
 let LAST_SESSION_STATE = null; // object returned by /admin/class_session/state
@@ -1748,10 +1911,24 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     student.className = 'student';
     student.textContent = r.name;
     student.addEventListener('click', (ev) => {
-      if (!isSecretBehaviorEnabled()) return;
-      ev.preventDefault();
-      ev.stopPropagation();
-      openSecretBehaviorMenu(ev, secretCtxFromRow(date, room, period, r));
+      openSecretMenuAtEvent(ev, {
+        osis: r.osis,
+        name: r.name,
+        date,
+        room,
+        periodLocal: period
+      });
+    });
+
+    // Optional right-click support too:
+    student.addEventListener('contextmenu', (ev) => {
+      openSecretMenuAtEvent(ev, {
+        osis: r.osis,
+        name: r.name,
+        date,
+        room,
+        periodLocal: period
+      });
     });
 
     const dot = document.createElement('span');
@@ -2003,6 +2180,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
   updateBulkUI();
   updateSubmitButtons();
+  renderSecretMenu();
 }
 
 async function submitChanges(){
@@ -2304,6 +2482,7 @@ function startCurrentPeriodTicker(){
 async function bootTeacherAttendance(){
   initThemeToggle();
   initViewToggle();
+  initSecretMenu();
   startOutElapsedTicker();
   installSecretBehaviorConsoleApi();
 
