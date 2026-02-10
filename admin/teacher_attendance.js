@@ -1554,7 +1554,8 @@ async function fetchPreview(room, period, whenType, opts = {}){
 function renderRows({ date, room, period, whenType, snapshotRows, computedRows, snapshotMap, sessionState }){
   rowsEl.innerHTML = '';
   lastMergedRows = [];
-  hideSecretBehaviorMenu();
+  // keep secret menu state across refresh
+  renderSecretMenu();
 
   // reset selection + per-row element refs
   ROW_UI = new Map();
