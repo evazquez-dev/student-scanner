@@ -1502,7 +1502,12 @@ function stageBulkCodeToSelected(){
       ui.selEl.className = 'codeSelect codeSelect--' + codeLetter;
     }
 
-    const mismatch = !!r._mismatch;
+    const snapL = String(r.snapshotLetter || '').trim().toUpperCase();
+    const scanL = String(r.scanSuggested  || '').trim().toUpperCase();
+    const baseL = String(r.baseline      || '').trim().toUpperCase();
+    const pickL = String(r.chosen        || 'A').trim().toUpperCase();
+    const mismatch = (baseL === 'E') ? (pickL !== 'E') : (!!snapL && !!scanL && snapL !== scanL);
+    r._mismatch = mismatch;
     const changed  = (String(r.chosen||'A') !== String(r.baseline||'A'));
 
     if (ui.rowEl){
@@ -1721,7 +1726,20 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   // NOTE: updateSubmitButtons() uses lastMergedRows
 
   for(const r of merged){
-    const mismatch = r.snapshotLetter && r.scanSuggested && (r.snapshotLetter !== r.scanSuggested);
+    const computeMismatch = () => {
+      const snapL = String(r.snapshotLetter || '').trim().toUpperCase();
+      const scanL = String(r.scanSuggested  || '').trim().toUpperCase();
+      const baseL = String(r.baseline      || '').trim().toUpperCase();
+      const pickL = String(r.chosen        || 'A').trim().toUpperCase();
+
+      // Excused baseline should not show red by default.
+      // Show red only when a user changes away from Excused.
+      if (baseL === 'E') return pickL !== 'E';
+
+      return !!snapL && !!scanL && (snapL !== scanL);
+    };
+
+    const mismatch = computeMismatch();
     const changed  = (r.chosen || 'A') !== (r.baseline || 'A');
 
     const row = document.createElement('div');
@@ -1842,7 +1860,13 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     }
 
     if (mismatch) {
-      addTextPart(`mismatch (scan:${codeLabel(r.scanSuggested)} vs snap:${codeLabel(r.snapshotLetter)})`, '');
+      const baseL = String(r.baseline || '').trim().toUpperCase();
+      const pickL = String(r.chosen || 'A').trim().toUpperCase();
+      if (baseL === 'E' && pickL !== 'E') {
+        addTextPart('changed from Excused', '');
+      } else if (!(baseL === 'E' && pickL === 'E')) {
+        addTextPart(`mismatch (scan:${codeLabel(r.scanSuggested)} vs snap:${codeLabel(r.snapshotLetter)})`, '');
+      }
     }
 
     if (!added) sub.textContent = '—';
@@ -1889,7 +1913,9 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       saveOverrides(date, room, period, obj);
 
       // Update row styles + submit state
-      row.className = 'row' + (mismatch ? ' row--mismatch' : '') + ((r.chosen || 'A') !== (r.baseline || 'A') ? ' row--changed' : '');
+      const mismatchNow = computeMismatch();
+      r._mismatch = mismatchNow;
+      row.className = 'row' + (mismatchNow ? ' row--mismatch' : '') + ((r.chosen || 'A') !== (r.baseline || 'A') ? ' row--changed' : '');
       updateSubmitButtons();
 
       // Enable Out/In only if Present or Late AND first scan into room exists
