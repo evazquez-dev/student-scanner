@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — Excused Lock</title>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./excused_apply.js?v=20260212e1" defer></script>
+
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#050711;
+      --fg:#e5e7eb;
+      --muted:#9ca3af;
+      --card:#0f172a;
+      --card2:#111827;
+      --border:#1f2937;
+      --control:#0b1220;
+      --ok:#22c55e;
+      --warn:#f59e0b;
+      --bad:#ef4444;
+      --accent:#a855f7;
+      --accent-soft: rgba(168,85,247,.16);
+    }
+    :root[data-theme="light"]{
+      color-scheme: light;
+      --bg:#f8fafc;
+      --fg:#0f172a;
+      --muted:#475569;
+      --card:#ffffff;
+      --card2:#f1f5f9;
+      --border:#cbd5e1;
+      --control:#ffffff;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: radial-gradient(circle at top, #020617, #000);
+      color:var(--fg);
+      min-height:100vh;
+      padding:1rem;
+    }
+    :root[data-theme="light"] body{
+      background: radial-gradient(circle at top, #ffffff, #e2e8f0);
+    }
+
+    .wrap{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding-top: 56px;
+    }
+
+    .card{
+      border:1px solid var(--border);
+      border-radius: 14px;
+      background: linear-gradient(145deg, rgba(15,23,42,.96), rgba(15,23,42,.90));
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    :root[data-theme="light"] .card{
+      background: linear-gradient(145deg, rgba(255,255,255,.98), rgba(241,245,249,.98));
+    }
+    h1{
+      margin:0 0 8px 0;
+      font-size: 1.15rem;
+      letter-spacing:.02em;
+    }
+    h2{
+      margin:0 0 8px 0;
+      font-size: .98rem;
+      letter-spacing:.02em;
+    }
+    .muted{ color: var(--muted); }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .grow{ flex:1 1 auto; }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background: rgba(2,6,23,.4);
+      font-size:.82rem;
+    }
+    input[type="text"], textarea, select{
+      width:100%;
+      padding: 10px 11px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      background: var(--control);
+      color: var(--fg);
+      font: inherit;
+    }
+    textarea{ min-height: 110px; resize: vertical; }
+    input[type="file"]{
+      width:100%;
+      padding: 8px;
+      border:1px dashed var(--border);
+      border-radius:10px;
+      background: rgba(2,6,23,.25);
+      color: var(--fg);
+    }
+    button{
+      border:1px solid var(--border);
+      background: rgba(2,6,23,.4);
+      color: var(--fg);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor:pointer;
+      font-weight:700;
+    }
+    button:hover{ box-shadow:0 0 0 2px rgba(148,163,184,.2); }
+    button.primary{
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: #f5f3ff;
+    }
+    button[disabled]{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+
+    .listBox{
+      border:1px solid var(--border);
+      border-radius: 12px;
+      overflow:hidden;
+      background: rgba(2,6,23,.2);
+    }
+    .listHead{
+      padding:8px 10px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+      background: rgba(2,6,23,.25);
+    }
+    .listBody{
+      max-height: 380px;
+      overflow:auto;
+    }
+    table{
+      width:100%;
+      border-collapse: collapse;
+      font-size:.9rem;
+    }
+    th, td{
+      padding:8px 10px;
+      border-bottom:1px solid var(--border);
+      text-align:left;
+      vertical-align: middle;
+    }
+    th{
+      position: sticky;
+      top: 0;
+      z-index:2;
+      background: rgba(2,6,23,.7);
+      backdrop-filter: blur(6px);
+    }
+    tr:hover td{ background: rgba(148,163,184,.08); }
+
+    .mono{ font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .status{
+      border-radius:10px;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      background: rgba(2,6,23,.25);
+      white-space: pre-wrap;
+    }
+    .status.ok{ border-color: rgba(34,197,94,.55); background: rgba(34,197,94,.12); }
+    .status.bad{ border-color: rgba(239,68,68,.55); background: rgba(239,68,68,.12); }
+
+    .hint{
+      font-size:.84rem;
+      color: var(--muted);
+      line-height:1.4;
+    }
+    .kpi{
+      display:inline-flex;
+      align-items:center;
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:6px 10px;
+      margin-right:6px;
+      margin-bottom:6px;
+      font-size:.82rem;
+    }
+  </style>
+</head>
+<body data-module="excused_apply">
+  <button id="themeToggle" class="pill" style="position:fixed;top:12px;right:12px;z-index:10000;">Theme</button>
+
+  <div class="wrap">
+    <div class="card">
+      <h1 data-brand-title>EagleNEST — Excused Lock</h1>
+      <div class="muted">
+        Use <span data-brand-name>EagleNEST</span> to force selected students to <b>Excused (E)</b> from a selected period through end of day.
+        Teachers can still change the code later. A new student scan or teacher override lifts the lock for remaining periods.
+      </div>
+    </div>
+
+    <div id="authCard" class="card" style="display:none;">
+      <h2>Sign-in required</h2>
+      <div class="muted">
+        Please sign in from an admin page first (for example Teacher Attendance), then refresh this page.
+      </div>
+    </div>
+
+    <div id="app" style="display:none;">
+      <div class="card">
+        <div class="row">
+          <div class="pill">Date: <span id="todayLabel" class="mono"></span></div>
+          <div class="pill">Selected OSIS total: <span id="finalCount" class="mono">0</span></div>
+          <div class="grow"></div>
+          <label class="row" style="gap:8px;">
+            <input id="markOffCampus" type="checkbox" />
+            <span>Mark Off Campus</span>
+          </label>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div class="grow">
+            <label for="periodLocal"><b>Start period</b></label>
+            <select id="periodLocal"></select>
+          </div>
+          <div style="align-self:end;">
+            <button id="recalcBtn" type="button">Recalculate List</button>
+          </div>
+          <div style="align-self:end;">
+            <button id="applyBtn" class="primary" type="button">Apply Excused Lock</button>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:8px;">
+          If the selected period has already ended, updates for elapsed periods are pushed to GAS immediately.
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>1) Select from full roster</h2>
+          <div class="row" style="margin-bottom:8px;">
+            <input id="rosterSearch" type="text" placeholder="Search by name or OSIS..." />
+            <button id="selVisibleBtn" type="button">Select visible</button>
+            <button id="clrVisibleBtn" type="button">Clear visible</button>
+          </div>
+          <div class="listBox">
+            <div class="listHead">
+              <div class="muted">Roster</div>
+              <div class="mono">Selected: <span id="rosterSelectedCount">0</span></div>
+            </div>
+            <div class="listBody">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:44px;">Pick</th>
+                    <th>Name</th>
+                    <th>OSIS</th>
+                    <th>Grade</th>
+                  </tr>
+                </thead>
+                <tbody id="rosterBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>2) Paste OSIS (column, comma, or mixed)</h2>
+          <textarea id="osisText" placeholder="Examples:
+240123456
+240999999
+
+or:
+240123456,240999999"></textarea>
+
+          <div style="height:10px;"></div>
+
+          <h2>3) Upload CSV (one OSIS column)</h2>
+          <input id="csvFile" type="file" accept=".csv,text/csv" />
+          <div class="hint" id="csvHint" style="margin-top:8px;">No CSV loaded yet.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Resolved list preview</h2>
+        <div id="kpis"></div>
+        <div id="resolvedPreview" class="status mono">No students selected yet.</div>
+      </div>
+
+      <div class="card">
+        <h2>Apply result</h2>
+        <div id="resultBox" class="status">Ready.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

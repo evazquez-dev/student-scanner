@@ -624,7 +624,7 @@ function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
 }
 
 // Cosmetic labels for attendance codes (keep values as A/L/P for API payloads)
-const CODE_LABELS = { P: 'Present', L: 'Late', A: 'Absent' };
+const CODE_LABELS = { P: 'Present', L: 'Late', A: 'Absent', E: 'Excused' };
 function codeLabel(code){
   const c = String(code || '').trim().toUpperCase();
   return CODE_LABELS[c] || (c || '—');
@@ -1856,14 +1856,21 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     const c3 = document.createElement('div');
     const sel = document.createElement('select');
-    sel.className = 'codeSelect codeSelect--' + (r.chosen || 'A');
-    for(const opt of ['P','L','A']){
+    const includeExcusedOption = [r.chosen, r.baseline, r.scanSuggested, r.snapshotLetter]
+      .some(v => String(v || '').trim().toUpperCase() === 'E');
+    const selectOptions = includeExcusedOption ? ['P','L','A','E'] : ['P','L','A'];
+    const currentCode = String(r.chosen || r.baseline || 'A').trim().toUpperCase();
+
+    for(const opt of selectOptions){
       const o = document.createElement('option');
       o.value = opt;
       o.textContent = codeLabel(opt);
       sel.appendChild(o);
     }
-    sel.value = r.chosen || 'A';
+
+    sel.value = selectOptions.includes(currentCode) ? currentCode : (selectOptions[0] || 'A');
+    r.chosen = sel.value;
+    sel.className = 'codeSelect codeSelect--' + (r.chosen || 'A');
     sel.title = `Baseline: ${codeLabel(r.baseline)} • Scan: ${codeLabel(r.scanSuggested)} • Snapshot: ${codeLabel(r.snapshotLetter)}`;
 
     sel.addEventListener('change', () => {

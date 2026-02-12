@@ -15,6 +15,7 @@
     hallway: 'Hallway Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
+    excused_apply: 'Excused Lock',
     admin: 'Admin Dashboard'
   };
 
@@ -24,6 +25,7 @@
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
     'student_scans_admin_session_v1',
+    'excused_apply_admin_session_v1',
     'admin_session_v1'
   ];
 
@@ -119,7 +121,10 @@
           hallway: false,
           staff_pull: false,
           teacher_attendance: true,
-          student_scans: true
+          student_scans: true,
+          student_view: true,
+          phone_pass: false,
+          excused_apply: role === 'admin'
         }
       };
 
@@ -154,7 +159,7 @@
     const btn = document.createElement('button');
     btn.id = 'ssNavToggle';
     btn.type = 'button';
-    btn.textContent = '☰';
+    btn.textContent = '\u2630';
     btn.title = 'Open navigation';
     btn.setAttribute('aria-label', 'Open navigation');
 
@@ -174,7 +179,7 @@
 
     const meta = document.createElement('div');
     meta.className = 'ssNavMeta';
-    meta.textContent = `${access.email || '—'}${access.role ? ` (${access.role})` : ''}`;
+    meta.textContent = `${access.email || '\u2014'}${access.role ? ` (${access.role})` : ''}`;
 
     const linksWrap = document.createElement('div');
     linksWrap.className = 'ssNavLinks';
@@ -182,11 +187,12 @@
     const items = [
       { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'staff' },
       { key:'student_scans',      label: MODULES.student_scans || 'Scans Report',            href:'./student_scans.html',      badge:'reports' },
-      { key:'student_view',       label: MODULES.student_view || 'Student View',               href:'./student_view.html',       badge:'student' },
-      { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',                 href:'./hallway.html',            badge:'monitor' },
-      { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                   href:'./staff_pull.html',         badge:'pull' },
-      { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                   href:'./phone_pass.html',         badge:'phones' },
-      { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                   href:'./index.html',              badge:'admin' },
+      { key:'student_view',       label: MODULES.student_view || 'Student View',             href:'./student_view.html',       badge:'student' },
+      { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'monitor' },
+      { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'pull' },
+      { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phones' },
+      { key:'excused_apply',      label: MODULES.excused_apply || 'Excused Lock',            href:'./excused_apply.html',      badge:'attendance' },
+      { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'admin' },
     ];
 
     const cur = currentFile();
@@ -264,7 +270,7 @@
 
     const syncThemeBtn = () => {
       const t = resolveTheme();
-      themeBtn.textContent = (t === 'light') ? '☀️ Light' : '🌙 Dark';
+      themeBtn.textContent = (t === 'light') ? '\u2600\ufe0f Light' : '\ud83c\udf19 Dark';
       themeBtn.title = (t === 'light') ? 'Switch to dark mode' : 'Switch to light mode';
       themeBtn.setAttribute('aria-pressed', String(t === 'light'));
     };
@@ -302,7 +308,7 @@
     function setOpen(on) {
       const open = !!on;
       document.body.classList.toggle('ssNav-open', open);
-      btn.textContent = open ? '✕' : '☰';
+      btn.textContent = open ? '\u2715' : '\u2630';
       btn.title = open ? 'Close navigation' : 'Open navigation';
       btn.setAttribute('aria-label', btn.title);
       try { localStorage.setItem(LS_OPEN, open ? '1' : '0'); } catch {}

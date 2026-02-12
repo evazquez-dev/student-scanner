@@ -10,6 +10,7 @@
     hallway: 'Hallway Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
+    excused_apply: 'Excused Lock',
     admin: 'Admin Dashboard'
   };
 
