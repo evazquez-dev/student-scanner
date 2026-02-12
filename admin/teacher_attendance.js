@@ -38,6 +38,10 @@ const SECRET_MENU = {
   el: null
 };
 
+let SECRET_BEHAVIOR_UI_STATE = 'idle';
+let SECRET_BEHAVIOR_LIVE_TIMER = null;
+let SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+
 function isSecretEnabled(){
   if (SECRET_MENU.enabled) return true;
   try { return localStorage.getItem(SECRET_FLAG_KEY) === '1'; } catch { return false; }
@@ -80,13 +84,25 @@ function initSecretMenu(){
     if (!btn) return;
     const act = btn.getAttribute('data-act');
     if (act === 'test') {
+      // Close immediately on click (even before network returns)
+      closeSecretMenu();
+
+      // Show pending until at least the next refresh
+      clearBehaviorLiveTimer();
+      SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+      SECRET_BEHAVIOR_UI_STATE = 'pending';
+      setStatus(true, 'Pending behavior log');
+
       try{
         await sendSecretBehaviorTest();
-        closeSecretMenu();
-        setStatus(true, 'Behavior test logged');
+        // Keep pending text until refresh paints final status
+        SECRET_BEHAVIOR_UI_STATE = 'await_refresh';
       } catch(err){
+        clearBehaviorLiveTimer();
+        SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+        SECRET_BEHAVIOR_UI_STATE = 'idle';
         setErr(err?.message || String(err));
-        setStatus(false, 'Behavior test failed');
+        setStatus(false, 'Behavior log failed');
       }
     }
   });
@@ -637,6 +653,51 @@ function hide(el){ if(el) el.style.display='none'; }
 function setStatus(ok, msg){
   statusDot.className = 'pill-dot ' + (ok ? 'pill-dot--ok' : 'pill-dot--bad');
   statusText.textContent = msg;
+}
+
+function clearBehaviorLiveTimer(){
+  if (SECRET_BEHAVIOR_LIVE_TIMER) {
+    clearTimeout(SECRET_BEHAVIOR_LIVE_TIMER);
+    SECRET_BEHAVIOR_LIVE_TIMER = null;
+  }
+}
+
+function scheduleBehaviorLiveReset(ms = 7000){
+  clearBehaviorLiveTimer();
+  SECRET_BEHAVIOR_LIVE_TIMER = setTimeout(() => {
+    SECRET_BEHAVIOR_LIVE_TIMER = null;
+    if (SECRET_BEHAVIOR_UI_STATE !== 'idle') return;
+    if ((statusText?.textContent || '').trim() !== 'Behavior logged') return;
+    SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+    setStatus(true, 'Live');
+  }, ms);
+}
+
+function setLiveStatusFromBehaviorState(){
+  // First successful refresh after a behavior click: confirm logged once
+  if (SECRET_BEHAVIOR_UI_STATE === 'await_refresh') {
+    const HOLD_MS = 7000;
+    SECRET_BEHAVIOR_LOGGED_UNTIL = Date.now() + HOLD_MS;
+    setStatus(true, 'Behavior logged');
+    SECRET_BEHAVIOR_UI_STATE = 'idle';
+    scheduleBehaviorLiveReset(HOLD_MS);
+    return;
+  }
+
+  // If request is still in-flight, keep pending label
+  if (SECRET_BEHAVIOR_UI_STATE === 'pending') {
+    setStatus(true, 'Pending behavior log');
+    return;
+  }
+
+  // Keep "Behavior logged" visible for the full hold window,
+  // even if another refresh happens before the timer expires.
+  if (SECRET_BEHAVIOR_LOGGED_UNTIL > Date.now()) {
+    setStatus(true, 'Behavior logged');
+    return;
+  }
+
+  setStatus(true, 'Live');
 }
 
 async function waitForGoogle(timeoutMs = 8000){
@@ -2193,7 +2254,7 @@ async function refreshClassOnce(){
     sessionState
   });
 
-  setStatus(true, 'Live');
+  setLiveStatusFromBehaviorState();
 }
 
 async function refreshAfterSchoolOnce(){
@@ -2211,7 +2272,7 @@ async function refreshAfterSchoolOnce(){
   const data = await fetchAfterSchoolRoom(homeRoomLabel);
   const date = String(data?.date || '').trim();
   renderAfterSchoolRows({ date, homeRoomLabel, rows: (data?.students || data?.rows || []) });
-  setStatus(true, 'Live');
+  setLiveStatusFromBehaviorState();
 }
 
 async function refreshOnce(){
