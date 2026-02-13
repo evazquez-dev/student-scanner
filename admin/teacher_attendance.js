@@ -15,7 +15,10 @@ const themeToggleBtn = document.getElementById('themeToggleBtn');
 // Mobile view toggle (Attendance vs Out/In Organizer)
 const VIEW_KEY = 'teacher_att_view'; // 'attendance' | 'organizer'
 const SECRET_BEHAVIOR_ENDPOINT = '/admin/behavior/log';
+const SECRET_BEHAVIOR_MENU_ENDPOINT = '/admin/behavior/menu';
 const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
+const SECRET_MENU_CACHE_PREFIX = 'ta_behavior_menu_cache_v1:';
+const INCIDENT_CREATOR_FALLBACK_URL = '/incident-creator.html';
 const viewToggleBtn = document.getElementById('viewToggleBtn');
 
 // Organizer DOM (optional; only present if you added the Organizer markup in HTML)
@@ -35,12 +38,26 @@ const SECRET_MENU = {
   x: 0,
   y: 0,
   student: null, // { osis, name, date, room, periodLocal }
+  path: [],
   el: null
 };
 
 let SECRET_BEHAVIOR_UI_STATE = 'idle';
 let SECRET_BEHAVIOR_LIVE_TIMER = null;
 let SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+let SECRET_MENU_MODEL = {
+  loaded: false,
+  loading: false,
+  error: '',
+  nyDate: '',
+  fetchedAt: '',
+  submenus: [],
+  optionsBySubmenu: {},
+  incidentCreator: {
+    label: 'Incident Creator',
+    url: INCIDENT_CREATOR_FALLBACK_URL
+  }
+};
 
 function isSecretEnabled(){
   if (SECRET_MENU.enabled) return true;
@@ -51,6 +68,206 @@ function setSecretEnabled(v){
   try { localStorage.setItem(SECRET_FLAG_KEY, SECRET_MENU.enabled ? '1' : '0'); } catch {}
   if (!SECRET_MENU.enabled) closeSecretMenu();
   renderSecretMenu();
+}
+
+function getNYDateISO_(){
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/New_York',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(new Date());
+    const y = parts.find(p => p.type === 'year')?.value || '';
+    const m = parts.find(p => p.type === 'month')?.value || '';
+    const d = parts.find(p => p.type === 'day')?.value || '';
+    return `${y}-${m}-${d}`;
+  } catch {
+    const dt = new Date();
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+}
+
+function escapeHtml_(v){
+  return String(v ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function slugifyBehaviorPart_(v){
+  return String(v || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 80);
+}
+
+function makeBehaviorEventKey_(submenu, option){
+  const sub = slugifyBehaviorPart_(submenu || 'behavior');
+  const opt = slugifyBehaviorPart_(option || submenu || 'event');
+  if (!sub && !opt) return 'behavior_event';
+  if (!sub) return opt;
+  if (!opt) return sub;
+  return `${sub}__${opt}`;
+}
+
+function secretMenuCacheKey_(nyDate){
+  return `${SECRET_MENU_CACHE_PREFIX}${String(nyDate || '')}`;
+}
+
+function readSecretMenuCache_(nyDate){
+  try {
+    const raw = localStorage.getItem(secretMenuCacheKey_(nyDate));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSecretMenuCache_(nyDate, payload){
+  try {
+    localStorage.setItem(secretMenuCacheKey_(nyDate), JSON.stringify(payload || {}));
+  } catch {}
+}
+
+function normalizeBehaviorMenuPayload_(raw, nyDate){
+  const data = raw && typeof raw === 'object' ? raw : {};
+
+  const rawOptions = data.options_by_submenu && typeof data.options_by_submenu === 'object'
+    ? data.options_by_submenu
+    : {};
+
+  const submenus = [];
+  const seen = new Set();
+  const addSubmenu = (v) => {
+    const label = String(v || '').trim();
+    if (!label) return;
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    submenus.push(label);
+  };
+
+  if (Array.isArray(data.submenus)) {
+    for (const s of data.submenus) addSubmenu(s);
+  }
+  for (const k of Object.keys(rawOptions)) addSubmenu(k);
+
+  const incidentRaw = data.incident_creator && typeof data.incident_creator === 'object'
+    ? data.incident_creator
+    : {};
+  const incidentLabel = String(incidentRaw.label || 'Incident Creator').trim() || 'Incident Creator';
+  const incidentUrl = String(incidentRaw.url || INCIDENT_CREATOR_FALLBACK_URL).trim() || INCIDENT_CREATOR_FALLBACK_URL;
+
+  addSubmenu(incidentLabel);
+
+  const optionsBySubmenu = {};
+  for (const submenu of submenus) {
+    const matchKey = Object.keys(rawOptions).find(k => String(k || '').trim().toLowerCase() === submenu.toLowerCase());
+    const src = matchKey ? rawOptions[matchKey] : [];
+    const opts = Array.isArray(src) ? src : [];
+
+    const list = [];
+    const optSeen = new Set();
+    for (const x of opts) {
+      const label = String(x || '').trim();
+      if (!label) continue;
+      const key = label.toLowerCase();
+      if (optSeen.has(key)) continue;
+      optSeen.add(key);
+      list.push(label);
+    }
+    optionsBySubmenu[submenu] = list;
+  }
+
+  return {
+    loaded: true,
+    loading: false,
+    error: '',
+    nyDate: String(data.ny_date || nyDate || getNYDateISO_()),
+    fetchedAt: String(data.fetched_at || new Date().toISOString()),
+    submenus,
+    optionsBySubmenu,
+    incidentCreator: {
+      label: incidentLabel,
+      url: incidentUrl
+    }
+  };
+}
+
+function isIncidentCreatorSubmenu_(submenuLabel){
+  const sub = String(submenuLabel || '').trim().toLowerCase();
+  if (!sub) return false;
+  const inc = String(SECRET_MENU_MODEL?.incidentCreator?.label || 'Incident Creator').trim().toLowerCase();
+  if (sub === inc) return true;
+  return sub === 'incident creator';
+}
+
+function optionsForSubmenu_(submenuLabel){
+  const sub = String(submenuLabel || '').trim();
+  const map = SECRET_MENU_MODEL?.optionsBySubmenu || {};
+  const exact = Object.keys(map).find(k => String(k || '').trim().toLowerCase() === sub.toLowerCase());
+  const arr = exact ? map[exact] : [];
+  return Array.isArray(arr) ? arr : [];
+}
+
+async function ensureSecretMenuModel({ force = false } = {}){
+  const nyDate = getNYDateISO_();
+  if (!force && SECRET_MENU_MODEL.loaded && SECRET_MENU_MODEL.nyDate === nyDate) return SECRET_MENU_MODEL;
+
+  if (!force) {
+    const cached = readSecretMenuCache_(nyDate);
+    if (cached) {
+      SECRET_MENU_MODEL = normalizeBehaviorMenuPayload_(cached, nyDate);
+      return SECRET_MENU_MODEL;
+    }
+  }
+
+  SECRET_MENU_MODEL.loading = true;
+  SECRET_MENU_MODEL.error = '';
+  renderSecretMenu();
+
+  try {
+    const u = new URL(SECRET_BEHAVIOR_MENU_ENDPOINT, API_BASE);
+    u.searchParams.set('ny_date', nyDate);
+
+    const r = await adminFetch(u, { method: 'GET' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.ok) {
+      throw new Error(data?.error || `behavior/menu HTTP ${r.status}`);
+    }
+
+    SECRET_MENU_MODEL = normalizeBehaviorMenuPayload_(data, nyDate);
+    writeSecretMenuCache_(nyDate, data);
+    return SECRET_MENU_MODEL;
+  } catch (err) {
+    SECRET_MENU_MODEL.loading = false;
+    SECRET_MENU_MODEL.error = err?.message || String(err);
+    if (!SECRET_MENU_MODEL.loaded) {
+      // fallback so the menu is still usable
+      SECRET_MENU_MODEL = normalizeBehaviorMenuPayload_({
+        submenus: ['test', 'Incident Creator'],
+        options_by_submenu: { test: ['test'] },
+        incident_creator: { label: 'Incident Creator', url: INCIDENT_CREATOR_FALLBACK_URL },
+        ny_date: nyDate
+      }, nyDate);
+      SECRET_MENU_MODEL.error = err?.message || String(err);
+    }
+    throw err;
+  } finally {
+    SECRET_MENU_MODEL.loading = false;
+    if (SECRET_MENU.open) renderSecretMenu();
+  }
 }
 
 function initSecretMenu(){
@@ -68,10 +285,11 @@ function initSecretMenu(){
   el.style.position = 'fixed';
   el.style.display = 'none';
   el.style.zIndex = '99999';
-  el.style.minWidth = '120px';
+  el.style.minWidth = '210px';
+  el.style.maxWidth = '320px';
   el.style.background = 'var(--card, #111)';
   el.style.border = '1px solid rgba(255,255,255,.18)';
-  el.style.borderRadius = '8px';
+  el.style.borderRadius = '10px';
   el.style.boxShadow = '0 10px 30px rgba(0,0,0,.35)';
   el.style.padding = '6px';
   el.style.backdropFilter = 'blur(6px)';
@@ -82,28 +300,72 @@ function initSecretMenu(){
   el.addEventListener('click', async (e) => {
     const btn = e.target.closest('button[data-act]');
     if (!btn) return;
-    const act = btn.getAttribute('data-act');
-    if (act === 'test') {
-      // Close immediately on click (even before network returns)
-      closeSecretMenu();
 
-      // Show pending until at least the next refresh
+    const act = String(btn.getAttribute('data-act') || '').trim();
+    const dec = (name) => {
+      try { return decodeURIComponent(String(btn.getAttribute(name) || '')); } catch { return String(btn.getAttribute(name) || ''); }
+    };
+
+    if (act === 'submenu') {
+      const submenu = dec('data-submenu').trim();
+      if (!submenu) return;
+      SECRET_MENU.path = [submenu];
+      renderSecretMenu();
+      return;
+    }
+
+    if (act === 'back') {
+      SECRET_MENU.path = [];
+      renderSecretMenu();
+      return;
+    }
+
+    if (act === 'incident') {
+      const url = dec('data-url').trim() || SECRET_MENU_MODEL?.incidentCreator?.url || INCIDENT_CREATOR_FALLBACK_URL;
+      closeSecretMenu();
+      if (!url) {
+        setErr('Incident Creator URL is not configured yet.');
+        return;
+      }
+      window.location.assign(url);
+      return;
+    }
+
+    if (act !== 'event' && act !== 'test') return;
+
+    const submenu = dec('data-submenu').trim();
+    const option = dec('data-option').trim() || (act === 'test' ? 'test' : submenu);
+
+    // Close immediately on click (even before network returns)
+    closeSecretMenu();
+
+    // Show pending until at least the next refresh
+    clearBehaviorLiveTimer();
+    SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+    SECRET_BEHAVIOR_UI_STATE = 'pending';
+    setStatus(true, 'Pending behavior log');
+
+    try {
+      if (act === 'test') {
+        await sendSecretBehaviorTest();
+      } else {
+        const eventLabel = option || submenu || 'Behavior';
+        const eventKey = makeBehaviorEventKey_(submenu || 'behavior', eventLabel);
+        await sendSecretBehaviorEvent({
+          eventKey,
+          eventLabel,
+          submenu,
+          option: eventLabel
+        });
+      }
+      // Keep pending text until refresh paints final status
+      SECRET_BEHAVIOR_UI_STATE = 'await_refresh';
+    } catch(err){
       clearBehaviorLiveTimer();
       SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
-      SECRET_BEHAVIOR_UI_STATE = 'pending';
-      setStatus(true, 'Pending behavior log');
-
-      try{
-        await sendSecretBehaviorTest();
-        // Keep pending text until refresh paints final status
-        SECRET_BEHAVIOR_UI_STATE = 'await_refresh';
-      } catch(err){
-        clearBehaviorLiveTimer();
-        SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
-        SECRET_BEHAVIOR_UI_STATE = 'idle';
-        setErr(err?.message || String(err));
-        setStatus(false, 'Behavior log failed');
-      }
+      SECRET_BEHAVIOR_UI_STATE = 'idle';
+      setErr(err?.message || String(err));
+      setStatus(false, 'Behavior log failed');
     }
   });
 
@@ -125,11 +387,15 @@ function initSecretMenu(){
   });
 
   // console-only controls
-  window.TASecretBehavior = {
-    on(){ setSecretEnabled(true); return 'TASecretBehavior: ON'; },
-    off(){ setSecretEnabled(false); return 'TASecretBehavior: OFF'; },
-    toggle(){ setSecretEnabled(!isSecretEnabled()); return `TASecretBehavior: ${isSecretEnabled() ? 'ON' : 'OFF'}`; },
-    status(){ return { enabled: isSecretEnabled(), open: SECRET_MENU.open, student: SECRET_MENU.student }; },
+  window[SECRET_BEHAVIOR_NAMESPACE] = {
+    on(){ setSecretEnabled(true); return `${SECRET_BEHAVIOR_NAMESPACE}: ON`; },
+    off(){ setSecretEnabled(false); return `${SECRET_BEHAVIOR_NAMESPACE}: OFF`; },
+    toggle(){ setSecretEnabled(!isSecretEnabled()); return `${SECRET_BEHAVIOR_NAMESPACE}: ${isSecretEnabled() ? 'ON' : 'OFF'}`; },
+    status(){ return { enabled: isSecretEnabled(), open: SECRET_MENU.open, student: SECRET_MENU.student, path: SECRET_MENU.path, menu: SECRET_MENU_MODEL }; },
+    async reloadMenu(){
+      await ensureSecretMenuModel({ force: true });
+      return SECRET_MENU_MODEL;
+    },
     async test(osis){
       const key = String(osis || '').trim();
       if (!key) throw new Error('osis_required');
@@ -156,11 +422,21 @@ function openSecretMenuAtEvent(ev, studentCtx){
   SECRET_MENU.x = ev.clientX;
   SECRET_MENU.y = ev.clientY;
   SECRET_MENU.student = studentCtx;
+  SECRET_MENU.path = [];
   renderSecretMenu();
+
+  void ensureSecretMenuModel().catch((err) => {
+    // Keep UI usable even if menu fetch fails.
+    if (SECRET_MENU.open) {
+      setErr(`Behavior menu sync failed: ${err?.message || err}`);
+      renderSecretMenu();
+    }
+  });
 }
 
 function closeSecretMenu(){
   SECRET_MENU.open = false;
+  SECRET_MENU.path = [];
   if (SECRET_MENU.el) SECRET_MENU.el.style.display = 'none';
 }
 
@@ -175,31 +451,99 @@ function renderSecretMenu(){
   }
 
   const s = SECRET_MENU.student;
-  el.innerHTML = `
-    <div style="font-size:11px;opacity:.8;padding:4px 6px 6px 6px;line-height:1.25;">
-      ${String(s.name || '(Unknown)')}<br>
-      <span style="opacity:.75">${String(s.osis || '')}</span>
+  const header = `
+    <div style="font-size:11px;opacity:.85;padding:4px 6px 8px 6px;line-height:1.25;border-bottom:1px solid rgba(255,255,255,.14);margin-bottom:6px;">
+      <div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml_(s.name || '(Unknown)')}</div>
+      <div style="opacity:.75;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml_(s.osis || '')}</div>
     </div>
-    <button data-act="test"
-      style="width:100%;text-align:left;padding:7px 8px;border:0;border-radius:6px;cursor:pointer;">
-      test
-    </button>
   `;
 
-  // clamp to viewport
-  const w = 140;
-  const h = 92;
+  const baseBtnStyle = 'width:100%;text-align:left;padding:7px 8px;border:0;border-radius:6px;cursor:pointer;background:transparent;color:inherit;';
+  const subtle = 'font-size:11px;opacity:.75;padding:4px 8px;';
+
+  const loading = SECRET_MENU_MODEL.loading && !SECRET_MENU_MODEL.loaded
+    ? `<div style="${subtle}">Loading behavior menu…</div>`
+    : '';
+
+  const activeSubmenu = String(SECRET_MENU.path?.[0] || '').trim();
+  let body = '';
+
+  if (activeSubmenu) {
+    const opts = optionsForSubmenu_(activeSubmenu);
+    const encodedSub = encodeURIComponent(activeSubmenu);
+
+    const backBtn = `<button data-act="back" style="${baseBtnStyle}font-size:12px;opacity:.9;">← Back</button>`;
+    const title = `<div style="font-size:12px;font-weight:600;opacity:.9;padding:4px 8px 6px 8px;">${escapeHtml_(activeSubmenu)}</div>`;
+
+    let optsHtml = '';
+    if (opts.length) {
+      optsHtml = opts.map(opt => {
+        const encodedOpt = encodeURIComponent(opt);
+        return `<button data-act="event" data-submenu="${encodedSub}" data-option="${encodedOpt}" style="${baseBtnStyle}">${escapeHtml_(opt)}</button>`;
+      }).join('');
+    } else {
+      // if submenu has no children, treat submenu itself as the event
+      optsHtml = `<button data-act="event" data-submenu="${encodedSub}" data-option="${encodedSub}" style="${baseBtnStyle}">${escapeHtml_(activeSubmenu)}</button>`;
+    }
+
+    body = `${backBtn}${title}${optsHtml}`;
+  } else {
+    const subs = Array.isArray(SECRET_MENU_MODEL.submenus) ? SECRET_MENU_MODEL.submenus : [];
+
+    if (!subs.length) {
+      body = `
+        <button data-act="test" data-submenu="test" data-option="test" style="${baseBtnStyle}">test</button>
+      `;
+    } else {
+      body = subs.map(sub => {
+        const submenu = String(sub || '').trim();
+        if (!submenu) return '';
+
+        const encodedSub = encodeURIComponent(submenu);
+        const opts = optionsForSubmenu_(submenu);
+
+        if (isIncidentCreatorSubmenu_(submenu)) {
+          const url = encodeURIComponent(String(SECRET_MENU_MODEL?.incidentCreator?.url || INCIDENT_CREATOR_FALLBACK_URL));
+          return `<button data-act="incident" data-submenu="${encodedSub}" data-url="${url}" style="${baseBtnStyle}">${escapeHtml_(submenu)}</button>`;
+        }
+
+        if (opts.length > 0) {
+          return `<button data-act="submenu" data-submenu="${encodedSub}" style="${baseBtnStyle}display:flex;align-items:center;justify-content:space-between;"><span>${escapeHtml_(submenu)}</span><span style="opacity:.7;">›</span></button>`;
+        }
+
+        return `<button data-act="event" data-submenu="${encodedSub}" data-option="${encodedSub}" style="${baseBtnStyle}">${escapeHtml_(submenu)}</button>`;
+      }).join('');
+    }
+  }
+
+  const err = SECRET_MENU_MODEL.error
+    ? `<div style="${subtle};color:#ffb3b3;">Menu sync issue: ${escapeHtml_(SECRET_MENU_MODEL.error)}</div>`
+    : '';
+
+  el.innerHTML = `${header}${loading}${body}${err}`;
+
+  // clamp to viewport with actual rendered size
+  el.style.display = 'block';
+  el.style.left = '0px';
+  el.style.top = '0px';
+
+  const rect = el.getBoundingClientRect();
+  const w = Math.max(120, Math.ceil(rect.width || 220));
+  const h = Math.max(80, Math.ceil(rect.height || 120));
   const x = Math.max(8, Math.min(SECRET_MENU.x, window.innerWidth - w - 8));
   const y = Math.max(8, Math.min(SECRET_MENU.y, window.innerHeight - h - 8));
 
   el.style.left = `${x}px`;
   el.style.top = `${y}px`;
-  el.style.display = 'block';
 }
 
-async function sendSecretBehaviorTest(){
+async function sendSecretBehaviorEvent({ eventKey, eventLabel, submenu = '', option = '' } = {}){
   const s = SECRET_MENU.student;
   if (!s?.osis) throw new Error('No student selected');
+
+  const key = String(eventKey || '').trim().toLowerCase();
+  const label = String(eventLabel || '').trim() || key;
+  if (!key) throw new Error('event_required');
 
   const payload = {
     date: String(s.date || ''),
@@ -207,11 +551,16 @@ async function sendSecretBehaviorTest(){
     periodLocal: String(s.periodLocal || ''),
     osis: String(s.osis || ''),
     name: String(s.name || ''),
-    eventKey: 'test',
-    eventLabel: 'test',
+    eventKey: key,
+    eventLabel: label,
     source: 'teacher_attendance_secret_menu',
     whenISO: new Date().toISOString(),
-    meta: { ui: 'secret_menu', ver: 1 }
+    meta: {
+      ui: 'secret_menu',
+      ver: 2,
+      submenu: String(submenu || ''),
+      option: String(option || label || '')
+    }
   };
 
   const r = await adminFetch(SECRET_BEHAVIOR_ENDPOINT, {
@@ -224,6 +573,15 @@ async function sendSecretBehaviorTest(){
   if (!r.ok || !data?.ok) {
     throw new Error(data?.error || `behavior/log HTTP ${r.status}`);
   }
+}
+
+async function sendSecretBehaviorTest(){
+  return sendSecretBehaviorEvent({
+    eventKey: 'test',
+    eventLabel: 'test',
+    submenu: 'test',
+    option: 'test'
+  });
 }
 
 // Last rendered context (for organizer view)
@@ -2362,6 +2720,9 @@ async function bootTeacherAttendance(){
   initThemeToggle();
   initViewToggle();
   initSecretMenu();
+  if (isSecretEnabled()) {
+    void ensureSecretMenuModel().catch(() => {});
+  }
   startOutElapsedTicker();
   // Secret console API is registered by initSecretMenu()
 
