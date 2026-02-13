@@ -593,43 +593,64 @@
     }
 
     @media (max-width: 900px){
+      /* page width on phones */
+      body[data-module="teacher_attendance"]{
+        display:block !important;
+        margin:0 !important;
+        padding:0 !important;
+        overflow-x:hidden !important;
+      }
+      body[data-module="teacher_attendance"] > .shell,
+      body[data-module="teacher_attendance"] #appShell,
+      body[data-module="teacher_attendance"] main.layout,
+      body[data-module="teacher_attendance"] main.layout > .card{
+        width:100% !important;
+        max-width:none !important;
+        min-width:0 !important;
+        margin-left:0 !important;
+        margin-right:0 !important;
+      }
+
       .viewToggle{ display:block; }
       .controls{ grid-template-columns: 1fr 1fr 1fr; }
       .controls .btn{ width:100%; }
-      .row{ grid-template-columns: 28px minmax(0,2fr) minmax(0,0.9fr); }
+
+      /* non after-school rows: checkbox + student + code */
+      #tableBox:not(.afterSchoolMode) .row,
+      #tableBox:not(.afterSchoolMode) .row-header{
+        grid-template-columns: 28px minmax(0,1fr) minmax(96px,auto) !important;
+        gap:0.45rem;
+      }
+
+
+      #tableBox.noOutIn .row,
+      #tableBox.noOutIn .row-header{
+        grid-template-columns: 28px minmax(0,1fr) minmax(96px,auto) !important;
+      }
+
       .hide-sm{ display:none; }
 
       .zoneDot{ display:inline-block; }  /* show dots on mobile */
       .chip{ display:none; }             /* hide badges on mobile */
 
+      /* prevent child width constraints from fighting grid tracks */
+      #tableBox:not(.afterSchoolMode) .row > .selCell,
+      #tableBox:not(.afterSchoolMode) .row > .name,
+      #tableBox:not(.afterSchoolMode) .row > div,
+      #tableBox:not(.afterSchoolMode) .row-header > .selCell,
+      #tableBox:not(.afterSchoolMode) .row-header > div{
+        width:auto;
+        min-width:0;
+      }
+      #tableBox:not(.afterSchoolMode) .row .codeSelect{
+        width:100%;
+        min-width:96px;
+      }
+
       .bulkBar{ flex-direction:column; align-items:stretch; }
       .bulkActions{ width:100%; }
-      .bulkSelect{ width:100%; min-width: 0; }
+      .bulkSelect{ width:100%; min-width:0; }
       .bulkActions .btn{ width:100%; }
-      #tableBox.noOutIn .row,
-      #tableBox.noOutIn .row-header{
-        grid-template-columns: 28px minmax(0,2fr) minmax(0,0.9fr);
-      }
-    }
-
-    /* Force full-width teacher attendance on phones */
-    @media (max-width: 900px){
-      body[data-module="teacher_attendance"]{
-        padding: 0.5rem !important; /* was 1.5rem */
-      }
-
-      body[data-module="teacher_attendance"] .shell,
-      body[data-module="teacher_attendance"] #appShell,
-      body[data-module="teacher_attendance"] main.layout,
-      body[data-module="teacher_attendance"] main.layout > .card{
-        width: 100% !important;
-        max-width: none !important;
-      }
-
-      body[data-module="teacher_attendance"] main.layout > .card{
-        margin: 0 !important;
-        justify-self: stretch !important;
-      }
     }
 
     /* Hide the Out/In column entirely when not on the current period */
