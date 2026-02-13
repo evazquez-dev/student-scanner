@@ -612,6 +612,26 @@
       }
     }
 
+    /* Force full-width teacher attendance on phones */
+    @media (max-width: 900px){
+      body[data-module="teacher_attendance"]{
+        padding: 0.5rem !important; /* was 1.5rem */
+      }
+
+      body[data-module="teacher_attendance"] .shell,
+      body[data-module="teacher_attendance"] #appShell,
+      body[data-module="teacher_attendance"] main.layout,
+      body[data-module="teacher_attendance"] main.layout > .card{
+        width: 100% !important;
+        max-width: none !important;
+      }
+
+      body[data-module="teacher_attendance"] main.layout > .card{
+        margin: 0 !important;
+        justify-self: stretch !important;
+      }
+    }
+
     /* Hide the Out/In column entirely when not on the current period */
     #tableBox.noOutIn .row{
       grid-template-columns: 34px minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
