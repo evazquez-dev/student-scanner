@@ -1,5 +1,5 @@
 // Attendance Status page (EagleNEST)
-// - Period audit: rooms/advisors where all scheduled students are Off Campus
+// - Period audit: rooms/advisors where all scheduled students are Absent (A)
 // - Location extractor: build OSIS column from selected locations
 
 const API_BASE = (document.querySelector('meta[name="api-base"]')?.content || '').replace(/\/*$/, '') + '/';
@@ -516,8 +516,8 @@ function stripLunchSuffix(label) {
 
 async function runAudit() {
   clearError(auditError);
-  if (!optionsCache || !snapshotCache) {
-    showError(auditError, 'Options or snapshot not loaded yet.');
+  if (!optionsCache) {
+    showError(auditError, 'Options not loaded yet.');
     return;
   }
   const period = String(periodSelect.value || '').trim();
@@ -525,9 +525,6 @@ async function runAudit() {
     showError(auditError, 'Pick a period first.');
     return;
   }
-
-  const offRows = Array.isArray(snapshotCache?.by_location?.['Off Campus']) ? snapshotCache.by_location['Off Campus'] : [];
-  const offCampusSet = new Set(offRows.map(r => String(r?.osis || '').trim()).filter(Boolean));
 
   const roomTargets = [];
   const advisorTargets = [];
@@ -571,7 +568,7 @@ async function runAudit() {
     advisorsBody.innerHTML = '<tr><td colspan="5" class="muted">No advisor groups for this period.</td></tr>';
     renderAuditSummary([
       { k:'Targets', v:0 },
-      { k:'Off Campus Students', v:offCampusSet.size }
+      { k:'Rule', v:'All Absent (A)' }
     ]);
     return;
   }
@@ -605,16 +602,19 @@ async function runAudit() {
       }
       const rows = Array.isArray(j.rows) ? j.rows : [];
       const osisList = rows.map(x => String(x?.osis || '').trim()).filter(Boolean);
-      const offList = osisList.filter(o => offCampusSet.has(o));
+      const absentList = rows
+        .filter(x => String(x?.codeLetter || '').trim().toUpperCase() === 'A')
+        .map(x => String(x?.osis || '').trim())
+        .filter(Boolean);
       return {
         ...t,
         ok:true,
         scheduled_count: Number(j?.scheduled_count ?? osisList.length) || osisList.length,
         will_send_count: Number(j?.will_send_count ?? rows.length) || rows.length,
         osisList,
-        offList,
-        offCount: offList.length,
-        allOff: osisList.length > 0 && offList.length === osisList.length,
+        absentList,
+        absentCount: absentList.length,
+        allAbsent: osisList.length > 0 && absentList.length === osisList.length,
         source: j?.source || '',
       };
     } catch (e) {
@@ -646,21 +646,21 @@ async function runAudit() {
   const roomResults = results.filter(r => r.kind === 'room');
   const advisorResults = results.filter(r => r.kind === 'advisor');
 
-  const roomAllOff = roomResults.filter(r => r.allOff).sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric:true, sensitivity:'base' }));
-  const advisorAllOff = advisorResults.filter(r => r.allOff).sort((a, b) => a.advisor.localeCompare(b.advisor, undefined, { sensitivity:'base' }));
+  const roomAllAbsent = roomResults.filter(r => r.allAbsent).sort((a, b) => a.room.localeCompare(b.room, undefined, { numeric:true, sensitivity:'base' }));
+  const advisorAllAbsent = advisorResults.filter(r => r.allAbsent).sort((a, b) => a.advisor.localeCompare(b.advisor, undefined, { sensitivity:'base' }));
 
   const roomWithStudents = roomResults.filter(r => r.osisList.length > 0).length;
   const advisorWithStudents = advisorResults.filter(r => r.osisList.length > 0).length;
 
-  roomsMeta.textContent = `${roomAllOff.length} flagged / ${roomWithStudents} with scheduled students`;
-  advisorsMeta.textContent = `${advisorAllOff.length} flagged / ${advisorWithStudents} with scheduled students`;
+  roomsMeta.textContent = `${roomAllAbsent.length} flagged / ${roomWithStudents} with scheduled students`;
+  advisorsMeta.textContent = `${advisorAllAbsent.length} flagged / ${advisorWithStudents} with scheduled students`;
 
-  if (roomAllOff.length) {
-    roomsBody.innerHTML = roomAllOff.map(r => `
+  if (roomAllAbsent.length) {
+    roomsBody.innerHTML = roomAllAbsent.map(r => `
       <tr>
         <td class="mono">${esc(r.room)}</td>
         <td>${esc(r.osisList.length)}</td>
-        <td>${esc(r.offCount)}</td>
+        <td>${esc(r.absentCount)}</td>
         <td class="mono">${esc(r.osisList.slice(0, 6).join(', '))}</td>
       </tr>
     `).join('');
@@ -668,13 +668,13 @@ async function runAudit() {
     roomsBody.innerHTML = '<tr><td colspan="4" class="muted">No rooms matched this condition.</td></tr>';
   }
 
-  if (advisorAllOff.length) {
-    advisorsBody.innerHTML = advisorAllOff.map(r => `
+  if (advisorAllAbsent.length) {
+    advisorsBody.innerHTML = advisorAllAbsent.map(r => `
       <tr>
         <td>${esc(r.advisor)}</td>
         <td class="mono">${esc(r.room || '—')}</td>
         <td>${esc(r.osisList.length)}</td>
-        <td>${esc(r.offCount)}</td>
+        <td>${esc(r.absentCount)}</td>
         <td class="mono">${esc(r.osisList.slice(0, 6).join(', '))}</td>
       </tr>
     `).join('');
@@ -685,9 +685,9 @@ async function runAudit() {
   renderAuditSummary([
     { k:'Period', v: period },
     { k:'Targets Checked', v: completed },
-    { k:'Rooms Flagged', v: roomAllOff.length },
-    { k:'Advisors Flagged', v: advisorAllOff.length },
-    { k:'Off Campus Students', v: offCampusSet.size },
+    { k:'Rooms Flagged', v: roomAllAbsent.length },
+    { k:'Advisors Flagged', v: advisorAllAbsent.length },
+    { k:'Rule', v:'All Absent (A)' },
     { k:'Errors', v: errors.length }
   ]);
 

@@ -268,7 +268,7 @@
     <div id="appShell" class="hidden">
       <header>
         <h1 data-brand-title>EagleNEST — Attendance Status</h1>
-        <div class="sub">Audit a period for rooms/advisors where every scheduled student is currently <b>Off Campus</b>, and pull OSIS lists by live location.</div>
+        <div class="sub">Audit a period for rooms/advisors where every scheduled student is currently <b>Absent (A)</b>, and pull OSIS lists by live location.</div>
       </header>
 
       <div class="topbar">
@@ -302,7 +302,7 @@
           <div id="auditSummary" class="summary-row"></div>
 
           <div class="split-head">
-            <strong>Rooms with all scheduled students Off Campus</strong>
+            <strong>Rooms with all scheduled students Absent (A)</strong>
             <span id="roomsMeta" class="small muted"></span>
           </div>
           <div id="roomsWrap" class="table-wrap">
@@ -311,7 +311,7 @@
                 <tr>
                   <th>Room</th>
                   <th>Scheduled</th>
-                  <th>Off Campus</th>
+                  <th>Absent</th>
                   <th>Sample OSIS</th>
                 </tr>
               </thead>
@@ -322,7 +322,7 @@
           </div>
 
           <div class="split-head">
-            <strong>Advisors with all scheduled students Off Campus</strong>
+            <strong>Advisors with all scheduled students Absent (A)</strong>
             <span id="advisorsMeta" class="small muted"></span>
           </div>
           <div id="advisorsWrap" class="table-wrap">
@@ -332,7 +332,7 @@
                   <th>Advisor</th>
                   <th>Room</th>
                   <th>Scheduled</th>
-                  <th>Off Campus</th>
+                  <th>Absent</th>
                   <th>Sample OSIS</th>
                 </tr>
               </thead>
@@ -343,7 +343,7 @@
           </div>
 
           <div id="auditError" class="error hidden"></div>
-          <div class="footer-note">Note: this flags groups where the live location snapshot shows every scheduled student as Off Campus. It does not directly prove a teacher did or didn’t submit attendance.</div>
+          <div class="footer-note">Note: this flags groups where the meeting preview marks every scheduled student as Absent (A) for the selected period. It’s a practical audit signal, but not a direct “teacher submitted” flag.</div>
         </section>
 
         <section class="card">
