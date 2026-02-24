@@ -5,6 +5,7 @@
   const MODULES = {
     kiosk: 'Scanner Kiosk',
     teacher_attendance: 'Teacher Attendance',
+    attendance_status: 'Attendance Status',
     student_scans: 'Student Scan Report',
     student_view: 'Student View',
     hallway: 'Hallway Monitor',

@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#050711;
+      --card:#0f172a;
+      --card2:#111827;
+      --line:#1f2937;
+      --fg:#e5e7eb;
+      --muted:#9ca3af;
+      --accent:#22c55e;
+      --accent2:#38bdf8;
+      --warn:#f59e0b;
+      --danger:#ef4444;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; padding:1rem;
+      background: radial-gradient(circle at top, #020617, #000);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif;
+    }
+    .shell{ width:min(1400px,100%); margin:0 auto; }
+    .hidden{ display:none !important; }
+    .card{
+      background: linear-gradient(135deg, rgba(15,23,42,.96), rgba(15,23,42,.92));
+      border:1px solid var(--line);
+      border-radius:16px;
+      box-shadow: 0 18px 60px rgba(0,0,0,.45);
+      padding:1rem;
+    }
+    #loginCard{
+      max-width:430px;
+      margin:4rem auto 0;
+      text-align:center;
+      display:none;
+    }
+    #loginCard h2{ margin:.1rem 0 .4rem; font-size:1.05rem; text-transform:uppercase; letter-spacing:.05em; }
+    #loginCard p, #loginCard small{ color:var(--muted); margin:.25rem 0; }
+    #loginOut{
+      margin-top:.75rem;
+      text-align:left;
+      white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:.75rem;
+      color:var(--muted);
+      background:rgba(2,6,23,.65);
+      border:1px solid rgba(148,163,184,.15);
+      border-radius:10px;
+      padding:.6rem .7rem;
+      max-height:120px;
+      overflow:auto;
+    }
+
+    header{ margin-bottom:1rem; }
+    h1{ margin:0; font-size:1.25rem; letter-spacing:.03em; text-transform:uppercase; }
+    .sub{ color:var(--muted); font-size:.9rem; margin-top:.25rem; }
+
+    .topbar{
+      display:flex; flex-wrap:wrap; gap:.5rem .75rem; align-items:center;
+      margin-bottom:.85rem;
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:.4rem;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:.3rem .65rem;
+      background:rgba(15,23,42,.75);
+      font-size:.8rem;
+      white-space:nowrap;
+    }
+    .dot{ width:8px; height:8px; border-radius:999px; background:var(--muted); }
+    .dot.ok{ background:var(--accent); }
+    .dot.bad{ background:var(--danger); }
+
+    .toolbar{
+      display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
+      margin-bottom:1rem;
+    }
+    button, select, input, textarea{
+      background:#0b1220;
+      color:var(--fg);
+      border:1px solid #334155;
+      border-radius:10px;
+      font:inherit;
+    }
+    button{
+      padding:.48rem .75rem;
+      cursor:pointer;
+    }
+    button:hover{ border-color:#64748b; }
+    button.primary{
+      border-color: rgba(34,197,94,.5);
+      background: rgba(34,197,94,.12);
+    }
+    button.secondary{
+      border-color: rgba(56,189,248,.45);
+      background: rgba(56,189,248,.10);
+    }
+    button.warn{
+      border-color: rgba(245,158,11,.45);
+      background: rgba(245,158,11,.10);
+    }
+    button:disabled{ opacity:.55; cursor:not-allowed; }
+    select, input{
+      padding:.45rem .55rem;
+      min-height:38px;
+    }
+    textarea{
+      width:100%;
+      min-height:180px;
+      padding:.6rem .65rem;
+      resize:vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:.82rem;
+      line-height:1.35;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.15fr .85fr;
+      gap:1rem;
+      align-items:start;
+    }
+    @media (max-width: 1100px){
+      .grid{ grid-template-columns:1fr; }
+    }
+
+    .section-title{
+      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+      margin-bottom:.5rem;
+    }
+    .section-title h2{
+      margin:0; font-size:1.02rem;
+    }
+    .muted{ color:var(--muted); }
+    .small{ font-size:.78rem; }
+
+    .inline-controls{
+      display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
+      margin:.35rem 0 .7rem;
+    }
+
+    .summary-row{
+      display:flex; flex-wrap:wrap; gap:.5rem; margin:.5rem 0 .7rem;
+    }
+    .summary-chip{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:.45rem .6rem;
+      background: rgba(2,6,23,.35);
+      min-width:110px;
+    }
+    .summary-chip .k{ color:var(--muted); font-size:.73rem; text-transform:uppercase; letter-spacing:.04em; }
+    .summary-chip .v{ font-size:1rem; margin-top:.05rem; font-variant-numeric: tabular-nums; }
+
+    .progress{
+      min-height:1.15rem;
+      color:var(--muted);
+      font-size:.82rem;
+      margin-bottom:.5rem;
+      white-space:pre-wrap;
+    }
+
+    .table-wrap{
+      border:1px solid var(--line);
+      border-radius:12px;
+      overflow:hidden;
+      background: rgba(2,6,23,.35);
+      margin-top:.5rem;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:.84rem;
+    }
+    th, td{
+      padding:.45rem .55rem;
+      border-bottom:1px solid rgba(148,163,184,.14);
+      text-align:left;
+      vertical-align:top;
+    }
+    th{ color:var(--muted); font-weight:600; font-size:.76rem; text-transform:uppercase; letter-spacing:.04em; }
+    tr:last-child td{ border-bottom:none; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .badge{
+      display:inline-block;
+      border:1px solid rgba(148,163,184,.25);
+      border-radius:999px;
+      padding:.1rem .45rem;
+      font-size:.72rem;
+      color:var(--muted);
+    }
+
+    .loc-list{
+      border:1px solid var(--line);
+      border-radius:12px;
+      background: rgba(2,6,23,.28);
+      padding:.5rem;
+      max-height:320px;
+      overflow:auto;
+    }
+    .loc-item{
+      display:flex; align-items:flex-start; gap:.45rem;
+      padding:.32rem .25rem;
+      border-radius:8px;
+    }
+    .loc-item:hover{ background: rgba(148,163,184,.06); }
+    .loc-item label{
+      display:flex; justify-content:space-between; gap:.5rem;
+      width:100%;
+      cursor:pointer;
+      line-height:1.2;
+    }
+    .loc-item .count{
+      color:var(--muted);
+      font-variant-numeric: tabular-nums;
+      white-space:nowrap;
+    }
+
+    .error{
+      margin-top:.5rem;
+      color:#fecaca;
+      border:1px solid rgba(239,68,68,.35);
+      background: rgba(127,29,29,.18);
+      border-radius:10px;
+      padding:.45rem .55rem;
+      font-size:.8rem;
+      white-space:pre-wrap;
+    }
+
+    .split-head{
+      display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.4rem;
+      margin-top:.6rem;
+    }
+
+    .footer-note{ margin-top:.55rem; color:var(--muted); font-size:.76rem; }
+  </style>
+</head>
+<body data-module="attendance_status">
+  <div class="shell">
+    <div id="loginCard" class="card">
+      <h2><span data-brand-module>Attendance Status</span></h2>
+      <p>Sign in to open the attendance status audit page.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut">—</div>
+      <small data-brand-title>EagleNEST</small>
+    </div>
+
+    <div id="appShell" class="hidden">
+      <header>
+        <h1 data-brand-title>EagleNEST — Attendance Status</h1>
+        <div class="sub">Audit a period for rooms/advisors where every scheduled student is currently <b>Off Campus</b>, and pull OSIS lists by live location.</div>
+      </header>
+
+      <div class="topbar">
+        <span class="pill"><span id="liveDot" class="dot"></span><span id="liveText">Checking session…</span></span>
+        <span class="pill">Date: <span id="dateText" class="mono">—</span></span>
+        <span class="pill">Snapshot: <span id="snapshotText" class="mono">—</span></span>
+      </div>
+
+      <div class="toolbar card" style="margin-bottom:1rem;">
+        <button id="refreshAllBtn" class="secondary" type="button">Refresh Options + Snapshot</button>
+        <button id="refreshSnapBtn" type="button">Refresh Snapshot Only</button>
+        <span id="topMsg" class="small muted">Ready.</span>
+      </div>
+
+      <div class="grid">
+        <section class="card">
+          <div class="section-title">
+            <h2>Period Attendance Status Audit</h2>
+            <span class="small muted">Uses current live locations + scheduled rosters</span>
+          </div>
+
+          <div class="inline-controls">
+            <label class="small muted" for="periodSelect">Period</label>
+            <select id="periodSelect" style="min-width:230px;"></select>
+            <button id="runAuditBtn" class="primary" type="button">Run Audit</button>
+            <button id="stopAuditBtn" class="warn" type="button">Stop</button>
+          </div>
+
+          <div id="auditProgress" class="progress"></div>
+
+          <div id="auditSummary" class="summary-row"></div>
+
+          <div class="split-head">
+            <strong>Rooms with all scheduled students Off Campus</strong>
+            <span id="roomsMeta" class="small muted"></span>
+          </div>
+          <div id="roomsWrap" class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Room</th>
+                  <th>Scheduled</th>
+                  <th>Off Campus</th>
+                  <th>Sample OSIS</th>
+                </tr>
+              </thead>
+              <tbody id="roomsBody">
+                <tr><td colspan="4" class="muted">Run the audit to see results.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="split-head">
+            <strong>Advisors with all scheduled students Off Campus</strong>
+            <span id="advisorsMeta" class="small muted"></span>
+          </div>
+          <div id="advisorsWrap" class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Advisor</th>
+                  <th>Room</th>
+                  <th>Scheduled</th>
+                  <th>Off Campus</th>
+                  <th>Sample OSIS</th>
+                </tr>
+              </thead>
+              <tbody id="advisorsBody">
+                <tr><td colspan="5" class="muted">Run the audit to see results.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div id="auditError" class="error hidden"></div>
+          <div class="footer-note">Note: this flags groups where the live location snapshot shows every scheduled student as Off Campus. It does not directly prove a teacher did or didn’t submit attendance.</div>
+        </section>
+
+        <section class="card">
+          <div class="section-title">
+            <h2>OSIS by Location</h2>
+            <span class="small muted">Select one or more live locations</span>
+          </div>
+
+          <div class="inline-controls">
+            <button id="locSelectAllBtn" type="button">Select All</button>
+            <button id="locClearBtn" type="button">Clear</button>
+            <button id="buildOsisBtn" class="primary" type="button">Build OSIS Column</button>
+            <button id="copyOsisBtn" type="button">Copy</button>
+          </div>
+
+          <div id="locList" class="loc-list"></div>
+
+          <div class="summary-row" id="locSummary"></div>
+
+          <label for="osisOut" class="small muted">OSIS output (one per line)</label>
+          <textarea id="osisOut" placeholder="Select locations, then click Build OSIS Column"></textarea>
+
+          <div class="footer-note">Locations come from <span class="mono">/admin/hallway_state</span> and update when you refresh the snapshot.</div>
+          <div id="locError" class="error hidden"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script src="./attendance_status.js" defer></script>
+</body>
+</html>
