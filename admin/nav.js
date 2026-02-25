@@ -16,7 +16,8 @@
     hallway: 'Hallway Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
-    excused_apply: 'Attendance Change',
+    attendance_change: 'Attendance Change',
+    excused_apply: 'Attendance Change', // legacy alias
     admin: 'Admin Dashboard'
   };
 
@@ -27,8 +28,10 @@
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
     'student_scans_admin_session_v1',
-    'excused_apply_admin_session_v1',
-    'admin_session_v1'
+    'attendance_change_admin_session_v1',
+    'excused_apply_admin_session_v1', // legacy
+    'admin_session_v1',
+    'admin_session_sid' // legacy generic key
   ];
 
   function clearStoredAdminSessionSid(){
@@ -127,7 +130,8 @@
           student_scans: true,
           student_view: true,
           phone_pass: false,
-          excused_apply: role === 'admin'
+          attendance_change: role === 'admin',
+          excused_apply: role === 'admin' // legacy alias
         }
       };
 
@@ -195,14 +199,18 @@
       { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'monitor' },
       { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'pull' },
       { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phones' },
-      { key:'excused_apply',      label: MODULES.excused_apply || 'Attendance Change',            href:'./excused_apply.html',      badge:'attendance' },
+      { key:'attendance_change',  label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'attendance' },
       { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'admin' },
     ];
 
     const cur = currentFile();
 
     for (const it of items) {
-      if (!access?.can?.[it.key]) continue;
+      const canSee = !!(
+        access?.can?.[it.key] ||
+        (it.key === 'attendance_change' && access?.can?.excused_apply)
+      );
+      if (!canSee) continue;
 
       const a = document.createElement('a');
       a.className = 'ssNavLink';
@@ -220,7 +228,10 @@
 
       // mark current
       const targetFile = it.href.split('/').pop();
-      if (targetFile && targetFile === cur) a.setAttribute('aria-current', 'page');
+      const isCurrent = (it.key === 'attendance_change')
+        ? (cur === 'attendance_change.html' || cur === 'excused_apply.html')
+        : (targetFile && targetFile === cur);
+      if (isCurrent) a.setAttribute('aria-current', 'page');
 
       linksWrap.appendChild(a);
     }

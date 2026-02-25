@@ -8,7 +8,7 @@
     catch { return location.origin + '/'; }
   })();
 
-  const ADMIN_SESSION_KEY = 'admin_session_sid';
+  const ADMIN_SESSION_KEYS = ['attendance_change_admin_session_v1', 'excused_apply_admin_session_v1', 'admin_session_v1', 'admin_session_sid'];
   const ADMIN_SESSION_HEADER = 'x-admin-session';
   const $ = (id) => document.getElementById(id);
 
@@ -42,18 +42,26 @@
 
   function getStoredAdminSessionSid(){
     try {
-      return String(sessionStorage.getItem(ADMIN_SESSION_KEY) || localStorage.getItem(ADMIN_SESSION_KEY) || '').trim();
+      for (const k of ADMIN_SESSION_KEYS){
+        const v = String(sessionStorage.getItem(k) || localStorage.getItem(k) || '').trim();
+        if (v) return v;
+      }
+      return '';
     } catch { return ''; }
   }
   function setStoredAdminSessionSid(sid){
     const v = String(sid || '').trim();
     if (!v) return;
-    try { sessionStorage.setItem(ADMIN_SESSION_KEY, v); } catch {}
-    try { localStorage.setItem(ADMIN_SESSION_KEY, v); } catch {}
+    for (const k of ADMIN_SESSION_KEYS){
+      try { sessionStorage.setItem(k, v); } catch {}
+      try { localStorage.setItem(k, v); } catch {}
+    }
   }
   function clearStoredAdminSessionSid(){
-    try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch {}
-    try { localStorage.removeItem(ADMIN_SESSION_KEY); } catch {}
+    for (const k of ADMIN_SESSION_KEYS){
+      try { sessionStorage.removeItem(k); } catch {}
+      try { localStorage.removeItem(k); } catch {}
+    }
   }
   function stashAdminSessionFromResponse(resp){
     try {
