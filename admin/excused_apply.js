@@ -10,7 +10,6 @@
 
   const ADMIN_SESSION_KEY = 'admin_session_sid';
   const ADMIN_SESSION_HEADER = 'x-admin-session';
-
   const $ = (id) => document.getElementById(id);
 
   const state = {
@@ -32,9 +31,9 @@
     const initial = stored || ((window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark');
     root.dataset.theme = initial;
     const btn = $('themeToggle');
-    const refresh = () => btn.textContent = root.dataset.theme === 'light' ? 'Dark' : 'Light';
+    const refresh = () => { if (btn) btn.textContent = root.dataset.theme === 'light' ? 'Dark' : 'Light'; };
     refresh();
-    btn.addEventListener('click', () => {
+    btn?.addEventListener('click', () => {
       root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
       try { localStorage.setItem(key, root.dataset.theme); } catch {}
       refresh();
@@ -42,11 +41,8 @@
   })();
 
   function getStoredAdminSessionSid(){
-    try{
-      return String(
-        sessionStorage.getItem(ADMIN_SESSION_KEY) ||
-        localStorage.getItem(ADMIN_SESSION_KEY) || ''
-      ).trim();
+    try {
+      return String(sessionStorage.getItem(ADMIN_SESSION_KEY) || localStorage.getItem(ADMIN_SESSION_KEY) || '').trim();
     } catch { return ''; }
   }
   function setStoredAdminSessionSid(sid){
@@ -60,12 +56,8 @@
     try { localStorage.removeItem(ADMIN_SESSION_KEY); } catch {}
   }
   function stashAdminSessionFromResponse(resp){
-    try{
-      const sid = String(
-        resp?.headers?.get(ADMIN_SESSION_HEADER) ||
-        resp?.headers?.get('X-Admin-Session') ||
-        ''
-      ).trim();
+    try {
+      const sid = String(resp?.headers?.get(ADMIN_SESSION_HEADER) || resp?.headers?.get('X-Admin-Session') || '').trim();
       if (sid) setStoredAdminSessionSid(sid);
     } catch {}
   }
@@ -121,13 +113,11 @@
     const lines = String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     if (!lines.length) return [];
     const out = [];
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    for (const line of lines) {
       const delim = line.includes(',') ? ',' : (line.includes('\t') ? '\t' : (line.includes(';') ? ';' : null));
       const firstCell = delim ? String(line.split(delim)[0] || '').trim() : line;
       const n = normalizeOsis(firstCell);
-      if (!n) continue;
-      out.push(n);
+      if (n) out.push(n);
     }
     return Array.from(new Set(out));
   }
@@ -137,10 +127,39 @@
     catch { return String(obj); }
   }
 
-  function setResult(msg, ok = true){
-    const el = $('resultBox');
+  function setBox(id, msg, ok = true){
+    const el = $(id);
+    if (!el) return;
     el.className = 'status ' + (ok ? 'ok' : 'bad');
     el.textContent = msg;
+  }
+
+  function setResult(msg, ok = true){ setBox('resultBox', msg, ok); }
+  function setScanResult(msg, ok = true){ setBox('scanBox', msg, ok); }
+
+  function getAllStudentsMode(){
+    return !!$('allStudents')?.checked;
+  }
+
+  function getApplyOsisList(){
+    if (getAllStudentsMode()) {
+      return state.roster.map(s => String(s.osis || '')).filter(Boolean);
+    }
+    return state.finalOsis.slice();
+  }
+
+  function getSelectedCurrentStatusFilters(){
+    return Array.from(document.querySelectorAll('.curStatusFilter:checked'))
+      .map(el => String(el.value || '').trim().toUpperCase())
+      .filter(Boolean);
+  }
+
+  function updateTargetDependentUI(){
+    const code = String($('targetCode')?.value || 'E').toUpperCase();
+    const offCampus = $('markOffCampus');
+    if (!offCampus) return;
+    offCampus.disabled = code !== 'E';
+    if (code !== 'E') offCampus.checked = false;
   }
 
   function renderRoster(){
@@ -166,16 +185,9 @@
       });
       td0.appendChild(cb);
 
-      const td1 = document.createElement('td');
-      td1.textContent = String(s.name || '');
-
-      const td2 = document.createElement('td');
-      td2.className = 'mono';
-      td2.textContent = String(s.osis || '');
-
-      const td3 = document.createElement('td');
-      td3.className = 'mono';
-      td3.textContent = String(s.grade || '');
+      const td1 = document.createElement('td'); td1.textContent = String(s.name || '');
+      const td2 = document.createElement('td'); td2.className = 'mono'; td2.textContent = String(s.osis || '');
+      const td3 = document.createElement('td'); td3.className = 'mono'; td3.textContent = String(s.grade || '');
 
       tr.append(td0, td1, td2, td3);
       body.appendChild(tr);
@@ -184,30 +196,25 @@
 
   function computeFinalList(){
     state.pasteOsis = parseMixedTextToOsis($('osisText').value || '');
-
-    const combined = [
-      ...Array.from(state.selectedOsis),
-      ...state.pasteOsis,
-      ...state.csvOsis
-    ];
-    const dedup = Array.from(new Set(combined.map(normalizeOsis).filter(Boolean)));
-    state.finalOsis = dedup;
-
+    const combined = [...Array.from(state.selectedOsis), ...state.pasteOsis, ...state.csvOsis];
+    state.finalOsis = Array.from(new Set(combined.map(normalizeOsis).filter(Boolean)));
     renderCounts();
     renderPreview();
   }
 
   function renderCounts(){
     $('rosterSelectedCount').textContent = String(state.selectedOsis.size);
-    $('finalCount').textContent = String(state.finalOsis.length);
+    const allMode = getAllStudentsMode();
+    const total = allMode ? state.roster.length : state.finalOsis.length;
+    $('finalCount').textContent = String(total);
+    $('scopeLabel').textContent = allMode ? 'All students' : 'Selected list';
   }
 
   function renderPreview(){
+    const allMode = getAllStudentsMode();
+    const previewList = allMode ? state.roster.map(s => s.osis) : state.finalOsis;
+
     const k = $('kpis');
-    const total = state.finalOsis.length;
-    const fromRoster = Array.from(state.selectedOsis).length;
-    const fromPaste = state.pasteOsis.length;
-    const fromCsv = state.csvOsis.length;
     k.innerHTML = '';
     const mk = (label, v) => {
       const span = document.createElement('span');
@@ -215,43 +222,37 @@
       span.textContent = `${label}: ${v}`;
       return span;
     };
+
     k.append(
-      mk('Total unique', total),
-      mk('From roster', fromRoster),
-      mk('From paste', fromPaste),
-      mk('From CSV', fromCsv)
+      mk('Total unique', previewList.length),
+      mk('From roster picks', state.selectedOsis.size),
+      mk('From paste', state.pasteOsis.length),
+      mk('From CSV', state.csvOsis.length),
+      mk('All students', allMode ? 'ON' : 'OFF')
     );
 
     const preview = $('resolvedPreview');
-    if (!total) {
-      preview.textContent = 'No students selected yet.';
+    if (!previewList.length) {
+      preview.textContent = allMode ? 'No roster loaded yet for All Students mode.' : 'No students selected yet.';
       return;
     }
-    const top = state.finalOsis.slice(0, 200);
-    preview.textContent = top.join('\n') + (state.finalOsis.length > top.length ? `\n... (+${state.finalOsis.length - top.length} more)` : '');
+    const top = previewList.slice(0, 200);
+    const header = allMode ? `ALL STUDENTS MODE (${previewList.length})` : `SELECTED LIST (${previewList.length})`;
+    preview.textContent = header + '\n' + top.join('\n') + (previewList.length > top.length ? `\n... (+${previewList.length - top.length} more)` : '');
   }
 
   async function loadOptionsAndRoster(){
-    // access check first
     const accessResp = await adminFetch('/admin/access', { method: 'GET' });
     const access = await accessResp.json().catch(() => null);
-    if (!accessResp.ok || !access?.ok) {
-      throw new Error(access?.error || `access HTTP ${accessResp.status}`);
-    }
+    if (!accessResp.ok || !access?.ok) throw new Error(access?.error || `access HTTP ${accessResp.status}`);
 
-    // period options
     const optsResp = await adminFetch('/admin/teacher_att/options', { method: 'GET' });
     const opts = await optsResp.json().catch(() => null);
-    if (!optsResp.ok || !opts?.ok) {
-      throw new Error(opts?.error || `teacher_att/options HTTP ${optsResp.status}`);
-    }
+    if (!optsResp.ok || !opts?.ok) throw new Error(opts?.error || `teacher_att/options HTTP ${optsResp.status}`);
 
-    // full roster
     const rosterResp = await adminFetch('/admin/roster/all?limit=5000', { method: 'GET' });
     const rosterData = await rosterResp.json().catch(() => null);
-    if (!rosterResp.ok || !rosterData?.ok) {
-      throw new Error(rosterData?.error || `roster/all HTTP ${rosterResp.status}`);
-    }
+    if (!rosterResp.ok || !rosterData?.ok) throw new Error(rosterData?.error || `roster/all HTTP ${rosterResp.status}`);
 
     state.periodOptions = Array.isArray(opts.period_options) ? opts.period_options : [];
     state.roster = (Array.isArray(rosterData.students) ? rosterData.students : []).map(s => ({
@@ -260,91 +261,188 @@
       grade: String(s.grade || '')
     })).filter(s => !!s.osis);
 
-    // period dropdown
-    const sel = $('periodLocal');
-    sel.innerHTML = '';
+    const startSel = $('periodLocal');
+    const endSel = $('endPeriodLocal');
+    startSel.innerHTML = '';
+    endSel.innerHTML = '';
+
+    const endBlank = document.createElement('option');
+    endBlank.value = '';
+    endBlank.textContent = 'End of day';
+    endSel.appendChild(endBlank);
+
     for (const p of state.periodOptions) {
-      const o = document.createElement('option');
-      o.value = String(p.value || '');
-      o.textContent = String(p.label || p.value || '');
-      sel.appendChild(o);
+      const value = String(p.value || '');
+      const label = String(p.label || p.value || '');
+
+      const o1 = document.createElement('option');
+      o1.value = value;
+      o1.textContent = label;
+      startSel.appendChild(o1);
+
+      const o2 = document.createElement('option');
+      o2.value = value;
+      o2.textContent = label;
+      endSel.appendChild(o2);
     }
+
     const current = String(opts.current_period_local || '').trim();
-    if (current) sel.value = current;
+    if (current) startSel.value = current;
+    endSel.value = '';
 
     state.today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
     $('todayLabel').textContent = state.today;
 
     renderRoster();
     computeFinalList();
+    updateTargetDependentUI();
   }
 
-  async function applyExcused(){
+  function buildPayload(dryRun){
     computeFinalList();
-    if (!state.finalOsis.length) {
-      setResult('No OSIS selected. Add students first.', false);
-      return;
+
+    const allStudents = getAllStudentsMode();
+    const osisList = allStudents ? [] : getApplyOsisList();
+    if (!allStudents && !osisList.length) {
+      throw new Error('No OSIS selected. Add students first or use All Students.');
     }
 
     const periodLocal = String($('periodLocal').value || '').trim();
-    if (!periodLocal) {
-      setResult('Please choose a start period.', false);
-      return;
-    }
+    if (!periodLocal) throw new Error('Please choose a start period.');
 
-    const markOffCampus = !!$('markOffCampus').checked;
-    const payload = {
+    const endPeriodLocal = String($('endPeriodLocal').value || '').trim();
+    const targetCodeLetter = String($('targetCode').value || 'E').trim().toUpperCase();
+    const onlyIfCurrentCodes = getSelectedCurrentStatusFilters();
+
+    return {
       date: state.today,
       periodLocal,
-      markOffCampus,
-      osisList: state.finalOsis
+      endPeriodLocal: endPeriodLocal || undefined,
+      targetCodeLetter,
+      markOffCampus: !!$('markOffCampus').checked,
+      allStudents,
+      osisList,
+      onlyIfCurrentCodes,
+      dryRun: !!dryRun
     };
+  }
 
-    $('applyBtn').disabled = true;
-    setResult('Applying…', true);
+  function summarizeScanResponse(data){
+    const counts = data?.currentStatusCounts || {};
+    const summary = {
+      ok: !!data?.ok,
+      dryRun: !!data?.dryRun,
+      date: data?.date,
+      periodRange: data?.endPeriodLocal ? `${data?.periodLocal} → ${data?.endPeriodLocal}` : `${data?.periodLocal} → EOD`,
+      targetCodeLetter: data?.targetCodeLetter,
+      targetPeriods: data?.targetPeriods,
+      allStudents: !!data?.allStudents,
+      requestedStudents: data?.requested,
+      scannedRowsCount: data?.scannedRowsCount,
+      wouldApplyCount: data?.wouldApplyCount,
+      filterActive: !!data?.filterActive,
+      onlyIfCurrentCodes: data?.onlyIfCurrentCodes || [],
+      matchedByCurrentStatusCount: data?.matchedByCurrentStatusCount,
+      skippedByCurrentStatusCount: data?.skippedByCurrentStatusCount,
+      currentStatusCounts: {
+        Absent_A: counts.A || 0,
+        Present_P: counts.P || 0,
+        Late_L: counts.L || 0,
+        Excused_E: counts.E || 0,
+        NoStatus: counts.NONE || 0
+      },
+      unknownCount: data?.unknownCount || 0,
+      noRoomCount: data?.noRoomCount || 0
+    };
+    return formatJson(summary);
+  }
 
-    try{
+  function summarizeApplyResponse(data){
+    const counts = data?.currentStatusCounts || null;
+    const summary = {
+      ok: !!data?.ok,
+      date: data?.date,
+      periodRange: data?.endPeriodLocal ? `${data?.periodLocal} → ${data?.endPeriodLocal}` : `${data?.periodLocal} → EOD`,
+      targetCodeLetter: data?.targetCodeLetter,
+      targetPeriods: data?.targetPeriods,
+      allStudents: !!data?.allStudents,
+      requestedStudents: data?.requested,
+      studentsAffectedCount: data?.studentsAffectedCount,
+      overridesApplied: data?.overridesApplied,
+      lockSet: data?.lockSet,
+      locksCleared: data?.locksCleared,
+      offCampusApplied: data?.offCampusApplied,
+      filterActive: !!data?.filterActive,
+      onlyIfCurrentCodes: data?.onlyIfCurrentCodes || [],
+      scannedRowsCount: data?.scannedRowsCount,
+      matchedByCurrentStatusCount: data?.matchedByCurrentStatusCount,
+      skippedByCurrentStatusCount: data?.skippedByCurrentStatusCount,
+      currentStatusCounts: counts ? {
+        Absent_A: counts.A || 0,
+        Present_P: counts.P || 0,
+        Late_L: counts.L || 0,
+        Excused_E: counts.E || 0,
+        NoStatus: counts.NONE || 0
+      } : null,
+      unknownCount: data?.unknownCount,
+      noRoomCount: data?.noRoomCount,
+      rowErrorCount: data?.rowErrorCount,
+      finalPatchedRooms: data?.finalPatchedRooms,
+      deltaRowsCount: data?.deltaRowsCount,
+      gas: data?.gas
+    };
+    return formatJson(summary);
+  }
+
+  async function submitAttendanceChange({ dryRun }){
+    const payload = buildPayload(dryRun);
+    const applyBtn = $('applyBtn');
+    const scanBtn = $('scanBtn');
+    applyBtn.disabled = true;
+    scanBtn.disabled = true;
+
+    if (dryRun) setScanResult('Scanning current statuses…', true);
+    else setResult('Applying attendance change…', true);
+
+    try {
       const r = await adminFetch('/admin/excused/apply', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await r.json().catch(() => null);
+
       if (!r.ok || !data?.ok) {
-        setResult(formatJson(data || { ok:false, error:`HTTP ${r.status}` }), false);
+        const msg = formatJson(data || { ok:false, error:`HTTP ${r.status}` });
+        if (dryRun) setScanResult(msg, false);
+        else setResult(msg, false);
         return;
       }
 
-      const summary = {
-        ok: true,
-        date: data.date,
-        periodLocal: data.periodLocal,
-        targetPeriods: data.targetPeriods,
-        requested: data.requested,
-        lockSet: data.lockSet,
-        overridesApplied: data.overridesApplied,
-        offCampusApplied: data.offCampusApplied,
-        unknownCount: data.unknownCount,
-        noRoomCount: data.noRoomCount,
-        rowErrorCount: data.rowErrorCount,
-        finalPatchedRooms: data.finalPatchedRooms,
-        deltaRowsCount: data.deltaRowsCount,
-        gas: data.gas
-      };
-      setResult(formatJson(summary), true);
-
-      // optional: show a compact warning if there are row errors
-      if ((data.rowErrorCount || 0) > 0 || (data.noRoomCount || 0) > 0) {
-        $('resultBox').textContent += '\n\nWarnings:\n' + formatJson({
-          noRoomSample: (data.noRoomSample || []).slice(0, 20),
-          rowErrorSample: (data.rowErrorSample || []).slice(0, 20),
-          unknownOsis: (data.unknownOsis || []).slice(0, 20)
-        });
+      if (dryRun) {
+        setScanResult(summarizeScanResponse(data), true);
+        if ((data.noRoomCount || 0) > 0 || (data.unknownCount || 0) > 0) {
+          $('scanBox').textContent += '\n\nWarnings:\n' + formatJson({
+            noRoomSample: (data.noRoomSample || []).slice(0, 20),
+            unknownOsis: (data.unknownOsis || []).slice(0, 20)
+          });
+        }
+      } else {
+        setResult(summarizeApplyResponse(data), true);
+        if ((data.rowErrorCount || 0) > 0 || (data.noRoomCount || 0) > 0 || (data.unknownCount || 0) > 0) {
+          $('resultBox').textContent += '\n\nWarnings:\n' + formatJson({
+            noRoomSample: (data.noRoomSample || []).slice(0, 20),
+            rowErrorSample: (data.rowErrorSample || []).slice(0, 20),
+            unknownOsis: (data.unknownOsis || []).slice(0, 20)
+          });
+        }
       }
-    } catch (e){
-      setResult(String(e?.message || e), false);
+    } catch (e) {
+      if (dryRun) setScanResult(String(e?.message || e), false);
+      else setResult(String(e?.message || e), false);
     } finally {
-      $('applyBtn').disabled = false;
+      applyBtn.disabled = false;
+      scanBtn.disabled = false;
     }
   }
 
@@ -364,6 +462,8 @@
     });
 
     $('osisText').addEventListener('input', () => computeFinalList());
+    $('allStudents').addEventListener('change', () => { renderCounts(); renderPreview(); });
+    $('targetCode').addEventListener('change', updateTargetDependentUI);
 
     $('csvFile').addEventListener('change', async (ev) => {
       const file = ev.target.files && ev.target.files[0];
@@ -373,11 +473,11 @@
         computeFinalList();
         return;
       }
-      try{
+      try {
         const text = await file.text();
         state.csvOsis = parseCsvOneColumn(text);
         $('csvHint').textContent = `Loaded ${state.csvOsis.length} OSIS from CSV.`;
-      } catch (e){
+      } catch (e) {
         state.csvOsis = [];
         $('csvHint').textContent = `Could not parse CSV: ${String(e?.message || e)}`;
       }
@@ -385,21 +485,23 @@
     });
 
     $('recalcBtn').addEventListener('click', () => computeFinalList());
-    $('applyBtn').addEventListener('click', () => applyExcused());
+    $('scanBtn').addEventListener('click', () => submitAttendanceChange({ dryRun: true }));
+    $('applyBtn').addEventListener('click', () => submitAttendanceChange({ dryRun: false }));
   }
 
   async function init(){
-    try{
+    try {
       wireEvents();
       await loadOptionsAndRoster();
-
       $('authCard').style.display = 'none';
       $('app').style.display = 'block';
       setResult('Ready.', true);
-    } catch (e){
+      setScanResult('Run “Scan Current Statuses” to preview current codes and filter impact.', true);
+    } catch (e) {
       $('authCard').style.display = 'block';
       $('app').style.display = 'none';
       setResult(String(e?.message || e), false);
+      setScanResult(String(e?.message || e), false);
     }
   }
 

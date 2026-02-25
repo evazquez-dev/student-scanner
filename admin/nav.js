@@ -16,7 +16,7 @@
     hallway: 'Hallway Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
-    excused_apply: 'Excused Lock',
+    excused_apply: 'Attendance Change',
     admin: 'Admin Dashboard'
   };
 
@@ -195,7 +195,7 @@
       { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'monitor' },
       { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'pull' },
       { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phones' },
-      { key:'excused_apply',      label: MODULES.excused_apply || 'Excused Lock',            href:'./excused_apply.html',      badge:'attendance' },
+      { key:'excused_apply',      label: MODULES.excused_apply || 'Attendance Change',            href:'./excused_apply.html',      badge:'attendance' },
       { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'admin' },
     ];
 
