@@ -30,7 +30,8 @@ const outCountEl = document.getElementById('outCount');
 const inCountEl  = document.getElementById('inCount');
 
 /******************** Secret behavior menu (persistent across refresh) ********************/
-const SECRET_FLAG_KEY = 'ta_secret_behavior_enabled_v1';
+const SECRET_FLAG_KEY = 'ta_secret_behavior_enabled_v2';
+const SECRET_DEFAULT_ENABLED = true;
 
 const SECRET_MENU = {
   enabled: false,
@@ -61,7 +62,12 @@ let SECRET_MENU_MODEL = {
 
 function isSecretEnabled(){
   if (SECRET_MENU.enabled) return true;
-  try { return localStorage.getItem(SECRET_FLAG_KEY) === '1'; } catch { return false; }
+  try {
+    const raw = localStorage.getItem(SECRET_FLAG_KEY);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+  } catch {}
+  return SECRET_DEFAULT_ENABLED;
 }
 function setSecretEnabled(v){
   SECRET_MENU.enabled = !!v;

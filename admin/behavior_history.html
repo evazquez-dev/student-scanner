@@ -325,6 +325,70 @@
       text-align:center;
     }
 
+    .busyShield{
+      position:fixed;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:1rem;
+      background: rgba(2,6,23,0.5);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+    }
+    :root[data-theme="light"] .busyShield{
+      background: rgba(241,245,249,0.62);
+    }
+    body[data-busy="1"] .busyShield{
+      display:flex;
+    }
+
+    .busyCard{
+      width:min(420px, 92vw);
+      padding:1rem 1rem 0.95rem;
+      border-radius:1rem;
+      border:1px solid var(--border);
+      background: var(--card-bg);
+      box-shadow: var(--shadow);
+      text-align:center;
+    }
+
+    .busySpinner{
+      width:48px;
+      height:48px;
+      margin:0 auto 0.8rem;
+      border-radius:999px;
+      border:4px solid rgba(148,163,184,0.25);
+      border-top-color: var(--accent);
+      animation: busySpin 0.85s linear infinite;
+    }
+
+    .busyTitle{
+      font-size:1rem;
+      font-weight:800;
+      margin:0;
+    }
+
+    .busyDetail{
+      margin:0.4rem 0 0;
+      color: var(--muted);
+      line-height:1.45;
+      font-size:0.92rem;
+    }
+
+    body[data-busy="1"] #appShell{
+      user-select:none;
+    }
+
+    body[data-busy="1"] #results,
+    body[data-busy="1"] #filtersForm{
+      pointer-events:none;
+    }
+
+    @keyframes busySpin{
+      to{ transform: rotate(360deg); }
+    }
+
     .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 
     @media (max-width: 980px){
@@ -417,6 +481,14 @@
     <div id="emptyState" class="emptyState" style="display:none;">No behaviors matched your filters.</div>
     <section id="results" class="resultsStack"></section>
   </main>
+
+  <div id="loadingOverlay" class="busyShield" aria-live="polite" aria-hidden="true">
+    <div class="busyCard" role="status" aria-atomic="true">
+      <div class="busySpinner" aria-hidden="true"></div>
+      <p id="loadingMessage" class="busyTitle">Loading behaviors…</p>
+      <p id="loadingDetail" class="busyDetail">Filters and actions are temporarily locked until the refresh finishes.</p>
+    </div>
+  </div>
 
   <script type="module" src="./behavior_history.js"></script>
 </body>

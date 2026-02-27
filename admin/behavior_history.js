@@ -24,9 +24,13 @@ const dateToInput = document.getElementById('dateTo');
 const applyBtn = document.getElementById('applyBtn');
 const resetBtn = document.getElementById('resetBtn');
 const refreshBtn = document.getElementById('refreshBtn');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const loadingMessageEl = document.getElementById('loadingMessage');
+const loadingDetailEl = document.getElementById('loadingDetail');
 
 let ACCESS = null;
 let LAST_DATA = null;
+let BUSY = false;
 
 function show(el){ if (el) el.style.display = ''; }
 function hide(el){ if (el) el.style.display = 'none'; }
@@ -59,9 +63,37 @@ function fmtDate(iso){
   return s;
 }
 
-function setBusy(isBusy){
-  if (applyBtn) applyBtn.disabled = !!isBusy;
-  if (refreshBtn) refreshBtn.disabled = !!isBusy;
+function setControlLock(disabled){
+  const root = appShell;
+  if (!root) return;
+  root.querySelectorAll('button, input, select, textarea').forEach(el => {
+    if (disabled) {
+      if (!el.hasAttribute('data-prev-disabled')) {
+        el.setAttribute('data-prev-disabled', el.disabled ? '1' : '0');
+      }
+      el.disabled = true;
+    } else {
+      const prev = el.getAttribute('data-prev-disabled');
+      if (prev == null) return;
+      el.disabled = prev === '1';
+      el.removeAttribute('data-prev-disabled');
+    }
+  });
+}
+
+function setBusy(isBusy, opts = {}){
+  BUSY = !!isBusy;
+  const message = String(opts?.message || 'Loading behaviors…').trim() || 'Loading behaviors…';
+  const detail = String(opts?.detail || 'Filters and actions are temporarily locked until the refresh finishes.').trim()
+    || 'Filters and actions are temporarily locked until the refresh finishes.';
+
+  if (loadingMessageEl) loadingMessageEl.textContent = message;
+  if (loadingDetailEl) loadingDetailEl.textContent = detail;
+  if (loadingOverlay) loadingOverlay.setAttribute('aria-hidden', BUSY ? 'false' : 'true');
+  if (appShell) appShell.setAttribute('aria-busy', BUSY ? 'true' : 'false');
+  document.body.dataset.busy = BUSY ? '1' : '0';
+
+  setControlLock(BUSY);
 }
 
 function getStoredAdminSessionSid(){
@@ -261,6 +293,13 @@ function renderRows(rows){
   });
 }
 
+function applyBehaviorData(data){
+  LAST_DATA = data;
+  renderFilters(data);
+  renderSummary(data);
+  renderRows(data.rows || []);
+}
+
 async function fetchBehaviors(){
   const filters = currentFilters();
   const u = new URL('/admin/behavior/list', API_BASE);
@@ -277,20 +316,24 @@ async function fetchBehaviors(){
   return data;
 }
 
-async function loadBehaviors(){
-  setBusy(true);
+async function loadBehaviors(opts = {}){
+  const useBusy = opts?.withBusy !== false;
+  if (useBusy) {
+    setBusy(true, {
+      message: opts?.message || 'Loading filtered behaviors…',
+      detail: opts?.detail || 'Filters and actions are temporarily locked until the refresh finishes.'
+    });
+  }
+
   try{
     const data = await fetchBehaviors();
-    LAST_DATA = data;
-    renderFilters(data);
-    renderSummary(data);
-    renderRows(data.rows || []);
+    applyBehaviorData(data);
   }catch(e){
     resultsEl.innerHTML = '';
     emptyStateEl.style.display = '';
     emptyStateEl.textContent = `Could not load behaviors: ${e?.message || e}`;
   }finally{
-    setBusy(false);
+    if (useBusy) setBusy(false);
   }
 }
 
@@ -313,6 +356,8 @@ function rowByBehaviorId(id){
 }
 
 async function onResultsClick(ev){
+  if (BUSY) return;
+
   const btn = ev.target?.closest?.('button[data-act]');
   if (!btn) return;
 
@@ -321,18 +366,40 @@ async function onResultsClick(ev){
   if (!behaviorId || !act) return;
 
   const textarea = document.querySelector(`textarea[data-behavior-id="${CSS.escape(behaviorId)}"]`);
-  const row = rowByBehaviorId(behaviorId);
 
   btn.disabled = true;
   try{
+    if (act === 'delete') {
+      const ok = window.confirm('Mark this behavior as deleted? It will stay stored and can be restored later.');
+      if (!ok) return;
+    }
+
+    const busyMap = {
+      save: {
+        message: 'Saving notes…',
+        detail: 'Please wait while the behavior note is saved and the list refreshes.'
+      },
+      delete: {
+        message: 'Marking behavior deleted…',
+        detail: 'Please wait while this entry is moved out of the active view.'
+      },
+      restore: {
+        message: 'Restoring behavior…',
+        detail: 'Please wait while this deleted entry is restored.'
+      }
+    };
+
+    setBusy(true, busyMap[act] || {
+      message: 'Updating behavior…',
+      detail: 'Please wait while the behavior list refreshes.'
+    });
+
     if (act === 'save') {
       await updateBehavior({
         behaviorId,
         notes: String(textarea?.value || '')
       });
     } else if (act === 'delete') {
-      const ok = window.confirm('Mark this behavior as deleted? It will stay stored and can be restored later.');
-      if (!ok) return;
       await updateBehavior({
         behaviorId,
         isDeleted: true,
@@ -344,10 +411,12 @@ async function onResultsClick(ev){
         isDeleted: false
       });
     }
-    await loadBehaviors();
+
+    await loadBehaviors({ withBusy:false });
   } catch (e) {
     alert(e?.message || String(e));
   } finally {
+    setBusy(false);
     btn.disabled = false;
   }
 }
