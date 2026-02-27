@@ -16,6 +16,7 @@
     hallway: 'Hallway Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
+    behavior_history: 'Logged Behaviors',
     attendance_change: 'Attendance Change',
     excused_apply: 'Attendance Change', // legacy alias
     admin: 'Admin Dashboard'
@@ -28,6 +29,7 @@
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
     'student_scans_admin_session_v1',
+    'behavior_history_admin_session_v1',
     'attendance_change_admin_session_v1',
     'excused_apply_admin_session_v1', // legacy
     'admin_session_v1',
@@ -129,6 +131,7 @@
           attendance_status: true,
           student_scans: true,
           student_view: true,
+          behavior_history: true,
           phone_pass: false,
           attendance_change: role === 'admin',
           excused_apply: role === 'admin' // legacy alias
@@ -199,6 +202,7 @@
       { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'monitor' },
       { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'pull' },
       { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phones' },
+      { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',       href:'./behavior_history.html',   badge:'behavior' },
       { key:'attendance_change',  label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'attendance' },
       { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'admin' },
     ];

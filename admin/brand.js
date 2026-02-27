@@ -11,6 +11,7 @@
     hallway: 'Hallway Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
+    behavior_history: 'Logged Behaviors',
     attendance_change: 'Attendance Change',
     excused_apply: 'Attendance Change', // legacy alias
     admin: 'Admin Dashboard'
