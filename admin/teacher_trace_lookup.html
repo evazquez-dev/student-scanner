@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./teacher_trace_lookup.js" defer></script>
+
+  <style>
+    :root{
+      color-scheme: dark;
+      --bg:#07111f;
+      --card:#0f1b2f;
+      --card2:#13233c;
+      --line:#24334f;
+      --fg:#e6edf7;
+      --muted:#9cb0cc;
+      --accent:#4ade80;
+      --accent2:#7dd3fc;
+      --warn:#fbbf24;
+      --danger:#fb7185;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      padding:1rem;
+      background:
+        radial-gradient(circle at top left, rgba(125,211,252,.12), transparent 26%),
+        radial-gradient(circle at top right, rgba(74,222,128,.10), transparent 22%),
+        linear-gradient(180deg, #040913, #07111f 28%, #06101d);
+      color:var(--fg);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell{ width:min(1320px,100%); margin:0 auto; }
+    .hidden{ display:none !important; }
+    .card{
+      background:linear-gradient(180deg, rgba(15,27,47,.96), rgba(9,17,31,.95));
+      border:1px solid var(--line);
+      border-radius:18px;
+      box-shadow:0 24px 80px rgba(0,0,0,.32);
+      padding:1rem;
+    }
+    #loginCard{
+      max-width:440px;
+      margin:4rem auto 0;
+      text-align:center;
+      display:none;
+    }
+    #loginOut{
+      margin-top:.75rem;
+      text-align:left;
+      white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:.78rem;
+      color:var(--muted);
+      background:rgba(2,6,23,.5);
+      border:1px solid rgba(156,176,204,.16);
+      border-radius:10px;
+      padding:.65rem .75rem;
+      max-height:140px;
+      overflow:auto;
+    }
+    header{ margin-bottom:1rem; }
+    h1{
+      margin:0;
+      font-size:1.35rem;
+      letter-spacing:.03em;
+      text-transform:uppercase;
+    }
+    .sub{ color:var(--muted); margin-top:.3rem; max-width:900px; }
+    .pill-row, .toolbar, .filters, .summary-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.6rem;
+      align-items:center;
+    }
+    .pill{
+      display:inline-flex;
+      gap:.45rem;
+      align-items:center;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:.35rem .7rem;
+      background:rgba(6,16,29,.55);
+      font-size:.82rem;
+    }
+    .dot{ width:8px; height:8px; border-radius:999px; background:var(--muted); }
+    .dot.ok{ background:var(--accent); }
+    .dot.bad{ background:var(--danger); }
+    .toolbar{ margin:.85rem 0 1rem; }
+    .filters{
+      display:grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap:.7rem;
+      margin-top:.9rem;
+    }
+    @media (max-width: 1180px){
+      .filters{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 760px){
+      .filters{ grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 520px){
+      .filters{ grid-template-columns: 1fr; }
+    }
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:.3rem;
+    }
+    .field label{
+      color:var(--muted);
+      font-size:.78rem;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    input, select, button, textarea{
+      font:inherit;
+      border-radius:12px;
+      border:1px solid #31415f;
+      background:#0a1527;
+      color:var(--fg);
+    }
+    input, select{
+      min-height:40px;
+      padding:.55rem .65rem;
+    }
+    button{
+      cursor:pointer;
+      padding:.58rem .85rem;
+    }
+    button.primary{
+      background:rgba(125,211,252,.12);
+      border-color:rgba(125,211,252,.45);
+    }
+    button.secondary{
+      background:rgba(74,222,128,.10);
+      border-color:rgba(74,222,128,.4);
+    }
+    button:disabled{ opacity:.6; cursor:not-allowed; }
+    .summary-chip{
+      min-width:120px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:.55rem .7rem;
+      background:rgba(6,16,29,.5);
+    }
+    .summary-chip .k{
+      color:var(--muted);
+      font-size:.72rem;
+      text-transform:uppercase;
+      letter-spacing:.05em;
+    }
+    .summary-chip .v{
+      margin-top:.08rem;
+      font-size:1rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .status{
+      color:var(--muted);
+      min-height:1.1rem;
+      margin:.7rem 0 0;
+      white-space:pre-wrap;
+      font-size:.84rem;
+    }
+    .error{
+      margin-top:.75rem;
+      color:#ffd4dc;
+      background:rgba(127,29,29,.18);
+      border:1px solid rgba(251,113,133,.3);
+      border-radius:12px;
+      padding:.55rem .7rem;
+      white-space:pre-wrap;
+    }
+    .results{
+      display:grid;
+      gap:.9rem;
+      margin-top:1rem;
+    }
+    .trace-card{
+      border:1px solid var(--line);
+      border-radius:18px;
+      background:linear-gradient(180deg, rgba(19,35,60,.9), rgba(10,21,39,.92));
+      overflow:hidden;
+    }
+    .trace-head{
+      display:flex;
+      justify-content:space-between;
+      gap:.75rem;
+      align-items:flex-start;
+      padding:1rem 1rem .8rem;
+      border-bottom:1px solid rgba(156,176,204,.12);
+    }
+    .trace-title{
+      font-weight:700;
+      letter-spacing:.02em;
+    }
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+    .meta{
+      color:var(--muted);
+      font-size:.82rem;
+      margin-top:.28rem;
+      display:flex;
+      flex-wrap:wrap;
+      gap:.45rem .7rem;
+    }
+    .trace-body{ padding:0 1rem 1rem; }
+    details{
+      border-top:1px solid rgba(156,176,204,.12);
+      padding-top:.75rem;
+      margin-top:.75rem;
+    }
+    summary{
+      cursor:pointer;
+      color:var(--accent2);
+      font-weight:600;
+    }
+    .event-list{
+      display:grid;
+      gap:.6rem;
+      margin-top:.75rem;
+    }
+    .event{
+      border:1px solid rgba(156,176,204,.14);
+      border-radius:14px;
+      padding:.7rem .8rem;
+      background:rgba(6,16,29,.5);
+    }
+    .event-top{
+      display:flex;
+      flex-wrap:wrap;
+      gap:.45rem .7rem;
+      align-items:center;
+      margin-bottom:.45rem;
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      border:1px solid rgba(156,176,204,.24);
+      border-radius:999px;
+      padding:.13rem .45rem;
+      font-size:.72rem;
+      color:var(--muted);
+    }
+    .tag.warn{ color:var(--warn); border-color:rgba(251,191,36,.35); }
+    .tag.error{ color:var(--danger); border-color:rgba(251,113,133,.35); }
+    pre{
+      margin:.45rem 0 0;
+      padding:.7rem .75rem;
+      border-radius:12px;
+      background:#07101e;
+      border:1px solid rgba(156,176,204,.14);
+      overflow:auto;
+      white-space:pre-wrap;
+      word-break:break-word;
+      font-size:.77rem;
+      line-height:1.42;
+      color:#d8e3f3;
+    }
+    .empty{
+      border:1px dashed rgba(156,176,204,.25);
+      border-radius:16px;
+      padding:1rem;
+      color:var(--muted);
+      text-align:center;
+      background:rgba(6,16,29,.35);
+    }
+  </style>
+</head>
+<body data-module="teacher_trace_lookup">
+  <div class="shell">
+    <section class="card" id="loginCard">
+      <h2 data-brand-module>Attendance Trace Lookup</h2>
+      <p>Sign in with your school Google account.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut">-</div>
+    </section>
+
+    <main id="appShell" class="hidden">
+      <header>
+        <h1 data-brand-module>Attendance Trace Lookup</h1>
+        <div class="sub">Search recent teacher attendance submissions and inspect the exact Worker trace steps that ran for each submission.</div>
+      </header>
+
+      <section class="card">
+        <div class="pill-row">
+          <div class="pill"><span class="dot" id="liveDot"></span><span id="liveText">Live</span></div>
+          <div class="pill">Date: <span id="datePill" class="mono">-</span></div>
+          <div class="pill">Matches: <span id="countPill" class="mono">0</span></div>
+          <div class="pill">Scanned keys: <span id="scanPill" class="mono">0</span></div>
+        </div>
+
+        <form id="filterForm">
+          <div class="filters">
+            <div class="field">
+              <label for="dateInput">Date</label>
+              <input id="dateInput" type="date" required>
+            </div>
+            <div class="field">
+              <label for="osisInput">OSIS</label>
+              <input id="osisInput" type="text" inputmode="numeric" placeholder="Optional">
+            </div>
+            <div class="field">
+              <label for="roomInput">Room</label>
+              <input id="roomInput" type="text" placeholder="Optional">
+            </div>
+            <div class="field">
+              <label for="periodInput">Period</label>
+              <input id="periodInput" type="text" placeholder="Optional">
+            </div>
+            <div class="field">
+              <label for="submissionInput">Submission ID</label>
+              <input id="submissionInput" type="text" placeholder="Optional">
+            </div>
+            <div class="field">
+              <label for="actorInput">Teacher Email</label>
+              <input id="actorInput" type="text" placeholder="Optional">
+            </div>
+            <div class="field">
+              <label for="levelInput">Minimum match</label>
+              <select id="levelInput">
+                <option value="">Any level</option>
+                <option value="error">Error</option>
+                <option value="warn">Warn</option>
+                <option value="info">Info</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button id="runBtn" class="primary" type="submit">Run Lookup</button>
+            <button id="resetBtn" type="button">Reset</button>
+            <div class="field" style="min-width:120px;">
+              <label for="limitInput">Limit</label>
+              <select id="limitInput">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+        </form>
+
+        <div class="summary-row" id="summaryRow"></div>
+        <div class="status" id="statusText">Ready.</div>
+        <div class="error hidden" id="errorBox"></div>
+      </section>
+
+      <section class="results" id="results"></section>
+    </main>
+  </div>
+</body>
+</html>

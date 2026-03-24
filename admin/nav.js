@@ -10,6 +10,7 @@
   const BRAND = window.EAGLENEST_BRAND?.name || 'EagleNEST';
   const MODULES = window.EAGLENEST_BRAND?.modules || {
     teacher_attendance: 'Teacher Attendance',
+    teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
     student_scans: 'Student Scans',
     student_view: 'Student View',
@@ -25,6 +26,7 @@
   const ADMIN_SESSION_HEADER = 'x-admin-session';
   const NAV_SESSION_KEYS = [
     'teacher_att_admin_session_v1',
+    'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
@@ -133,6 +135,7 @@
           student_view: true,
           behavior_history: true,
           phone_pass: false,
+          teacher_trace_lookup: true,
           attendance_change: role === 'admin',
           excused_apply: role === 'admin' // legacy alias
         }
@@ -196,6 +199,7 @@
 
     const items = [
       { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'staff' },
+      { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', badge:'trace' },
       { key:'attendance_status',  label: MODULES.attendance_status || 'Attendance Status',   href:'./attendance_status.html',  badge:'audit' },
       { key:'student_scans',      label: MODULES.student_scans || 'Scans Report',            href:'./student_scans.html',      badge:'reports' },
       { key:'student_view',       label: MODULES.student_view || 'Student View',             href:'./student_view.html',       badge:'student' },
