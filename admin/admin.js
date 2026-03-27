@@ -124,6 +124,7 @@ const bathTbody  = document.getElementById('bathTbody');
 const attOut     = document.getElementById('attOut');
 const attLateInp = document.getElementById('attLateMinutes');
 const campusOutModeSel = document.getElementById('campusOutMode');
+const sendToPowerSchoolInp = document.getElementById('sendToPowerSchool');
 
 // Shell / inner
 const appShell = document.getElementById('appShell');
@@ -791,10 +792,22 @@ function campusOutModeLabel(mode) {
     : 'Automatic flush';
 }
 
-async function saveAttendanceCfg({ lateMin, campusOutMode }) {
+function normalizeSendToPowerSchool(raw) {
+  if (typeof raw === 'boolean') return raw;
+  const v = String(raw ?? '').trim().toLowerCase();
+  if (v === 'false' || v === '0' || v === 'off' || v === 'no') return false;
+  return true;
+}
+
+function powerSchoolSyncLabel(enabled) {
+  return normalizeSendToPowerSchool(enabled) ? 'On' : 'Off';
+}
+
+async function saveAttendanceCfg({ lateMin, campusOutMode, sendToPowerSchool }) {
   const body = new URLSearchParams();
   body.set('late_min', String(lateMin));
   body.set('campus_out_mode', normalizeCampusOutMode(campusOutMode));
+  body.set('send_to_powerschool', normalizeSendToPowerSchool(sendToPowerSchool) ? 'true' : 'false');
 
   const r = await adminFetch('/admin/attendance_cfg', {
     method: 'POST',
@@ -810,7 +823,7 @@ async function saveAttendanceCfg({ lateMin, campusOutMode }) {
 }
 
 async function loadAttendanceCfg() {
-  if (!attOut || !attLateInp || !campusOutModeSel) return;
+  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp) return;
   attOut.textContent = 'Loading…';
   try {
     const cfg = await getAttendanceCfg();
@@ -819,9 +832,13 @@ async function loadAttendanceCfg() {
     campusOutModeSel.value = normalizeCampusOutMode(
       cfg.campus_out_mode || cfg.campusOutMode || cfg.dismissal_mode
     );
+    sendToPowerSchoolInp.checked = normalizeSendToPowerSchool(
+      cfg.send_to_powerschool ?? cfg.sendToPowerSchool ?? cfg.push_to_powerschool
+    );
     attOut.textContent =
       `Current Late threshold: ${cfg.late_min} minute(s). ` +
-      `Campus-out dismissal: ${campusOutModeLabel(campusOutModeSel.value)}.`;
+      `Campus-out dismissal: ${campusOutModeLabel(campusOutModeSel.value)}. ` +
+      `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchoolInp.checked)}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;
   }
@@ -830,7 +847,7 @@ async function loadAttendanceCfg() {
 document.getElementById('btnAttLoad')?.addEventListener('click', loadAttendanceCfg);
 
 document.getElementById('btnAttSave')?.addEventListener('click', async () => {
-  if (!attOut || !attLateInp || !campusOutModeSel) return;
+  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp) return;
 
   const raw = attLateInp.value.trim();
   const n = Number(raw);
@@ -844,16 +861,22 @@ document.getElementById('btnAttSave')?.addEventListener('click', async () => {
   try {
     const cfg = await saveAttendanceCfg({
       lateMin: n,
-      campusOutMode: campusOutModeSel.value
+      campusOutMode: campusOutModeSel.value,
+      sendToPowerSchool: sendToPowerSchoolInp.checked
     });
     if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
     const savedMode = normalizeCampusOutMode(
       cfg.campus_out_mode || cfg.campusOutMode || cfg.dismissal_mode || campusOutModeSel.value
     );
+    const sendToPowerSchool = normalizeSendToPowerSchool(
+      cfg.send_to_powerschool ?? cfg.sendToPowerSchool ?? cfg.push_to_powerschool ?? sendToPowerSchoolInp.checked
+    );
     campusOutModeSel.value = savedMode;
+    sendToPowerSchoolInp.checked = sendToPowerSchool;
     attOut.textContent =
       `Saved. Late after ${cfg.late_min} minute(s). ` +
-      `Campus-out dismissal: ${campusOutModeLabel(savedMode)}.`;
+      `Campus-out dismissal: ${campusOutModeLabel(savedMode)}. ` +
+      `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchool)}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;
   }
