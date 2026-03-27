@@ -123,6 +123,7 @@ const bathTbody  = document.getElementById('bathTbody');
 // Attendance controls
 const attOut     = document.getElementById('attOut');
 const attLateInp = document.getElementById('attLateMinutes');
+const campusOutModeSel = document.getElementById('campusOutMode');
 
 // Shell / inner
 const appShell = document.getElementById('appShell');
@@ -778,8 +779,22 @@ async function getAttendanceCfg() {
   return await r.json().catch(() => ({}));
 }
 
-async function setAttendanceLateMin(minutes) {
-  const body = new URLSearchParams({ late_min: String(minutes) });
+function normalizeCampusOutMode(raw) {
+  const v = String(raw || '').trim().toLowerCase();
+  if (v === 'manual_scan_out' || v === 'manual') return 'manual_scan_out';
+  return 'auto_flush';
+}
+
+function campusOutModeLabel(mode) {
+  return normalizeCampusOutMode(mode) === 'manual_scan_out'
+    ? 'Manual student scan-out'
+    : 'Automatic flush';
+}
+
+async function saveAttendanceCfg({ lateMin, campusOutMode }) {
+  const body = new URLSearchParams();
+  body.set('late_min', String(lateMin));
+  body.set('campus_out_mode', normalizeCampusOutMode(campusOutMode));
 
   const r = await adminFetch('/admin/attendance_cfg', {
     method: 'POST',
@@ -795,13 +810,18 @@ async function setAttendanceLateMin(minutes) {
 }
 
 async function loadAttendanceCfg() {
-  if (!attOut || !attLateInp) return;
+  if (!attOut || !attLateInp || !campusOutModeSel) return;
   attOut.textContent = 'Loading…';
   try {
     const cfg = await getAttendanceCfg();
     if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
     attLateInp.value = Number(cfg.late_min) || '';
-    attOut.textContent = `Current Late threshold: ${cfg.late_min} minute(s).`;
+    campusOutModeSel.value = normalizeCampusOutMode(
+      cfg.campus_out_mode || cfg.campusOutMode || cfg.dismissal_mode
+    );
+    attOut.textContent =
+      `Current Late threshold: ${cfg.late_min} minute(s). ` +
+      `Campus-out dismissal: ${campusOutModeLabel(campusOutModeSel.value)}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;
   }
@@ -810,7 +830,7 @@ async function loadAttendanceCfg() {
 document.getElementById('btnAttLoad')?.addEventListener('click', loadAttendanceCfg);
 
 document.getElementById('btnAttSave')?.addEventListener('click', async () => {
-  if (!attOut || !attLateInp) return;
+  if (!attOut || !attLateInp || !campusOutModeSel) return;
 
   const raw = attLateInp.value.trim();
   const n = Number(raw);
@@ -822,9 +842,18 @@ document.getElementById('btnAttSave')?.addEventListener('click', async () => {
 
   attOut.textContent = 'Saving…';
   try {
-    const cfg = await setAttendanceLateMin(n);
+    const cfg = await saveAttendanceCfg({
+      lateMin: n,
+      campusOutMode: campusOutModeSel.value
+    });
     if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
-    attOut.textContent = `Saved. Late after ${cfg.late_min} minute(s).`;
+    const savedMode = normalizeCampusOutMode(
+      cfg.campus_out_mode || cfg.campusOutMode || cfg.dismissal_mode || campusOutModeSel.value
+    );
+    campusOutModeSel.value = savedMode;
+    attOut.textContent =
+      `Saved. Late after ${cfg.late_min} minute(s). ` +
+      `Campus-out dismissal: ${campusOutModeLabel(savedMode)}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;
   }

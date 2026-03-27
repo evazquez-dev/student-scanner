@@ -272,6 +272,15 @@
             <button id="btnAttSave" class="btn primary">Save</button>
           </div>
 
+          <div class="row" style="align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap;">
+            <label for="campusOutMode">Campus-out dismissal</label>
+            <select id="campusOutMode" style="min-width:260px">
+              <option value="auto_flush">Automatic flush</option>
+              <option value="manual_scan_out">Manual student scan-out</option>
+            </select>
+            <span class="muted">Use manual mode on days like Tuesday, March 31, when students should scan themselves out.</span>
+          </div>
+
           <pre id="attOut" class="pane">—</pre>
         </section>
 
