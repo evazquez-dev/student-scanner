@@ -1998,6 +1998,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   // Only show Out/In for the current period (and only if current period is known)
   const cur = String(CURRENT_PERIOD_LOCAL || '').trim();
   const allowOutIn = !!cur && (String(period || '').trim() === cur);
+  const showRpBadge = isLastScheduledPeriodLocal(period);
 
   // Collapse the Out/In column + hide header when not allowed
   if (tableBox) tableBox.classList.toggle('noOutIn', !allowOutIn);
@@ -2038,6 +2039,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const name = snap?.name || '(Unknown)';
     const zone = snap?.zone || '';
     const locLabel = snap?.locLabel || snap?.loc || '';
+    const regentsPrep = !!(snap?.regents_prep || snap?.rp);
 
     const snapshotLetter = snapRec?.codeLetter || '';
     const scanSuggested  = compRec?.codeLetter || '';
@@ -2057,6 +2059,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       name,
       zone,
       locLabel,
+      regentsPrep,
       snapshotLetter,
       scanSuggested,
       baseline,
@@ -2173,6 +2176,14 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       chip.className = 'chip ' + zoneToChipClass(r.zone);
       chip.textContent = String(r.zone).replace(/_/g, ' ');
       top.appendChild(chip);   // ✅ shows on desktop (CSS)
+    }
+
+    if (showRpBadge && r.regentsPrep) {
+      const rpChip = document.createElement('span');
+      rpChip.className = 'chip chip--rp';
+      rpChip.textContent = 'RP';
+      rpChip.title = 'Regents Prep';
+      top.appendChild(rpChip);
     }
 
     const sub = document.createElement('div');
@@ -2704,6 +2715,22 @@ function renderCurrentPeriod(opts){
   }
 
   currentPeriodText.textContent = `Current: ${label}`;
+}
+
+function getLastScheduledPeriodLocal(){
+  const items = Array.isArray(TEACHER_OPTS_CACHE?.period_options)
+    ? TEACHER_OPTS_CACHE.period_options
+    : (Array.isArray(TEACHER_OPTS_CACHE?.periods) ? TEACHER_OPTS_CACHE.periods : []);
+  if (!items.length) return '';
+  const last = items[items.length - 1];
+  if (last && typeof last === 'object') return String(last.value || '').trim();
+  return String(last || '').trim();
+}
+
+function isLastScheduledPeriodLocal(periodLocal){
+  const current = String(periodLocal || '').trim();
+  const last = getLastScheduledPeriodLocal();
+  return !!current && !!last && current === last;
 }
 
 function startCurrentPeriodTicker(){
