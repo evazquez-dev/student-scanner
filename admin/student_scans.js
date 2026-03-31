@@ -146,7 +146,7 @@ function allowedType(allowed){
   return 'other';
 }
 
-function applyCorrections(rows){
+function applyCorrections(rows, corrections = []){
   const cutoffByDate = new Map();
   for (const r of rows){
     if (allowedType(r.allowed) !== 'correction') continue;
@@ -154,6 +154,16 @@ function applyCorrections(rows){
     const prev = cutoffByDate.get(dkey);
     if (!prev || String(r.whenISO || '') > String(prev.whenISO || '')) {
       cutoffByDate.set(dkey, r);
+    }
+  }
+
+  for (const c of corrections){
+    const whenISO = String(c?.whenISO || '').trim();
+    const dkey = String(c?.date || '').trim() || (whenISO ? dtParts(whenISO).dateKey : '');
+    if (!dkey || !whenISO) continue;
+    const prev = cutoffByDate.get(dkey);
+    if (!prev || whenISO > String(prev.whenISO || '')) {
+      cutoffByDate.set(dkey, { whenISO, kvCorrection: true });
     }
   }
 
@@ -774,14 +784,15 @@ async function runReport(){
     }
 
     const rowsRaw = Array.isArray(j.rows) ? j.rows : [];
-    const rows = applyCorrections(rowsRaw);
+    const corrections = Array.isArray(j.corrections) ? j.corrections : [];
+    const rows = applyCorrections(rowsRaw, corrections);
     const name = rows.find(x => x.name)?.name || '(name unknown)';
 
     document.getElementById('studentHeader').innerHTML =
       `<div style="font-weight:700;">${esc(name)} <span class="mono">(${esc(osis)})</span></div>
        <div class="small">Range: <span class="mono">${esc(start)}</span> → <span class="mono">${esc(end)}</span>${j.truncated ? ' (truncated)' : ''}</div>`;
 
-    setText('rawMeta', `Returned ${rows.length} scan(s). Truncated=${Boolean(j.truncated)}.`);
+    setText('rawMeta', `Returned ${rows.length} scan(s). Corrections=${corrections.length}. Truncated=${Boolean(j.truncated)}.`);
     if (outEl) outEl.textContent = '';
 
     // Compute
