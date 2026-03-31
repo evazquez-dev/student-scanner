@@ -2322,6 +2322,27 @@
 
       // ---- AFTER SCHOOL EXIT (Front Entrance) ----
       if (!!res.after_school_mode && isFrontEntranceLocation(loc)) {
+        const rpGateOn = !!res.regents_prep_exit_gate;
+        const isRegentsPrep = !!res.regents_prep;
+        const afterSchoolStartMin = Number(res.after_school_start_min);
+        const nowLocal = new Date(when);
+        const nowMin = (nowLocal.getHours() * 60) + nowLocal.getMinutes();
+        const denyRpExit =
+          rpGateOn &&
+          isRegentsPrep &&
+          Number.isFinite(afterSchoolStartMin) &&
+          nowMin >= (afterSchoolStartMin + 30);
+
+        if (denyRpExit) {
+          const label = 'DENIED EXIT';
+          beepBad();
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: 'Regents Prep', when });
+          showSuccess(res.name, code, label, 'Regents Prep', when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
+          setStatus('Denied: Regents Prep students cannot dismiss from Front Entrance after the cutoff.');
+          return;
+        }
+
         const label = 'Off Campus (after school)';
         beepNeutralUp();
         updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: '', when });

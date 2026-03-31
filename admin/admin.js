@@ -125,6 +125,7 @@ const attOut     = document.getElementById('attOut');
 const attLateInp = document.getElementById('attLateMinutes');
 const campusOutModeSel = document.getElementById('campusOutMode');
 const sendToPowerSchoolInp = document.getElementById('sendToPowerSchool');
+const regentsPrepExitGateInp = document.getElementById('regentsPrepExitGate');
 
 // Shell / inner
 const appShell = document.getElementById('appShell');
@@ -808,6 +809,7 @@ async function saveAttendanceCfg({ lateMin, campusOutMode, sendToPowerSchool }) 
   body.set('late_min', String(lateMin));
   body.set('campus_out_mode', normalizeCampusOutMode(campusOutMode));
   body.set('send_to_powerschool', normalizeSendToPowerSchool(sendToPowerSchool) ? 'true' : 'false');
+  body.set('regents_prep_exit_gate', regentsPrepExitGateInp?.checked ? 'true' : 'false');
 
   const r = await adminFetch('/admin/attendance_cfg', {
     method: 'POST',
@@ -823,7 +825,7 @@ async function saveAttendanceCfg({ lateMin, campusOutMode, sendToPowerSchool }) 
 }
 
 async function loadAttendanceCfg() {
-  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp) return;
+  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp || !regentsPrepExitGateInp) return;
   attOut.textContent = 'Loading…';
   try {
     const cfg = await getAttendanceCfg();
@@ -835,10 +837,12 @@ async function loadAttendanceCfg() {
     sendToPowerSchoolInp.checked = normalizeSendToPowerSchool(
       cfg.send_to_powerschool ?? cfg.sendToPowerSchool ?? cfg.push_to_powerschool
     );
+    regentsPrepExitGateInp.checked = !!(cfg.regents_prep_exit_gate ?? cfg.regentsPrepExitGate);
     attOut.textContent =
       `Current Late threshold: ${cfg.late_min} minute(s). ` +
       `Campus-out dismissal: ${campusOutModeLabel(campusOutModeSel.value)}. ` +
-      `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchoolInp.checked)}.`;
+      `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchoolInp.checked)}. ` +
+      `Regents Prep exit gate: ${regentsPrepExitGateInp.checked ? 'On' : 'Off'}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;
   }
@@ -847,7 +851,7 @@ async function loadAttendanceCfg() {
 document.getElementById('btnAttLoad')?.addEventListener('click', loadAttendanceCfg);
 
 document.getElementById('btnAttSave')?.addEventListener('click', async () => {
-  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp) return;
+  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp || !regentsPrepExitGateInp) return;
 
   const raw = attLateInp.value.trim();
   const n = Number(raw);
@@ -871,12 +875,15 @@ document.getElementById('btnAttSave')?.addEventListener('click', async () => {
     const sendToPowerSchool = normalizeSendToPowerSchool(
       cfg.send_to_powerschool ?? cfg.sendToPowerSchool ?? cfg.push_to_powerschool ?? sendToPowerSchoolInp.checked
     );
+    const regentsPrepExitGate = !!(cfg.regents_prep_exit_gate ?? cfg.regentsPrepExitGate ?? regentsPrepExitGateInp.checked);
     campusOutModeSel.value = savedMode;
     sendToPowerSchoolInp.checked = sendToPowerSchool;
+    regentsPrepExitGateInp.checked = regentsPrepExitGate;
     attOut.textContent =
       `Saved. Late after ${cfg.late_min} minute(s). ` +
       `Campus-out dismissal: ${campusOutModeLabel(savedMode)}. ` +
-      `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchool)}.`;
+      `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchool)}. ` +
+      `Regents Prep exit gate: ${regentsPrepExitGate ? 'On' : 'Off'}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;
   }
