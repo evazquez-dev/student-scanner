@@ -137,12 +137,35 @@ function isBathroomLoc(loc){
 function allowedType(allowed){
   const a = String(allowed||'').toLowerCase();
   if (!a) return 'none';
+  if (a === 'correction_reset_off_campus') return 'correction';
   if (a === 'out') return 'out';
   if (a === 'manually_cleared') return 'manual_out';
   if (a === 'in' || a.startsWith('in_')) return 'in';
   if (a.startsWith('full')) return 'denied_full';
   if (a.includes('denied')) return 'denied';
   return 'other';
+}
+
+function applyCorrections(rows){
+  const cutoffByDate = new Map();
+  for (const r of rows){
+    if (allowedType(r.allowed) !== 'correction') continue;
+    const dkey = dtParts(r.whenISO).dateKey;
+    const prev = cutoffByDate.get(dkey);
+    if (!prev || String(r.whenISO || '') > String(prev.whenISO || '')) {
+      cutoffByDate.set(dkey, r);
+    }
+  }
+
+  if (!cutoffByDate.size) return rows;
+
+  return rows.filter((r) => {
+    const dkey = dtParts(r.whenISO).dateKey;
+    const cutoff = cutoffByDate.get(dkey);
+    if (!cutoff) return true;
+    if (allowedType(r.allowed) === 'correction') return true;
+    return String(r.whenISO || '') >= String(cutoff.whenISO || '');
+  });
 }
 
 function setText(id, text){
@@ -750,7 +773,8 @@ async function runReport(){
       return;
     }
 
-    const rows = Array.isArray(j.rows) ? j.rows : [];
+    const rowsRaw = Array.isArray(j.rows) ? j.rows : [];
+    const rows = applyCorrections(rowsRaw);
     const name = rows.find(x => x.name)?.name || '(name unknown)';
 
     document.getElementById('studentHeader').innerHTML =
