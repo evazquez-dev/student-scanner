@@ -335,6 +335,21 @@
     };
   }
 
+  function buildOffCampusResetPayload(){
+    computeFinalList();
+    if (getAllStudentsMode()) {
+      throw new Error('Reset Off Campus does not support All Students mode. Select specific students instead.');
+    }
+    const osisList = getApplyOsisList();
+    if (!osisList.length) {
+      throw new Error('No OSIS selected. Add students first.');
+    }
+    return {
+      date: state.today,
+      osisList
+    };
+  }
+
   function summarizeScanResponse(data){
     const counts = data?.currentStatusCounts || {};
     const summary = {
@@ -454,6 +469,56 @@
     }
   }
 
+  function summarizeOffCampusResetResponse(data){
+    return formatJson({
+      ok: !!data?.ok,
+      date: data?.date,
+      requested: data?.requested || 0,
+      whenISO: data?.whenISO || null,
+      locationUpdated: data?.locationUpdated || 0,
+      locationErrors: data?.locationErrors || 0,
+      sessionAttempts: data?.sessionAttempts || 0,
+      sessionCleared: data?.sessionCleared || 0
+    });
+  }
+
+  async function submitOffCampusReset(){
+    const payload = buildOffCampusResetPayload();
+    const resetBtn = $('resetOffCampusBtn');
+    const applyBtn = $('applyBtn');
+    const scanBtn = $('scanBtn');
+    resetBtn.disabled = true;
+    applyBtn.disabled = true;
+    scanBtn.disabled = true;
+    setResult('Resetting selected students to Off Campus…', true);
+
+    try {
+      const r = await adminFetch('/admin/student/reset_off_campus', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data?.ok) {
+        setResult(formatJson(data || { ok:false, error:`HTTP ${r.status}` }), false);
+        return;
+      }
+      setResult(summarizeOffCampusResetResponse(data), true);
+      const sampleErrors = (Array.isArray(data?.results) ? data.results : [])
+        .filter((row) => !row?.location?.ok || (Array.isArray(row?.session?.errors) && row.session.errors.length))
+        .slice(0, 20);
+      if (sampleErrors.length) {
+        $('resultBox').textContent += '\n\nWarnings:\n' + formatJson(sampleErrors);
+      }
+    } catch (e) {
+      setResult(String(e?.message || e), false);
+    } finally {
+      resetBtn.disabled = false;
+      applyBtn.disabled = false;
+      scanBtn.disabled = false;
+    }
+  }
+
   function wireEvents(){
     $('rosterSearch').addEventListener('input', () => renderRoster());
 
@@ -495,6 +560,16 @@
     $('recalcBtn').addEventListener('click', () => computeFinalList());
     $('scanBtn').addEventListener('click', () => submitAttendanceChange({ dryRun: true }));
     $('applyBtn').addEventListener('click', () => submitAttendanceChange({ dryRun: false }));
+    $('resetOffCampusBtn').addEventListener('click', async () => {
+      try {
+        const payload = buildOffCampusResetPayload();
+        const count = Array.isArray(payload?.osisList) ? payload.osisList.length : 0;
+        if (!window.confirm(`Reset ${count} selected student(s) to Off Campus and clear today's class-session history?`)) return;
+        await submitOffCampusReset();
+      } catch (e) {
+        setResult(String(e?.message || e), false);
+      }
+    });
   }
 
   async function init(){
