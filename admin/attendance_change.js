@@ -189,7 +189,7 @@
       cb.addEventListener('change', () => {
         if (cb.checked) state.selectedOsis.add(String(s.osis));
         else state.selectedOsis.delete(String(s.osis));
-        renderCounts();
+        computeFinalList();
       });
       td0.appendChild(cb);
 
