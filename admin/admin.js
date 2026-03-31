@@ -89,6 +89,7 @@ const bellOut             = document.getElementById('bellOut');
 const bellTbody           = document.getElementById('bellTbody');
 const bellCountLabel      = document.getElementById('bellCountLabel');
 const bellMeta            = document.getElementById('bellMeta');
+const bellWarning         = document.getElementById('bellWarning');
 
 const periodMapOut        = document.getElementById('periodMapOut');
 const periodMapTbody      = document.getElementById('periodMapTbody');
@@ -145,6 +146,49 @@ function esc(s){
 }
 function isBathroom(name){
   return String(name||'').toLowerCase().startsWith('bathroom (');
+}
+function parseBellTimeToMinutes(raw){
+  const s = String(raw || '').trim().toUpperCase();
+  const m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (!m) return null;
+  let hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ap = m[3];
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 1 || hh > 12 || mm < 0 || mm > 59) return null;
+  if (ap === 'AM') {
+    if (hh === 12) hh = 0;
+  } else if (hh !== 12) {
+    hh += 12;
+  }
+  return hh * 60 + mm;
+}
+function validateBellPeriods(periods){
+  const issues = [];
+  const parsed = [];
+  for (const p of periods){
+    const id = String(p?.id || '').trim() || '(blank)';
+    const startRaw = String(p?.start || '').trim();
+    const endRaw = String(p?.end || '').trim();
+    const startMin = parseBellTimeToMinutes(startRaw);
+    const endMin = parseBellTimeToMinutes(endRaw);
+    if (!startRaw || !endRaw || startMin == null || endMin == null) {
+      issues.push(`Invalid time format in ${id}: ${startRaw || '—'} -> ${endRaw || '—'}`);
+      continue;
+    }
+    if (endMin <= startMin) {
+      issues.push(`End is not after start in ${id}: ${startRaw} -> ${endRaw}`);
+    }
+    parsed.push({ id, startRaw, endRaw, startMin, endMin });
+  }
+  parsed.sort((a,b) => a.startMin - b.startMin || a.endMin - b.endMin || a.id.localeCompare(b.id));
+  for (let i = 1; i < parsed.length; i++) {
+    const prev = parsed[i - 1];
+    const cur = parsed[i];
+    if (cur.startMin < prev.endMin) {
+      issues.push(`Overlap: ${prev.id} (${prev.startRaw} - ${prev.endRaw}) overlaps ${cur.id} (${cur.startRaw} - ${cur.endRaw})`);
+    }
+  }
+  return issues;
 }
 
 /* ===============================
@@ -399,8 +443,20 @@ async function loadBellSchedule() {
     }
     const data = res.data || {};
     const periods = Array.isArray(data.periods) ? data.periods : [];
+    const issues = validateBellPeriods(periods);
     if (bellCountLabel) bellCountLabel.textContent = periods.length ? `(${periods.length})` : '(0)';
     if (bellMeta) bellMeta.textContent = [data.date, data.tz, (data.ts ? ('ts: ' + fmtTs(data.ts)) : '')].filter(Boolean).join(' • ');
+    if (bellWarning) {
+      if (issues.length) {
+        bellWarning.style.display = 'block';
+        bellWarning.textContent =
+          'WARNING: Bell schedule problems detected.\n' +
+          issues.map(x => `- ${x}`).join('\n');
+      } else {
+        bellWarning.style.display = 'none';
+        bellWarning.textContent = '';
+      }
+    }
 
     if (bellTbody) {
       bellTbody.innerHTML = periods.map(p => {
