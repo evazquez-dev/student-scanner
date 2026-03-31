@@ -1981,6 +1981,18 @@ async function fetchPreview(room, period, whenType, opts = {}){
   }
   return data;
 }
+async function sendPhoneToReturn(osis){
+  const r = await adminFetch('/admin/phone_pass/send_to_return', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ osis })
+  });
+  const data = await r.json().catch(()=>null);
+  if(!r.ok || !data?.ok){
+    throw new Error(data?.error || `phone_pass/send_to_return HTTP ${r.status}`);
+  }
+  return data;
+}
 function renderRows({ date, room, period, whenType, snapshotRows, computedRows, snapshotMap, sessionState }){
   rowsEl.innerHTML = '';
   lastMergedRows = [];
@@ -2040,6 +2052,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const zone = snap?.zone || '';
     const locLabel = snap?.locLabel || snap?.loc || '';
     const regentsPrep = !!(snap?.regents_prep || snap?.rp);
+    const phoneOutActive = !!(snap?.phone_out === true && String(snap?.date || '').trim() === String(date || '').trim());
+    const phoneReturnRequested = !!(snap?.phone_return_requested === true && phoneOutActive);
 
     const snapshotLetter = snapRec?.codeLetter || '';
     const scanSuggested  = compRec?.codeLetter || '';
@@ -2060,6 +2074,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       zone,
       locLabel,
       regentsPrep,
+      phoneOutActive,
+      phoneReturnRequested,
       snapshotLetter,
       scanSuggested,
       baseline,
@@ -2248,6 +2264,38 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     c1.appendChild(top);
     c1.appendChild(sub);
+
+    if (r.phoneOutActive) {
+      const actionLine = document.createElement('div');
+      actionLine.className = 'actionLine';
+
+      const phoneBtn = document.createElement('button');
+      phoneBtn.type = 'button';
+      phoneBtn.className = 'btn btn-mini btn-primary';
+      phoneBtn.textContent = r.phoneReturnRequested ? 'Sent to Return' : 'Send to Return';
+      phoneBtn.disabled = !!r.phoneReturnRequested;
+      phoneBtn.title = r.phoneReturnRequested
+        ? 'Phone return has already been requested'
+        : 'Mark this student as sent to return their phone';
+      phoneBtn.addEventListener('click', async () => {
+        phoneBtn.disabled = true;
+        try {
+          await sendPhoneToReturn(r.osis);
+          setStatus(true, `Sent ${r.name} to return phone.`);
+          if (window.__refreshing) return;
+          window.__refreshing = true;
+          await refreshOnce();
+        } catch (e) {
+          phoneBtn.disabled = false;
+          setErr(e?.message || String(e));
+          setStatus(false, 'Error');
+        } finally {
+          window.__refreshing = false;
+        }
+      });
+      actionLine.appendChild(phoneBtn);
+      c1.appendChild(actionLine);
+    }
 
     const c2 = document.createElement('div');
     c2.className = 'mono muted hide-sm';

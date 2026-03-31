@@ -208,6 +208,9 @@ function allowedByLabel(rec){
   const title = String(rec?.phone_out_by_title || rec?.phone_out_by_role || '').trim();
   return title; // fallback only if email is missing
 }
+function requestedByLabel(rec){
+  return emailLocalPart(rec?.phone_return_requested_by_email);
+}
 
 let _CURPER_TIMER = null;
 
@@ -592,7 +595,10 @@ async function loadMine(){
     sub.className = 'row-sub';
     const since = s.phone_out_since ? `since ${fmtClock(s.phone_out_since)}` : '';
     const loc = s.cur_label ? `@ ${s.cur_label}` : (s.cur_loc ? `@ ${s.cur_loc}` : '');
-    sub.textContent = [since, loc].filter(Boolean).join(' • ') || '—';
+    const requested = s.phone_return_requested
+      ? `sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
+      : '';
+    sub.textContent = [since, loc, requested].filter(Boolean).join(' • ') || '—';
 
     left.appendChild(nm);
     left.appendChild(sub);
@@ -626,8 +632,11 @@ async function loadSelectedContext(){
   const out = st?.phone_out === true;
   const since = st?.phone_out_since ? fmtClock(st.phone_out_since) : '';
   const by = allowedByLabel(st);
+  const requested = st?.phone_return_requested === true
+    ? ` • sent to return${requestedByLabel(st) ? (' by ' + requestedByLabel(st)) : ''}`
+    : '';
   phoneBox.textContent = out
-    ? `OUT — picked up ${since ? ('@ ' + since) : ''}${by ? (' • by ' + by) : ''}`
+    ? `OUT — picked up ${since ? ('@ ' + since) : ''}${by ? (' • by ' + by) : ''}${requested}`
     : 'IN — in locker';
 
   // Current location
@@ -840,7 +849,10 @@ async function loadActive(){
     const by = allowedByLabel(s);
     const since = s.phone_out_since ? `since ${fmtClock(s.phone_out_since)}` : '';
     const loc = s.cur_label ? `@ ${s.cur_label}` : (s.cur_loc ? `@ ${s.cur_loc}` : '');
-    sub.textContent = [by ? `allowed by ${by}` : '', since, loc].filter(Boolean).join(' • ') || '—';
+    const requested = s.phone_return_requested
+      ? `sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
+      : '';
+    sub.textContent = [by ? `allowed by ${by}` : '', since, loc, requested].filter(Boolean).join(' • ') || '—';
 
     left.appendChild(nm);
     left.appendChild(sub);
@@ -849,8 +861,8 @@ async function loadActive(){
 
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn btn-danger';
-    btn.textContent = 'Return';
+    btn.className = 'btn btn-success';
+    btn.textContent = 'Confirm Return';
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       try{
@@ -868,4 +880,3 @@ async function loadActive(){
     activeList.appendChild(row);
   }
 }
-
