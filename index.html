@@ -2331,7 +2331,8 @@
           rpGateOn &&
           isRegentsPrep &&
           Number.isFinite(afterSchoolStartMin) &&
-          nowMin >= (afterSchoolStartMin + 30);
+          nowMin >= afterSchoolStartMin &&
+          nowMin < (afterSchoolStartMin + 40);
 
         if (denyRpExit) {
           const label = 'DENIED EXIT';
@@ -2339,7 +2340,7 @@
           updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: 'Regents Prep', when });
           showSuccess(res.name, code, label, 'Regents Prep', when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
-          setStatus('Denied: Regents Prep students cannot dismiss from Front Entrance after the cutoff.');
+          setStatus('Denied: Regents Prep students cannot dismiss from Front Entrance during the first 40 minutes of after-school.');
           return;
         }
 
