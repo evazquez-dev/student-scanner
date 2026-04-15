@@ -2124,7 +2124,9 @@
       }
 
       window.__lastLunchValue    = res.lunch || '';
-      window.__lastAllowedSenior = !!res.allowed_senior;
+      window.__lastAllowedSenior = (res && Object.prototype.hasOwnProperty.call(res, 'senior_outin_can_out'))
+        ? !!res.senior_outin_can_out
+        : !!res.allowed_senior;
       window.__lastSearchFlag    = !!res.search;
       window.__lastRegentsPrep   = !!res.regents_prep;
       window.__lastAlertFlag     = !!res.alert;
@@ -2356,12 +2358,16 @@
       // Senior Lunch (toggle OUT/IN)
       if (isSeniorOutIn()){
         const osis          = String(res.osis || '').trim();
-        const allowedSenior = !!res.allowed_senior;
-        const wasOut        = isOutNow(osis);
+        const canOut        = !!res.senior_outin_can_out;
+        const wasOut        = !!res.senior_outin_was_out;
+        const denialReason  = String(res.senior_outin_denial_reason || '').trim();
 
-        if (!allowedSenior){
+        if (!wasOut && !canOut){
+          let deniedText = 'NOT ALLOWED';
+          if (denialReason === 'late_return_penalty') deniedText = 'NOT ALLOWED (LATE RETURN)';
+          if (denialReason === 'not_scheduled_caf') deniedText = 'NOT ALLOWED (NOT CAF)';
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
-          showSuccess(res.name, code, 'NOT ALLOWED', '', when);
+          showSuccess(res.name, code, deniedText, '', when);
           beepBad();
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
           setStatus('Ready. Scan next card…');
