@@ -1738,6 +1738,10 @@
   async function apiLog(entry) {
     const whenISO = entry.whenISO || new Date().toISOString();
     const loc     = getLocation() || '';
+    const logLoc  =
+      entry.allowed === 'after_school_out' && String(loc).trim() === 'Front Entrance (Morning)'
+        ? 'Front Entrance (Exit)'
+        : loc;
     const res     = entry.resolved || {};
   
     // Derive a period key from the resolved record (same logic as class kiosks)
@@ -1756,7 +1760,7 @@
     body.set('whenISO',   whenISO);
     body.set('source',    entry.source || 'pwa');
     body.set('device_id', DEVICE_ID);
-    body.set('location',  loc);
+    body.set('location',  logLoc);
     body.set('allowed',   entry.allowed || '');
     if (attendance) body.set('attendance', attendance);
     if (periodId)   body.set('period_id',  periodId);
