@@ -159,10 +159,10 @@ function renderBlocked(rows){
   blockedWrap.innerHTML = tableHtml(rows, [
     { label:'Student', render:r => `<div><strong>${esc(r.name || '—')}</strong></div><div class="mono muted">${esc(r.osis || '')}</div>` },
     { label:'Grade', render:r => esc(r.grade || '—') },
+    { label:'Lunch', render:r => esc(r.lunch_period_local || '—') },
     { label:'Reason', render:r => tag(labelForViolation(r.block_reason), 'bad') },
     { label:'Status', render:r => tag(r.block_status === 'active_today' ? 'Blocked Today' : 'Pending Next Attempt Day', 'warn') },
     { label:'Last Violation', render:r => `<div>${esc(labelForViolation(r.last_violation_type))}</div><div class="mono muted">${esc(fmtDate(r.last_violation_date))}</div>` },
-    { label:'Current Schedule', render:r => `<div>${esc(r.current_period_local || '—')}</div><div class="mono muted">${esc(r.current_room || '—')}${r.current_room_is_caf ? ' • Caf' : ''}</div>` },
     { label:'Action', render:r => forgiveButtonHtml(r) || '<span class="muted">—</span>' }
   ], 'No students are blocked today.');
 }
@@ -171,10 +171,10 @@ function renderViolations(rows){
   violationsWrap.innerHTML = tableHtml(rows, [
     { label:'Student', render:r => `<div><strong>${esc(r.name || '—')}</strong></div><div class="mono muted">${esc(r.osis || '')}</div>` },
     { label:'Grade', render:r => esc(r.grade || '—') },
+    { label:'Lunch', render:r => esc(r.lunch_period_local || '—') },
     { label:'Violation', render:r => tag(labelForViolation(r.violation_type), r.violation_type === 'missing_scan_back' ? 'bad' : (r.violation_type === 'late_return' ? 'warn' : 'info')) },
     { label:'When', render:r => `<div>${esc(fmtDate(r.violation_date))}</div><div class="mono muted">${esc(fmtDateTime(r.violation_at))}</div>` },
     { label:'Penalty', render:r => r.penalty_pending ? tag('Pending', 'bad') : tag('Cleared', 'good') },
-    { label:'Current Schedule', render:r => `<div>${esc(r.current_period_local || '—')}</div><div class="mono muted">${esc(r.current_room || '—')}${r.current_room_is_caf ? ' • Caf' : ''}</div>` },
     { label:'Action', render:r => forgiveButtonHtml(r) || '<span class="muted">—</span>' }
   ], 'No late returns or missing scan-backs recorded.');
 }
@@ -183,9 +183,9 @@ function renderCurrentlyOut(rows){
   outWrap.innerHTML = tableHtml(rows, [
     { label:'Student', render:r => `<div><strong>${esc(r.name || '—')}</strong></div><div class="mono muted">${esc(r.osis || '')}</div>` },
     { label:'Grade', render:r => esc(r.grade || '—') },
+    { label:'Lunch', render:r => esc(r.lunch_period_local || '—') },
     { label:'Out Since', render:r => `<div>${esc(fmtDateTime(r.out_since))}</div><div class="mono muted">${esc(r.out_period_id || '—')}</div>` },
-    { label:'Expected Back', render:r => `<div>${esc(fmtMin(r.out_period_end_min))}</div><div>${r.return_overdue ? tag('Overdue', 'bad') : tag('Still In Window', 'info')}</div>` },
-    { label:'Current Schedule', render:r => `<div>${esc(r.current_period_local || '—')}</div><div class="mono muted">${esc(r.current_room || '—')}${r.current_room_is_caf ? ' • Caf' : ''}</div>` }
+    { label:'Expected Back', render:r => `<div>${esc(fmtMin(r.out_period_end_min))}</div><div>${r.return_overdue ? tag('Overdue', 'bad') : tag('Still In Window', 'info')}</div>` }
   ], 'No students are currently out for senior lunch.');
 }
 
