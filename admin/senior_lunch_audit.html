@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+
+  <title>EagleNEST — Senior Lunch Audit</title>
+
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+
+  <script>
+    (function(){
+      try{
+        var key='ss_theme_v1';
+        var t=localStorage.getItem(key);
+        if(!t){
+          t=(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+        }
+        document.documentElement.dataset.theme=t;
+      }catch(e){}
+    })();
+  </script>
+
+  <style>
+    :root{
+      color-scheme: dark;
+      --fg:#e5e7eb; --muted:#9ca3af;
+      --page-bg: radial-gradient(circle at top, #020617, #000);
+      --card-bg: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.92));
+      --login-bg: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94));
+      --control-bg: rgba(2,6,23,0.35);
+      --card-border:#1f2937;
+      --border-strong: rgba(31,41,55,0.9);
+      --bad:#fca5a5;
+      --warn:#fde68a;
+      --good:#86efac;
+      --info:#93c5fd;
+    }
+    :root[data-theme="light"]{
+      color-scheme: light;
+      --fg:#0f172a; --muted:#475569;
+      --page-bg: radial-gradient(circle at top, #eef2ff, #ffffff);
+      --card-bg: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.92));
+      --login-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.92));
+      --control-bg: rgba(241,245,249,0.85);
+      --card-border: rgba(100,116,139,0.35);
+      --border-strong: rgba(100,116,139,0.35);
+      --bad:#b91c1c;
+      --warn:#92400e;
+      --good:#166534;
+      --info:#1d4ed8;
+    }
+    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; background:var(--page-bg); color:var(--fg); }
+    .wrap{ max-width:1240px; margin:0 auto; padding:16px; }
+    .card{
+      border:1px solid var(--card-border);
+      background:var(--card-bg);
+      border-radius:18px;
+      padding:16px;
+      box-shadow:0 18px 60px rgba(0,0,0,0.24);
+      backdrop-filter:blur(10px);
+    }
+    #loginCard{ max-width:520px; margin:10vh auto 0; background:var(--login-bg); }
+    .muted{ color:var(--muted); }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .topbar, .stats{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .topbar{ justify-content:space-between; margin-bottom:12px; }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border-radius:999px;
+      border:1px solid var(--border-strong); background:var(--control-bg);
+    }
+    .btn{
+      border:1px solid var(--border-strong);
+      background:var(--control-bg); color:var(--fg);
+      border-radius:12px; padding:10px 14px; cursor:pointer; font-weight:700;
+    }
+    .grid{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:12px 0; }
+    @media (max-width: 1080px){ .grid{ grid-template-columns:1fr; } }
+    .stat{ padding:14px; border-radius:16px; border:1px solid var(--border-strong); background:var(--control-bg); }
+    .stat strong{ display:block; font-size:28px; line-height:1.1; margin-top:6px; }
+    .section{ margin-top:14px; }
+    .section h2{ margin:0 0 8px; font-size:18px; }
+    .tableWrap{ overflow:auto; border:1px solid var(--border-strong); border-radius:14px; }
+    table{ width:100%; border-collapse:collapse; min-width:900px; }
+    th, td{ padding:10px 12px; border-bottom:1px solid rgba(148,163,184,0.16); text-align:left; vertical-align:top; }
+    th{ font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); }
+    tr:last-child td{ border-bottom:none; }
+    .tag{ display:inline-flex; align-items:center; padding:4px 8px; border-radius:999px; border:1px solid currentColor; font-size:12px; font-weight:700; }
+    .tag.bad{ color:var(--bad); }
+    .tag.warn{ color:var(--warn); }
+    .tag.good{ color:var(--good); }
+    .tag.info{ color:var(--info); }
+    .empty{ padding:16px; color:var(--muted); }
+    .error{ white-space:pre-wrap; color:var(--bad); }
+  </style>
+</head>
+<body data-module="senior_lunch_audit">
+  <div class="wrap">
+    <section id="loginCard" class="card">
+      <h2 style="margin:0 0 6px;">Admin sign-in</h2>
+      <div class="muted">Use your staff account.</div>
+      <div style="margin-top:12px;" id="g_id_signin"></div>
+      <pre id="loginOut" class="muted" style="margin:10px 0 0; white-space:pre-wrap;">Loading…</pre>
+    </section>
+
+    <section id="appShell" style="display:none;">
+      <div class="topbar card">
+        <div>
+          <h1 style="margin:0; font-size:24px;">Senior Lunch Audit</h1>
+          <div id="subtitle" class="muted" style="margin-top:6px;">Loading…</div>
+        </div>
+        <div class="stats">
+          <div id="viewerPill" class="pill mono">—</div>
+          <div id="datePill" class="pill mono">—</div>
+          <button id="refreshBtn" class="btn" type="button">Refresh</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <section class="stat card">
+          <div class="muted">Blocked Today</div>
+          <strong id="blockedCount">0</strong>
+          <div class="muted">Students who should not be allowed out today.</div>
+        </section>
+        <section class="stat card">
+          <div class="muted">Last Violations</div>
+          <strong id="violationsCount">0</strong>
+          <div class="muted">Latest late returns or missing scan-backs.</div>
+        </section>
+        <section class="stat card">
+          <div class="muted">Currently Out</div>
+          <strong id="outCount">0</strong>
+          <div class="muted">Students still out on the current lunch cycle.</div>
+        </section>
+      </div>
+
+      <section class="section card">
+        <h2>Blocked Today</h2>
+        <div class="muted" style="margin-bottom:10px;">Penalty applies for the whole current lunch-out day.</div>
+        <div id="blockedWrap" class="tableWrap"></div>
+      </section>
+
+      <section class="section card">
+        <h2>Last Violations</h2>
+        <div class="muted" style="margin-bottom:10px;">Most recent late return or missing scan-back per student.</div>
+        <div id="violationsWrap" class="tableWrap"></div>
+      </section>
+
+      <section class="section card">
+        <h2>Currently Out</h2>
+        <div class="muted" style="margin-bottom:10px;">Students who scanned out and have not yet scanned back in today.</div>
+        <div id="outWrap" class="tableWrap"></div>
+      </section>
+
+      <section id="errorCard" class="section card" style="display:none;">
+        <h2 style="margin-top:0;">Error</h2>
+        <div id="errorOut" class="error"></div>
+      </section>
+    </section>
+  </div>
+
+  <script src="./senior_lunch_audit.js"></script>
+</body>
+</html>

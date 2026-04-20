@@ -7,6 +7,7 @@
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
+    senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
     student_view: 'Student View',
     hallway: 'Hallway Monitor',
