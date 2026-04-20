@@ -21,6 +21,7 @@ const errorOut = document.getElementById('errorOut');
 
 let ACCESS = null;
 let REFRESH_TIMER = null;
+let FORGIVING_OSIS = '';
 
 function show(el){ if (el) el.style.display = ''; }
 function hide(el){ if (el) el.style.display = 'none'; }
@@ -143,6 +144,17 @@ function tableHtml(rows, columns, emptyText){
   return `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
+function canForgivePenalty(row){
+  return String(ACCESS?.role || '').toLowerCase() === 'admin' && !!row && (!!row.block_status || !!row.penalty_pending);
+}
+
+function forgiveButtonHtml(row){
+  if (!canForgivePenalty(row)) return '';
+  const osis = String(row.osis || '').trim();
+  const busy = FORGIVING_OSIS === osis;
+  return `<button class="btn forgiveBtn" type="button" data-osis="${esc(osis)}"${busy ? ' disabled' : ''}>${busy ? 'Forgiving…' : 'Forgive'}</button>`;
+}
+
 function renderBlocked(rows){
   blockedWrap.innerHTML = tableHtml(rows, [
     { label:'Student', render:r => `<div><strong>${esc(r.name || '—')}</strong></div><div class="mono muted">${esc(r.osis || '')}</div>` },
@@ -150,7 +162,8 @@ function renderBlocked(rows){
     { label:'Status', render:r => tag(r.block_status === 'active_today' ? 'Blocked Today' : 'Pending Next Attempt Day', 'warn') },
     { label:'Last Violation', render:r => `<div>${esc(labelForViolation(r.last_violation_type))}</div><div class="mono muted">${esc(fmtDate(r.last_violation_date))}</div>` },
     { label:'Scheduled Now', render:r => `<div>${esc(r.current_period_local || '—')}</div><div class="mono muted">${esc(r.current_room || '—')}${r.current_room_is_caf ? ' • Caf' : ''}</div>` },
-    { label:'Live State', render:r => `<div>${esc(r.live_zone || '—')}</div><div class="mono muted">${esc(r.live_label || '—')}</div>` }
+    { label:'Live State', render:r => `<div>${esc(r.live_zone || '—')}</div><div class="mono muted">${esc(r.live_label || '—')}</div>` },
+    { label:'Action', render:r => forgiveButtonHtml(r) || '<span class="muted">—</span>' }
   ], 'No students are blocked today.');
 }
 
@@ -161,7 +174,8 @@ function renderViolations(rows){
     { label:'When', render:r => `<div>${esc(fmtDate(r.violation_date))}</div><div class="mono muted">${esc(fmtDateTime(r.violation_at))}</div>` },
     { label:'Penalty', render:r => r.penalty_pending ? tag('Pending', 'bad') : tag('Cleared', 'good') },
     { label:'Scheduled Now', render:r => `<div>${esc(r.current_period_local || '—')}</div><div class="mono muted">${esc(r.current_room || '—')}${r.current_room_is_caf ? ' • Caf' : ''}</div>` },
-    { label:'Live State', render:r => `<div>${esc(r.live_zone || '—')}</div><div class="mono muted">${esc(r.live_label || '—')}</div>` }
+    { label:'Live State', render:r => `<div>${esc(r.live_zone || '—')}</div><div class="mono muted">${esc(r.live_label || '—')}</div>` },
+    { label:'Action', render:r => forgiveButtonHtml(r) || '<span class="muted">—</span>' }
   ], 'No late returns or missing scan-backs recorded.');
 }
 
@@ -187,6 +201,27 @@ async function fetchAudit(){
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok || !data?.ok) throw new Error(data?.error || `senior_outin_audit HTTP ${resp.status}`);
   return data;
+}
+
+async function forgivePenalty(osis){
+  const code = String(osis || '').trim();
+  if (!code) return;
+  FORGIVING_OSIS = code;
+  setError('');
+  try {
+    const resp = await adminFetch('/admin/senior_outin_forgive', {
+      method:'POST',
+      headers:{ 'content-type':'application/x-www-form-urlencoded;charset=UTF-8' },
+      body: new URLSearchParams({ osis: code }).toString()
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data?.ok) throw new Error(data?.error || `senior_outin_forgive HTTP ${resp.status}`);
+    await refreshAudit();
+  } catch (err) {
+    setError(err?.message || err);
+  } finally {
+    FORGIVING_OSIS = '';
+  }
 }
 
 function renderAudit(data){
@@ -266,6 +301,13 @@ async function tryBootstrapSession(){
 
 window.addEventListener('DOMContentLoaded', async () => {
   refreshBtn?.addEventListener('click', refreshAudit);
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.forgiveBtn');
+    if (!btn) return;
+    const osis = String(btn.getAttribute('data-osis') || '').trim();
+    if (!osis) return;
+    forgivePenalty(osis);
+  });
   if (await tryBootstrapSession()) return;
   if (!GOOGLE_CLIENT_ID) {
     show(loginCard);
