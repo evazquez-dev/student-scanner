@@ -2818,7 +2818,12 @@
       };
       btnOK.onclick = () => {
         const val = sel.value.trim();
-        if (val) { setLocation(val); updateHeaderForLocation(); startBathAutoRefresh(); close(val); }
+        if (val) {
+          setLocation(val);
+          close(val);
+          try { updateHeaderForLocation(); } catch (_) {}
+          try { startBathAutoRefresh(); } catch (_) {}
+        }
         else { alert('Please choose a location.'); }
       };
       btnX.onclick = () => close(getLocation());
