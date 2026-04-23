@@ -383,7 +383,7 @@
         <!-- Senior Lunch OUT list -->
         <div class="panel" id="outPanel" style="margin-top:10px; display:none">
           <div class="muted" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
-            <span>Currently OUT — Senior Lunch</span>
+            <span id="outPanelLabel">Currently OUT — Senior Lunch</span>
             <button id="refreshRosterBtn" style="background:#e7f0fe; color:#0b57d0; padding:6px 10px; border-radius:10px; font-size:12px;">
               Clear list
             </button>
@@ -871,6 +871,14 @@
     }
     return String(loc || '').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
   }
+  function isGymOutIn(loc) {
+    const current = loc || getLocation();
+    const meta = getLocationMeta(current);
+    return String(meta?.mode || '').toLowerCase() === 'gymoutin';
+  }
+  function isTrackedOutIn(loc) {
+    return isSeniorOutIn() || isGymOutIn(loc);
+  }
   function isBathroomLocation(loc) {
     const current = loc || getLocation();
     const meta = getLocationMeta(current);
@@ -1147,9 +1155,15 @@
   function renderOutList(){
     const outPanel = document.getElementById('outPanel');
     const outBody  = document.getElementById('outBody');
-    const show = isSeniorOutIn();
+    const outLabel = document.getElementById('outPanelLabel');
+    const show = isTrackedOutIn();
     outPanel.style.display = show ? '' : 'none';
     if (!show) return;
+    if (outLabel) {
+      outLabel.textContent = isGymOutIn()
+        ? 'Currently OUT — Gym Class'
+        : 'Currently OUT — Senior Lunch';
+    }
     const rows = getOutSet();
     outBody.innerHTML = rows.map(r => {
       const when = new Date(r.sinceISO);
@@ -1643,7 +1657,7 @@
     if (!pane) return;
     const loc = getLocation();
   
-    if (isSeniorOutIn()) {
+    if (isTrackedOutIn(loc)) {
       pane.style.maxHeight = '140px';
     } else if (isBathroomLocation(loc)) {
       pane.style.maxHeight = '120px';
@@ -1661,7 +1675,7 @@
     const col = historyHeaderCells[2];
     if (!col) return;
 
-    if (isSeniorOutIn() || isBathroomLocation(loc)) col.textContent = 'In/Out';
+    if (isTrackedOutIn(loc) || isBathroomLocation(loc)) col.textContent = 'In/Out';
     else if (isLunchLocation(loc)) col.textContent = 'Allowed?';
     else if (isClassKiosk(loc)) {
       // 🍽️ LUNCH POLISH: Caf during LCH1/LCH2 should read "Lunch" (not "Attendance")
@@ -1969,7 +1983,7 @@
 
     const nameHtml = nameHtmlWithBadge(name);
 
-    if (isSeniorOutIn() || isBathroomLocation(loc)) {
+    if (isTrackedOutIn(loc) || isBathroomLocation(loc)) {
       const label = String(lockerNum||'').toUpperCase();
       const isOut = label === 'OUT', isIn  = label === 'IN', isNA = label === 'NOT ALLOWED';
       const pill = isOut
@@ -2066,7 +2080,7 @@
     const loc = getLocation();
     let maxVisible;
   
-    if (isSeniorOutIn()) {
+    if (isTrackedOutIn(loc)) {
       maxVisible = HISTORY_VISIBLE_SENIOR;
     } else if (isBathroomLocation(loc)) {
       maxVisible = BATHROOM_RECENT_VISIBLE;
@@ -2368,17 +2382,19 @@
         return;
       }
 
-      // Senior Lunch (toggle OUT/IN)
-      if (isSeniorOutIn()){
+      // Senior Lunch / Gym Class (toggle OUT/IN)
+      if (isTrackedOutIn()){
         const osis          = String(res.osis || '').trim();
-        const canOut        = !!res.senior_outin_can_out;
-        const wasOut        = !!res.senior_outin_was_out;
-        const denialReason  = String(res.senior_outin_denial_reason || '').trim();
+        const gymMode       = isGymOutIn(loc);
+        const canOut        = gymMode ? !!res.gym_outin_can_out : !!res.senior_outin_can_out;
+        const wasOut        = gymMode ? !!res.gym_outin_was_out : !!res.senior_outin_was_out;
+        const denialReason  = String(gymMode ? (res.gym_outin_denial_reason || '') : (res.senior_outin_denial_reason || '')).trim();
 
         if (!wasOut && !canOut){
           let deniedText = 'NOT ALLOWED';
           if (denialReason === 'late_return_penalty') deniedText = 'NOT ALLOWED (LATE RETURN)';
           if (denialReason === 'not_scheduled_caf') deniedText = 'NOT ALLOWED (NOT CAF)';
+          if (denialReason === 'not_scheduled_gym') deniedText = 'NOT ALLOWED (NOT IN GYM)';
           updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
           showSuccess(res.name, code, deniedText, '', when);
           beepBad();
@@ -2838,13 +2854,13 @@
   initNetworkPill();
 
   /* ============================================================
-   * ROSTER REFRESH — repurposed to CLEAR LIST for Senior Lunch
+   * ROSTER REFRESH — repurposed to CLEAR LIST for tracked OUT/IN locations
    * ============================================================ */
   document.getElementById('refreshRosterBtn')?.addEventListener('click', async (e)=>{
     const btn = e.currentTarget; btn.disabled = true; const original = btn.textContent;
     btn.textContent = 'Clearing…'; setStatus('Clearing list…');
     try {
-      if (!isSeniorOutIn()) throw new Error('This button is for the "Senior Lunch (out-in)" location.');
+      if (!isTrackedOutIn()) throw new Error('This button is only for tracked OUT/IN locations.');
       const loc = getLocation();
       const list = getOutSet();
       if (!list.length) { setStatus('Nothing to clear.'); return; }
