@@ -876,6 +876,11 @@
     const meta = getLocationMeta(current);
     return String(meta?.mode || '').toLowerCase() === 'gymoutin';
   }
+  function isSuperLunchGate(loc) {
+    const current = loc || getLocation();
+    const meta = getLocationMeta(current);
+    return String(meta?.mode || '').toLowerCase() === 'superlunch';
+  }
   function isTrackedOutIn(loc) {
     return isSeniorOutIn() || isGymOutIn(loc);
   }
@@ -907,6 +912,15 @@
     const isLunchPeriod = key === 'LCH1' || key === 'LCH2';
     const isCaf = String(current || '').toLowerCase().includes('caf');
     return isLunchPeriod && isCaf;
+  }
+  function superLunchReasonText(res){
+    const reason = String(res?.superlunch_reason || '').trim().toLowerCase();
+    const room = String(res?.superlunch_room || '').trim();
+    if (reason === 'staff_pull') return 'STAFF PULL';
+    if (reason === 'advisory' || reason === 'advisory_next') return room ? `ADVISORY (${room})` : 'ADVISORY';
+    if (reason === 'supervised_lunch' || reason === 'supervised_lunch_next') return room ? `SUPERVISED LUNCH (${room})` : 'SUPERVISED LUNCH';
+    if (reason === 'no_active_period') return 'NO ACTIVE PERIOD';
+    return 'NOT AUTHORIZED';
   }
   function isFrontEntranceLocation(loc) {
     const current = loc || getLocation();
@@ -2414,6 +2428,19 @@
         return;
       }
 
+      if (isSuperLunchGate(loc)) {
+        const canUpstairs = !!res.superlunch_can_upstairs;
+        const detail = superLunchReasonText(res);
+        const label = canUpstairs ? 'ALLOWED' : 'NOT ALLOWED';
+        updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: detail, when });
+        showSuccess(res.name, code, label, detail, when);
+        if (canUpstairs) beepGood();
+        else beepBad();
+        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(canUpstairs ? 'superlunch_allowed' : 'not_allowed') });
+        setStatus('Ready. Scan next card…');
+        return;
+      }
+
       // Bathroom IN/OUT with per-gender capacity (GLOBAL)
       if (isBathroomLocation(loc)) {
         const osis = String(res.osis || '').trim();
@@ -2525,6 +2552,18 @@
         `<div class="ok">OK</div>
          <div class="name">${nameHtml}</div>
          <div class="code">${esc(code)} — ${pill} ${allowBox}</div>
+         <div class="muted">${fmtTime(when)}</div>`;
+      setStatus('Ready. Scan next card…');
+      return;
+    }
+
+    if (isSuperLunchGate(loc)) {
+      const detail = lockerColor ? ` — ${esc(lockerColor)}` : '';
+      const nameHtml = nameHtmlWithBadge(name);
+      resultEl.innerHTML =
+        `<div class="ok">OK</div>
+         <div class="name">${nameHtml}</div>
+         <div class="code">${esc(code)} — ${esc(lockerNum || 'NOT ALLOWED')}${detail}</div>
          <div class="muted">${fmtTime(when)}</div>`;
       setStatus('Ready. Scan next card…');
       return;
