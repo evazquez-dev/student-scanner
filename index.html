@@ -498,6 +498,7 @@
   const HISTORY_VISIBLE_DEFAULT = 10;
   const HISTORY_VISIBLE_SENIOR  = 4;
   const HISTORY_VISIBLE_CLASS = 3;
+  const HISTORY_VISIBLE_CLASS_LUNCH = 8;
 
   const SPECIAL_LOCATION = 'Senior Lunch (out-in)';
   const BATHROOM_PREFIX  = 'Bathroom (';
@@ -890,6 +891,14 @@
     }
     const v = String(current || '').toLowerCase().trim();
     return v === 'lunch' || v === 'lunch 1' || v === 'lunch 2';
+  }
+  function isCafLunchClassKiosk(loc) {
+    const current = loc || getLocation();
+    if (!isClassKiosk(current)) return false;
+    const key = String(CURRENT_CLASS_PERIOD_KEY || '').trim().toUpperCase();
+    const isLunchPeriod = key === 'LCH1' || key === 'LCH2';
+    const isCaf = String(current || '').toLowerCase().includes('caf');
+    return isLunchPeriod && isCaf;
   }
   function isFrontEntranceLocation(loc) {
     const current = loc || getLocation();
@@ -1319,7 +1328,7 @@
     const loc = getLocation();
     const onClass = isClassKiosk(loc);
     const any = Object.keys(OUT_OF_CLASS).length > 0;
-    classOutPanel.style.display = (onClass && any) ? '' : 'none';
+    classOutPanel.style.display = (onClass && !isCafLunchClassKiosk(loc) && any) ? '' : 'none';
   }
 
   function clearClassOutEntry(osis){
@@ -1638,6 +1647,8 @@
       pane.style.maxHeight = '140px';
     } else if (isBathroomLocation(loc)) {
       pane.style.maxHeight = '120px';
+    } else if (isCafLunchClassKiosk(loc)) {
+      pane.style.maxHeight = '320px';
     } else if (isClassKiosk(loc)) {
       // Super small for class mode so OUT list stays visible
       pane.style.maxHeight = '90px';
@@ -2059,6 +2070,8 @@
       maxVisible = HISTORY_VISIBLE_SENIOR;
     } else if (isBathroomLocation(loc)) {
       maxVisible = BATHROOM_RECENT_VISIBLE;
+    } else if (isCafLunchClassKiosk(loc)) {
+      maxVisible = HISTORY_VISIBLE_CLASS_LUNCH;
     } else if (isClassKiosk(loc)) {
       maxVisible = HISTORY_VISIBLE_CLASS;
     } else {
