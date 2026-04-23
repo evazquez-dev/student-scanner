@@ -20,6 +20,7 @@
     phone_pass: 'Phone Pass',
     behavior_history: 'Logged Behaviors',
     attendance_change: 'Attendance Change',
+    supervised_lunch: 'Supervised Lunch',
     excused_apply: 'Attendance Change', // legacy alias
     admin: 'Admin Dashboard'
   };
@@ -35,6 +36,7 @@
     'student_scans_admin_session_v1',
     'behavior_history_admin_session_v1',
     'attendance_change_admin_session_v1',
+    'supervised_lunch_admin_session_v1',
     'excused_apply_admin_session_v1', // legacy
     'admin_session_v1',
     'admin_session_sid' // legacy generic key
@@ -137,6 +139,7 @@
           student_scans: true,
           student_view: true,
           behavior_history: true,
+          supervised_lunch: true,
           phone_pass: false,
           teacher_trace_lookup: true,
           attendance_change: role === 'admin',
@@ -211,6 +214,7 @@
       { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'pull' },
       { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phones' },
       { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',       href:'./behavior_history.html',   badge:'behavior' },
+      { key:'supervised_lunch',   label: MODULES.supervised_lunch || 'Supervised Lunch',       href:'./supervised_lunch.html',   badge:'lunch' },
       { key:'attendance_change',  label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'attendance' },
       { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'admin' },
     ];
