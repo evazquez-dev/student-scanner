@@ -252,7 +252,7 @@ async function initPage() {
 
   try {
     const access = await fetchAccess();
-    const can = !!(access?.can?.attendance_status || access?.can?.teacher_attendance || access?.can?.admin);
+    const can = !!(access?.can?.attendance_status || access?.can?.admin);
     if (!can) throw new Error('forbidden');
 
     const [opts, snap] = await Promise.all([fetchOptions(), fetchSnapshot()]);

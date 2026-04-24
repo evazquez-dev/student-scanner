@@ -325,7 +325,7 @@ async function initPage() {
   setStatus('Checking access…');
 
   const access = await fetchAccess();
-  const can = !!(access?.can?.teacher_trace_lookup || access?.can?.teacher_attendance || access?.can?.admin);
+  const can = !!(access?.can?.teacher_trace_lookup || access?.can?.admin);
   if (!can) throw new Error('forbidden');
 
   renderResults({ results: [], scannedKeys: 0, count: 0, date: dateInput.value });

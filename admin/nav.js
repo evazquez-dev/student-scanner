@@ -125,42 +125,28 @@
       if (!r.ok || !j?.ok) return { ok:false };
 
       const role = String(j.role || '');
+      const isAdmin = role === 'admin';
       const out = {
         ok:true,
         email: j.email || null,
         role,
         can: {
-          admin: role === 'admin',
-          hallway: false,
-          staff_pull: false,
+          admin: isAdmin,
+          hallway: isAdmin,
+          staff_pull: isAdmin,
           teacher_attendance: true,
-          attendance_status: true,
-          senior_lunch_audit: true,
+          attendance_status: isAdmin,
+          senior_lunch_audit: isAdmin,
           student_scans: true,
-          student_view: true,
+          student_view: isAdmin,
           behavior_history: true,
           supervised_lunch: true,
-          phone_pass: false,
-          teacher_trace_lookup: true,
-          attendance_change: role === 'admin',
-          excused_apply: role === 'admin' // legacy alias
+          phone_pass: isAdmin,
+          teacher_trace_lookup: isAdmin,
+          attendance_change: isAdmin,
+          excused_apply: isAdmin // legacy alias
         }
       };
-
-      // Probe hallway
-      if (out.can.admin) out.can.hallway = true;
-      else {
-        const pr = await adminFetch('/admin/hallway_state_monitor', { method: 'GET' });
-        out.can.hallway = pr.ok;
-      }
-
-      // Probe staff pull
-      const sr = await adminFetch('/admin/staff_pull/options', { method: 'GET' });
-      out.can.staff_pull = sr.ok;
-
-      // Probe phone pass
-      const pr2 = await adminFetch('/admin/phone_pass/options', { method: 'GET' });
-      out.can.phone_pass = pr2.ok;
 
       return out;
     } catch {
