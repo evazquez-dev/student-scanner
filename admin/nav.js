@@ -154,6 +154,19 @@
         }
       };
 
+      try {
+        const hr = await adminFetch('/admin/hallway_state_monitor', { method: 'GET' });
+        out.can.hallway = hr.ok;
+      } catch {}
+      try {
+        const sr = await adminFetch('/admin/staff_pull/options', { method: 'GET' });
+        out.can.staff_pull = sr.ok;
+      } catch {}
+      try {
+        const pr = await adminFetch('/admin/phone_pass/options', { method: 'GET' });
+        out.can.phone_pass = pr.ok;
+      } catch {}
+
       return out;
     } catch {
       return { ok:false };
