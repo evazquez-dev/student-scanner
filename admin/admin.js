@@ -150,17 +150,24 @@ function isBathroom(name){
 }
 function parseBellTimeToMinutes(raw){
   const s = String(raw || '').trim().toUpperCase();
-  const m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-  if (!m) return null;
-  let hh = Number(m[1]);
-  const mm = Number(m[2]);
-  const ap = m[3];
-  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 1 || hh > 12 || mm < 0 || mm > 59) return null;
-  if (ap === 'AM') {
-    if (hh === 12) hh = 0;
-  } else if (hh !== 12) {
-    hh += 12;
+  let m = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (m) {
+    let hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const ap = m[3];
+    if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 1 || hh > 12 || mm < 0 || mm > 59) return null;
+    if (ap === 'AM') {
+      if (hh === 12) hh = 0;
+    } else if (hh !== 12) {
+      hh += 12;
+    }
+    return hh * 60 + mm;
   }
+  m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
   return hh * 60 + mm;
 }
 function validateBellPeriods(periods){
