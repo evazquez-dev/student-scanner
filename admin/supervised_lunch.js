@@ -21,6 +21,7 @@
   const state = {
     roster: [],
     rosterByPeriod: {},
+    lastUsedByPeriod: {},
     filtered: [],
     selectedOsis: new Set(),
     assignments: new Map(),
@@ -104,10 +105,55 @@
     el.className = 'status ' + (ok ? 'ok' : 'bad');
     el.textContent = msg;
   }
+  function sourceRosterForCurrentPeriod(){
+    const periodLocal = String($('periodLocal')?.value || '').trim().toUpperCase();
+    return Array.isArray(state.rosterByPeriod?.[periodLocal]) ? state.rosterByPeriod[periodLocal] : state.roster;
+  }
+  function currentLastUsed(){
+    const periodLocal = String($('periodLocal')?.value || '').trim().toUpperCase();
+    const rec = state.lastUsedByPeriod?.[periodLocal];
+    return rec && typeof rec === 'object' ? rec : null;
+  }
+  function renderLastUsed(){
+    const box = $('lastSetBox');
+    const btn = $('useLastSetBtn');
+    if (!box || !btn) return;
+    const periodLocal = String($('periodLocal')?.value || '').trim().toUpperCase();
+    const rec = currentLastUsed();
+    if (!periodLocal) {
+      box.textContent = 'Choose a lunch to view the last used set.';
+      box.className = 'status';
+      btn.disabled = true;
+      return;
+    }
+    if (!rec || !Array.isArray(rec.osisList) || !rec.osisList.length) {
+      box.textContent = `No last used set saved for ${periodLocal} yet.`;
+      box.className = 'status';
+      btn.disabled = true;
+      return;
+    }
+    const when = String(rec.updatedAt || '').trim();
+    box.textContent = `Last used for ${periodLocal}: ${rec.count} student(s)` + (rec.room ? ` from room ${rec.room}` : '') + (when ? ` • saved ${when}` : '');
+    box.className = 'status ok';
+    btn.disabled = false;
+  }
+  function applyLastUsedSet(){
+    const rec = currentLastUsed();
+    if (!rec || !Array.isArray(rec.osisList) || !rec.osisList.length) {
+      setStatus('No last used set is available for this lunch.', false);
+      return;
+    }
+    const eligible = new Set(sourceRosterForCurrentPeriod().map((s) => String(s.osis || '')).filter(Boolean));
+    const next = rec.osisList.map(normalizeOsis).filter((osis) => !!osis && eligible.has(osis));
+    const skipped = rec.osisList.length - next.length;
+    state.selectedOsis = new Set(next);
+    renderRoster();
+    renderSelection();
+    setStatus(skipped > 0 ? `Loaded last set for this lunch. ${skipped} student(s) were skipped because they are not lunch-assigned for this period now.` : `Loaded last set for this lunch.`, skipped === 0);
+  }
 
   function renderRoster(){
-    const periodLocal = String($('periodLocal')?.value || '').trim().toUpperCase();
-    const source = Array.isArray(state.rosterByPeriod?.[periodLocal]) ? state.rosterByPeriod[periodLocal] : state.roster;
+    const source = sourceRosterForCurrentPeriod();
     const q = String($('rosterSearch')?.value || '').trim().toLowerCase();
     state.filtered = source.filter((s) => {
       if (!q) return true;
@@ -184,6 +230,7 @@
     state.selectedOsis = new Set(currentAssignment().map(normalizeOsis).filter(Boolean));
     renderRoster();
     renderSelection();
+    renderLastUsed();
   }
 
   async function loadOptionsAndRoster(){
@@ -209,6 +256,7 @@
       grade: String(s.grade || '')
     })).filter((s) => !!s.osis);
     state.rosterByPeriod = {};
+    state.lastUsedByPeriod = {};
     for (const periodLocal of state.periods) {
       const rows = Array.isArray(opts?.eligible_by_period?.[periodLocal]) ? opts.eligible_by_period[periodLocal] : state.roster;
       state.rosterByPeriod[periodLocal] = rows.map((s) => ({
@@ -216,6 +264,15 @@
         name: String(s.name || ''),
         grade: String(s.grade || '')
       })).filter((s) => !!s.osis);
+      const lastRaw = opts?.last_used_by_period?.[periodLocal];
+      if (lastRaw && typeof lastRaw === 'object' && Array.isArray(lastRaw.osisList) && lastRaw.osisList.length) {
+        state.lastUsedByPeriod[periodLocal] = {
+          room: String(lastRaw.room || ''),
+          count: Number(lastRaw.count || lastRaw.osisList.length || 0),
+          updatedAt: String(lastRaw.updatedAt || ''),
+          osisList: lastRaw.osisList.map(normalizeOsis).filter(Boolean)
+        };
+      }
     }
     state.assignments = new Map();
     for (const rec of Array.isArray(opts.assignments) ? opts.assignments : []) {
@@ -301,6 +358,7 @@
     $('periodLocal')?.addEventListener('change', loadCurrentAssignmentIntoSelection);
     $('roomInput')?.addEventListener('change', loadCurrentAssignmentIntoSelection);
     $('loadAssignmentBtn')?.addEventListener('click', loadCurrentAssignmentIntoSelection);
+    $('useLastSetBtn')?.addEventListener('click', applyLastUsedSet);
     $('saveBtn')?.addEventListener('click', () => saveAssignment(false));
     $('clearBtn')?.addEventListener('click', () => saveAssignment(true));
   }
