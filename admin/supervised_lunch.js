@@ -20,6 +20,7 @@
 
   const state = {
     roster: [],
+    rosterByPeriod: {},
     filtered: [],
     selectedOsis: new Set(),
     assignments: new Map(),
@@ -105,8 +106,10 @@
   }
 
   function renderRoster(){
+    const periodLocal = String($('periodLocal')?.value || '').trim().toUpperCase();
+    const source = Array.isArray(state.rosterByPeriod?.[periodLocal]) ? state.rosterByPeriod[periodLocal] : state.roster;
     const q = String($('rosterSearch')?.value || '').trim().toLowerCase();
-    state.filtered = state.roster.filter((s) => {
+    state.filtered = source.filter((s) => {
       if (!q) return true;
       return String(s.name || '').toLowerCase().includes(q) || String(s.osis || '').includes(q);
     }).slice(0, 500);
@@ -205,6 +208,15 @@
       name: String(s.name || ''),
       grade: String(s.grade || '')
     })).filter((s) => !!s.osis);
+    state.rosterByPeriod = {};
+    for (const periodLocal of state.periods) {
+      const rows = Array.isArray(opts?.eligible_by_period?.[periodLocal]) ? opts.eligible_by_period[periodLocal] : state.roster;
+      state.rosterByPeriod[periodLocal] = rows.map((s) => ({
+        osis: String(s.osis || ''),
+        name: String(s.name || ''),
+        grade: String(s.grade || '')
+      })).filter((s) => !!s.osis);
+    }
     state.assignments = new Map();
     for (const rec of Array.isArray(opts.assignments) ? opts.assignments : []) {
       const key = `${String(rec.periodLocal || '').trim().toUpperCase()}|${String(rec.room || '').trim()}`;
