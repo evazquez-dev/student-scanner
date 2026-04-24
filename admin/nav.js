@@ -22,7 +22,8 @@
     attendance_change: 'Attendance Change',
     supervised_lunch: 'Supervised Lunch',
     excused_apply: 'Attendance Change', // legacy alias
-    admin: 'Admin Dashboard'
+    admin_roles: 'Admin Roles',
+    admin: 'Super Admin Dashboard'
   };
 
   const ADMIN_SESSION_HEADER = 'x-admin-session';
@@ -35,6 +36,7 @@
     'phone_pass_admin_session_v1',
     'student_scans_admin_session_v1',
     'behavior_history_admin_session_v1',
+    'admin_roles_admin_session_v1',
     'attendance_change_admin_session_v1',
     'supervised_lunch_admin_session_v1',
     'excused_apply_admin_session_v1', // legacy
@@ -125,26 +127,30 @@
       if (!r.ok || !j?.ok) return { ok:false };
 
       const role = String(j.role || '');
-      const isAdmin = role === 'admin';
+      const isSuperAdmin = role === 'super_admin';
+      const isAdminLike = role === 'super_admin' || role === 'admin';
       const out = {
         ok:true,
         email: j.email || null,
         role,
         can: {
-          admin: isAdmin,
-          hallway: isAdmin,
-          staff_pull: isAdmin,
+          super_admin: isSuperAdmin,
+          admin: isAdminLike,
+          admin_dashboard: isSuperAdmin,
+          admin_roles: isSuperAdmin,
+          hallway: isAdminLike,
+          staff_pull: isAdminLike,
           teacher_attendance: true,
-          attendance_status: isAdmin,
-          senior_lunch_audit: isAdmin,
+          attendance_status: isAdminLike,
+          senior_lunch_audit: isAdminLike,
           student_scans: true,
-          student_view: isAdmin,
+          student_view: isSuperAdmin,
           behavior_history: true,
           supervised_lunch: true,
-          phone_pass: isAdmin,
-          teacher_trace_lookup: isAdmin,
-          attendance_change: isAdmin,
-          excused_apply: isAdmin // legacy alias
+          phone_pass: isAdminLike,
+          teacher_trace_lookup: isAdminLike,
+          attendance_change: isSuperAdmin,
+          excused_apply: isSuperAdmin // legacy alias
         }
       };
 
@@ -184,7 +190,10 @@
 
     const meta = document.createElement('div');
     meta.className = 'ssNavMeta';
-    meta.textContent = `${access.email || '\u2014'}${access.role ? ` (${access.role})` : ''}`;
+    const roleLabel = access.role === 'super_admin'
+      ? 'super admin'
+      : (access.role === 'admin' ? 'admin' : access.role || '');
+    meta.textContent = `${access.email || '\u2014'}${roleLabel ? ` (${roleLabel})` : ''}`;
 
     const linksWrap = document.createElement('div');
     linksWrap.className = 'ssNavLinks';
@@ -220,7 +229,8 @@
         title: 'Behavior And Admin',
         items: [
           { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',     href:'./behavior_history.html',   badge:'behavior log' },
-          { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'settings' },
+          { key:'admin_roles',        label: MODULES.admin_roles || 'Admin Roles',               href:'./admin_roles.html',        badge:'role access' },
+          { key:'admin_dashboard',    label: MODULES.admin || 'Super Admin Dashboard',           href:'./index.html',              badge:'system settings' },
         ]
       }
     ];

@@ -193,7 +193,7 @@ function updateViewerUi(){
   const role = ACCESS?.role || ACCESS?.viewer?.role || '—';
   viewerPill.textContent = email;
   rolePill.textContent = role;
-  if (ACCESS?.role === 'admin') {
+  if (ACCESS?.role === 'admin' || ACCESS?.role === 'super_admin') {
     show(actorFilterWrap);
   } else {
     hide(actorFilterWrap);
@@ -203,7 +203,8 @@ function updateViewerUi(){
 function renderSummary(data){
   const counts = data?.counts || {};
   const viewer = data?.viewer || ACCESS || {};
-  const isAdmin = !!viewer?.is_admin || String(viewer?.role || '').toLowerCase() === 'admin';
+  const viewerRole = String(viewer?.role || '').toLowerCase();
+  const isAdmin = !!viewer?.is_admin || viewerRole === 'admin' || viewerRole === 'super_admin';
   const accessible = Number(counts.accessible || 0);
   const matched = Number(counts.matched || 0);
   const deletedMatched = Number(counts.deleted_matched || 0);
@@ -224,7 +225,8 @@ function renderFilters(data){
   }));
   fillSelect(eventFilter, eventItems, 'All behavior types', eventFilter.value);
 
-  if ((ACCESS?.role || data?.viewer?.role) === 'admin') {
+  const role = String(ACCESS?.role || data?.viewer?.role || '').toLowerCase();
+  if (role === 'admin' || role === 'super_admin') {
     const actors = (opts.actor_emails || []).map(x => ({ value: String(x || ''), label: String(x || '') }));
     fillSelect(actorFilter, actors, 'All staff emails', actorFilter.value);
   }

@@ -16,7 +16,8 @@
     behavior_history: 'Logged Behaviors',
     attendance_change: 'Attendance Change',
     excused_apply: 'Attendance Change', // legacy alias
-    admin: 'Admin Dashboard'
+    admin_roles: 'Admin Roles',
+    admin: 'Super Admin Dashboard'
   };
 
   // Expose brand + module labels immediately so nav.js can consume them.

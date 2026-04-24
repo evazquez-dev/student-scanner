@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00nnbe4m6.apps.googleusercontent.com">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev">
+  <title>EagleNEST</title>
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="./nav.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./brand.js"></script>
+  <script src="./nav.js" defer></script>
+  <script src="./admin_roles.js" defer></script>
+</head>
+<body data-module="admin_roles">
+  <div class="shell">
+    <main class="layout">
+      <section class="card" id="loginCard">
+        <h1 data-brand-title>EagleNEST</h1>
+        <p>Sign in with a super admin account to manage the `admin` role list.</p>
+        <div id="g_id_signin"></div>
+        <div id="loginOut" class="muted"></div>
+      </section>
+
+      <section class="card" id="appCard" hidden>
+        <div class="row" style="justify-content:space-between;align-items:center;gap:12px;">
+          <div>
+            <h1 style="margin:0;" data-brand-module>Admin Roles</h1>
+            <div id="viewerMeta" class="muted"></div>
+          </div>
+          <button id="refreshBtn" class="btn secondary" type="button">Refresh</button>
+        </div>
+
+        <p class="muted">Emails in this list receive the `admin` role. Super admins still come from the worker `ADMIN_ALLOWLIST`.</p>
+
+        <label for="emailBox"><strong>Admin Emails</strong></label>
+        <textarea id="emailBox" rows="16" style="width:100%;margin-top:8px;" spellcheck="false" placeholder="one.email@theamericandreamschool.org&#10;another.email@theamericandreamschool.org"></textarea>
+
+        <div class="row" style="margin-top:12px;gap:10px;flex-wrap:wrap;">
+          <button id="saveBtn" class="btn" type="button">Save Admin List</button>
+          <button id="logoutBtn" class="btn secondary" type="button">Log Out</button>
+        </div>
+
+        <div id="statusOut" class="muted" style="margin-top:12px;"></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

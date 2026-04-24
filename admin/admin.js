@@ -259,8 +259,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     sess = { ok:false };
   }
   if (sess.ok) {
-    if (String(sess.role || '') !== 'admin') {
-      showLogin(`Signed in as ${sess.email || 'unknown'} but not authorized for Admin Dashboard.`);
+    if (String(sess.role || '') !== 'super_admin') {
+      showLogin(`Signed in as ${sess.email || 'unknown'} but not authorized for Super Admin Dashboard.`);
       return;
     }
     await afterLoginBoot();
@@ -304,8 +304,8 @@ async function onGoogleCredential(resp) {
     if (data?.sid) setStoredAdminSessionSid(String(data.sid));
     if(!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
-    if (String(data.role || '') !== 'admin') {
-      showLogin(`Signed in as ${data.email || 'unknown'} but not authorized for Admin Dashboard.`);
+    if (String(data.role || '') !== 'super_admin') {
+      showLogin(`Signed in as ${data.email || 'unknown'} but not authorized for Super Admin Dashboard.`);
       return;
     }
 

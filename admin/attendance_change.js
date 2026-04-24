@@ -253,6 +253,9 @@
     const accessResp = await adminFetch('/admin/access', { method: 'GET' });
     const access = await accessResp.json().catch(() => null);
     if (!accessResp.ok || !access?.ok) throw new Error(access?.error || `access HTTP ${accessResp.status}`);
+    if (!(access?.can?.attendance_change || access?.can?.excused_apply || access?.can?.super_admin)) {
+      throw new Error('forbidden');
+    }
 
     const optsResp = await adminFetch('/admin/teacher_att/options', { method: 'GET' });
     const opts = await optsResp.json().catch(() => null);

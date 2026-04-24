@@ -145,7 +145,8 @@ function tableHtml(rows, columns, emptyText){
 }
 
 function canForgivePenalty(row){
-  return String(ACCESS?.role || '').toLowerCase() === 'admin' && !!row && (!!row.block_status || !!row.penalty_pending);
+  const role = String(ACCESS?.role || '').toLowerCase();
+  return (role === 'admin' || role === 'super_admin') && !!row && (!!row.block_status || !!row.penalty_pending);
 }
 
 function forgiveButtonHtml(row){

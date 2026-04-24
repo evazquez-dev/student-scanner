@@ -273,6 +273,9 @@ async function boot(){
   }
 
   // access OK
+  if (!(access?.can?.student_view || access?.can?.super_admin)) {
+    throw new Error('forbidden');
+  }
   loginCard.style.display = 'none';
   app.style.display = '';
 

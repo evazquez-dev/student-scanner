@@ -605,7 +605,8 @@ async function loadSelectedContext(){
   // Release is enabled if they're currently held
   const heldBy = String((isTodayState ? st?.held_by_email : '') || '').toLowerCase();
   const me     = String(WHO?.email || '').toLowerCase();
-  const isAdmin = String(WHO?.role || '') === 'admin';
+  const role = String(WHO?.role || '');
+  const isAdmin = role === 'admin' || role === 'super_admin';
 
   const canRelease = !!heldBy && (isAdmin || (me && heldBy === me));
   releaseBtn.disabled = !canRelease;
