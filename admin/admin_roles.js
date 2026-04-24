@@ -16,6 +16,10 @@
   const viewerMeta = document.getElementById('viewerMeta');
   const emailBox = document.getElementById('emailBox');
   const statusOut = document.getElementById('statusOut');
+  const superAdminOut = document.getElementById('superAdminOut');
+  const hallwayOut = document.getElementById('hallwayOut');
+  const phonePassOut = document.getElementById('phonePassOut');
+  const staffPullOut = document.getElementById('staffPullOut');
   const refreshBtn = document.getElementById('refreshBtn');
   const saveBtn = document.getElementById('saveBtn');
   const logoutBtn = document.getElementById('logoutBtn');
@@ -103,11 +107,19 @@
 
   async function loadRoleList() {
     statusOut.textContent = 'Loading…';
-    const r = await adminFetch('/admin/admin_role_allowlist', { method: 'GET' });
+    const r = await adminFetch('/admin/permissions_overview', { method: 'GET' });
     const j = await r.json().catch(() => null);
-    if (!r.ok || !j?.ok) throw new Error(j?.error || `admin_role_allowlist HTTP ${r.status}`);
-    emailBox.value = (Array.isArray(j.emails) ? j.emails : []).join('\n');
-    statusOut.textContent = `Loaded ${Number(j.count || 0)} admin email${Number(j.count || 0) === 1 ? '' : 's'}.`;
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `permissions_overview HTTP ${r.status}`);
+    const admins = Array.isArray(j.admins) ? j.admins : [];
+    emailBox.value = admins.join('\n');
+    superAdminOut.textContent = (Array.isArray(j.super_admins) && j.super_admins.length) ? j.super_admins.join('\n') : 'None';
+    hallwayOut.textContent = (Array.isArray(j.hallway_monitors) && j.hallway_monitors.length) ? j.hallway_monitors.join('\n') : 'None';
+    phonePassOut.textContent = (Array.isArray(j.phone_pass_grant) && j.phone_pass_grant.length) ? j.phone_pass_grant.join('\n') : 'None';
+    const staffRows = Array.isArray(j.staff_pull_roles) ? j.staff_pull_roles : [];
+    staffPullOut.textContent = staffRows.length
+      ? staffRows.map((row) => `${row.title} — ${row.email}`).join('\n')
+      : 'None';
+    statusOut.textContent = `Loaded ${admins.length} admin email${admins.length === 1 ? '' : 's'}.`;
   }
 
   async function saveRoleList() {
