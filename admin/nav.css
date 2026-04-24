@@ -99,13 +99,28 @@ body.ssNav-open #ssNavBackdrop{ display:block; }
 .ssNavLinks{
   display:flex;
   flex-direction:column;
-  gap:6px;
+  gap:10px;
   margin-top:6px;
   flex:1 1 auto;
   min-height:0;
   overflow-y:auto;
   overscroll-behavior:contain;
   padding-right:4px;
+}
+
+.ssNavSection{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.ssNavSectionTitle{
+  padding:4px 2px 0;
+  font-size:0.72rem;
+  font-weight:900;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color: var(--muted, #9ca3af);
 }
 
 .ssNavLink{
@@ -133,10 +148,10 @@ body.ssNav-open #ssNavBackdrop{ display:block; }
 
 .ssNavBadge{
   font-size:0.70rem;
-  letter-spacing:0.08em;
-  text-transform:uppercase;
+  letter-spacing:0.03em;
   color: var(--muted, #9ca3af);
   font-weight:900;
+  text-align:right;
 }
 
 .ssNavFooter{

@@ -203,53 +203,84 @@
     const linksWrap = document.createElement('div');
     linksWrap.className = 'ssNavLinks';
 
-    const items = [
-      { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'staff' },
-      { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', badge:'trace' },
-      { key:'attendance_status',  label: MODULES.attendance_status || 'Attendance Status',   href:'./attendance_status.html',  badge:'audit' },
-      { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch' },
-      { key:'student_scans',      label: MODULES.student_scans || 'Scans Report',            href:'./student_scans.html',      badge:'reports' },
-      { key:'student_view',       label: MODULES.student_view || 'Student View',             href:'./student_view.html',       badge:'student' },
-      { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'monitor' },
-      { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'pull' },
-      { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phones' },
-      { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',       href:'./behavior_history.html',   badge:'behavior' },
-      { key:'supervised_lunch',   label: MODULES.supervised_lunch || 'Supervised Lunch',       href:'./supervised_lunch.html',   badge:'lunch' },
-      { key:'attendance_change',  label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'attendance' },
-      { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'admin' },
+    const sections = [
+      {
+        title: 'Attendance',
+        items: [
+          { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'take attendance' },
+          { key:'attendance_status',  label: MODULES.attendance_status || 'Attendance Status',   href:'./attendance_status.html',  badge:'live status' },
+          { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', badge:'submission trace' },
+          { key:'attendance_change',  label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'edit records' },
+        ]
+      },
+      {
+        title: 'Students',
+        items: [
+          { key:'student_scans',      label: MODULES.student_scans || 'Scans Report',            href:'./student_scans.html',      badge:'scan history' },
+          { key:'student_view',       label: MODULES.student_view || 'Student View',             href:'./student_view.html',       badge:'student lookup' },
+          { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch audit' },
+          { key:'supervised_lunch',   label: MODULES.supervised_lunch || 'Supervised Lunch',     href:'./supervised_lunch.html',   badge:'room setup' },
+        ]
+      },
+      {
+        title: 'Passes',
+        items: [
+          { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'hall monitor' },
+          { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'staff request' },
+          { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phone locker' },
+        ]
+      },
+      {
+        title: 'Behavior And Admin',
+        items: [
+          { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',     href:'./behavior_history.html',   badge:'behavior log' },
+          { key:'admin',              label: MODULES.admin || 'Admin Dashboard',                 href:'./index.html',              badge:'settings' },
+        ]
+      }
     ];
 
     const cur = currentFile();
 
-    for (const it of items) {
-      const canSee = !!(
+    for (const section of sections) {
+      const visibleItems = section.items.filter((it) => !!(
         access?.can?.[it.key] ||
         (it.key === 'attendance_change' && access?.can?.excused_apply)
-      );
-      if (!canSee) continue;
+      ));
+      if (!visibleItems.length) continue;
 
-      const a = document.createElement('a');
-      a.className = 'ssNavLink';
-      a.href = it.href;
+      const sectionEl = document.createElement('div');
+      sectionEl.className = 'ssNavSection';
 
-      const left = document.createElement('span');
-      left.textContent = it.label;
+      const sectionTitle = document.createElement('div');
+      sectionTitle.className = 'ssNavSectionTitle';
+      sectionTitle.textContent = section.title;
+      sectionEl.appendChild(sectionTitle);
 
-      const right = document.createElement('span');
-      right.className = 'ssNavBadge';
-      right.textContent = it.badge;
+      for (const it of visibleItems) {
+        const a = document.createElement('a');
+        a.className = 'ssNavLink';
+        a.href = it.href;
 
-      a.appendChild(left);
-      a.appendChild(right);
+        const left = document.createElement('span');
+        left.textContent = it.label;
 
-      // mark current
-      const targetFile = it.href.split('/').pop();
-      const isCurrent = (it.key === 'attendance_change')
-        ? (cur === 'attendance_change.html' || cur === 'excused_apply.html')
-        : (targetFile && targetFile === cur);
-      if (isCurrent) a.setAttribute('aria-current', 'page');
+        const right = document.createElement('span');
+        right.className = 'ssNavBadge';
+        right.textContent = it.badge;
 
-      linksWrap.appendChild(a);
+        a.appendChild(left);
+        a.appendChild(right);
+
+        const targetFile = it.href.split('/').pop();
+        const isCurrent = (it.key === 'attendance_change')
+          ? (cur === 'attendance_change.html' || cur === 'excused_apply.html')
+          : (targetFile && targetFile === cur);
+        if (isCurrent) a.setAttribute('aria-current', 'page');
+
+        sectionEl.appendChild(a);
+      }
+
+      linksWrap.appendChild(sectionEl);
     }
 
     // ===== Theme (shared) =====
