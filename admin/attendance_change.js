@@ -166,8 +166,9 @@
     const code = String($('targetCode')?.value || 'E').toUpperCase();
     const offCampus = $('markOffCampus');
     if (!offCampus) return;
-    offCampus.disabled = code !== 'E';
-    if (code !== 'E') offCampus.checked = false;
+    const allowOffCampus = code === 'A' || code === 'E';
+    offCampus.disabled = !allowOffCampus;
+    if (!allowOffCampus) offCampus.checked = false;
   }
 
   function renderRoster(){
