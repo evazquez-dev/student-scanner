@@ -97,11 +97,13 @@ function show(el) { if (el) el.style.display = 'block'; }
 function hide(el) { if (el) el.style.display = 'none'; }
 
 function setStatus(ok, msg) {
+  if (!statusDot || !statusText) return;
   statusDot.className = `dot ${ok ? 'ok' : 'bad'}`;
   statusText.textContent = msg;
 }
 
 function setError(msg) {
+  if (!errorBox) return;
   const text = String(msg || '').trim();
   if (!text) {
     errorBox.style.display = 'none';
@@ -143,6 +145,7 @@ function scoreClass(score) {
 }
 
 function renderSummaryCards(counts = {}) {
+  if (!summaryCards) return;
   const cards = [
     ['Active kiosks', counts.active_kiosks, `${counts.devices_with_scans || 0} with scans`],
     ['Total scans', counts.total_scans, `${counts.unique_students_scanned || 0} unique students`],
@@ -163,6 +166,7 @@ function renderSummaryCards(counts = {}) {
 }
 
 function renderWorkflow(workflow = {}) {
+  if (!workflowBody) return;
   const bath = workflow.bathroom || {};
   const staff = workflow.staff_pull || {};
   workflowBody.innerHTML = `
@@ -176,6 +180,7 @@ function renderWorkflow(workflow = {}) {
 }
 
 function renderAttendanceEvidence(evidence = {}) {
+  if (!attendanceEvidenceCards) return;
   const counts = evidence?.counts || {};
   const configured = evidence?.configured !== false;
   const ok = evidence?.ok !== false;
@@ -210,6 +215,7 @@ function renderAttendanceEvidence(evidence = {}) {
 }
 
 function renderStudentSampleList(target, items = [], emptyText = 'No rows.') {
+  if (!target) return;
   const list = Array.isArray(items) ? items : [];
   target.innerHTML = list.length
     ? list.map((row) => {
@@ -235,6 +241,7 @@ function renderStudentSampleList(target, items = [], emptyText = 'No rows.') {
 }
 
 function renderEventTypes(items = []) {
+  if (!eventTypesBody) return;
   const list = Array.isArray(items) ? items.slice(0, 12) : [];
   eventTypesBody.innerHTML = list.length
     ? list.map((row) => `
@@ -247,6 +254,7 @@ function renderEventTypes(items = []) {
 }
 
 function renderDevices(devices = []) {
+  if (!deviceTbody) return;
   deviceTbody.innerHTML = Array.isArray(devices) && devices.length
     ? devices.map((row) => {
         const flags = Array.isArray(row.flags) ? row.flags : [];
