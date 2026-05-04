@@ -189,31 +189,31 @@
       gap:1rem;
       margin-bottom:1rem;
     }
-    .miniTable{
-      width:100%;
-      border-collapse:collapse;
+    .miniList{
+      display:flex;
+      flex-direction:column;
+      gap:0;
       font-size:.88rem;
-      table-layout:fixed;
     }
-    .miniTable th, .miniTable td{
-      text-align:left;
-      padding:.55rem .35rem;
+    .miniRow{
+      display:grid;
+      grid-template-columns:minmax(0, 1fr) auto;
+      gap:.8rem;
+      align-items:start;
+      padding:.58rem 0;
       border-bottom:1px solid rgba(148,163,184,.18);
-      vertical-align:top;
+    }
+    .miniRow:last-child{ border-bottom:0; }
+    .miniLabel{
+      min-width:0;
+      color:var(--fg);
       overflow-wrap:anywhere;
     }
-    .miniTable th{ color:var(--muted); font-size:.74rem; letter-spacing:.08em; text-transform:uppercase; }
-    .miniTable th:first-child,
-    .miniTable td:first-child{
-      width:72%;
-      padding-right:.65rem;
-    }
-    .miniTable th:last-child,
-    .miniTable td:last-child{
-      width:28%;
+    .miniValue{
       text-align:right;
       white-space:nowrap;
       font-variant-numeric:tabular-nums;
+      font-weight:700;
     }
     .tableWrap{
       overflow:auto;
@@ -330,15 +330,11 @@
       <section class="grid2">
         <div class="card">
           <h2>Workflow Closure</h2>
-          <table class="miniTable">
-            <tbody id="workflowBody"></tbody>
-          </table>
+          <div id="workflowBody" class="miniList"></div>
         </div>
         <div class="card">
           <h2>Event Mix</h2>
-          <table class="miniTable">
-            <tbody id="eventTypesBody"></tbody>
-          </table>
+          <div id="eventTypesBody" class="miniList"></div>
         </div>
       </section>
 

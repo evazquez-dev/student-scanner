@@ -163,20 +163,25 @@ function renderWorkflow(workflow = {}) {
   const bath = workflow.bathroom || {};
   const staff = workflow.staff_pull || {};
   workflowBody.innerHTML = `
-    <tr><th>Bathroom out</th><td>${esc(bath.out_count ?? 0)}</td></tr>
-    <tr><th>Bathroom back</th><td>${esc(bath.back_count ?? 0)}</td></tr>
-    <tr><th>Bathroom still open</th><td>${esc(bath.open_count ?? 0)}</td></tr>
-    <tr><th>Staff pull start</th><td>${esc(staff.start_count ?? 0)}</td></tr>
-    <tr><th>Staff pull end</th><td>${esc(staff.end_count ?? 0)}</td></tr>
-    <tr><th>Staff pull still open</th><td>${esc(staff.open_count ?? 0)}</td></tr>
+    <div class="miniRow"><div class="miniLabel">Bathroom out</div><div class="miniValue">${esc(bath.out_count ?? 0)}</div></div>
+    <div class="miniRow"><div class="miniLabel">Bathroom back</div><div class="miniValue">${esc(bath.back_count ?? 0)}</div></div>
+    <div class="miniRow"><div class="miniLabel">Bathroom still open</div><div class="miniValue">${esc(bath.open_count ?? 0)}</div></div>
+    <div class="miniRow"><div class="miniLabel">Staff pull start</div><div class="miniValue">${esc(staff.start_count ?? 0)}</div></div>
+    <div class="miniRow"><div class="miniLabel">Staff pull end</div><div class="miniValue">${esc(staff.end_count ?? 0)}</div></div>
+    <div class="miniRow"><div class="miniLabel">Staff pull still open</div><div class="miniValue">${esc(staff.open_count ?? 0)}</div></div>
   `;
 }
 
 function renderEventTypes(items = []) {
   const list = Array.isArray(items) ? items.slice(0, 12) : [];
   eventTypesBody.innerHTML = list.length
-    ? list.map((row) => `<tr><th>${esc(row.event_type || '')}</th><td>${esc(row.count ?? 0)}</td></tr>`).join('')
-    : `<tr><td class="muted" colspan="2">No events for this date.</td></tr>`;
+    ? list.map((row) => `
+      <div class="miniRow">
+        <div class="miniLabel">${esc(row.event_type || '')}</div>
+        <div class="miniValue">${esc(row.count ?? 0)}</div>
+      </div>
+    `).join('')
+    : `<div class="miniRow"><div class="miniLabel muted">No events for this date.</div><div class="miniValue">—</div></div>`;
 }
 
 function renderDevices(devices = []) {
