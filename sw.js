@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v18.4.15-2026-05-04'; // bump on each deploy
+const VERSION = 'v18.4.16-2026-05-04'; // bump on each deploy
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [

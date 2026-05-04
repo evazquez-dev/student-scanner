@@ -689,6 +689,49 @@
     }]);
   }
 
+  let __KIOSK_HEARTBEAT_CFG = null;
+  let __KIOSK_HEARTBEAT_TIMER = null;
+  let __KIOSK_HEARTBEAT_STOP_TIMER = null;
+  let __KIOSK_HEARTBEAT_STOP_AT_MS = 0;
+
+  function stopKioskHeartbeatLoop(){
+    if (__KIOSK_HEARTBEAT_TIMER) clearInterval(__KIOSK_HEARTBEAT_TIMER);
+    if (__KIOSK_HEARTBEAT_STOP_TIMER) clearTimeout(__KIOSK_HEARTBEAT_STOP_TIMER);
+    __KIOSK_HEARTBEAT_TIMER = null;
+    __KIOSK_HEARTBEAT_STOP_TIMER = null;
+    __KIOSK_HEARTBEAT_STOP_AT_MS = 0;
+  }
+
+  function startKioskHeartbeatLoopFromConfig(cfg){
+    stopKioskHeartbeatLoop();
+    __KIOSK_HEARTBEAT_CFG = cfg && typeof cfg === 'object' ? cfg : null;
+    if (!__KIOSK_HEARTBEAT_CFG || __KIOSK_HEARTBEAT_CFG.enabled !== true) return;
+
+    const intervalMs = Math.max(60_000, Number(__KIOSK_HEARTBEAT_CFG.interval_ms || 10 * 60 * 1000));
+    const stopAfterMs = Math.max(0, Number(__KIOSK_HEARTBEAT_CFG.stop_after_ms || 0));
+    if (!stopAfterMs) return;
+
+    __KIOSK_HEARTBEAT_STOP_AT_MS = Date.now() + stopAfterMs;
+    const sendHeartbeat = () => {
+      if (!__KIOSK_HEARTBEAT_STOP_AT_MS || Date.now() >= __KIOSK_HEARTBEAT_STOP_AT_MS) {
+        stopKioskHeartbeatLoop();
+        return;
+      }
+      emitKioskFidelityEvent('kiosk_heartbeat', {
+        metadata: {
+          online: !!navigator.onLine,
+          visibility: document.visibilityState || '',
+          current_period: CURRENT_CLASS_PERIOD_KEY || '',
+          heartbeat_reason: String(__KIOSK_HEARTBEAT_CFG.reason || ''),
+          heartbeat_stop_local_min: __KIOSK_HEARTBEAT_CFG.stop_local_min ?? null
+        }
+      });
+    };
+
+    __KIOSK_HEARTBEAT_TIMER = setInterval(sendHeartbeat, intervalMs);
+    __KIOSK_HEARTBEAT_STOP_TIMER = setTimeout(stopKioskHeartbeatLoop, stopAfterMs + 1000);
+  }
+
   function resetInputSession(){
     INPUT_SESSION = { startedAt: 0, lastKeyAt: 0, usedBackspace: false };
   }
@@ -1952,6 +1995,12 @@
         const data = JSON.parse(text);
       
         if (data && data.ok) {
+          if (data.kiosk_heartbeat && typeof data.kiosk_heartbeat === 'object') {
+            __KIOSK_HEARTBEAT_CFG = data.kiosk_heartbeat;
+          } else {
+            __KIOSK_HEARTBEAT_CFG = null;
+          }
+
           const arr = Array.isArray(data.meta)
             ? data.meta
             : (Array.isArray(data.locations) ? data.locations : []);
@@ -1985,6 +2034,7 @@
       }
     } catch(_) {}
   
+    __KIOSK_HEARTBEAT_CFG = null;
     __LOCATIONS_META = {};
     STATIC_LOCATIONS.forEach(name => {
       __LOCATIONS_META[name] = { type: null, mode: null, visible: true };
@@ -2992,17 +3042,9 @@
         online: !!navigator.onLine
       }
     });
-    setInterval(() => {
-      emitKioskFidelityEvent('kiosk_heartbeat', {
-        metadata: {
-          online: !!navigator.onLine,
-          visibility: document.visibilityState || '',
-          current_period: CURRENT_CLASS_PERIOD_KEY || ''
-        }
-      });
-    }, 10 * 60 * 1000);
     await checkDeviceLock();
     await apiGetLocations();
+    startKioskHeartbeatLoopFromConfig(__KIOSK_HEARTBEAT_CFG);
     updateLocationPill();
     updateHistoryPaneForLocation();
     trimHistory();
