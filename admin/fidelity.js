@@ -18,8 +18,11 @@ const dateInput = document.getElementById('dateInput');
 const loadBtn = document.getElementById('loadBtn');
 const todayBtn = document.getElementById('todayBtn');
 const summaryCards = document.getElementById('summaryCards');
+const attendanceEvidenceCards = document.getElementById('attendanceEvidenceCards');
 const workflowBody = document.getElementById('workflowBody');
 const eventTypesBody = document.getElementById('eventTypesBody');
+const noEntranceBody = document.getElementById('noEntranceBody');
+const inBuildingNoEntranceBody = document.getElementById('inBuildingNoEntranceBody');
 const deviceTbody = document.getElementById('deviceTbody');
 const errorBox = document.getElementById('errorBox');
 
@@ -172,6 +175,65 @@ function renderWorkflow(workflow = {}) {
   `;
 }
 
+function renderAttendanceEvidence(evidence = {}) {
+  const counts = evidence?.counts || {};
+  const configured = evidence?.configured !== false;
+  const ok = evidence?.ok !== false;
+  const cards = !configured
+    ? [
+        ['Attendance evidence', 'Not configured', 'Run setupFidelityAttendanceSource() in the fidelity GAS project']
+      ]
+    : [
+        ['Entrance scans', counts.entrance_scanned ?? 0, `${counts.total_roster ?? 0} rostered students`],
+        ['No entrance scan', counts.no_entrance_scan ?? 0, `${fmtPct(counts.entrance_coverage_pct ?? 0)} coverage`],
+        ['Any scans today', counts.any_scan_today ?? 0, 'students with any kiosk evidence'],
+        ['In-building no entrance', counts.in_building_scan_no_entrance ?? 0, 'students seen inside without entry evidence']
+      ];
+  attendanceEvidenceCards.innerHTML = cards.map(([label, value, sub]) => `
+    <article class="card">
+      <h2>${esc(label)}</h2>
+      <div class="big">${esc(value == null ? '—' : value)}</div>
+      <div class="small">${esc(ok ? (sub || '') : (evidence?.error || sub || ''))}</div>
+    </article>
+  `).join('');
+
+  renderStudentSampleList(
+    noEntranceBody,
+    evidence?.samples?.no_entrance_scan || [],
+    'No rostered students are missing entrance evidence for this date.'
+  );
+  renderStudentSampleList(
+    inBuildingNoEntranceBody,
+    evidence?.samples?.in_building_scan_no_entrance || [],
+    'No students were seen in-building without an entrance scan for this date.'
+  );
+}
+
+function renderStudentSampleList(target, items = [], emptyText = 'No rows.') {
+  const list = Array.isArray(items) ? items : [];
+  target.innerHTML = list.length
+    ? list.map((row) => {
+        const name = row.name || row.osis || 'Unknown';
+        const grade = row.grade ? `Grade ${row.grade}` : '';
+        const extra = row.first_seen_location
+          ? `${row.first_seen_location}${row.first_seen_at_iso ? ` • ${fmtTs(row.first_seen_at_iso)}` : ''}`
+          : grade || 'No additional evidence';
+        return `
+          <div class="miniRow">
+            <div class="miniLabel">
+              <div>${esc(name)}</div>
+              <div class="muted mono">${esc(row.osis || '')}</div>
+            </div>
+            <div class="miniValue">
+              <div>${esc(grade || '—')}</div>
+              <div class="muted">${esc(extra)}</div>
+            </div>
+          </div>
+        `;
+      }).join('')
+    : `<div class="miniRow"><div class="miniLabel muted">${esc(emptyText)}</div><div class="miniValue">—</div></div>`;
+}
+
 function renderEventTypes(items = []) {
   const list = Array.isArray(items) ? items.slice(0, 12) : [];
   eventTypesBody.innerHTML = list.length
@@ -261,6 +323,7 @@ async function loadDashboard(date = '') {
     renderSummaryCards(data.counts || {});
     renderWorkflow(data.workflow || {});
     renderEventTypes(data.event_types || []);
+    renderAttendanceEvidence(data.attendance_evidence || {});
     renderDevices(data.devices || []);
     setStatus(true, 'Live');
   } catch (err) {
