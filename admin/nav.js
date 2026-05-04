@@ -242,6 +242,7 @@
         title: 'Behavior And Admin',
         items: [
           { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',     href:'./behavior_history.html',   badge:'behavior log' },
+          { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Fidelity Dashboard', href:'./fidelity.html',           badge:'data trust' },
           { key:'admin_roles',        label: MODULES.admin_roles || 'Admin Roles',               href:'./admin_roles.html',        badge:'role access' },
           { key:'admin_dashboard',    label: MODULES.admin || 'Super Admin Dashboard',           href:'./index.html',              badge:'system settings' },
         ]

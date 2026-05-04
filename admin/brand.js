@@ -14,6 +14,7 @@
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
     behavior_history: 'Logged Behaviors',
+    fidelity_dashboard: 'Fidelity Dashboard',
     attendance_change: 'Attendance Change',
     excused_apply: 'Attendance Change', // legacy alias
     admin_roles: 'Admin Roles',
