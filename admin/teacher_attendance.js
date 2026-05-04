@@ -28,6 +28,29 @@ const outListEl = document.getElementById('outList');
 const inListEl  = document.getElementById('inList');
 const outCountEl = document.getElementById('outCount');
 const inCountEl  = document.getElementById('inCount');
+let FIDELITY_TEACHER_PAGE_LOADED = false;
+
+function emitTeacherFidelityEvent(eventType, extra = {}){
+  adminFetch('/admin/fidelity_events', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      event: {
+        event_type: eventType,
+        event_at_iso: new Date().toISOString(),
+        source_app: 'admin_teacher_attendance',
+        page: 'teacher_attendance',
+        metadata: {
+          page_mode: PAGE_MODE || 'class',
+          room: normRoom(roomInput?.value || ''),
+          period_local: normPeriod(periodInput?.value || ''),
+          ...((extra && extra.metadata) || {})
+        },
+        ...extra
+      }
+    })
+  }).catch(() => {});
+}
 
 /******************** Secret behavior menu (persistent across refresh) ********************/
 const SECRET_FLAG_KEY = 'ta_secret_behavior_enabled_v2';
@@ -2535,6 +2558,17 @@ async function submitChanges(){
             : (data?.gas ? 'Saved, but GAS push failed.' : 'Saved.'));
     setStatus(true, msg);
     await refreshOnce();
+  } catch (err) {
+    emitTeacherFidelityEvent('teacher_attendance_submit_error', {
+      success: false,
+      error_code: 'submit_failed',
+      error_message: err?.message || String(err),
+      metadata: {
+        date,
+        change_count: changes.length
+      }
+    });
+    throw err;
   } finally {
     updateSubmitButtons();
   }
@@ -2711,6 +2745,14 @@ async function refreshClassOnce(){
   });
 
   setLiveStatusFromBehaviorState();
+  emitTeacherFidelityEvent('teacher_period_loaded', {
+    success: true,
+    metadata: {
+      date,
+      row_count: Array.isArray(lastMergedRows) ? lastMergedRows.length : 0,
+      refresh_mode: 'class'
+    }
+  });
 }
 
 async function refreshAfterSchoolOnce(){
@@ -2729,6 +2771,14 @@ async function refreshAfterSchoolOnce(){
   const date = String(data?.date || '').trim();
   renderAfterSchoolRows({ date, homeRoomLabel, rows: (data?.students || data?.rows || []) });
   setLiveStatusFromBehaviorState();
+  emitTeacherFidelityEvent('teacher_period_loaded', {
+    success: true,
+    metadata: {
+      date,
+      row_count: Array.isArray(data?.students || data?.rows) ? (data.students || data.rows).length : 0,
+      refresh_mode: 'after_school'
+    }
+  });
 }
 
 async function refreshOnce(){
@@ -3014,6 +3064,16 @@ async function bootTeacherAttendance(){
 
     startAutoRefresh();
 
+    if (!FIDELITY_TEACHER_PAGE_LOADED) {
+      FIDELITY_TEACHER_PAGE_LOADED = true;
+      emitTeacherFidelityEvent('teacher_page_loaded', {
+        success: true,
+        metadata: {
+          authed: true
+        }
+      });
+    }
+
     // Auto-refresh once if selections are already picked
     if (PAGE_MODE === 'after_school') {
       if (roomInput.value.trim()) await refreshOnce();
@@ -3204,6 +3264,17 @@ async function onGoogleCredential(resp){
     }
 
     startAutoRefresh();
+
+    if (!FIDELITY_TEACHER_PAGE_LOADED) {
+      FIDELITY_TEACHER_PAGE_LOADED = true;
+      emitTeacherFidelityEvent('teacher_page_loaded', {
+        success: true,
+        metadata: {
+          authed: true,
+          login_flow: 'google'
+        }
+      });
+    }
 
     // Auto-refresh once if room+period are set
     if(roomInput.value.trim() && periodInput.value.trim()){

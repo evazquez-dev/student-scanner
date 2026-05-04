@@ -660,6 +660,64 @@
   // Device fingerprint
   const DEVICE_ID = (localStorage.getItem('scannerDeviceId') ||
     (localStorage.setItem('scannerDeviceId', crypto.randomUUID()), localStorage.getItem('scannerDeviceId')));
+  let PENDING_INPUT_METHOD = 'unknown';
+  let INPUT_SESSION = { startedAt: 0, lastKeyAt: 0, usedBackspace: false };
+
+  function emitKioskFidelity(events){
+    const list = Array.isArray(events) ? events.filter(Boolean) : [];
+    if (!list.length) return;
+    const body = new URLSearchParams({
+      action: 'fidelity',
+      events_json: JSON.stringify(list.map((ev) => ({
+        source_app: 'kiosk',
+        page: 'scanner_kiosk',
+        actor_type: 'device',
+        device_id: DEVICE_ID,
+        location: getLocation() || '',
+        period_local: CURRENT_CLASS_PERIOD_KEY || '',
+        ...ev
+      })))
+    });
+    fetch(API_BASE, { method:'POST', body }).catch(() => {});
+  }
+
+  function emitKioskFidelityEvent(eventType, extra = {}){
+    emitKioskFidelity([{
+      event_type: eventType,
+      event_at_iso: new Date().toISOString(),
+      ...extra
+    }]);
+  }
+
+  function resetInputSession(){
+    INPUT_SESSION = { startedAt: 0, lastKeyAt: 0, usedBackspace: false };
+  }
+
+  function classifyInputMethod_(value){
+    const now = Date.now();
+    const len = String(value || '').trim().length;
+    if (!len) return 'unknown';
+    if (!INPUT_SESSION.startedAt) return 'unknown';
+    const elapsed = Math.max(0, now - INPUT_SESSION.startedAt);
+    if (INPUT_SESSION.usedBackspace) return 'manual';
+    if (elapsed >= 700) return 'manual';
+    return 'rfid';
+  }
+
+  function buildKioskErrorMeta_(code, errorCode, errorMessage, extra = {}){
+    return {
+      osis: String(code || '').trim(),
+      raw_code: String(code || '').trim(),
+      input_method: PENDING_INPUT_METHOD || 'unknown',
+      success: false,
+      error_code: String(errorCode || '').trim(),
+      error_message: String(errorMessage || '').trim(),
+      metadata: {
+        online: !!navigator.onLine,
+        ...extra
+      }
+    };
+  }
 
   function getLocationMeta(loc) {
     const raw = String(loc || getLocation() || '').trim();
@@ -838,7 +896,20 @@
   function esc(s){ return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
   function setStatus(t){ statusEl.textContent = t; }
   function getLocation(){ return localStorage.getItem(LOC_KEY) || ''; }
-  function setLocation(v){ localStorage.setItem(LOC_KEY, v || ''); updateLocationPill(); }
+  function setLocation(v){
+    const next = String(v || '').trim();
+    const prev = getLocation();
+    localStorage.setItem(LOC_KEY, next);
+    updateLocationPill();
+    if (next !== prev) {
+      emitKioskFidelityEvent('kiosk_location_changed', {
+        metadata: {
+          previous_location: prev || '',
+          next_location: next || ''
+        }
+      });
+    }
+  }
   function todayKey() {
     const d = new Date();
     const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
@@ -2132,6 +2203,11 @@
     await selfHealLockedDeviceModeOnScan_();
     const v = normalizeForLookup(scanned);
     if (!v.ok){
+      emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
+        scanned,
+        v.reason === 'non_digit' ? 'non_digit' : 'invalid_all_zero',
+        v.reason === 'non_digit' ? 'Digits only' : 'All zeros is not valid'
+      ));
       beepBad();
       const msg = v.reason === 'non_digit' ? 'Digits only' : 'All zeros is not valid';
       resultEl.innerHTML =
@@ -2140,6 +2216,8 @@
          <div class="muted">${fmtTime(when)}</div>`;
       clearManualInput();
       setStatus('Ready.');
+      resetInputSession();
+      PENDING_INPUT_METHOD = 'unknown';
       return;
     }
 
@@ -2147,11 +2225,18 @@
     const row  = pushPendingRow(Date.now(), code, when);
 
     if (!navigator.onLine){
+      emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
+        code,
+        'offline',
+        'Offline (not recorded)'
+      ));
       // No offline queue — fail fast so we never replay stale scans later.
       try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
       updateRowToError(row, code, when, new Error('Offline (not recorded)'));
       showOffline(code, when);
       setStatus('Offline — NOT recorded');
+      resetInputSession();
+      PENDING_INPUT_METHOD = 'unknown';
       return;
     }
 
@@ -2159,10 +2244,30 @@
       const res = await apiLookup(code);
 
       if (!res.found){
+        emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
+          code,
+          res.error || res.reason || 'not_found',
+          res.error || res.reason || 'Student not found'
+        ));
         updateRowToNotFound(row, code, when, res.error, res.reason);
         showNotFound(code, when);
+        resetInputSession();
+        PENDING_INPUT_METHOD = 'unknown';
         return;
       }
+
+      emitKioskFidelityEvent('kiosk_scan_success', {
+        osis: String(res.osis || code).trim(),
+        raw_code: String(scanned || code).trim(),
+        input_method: PENDING_INPUT_METHOD || 'unknown',
+        success: true,
+        metadata: {
+          allowed: String(res.allowed || '').trim(),
+          current_period: String(res.current_period || res.next_period || '').trim(),
+          class_now: String(res.class_now || '').trim(),
+          kiosk_mode: String(res.kiosk_mode || '').trim()
+        }
+      });
 
       window.__lastLunchValue    = res.lunch || '';
       window.__lastAllowedSenior = (res && Object.prototype.hasOwnProperty.call(res, 'senior_outin_can_out'))
@@ -2202,6 +2307,8 @@
           showClassRedirect(code, shouldRoom, when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
           setStatus('Ready. Scan next card…');
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
           return;
         }
 
@@ -2221,6 +2328,8 @@
 
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'after_school_in' });
           setStatus('Ready. Scan next card…');
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
           return;
         } else {
           // If we were previously in after-school theme, restore the normal class theme
@@ -2245,6 +2354,8 @@
           );
           showClassRedirect(code, shouldRoom, when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_denied' });
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
           return;
         }
 
@@ -2309,6 +2420,8 @@
           showSuccess(res.name, code, attendance, shouldRoom, when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed: allowedValue });
           setStatus('Ready. Scan next card…');
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
           return;
         }
 
@@ -2339,6 +2452,8 @@
             showSuccess(res.name, code, attendance, shouldRoom, when);
             apiLog({ whenISO, code, source:'pwa', resolved:res, allowed: allowedValue });
             setStatus('Ready. Scan next card…');
+            resetInputSession();
+            PENDING_INPUT_METHOD = 'unknown';
             return;
           }
 
@@ -2393,6 +2508,8 @@
         showSuccess(res.name, code, label, '', when);
         apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'after_school_out' });
         setStatus('Ready. Scan next card…');
+        resetInputSession();
+        PENDING_INPUT_METHOD = 'unknown';
         return;
       }
 
@@ -2414,6 +2531,8 @@
           beepBad();
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
           setStatus('Ready. Scan next card…');
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
           return;
         }
 
@@ -2425,6 +2544,8 @@
         showSuccess(res.name, code, statusText, '', when);
         apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(wasOut ? 'in' : 'out') });
         setStatus('Ready. Scan next card…');
+        resetInputSession();
+        PENDING_INPUT_METHOD = 'unknown';
         return;
       }
 
@@ -2438,6 +2559,8 @@
         else beepBad();
         apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(canUpstairs ? 'superlunch_allowed' : 'not_allowed') });
         setStatus('Ready. Scan next card…');
+        resetInputSession();
+        PENDING_INPUT_METHOD = 'unknown';
         return;
       }
 
@@ -2473,6 +2596,8 @@
             showSuccess(res.name, code, 'NOT ALLOWED', '', when);
             apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`full_${sex}` });
             setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
+            resetInputSession();
+            PENDING_INPUT_METHOD = 'unknown';
             return;
           }
 
@@ -2486,6 +2611,8 @@
           await renderBathList();
 
           setStatus('Ready. Scan next card…');
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
           return;
         }
       }
@@ -2498,6 +2625,8 @@
         if (!allowed) beepBad();
         apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:String(allowed) });
         setStatus('Ready. Scan next card…');
+        resetInputSession();
+        PENDING_INPUT_METHOD = 'unknown';
         return;
       }
 
@@ -2509,8 +2638,15 @@
       showSuccess(res.name, code, displayNum, displayColor, when);
       apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'' });
       setStatus('Ready. Scan next card…');
+      resetInputSession();
+      PENDING_INPUT_METHOD = 'unknown';
 
     } catch (err) {
+      emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
+        code,
+        err?.name === 'AbortError' ? 'lookup_timeout' : 'lookup_error',
+        err?.message || String(err)
+      ));
       if (!navigator.onLine || err.name === 'AbortError'){
         // No offline queue — fail fast so we never replay stale scans later.
         try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
@@ -2521,6 +2657,9 @@
         updateRowToError(row, code, when, err);
         showError(err, code, when);
       }
+    } finally {
+      resetInputSession();
+      PENDING_INPUT_METHOD = 'unknown';
     }
   }
   function onScan(scanned){
@@ -2659,6 +2798,12 @@
 
   window.addEventListener('keydown', (e) => {
     if (IS_MODAL_OPEN || isModalVisible()) return;
+
+    if (!INPUT_SESSION.startedAt && e.key && e.key.length === 1) {
+      INPUT_SESSION.startedAt = Date.now();
+    }
+    INPUT_SESSION.lastKeyAt = Date.now();
+    if (e.key === 'Backspace' || e.key === 'Delete') INPUT_SESSION.usedBackspace = true;
   
     const loc = getLocation();
   
@@ -2685,6 +2830,15 @@
     if (IS_MODAL_OPEN || isModalVisible()) return;
   
     const v = manualInput.value.trim();
+    PENDING_INPUT_METHOD = classifyInputMethod_(v);
+
+    if (v && PENDING_INPUT_METHOD === 'manual') {
+      emitKioskFidelityEvent('kiosk_manual_entry', {
+        raw_code: v,
+        input_method: 'manual',
+        metadata: { length: v.length }
+      });
+    }
   
     // 🔑 Always clear on Enter *no matter what*
     clearManualInput();
@@ -2832,6 +2986,21 @@
   }
 
   (async () => {
+    emitKioskFidelityEvent('kiosk_app_loaded', {
+      metadata: {
+        user_agent: navigator.userAgent || '',
+        online: !!navigator.onLine
+      }
+    });
+    setInterval(() => {
+      emitKioskFidelityEvent('kiosk_heartbeat', {
+        metadata: {
+          online: !!navigator.onLine,
+          visibility: document.visibilityState || '',
+          current_period: CURRENT_CLASS_PERIOD_KEY || ''
+        }
+      });
+    }, 10 * 60 * 1000);
     await checkDeviceLock();
     await apiGetLocations();
     updateLocationPill();

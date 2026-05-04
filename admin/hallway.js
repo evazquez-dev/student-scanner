@@ -102,6 +102,27 @@ let didAutoSetZones = false;
 const POLL_MS = 10_000;
 let lastRefreshTs = null;
 let pollTimer = null;
+let FIDELITY_HALLWAY_PAGE_LOADED = false;
+
+function emitHallwayFidelityEvent(eventType, extra = {}) {
+  adminFetch('/admin/fidelity_events', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      event: {
+        event_type: eventType,
+        event_at_iso: new Date().toISOString(),
+        source_app: 'admin_hallway_monitor',
+        page: 'hallway_monitor',
+        metadata: {
+          active_zones: Array.from(activeZones || []),
+          ...((extra && extra.metadata) || {})
+        },
+        ...extra
+      }
+    })
+  }).catch(() => {});
+}
 
 // ===== DEBUGGING =====
 const DEBUG = false; //change to true to output debug code
@@ -593,57 +614,84 @@ async function fetchSnapshotOnce() {
   dbg('fetchSnapshotOnce: fetching snapshot…');
   lastRefreshTs = Date.now();
 
-  const r = await adminFetch(SNAPSHOT_PATH, { method: 'GET' });
-  dbg('fetchSnapshotOnce: response status', r.status);
-
-  const text = await r.text();
-  let data;
   try {
-    data = JSON.parse(text);
-  } catch (_) {
-    dbg('fetchSnapshotOnce: JSON parse failed, raw text:', text);
-    throw new Error(`Bad JSON from ${SNAPSHOT_PATH}`);
-  }
+    const r = await adminFetch(SNAPSHOT_PATH, { method: 'GET' });
+    dbg('fetchSnapshotOnce: response status', r.status);
 
-  // Handle expired session
-  if (r.status === 401) {
-    dbg('fetchSnapshotOnce: unauthorized (401), showing login');
-    setStatus(false, 'Unauthorized');
-    hide(appShell);
-    show(loginCard);
-    loginOut.textContent = 'Session expired. Please sign in again.';
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = null;
-    return;
-  }
+    const text = await r.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      dbg('fetchSnapshotOnce: JSON parse failed, raw text:', text);
+      throw new Error(`Bad JSON from ${SNAPSHOT_PATH}`);
+    }
 
-  if (r.status === 403) {
-    dbg('fetchSnapshotOnce: forbidden (403), not authorized for hallway monitor');
-    setStatus(false, 'Not authorized');
-    hide(appShell);
-    show(loginCard);
-    loginOut.textContent = 'Not authorized for the Hallway Monitor page.';
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = null;
-    return;
-  }
+    // Handle expired session
+    if (r.status === 401) {
+      dbg('fetchSnapshotOnce: unauthorized (401), showing login');
+      setStatus(false, 'Unauthorized');
+      hide(appShell);
+      show(loginCard);
+      loginOut.textContent = 'Session expired. Please sign in again.';
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+      emitHallwayFidelityEvent('hallway_refresh_error', {
+        success: false,
+        error_code: 'unauthorized',
+        error_message: 'Session expired',
+        metadata: { http_status: 401 }
+      });
+      return;
+    }
 
-  if (!r.ok || !data.ok) {
-    dbg('fetchSnapshotOnce: error payload:', data);
-    throw new Error(data?.error || `HTTP ${r.status}`);
-  }
+    if (r.status === 403) {
+      dbg('fetchSnapshotOnce: forbidden (403), not authorized for hallway monitor');
+      setStatus(false, 'Not authorized');
+      hide(appShell);
+      show(loginCard);
+      loginOut.textContent = 'Not authorized for the Hallway Monitor page.';
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+      emitHallwayFidelityEvent('hallway_refresh_error', {
+        success: false,
+        error_code: 'forbidden',
+        error_message: 'Not authorized for hallway monitor',
+        metadata: { http_status: 403 }
+      });
+      return;
+    }
 
-  dbg('fetchSnapshotOnce: data ok, rendering summary and locations');
-  setStatus(true, 'Live');
-  lastSnapshot = data;
+    if (!r.ok || !data.ok) {
+      dbg('fetchSnapshotOnce: error payload:', data);
+      throw new Error(data?.error || `HTTP ${r.status}`);
+    }
 
-  // AUTO-SELECT after_school zone during after-school mode (first load only)
-  if (!userToggledZones && !didAutoSetZones && data.after_school_mode) {
-    activeZones = new Set(['after_school']);
-    didAutoSetZones = true;
+    dbg('fetchSnapshotOnce: data ok, rendering summary and locations');
+    setStatus(true, 'Live');
+    lastSnapshot = data;
+
+    if (!userToggledZones && !didAutoSetZones && data.after_school_mode) {
+      activeZones = new Set(['after_school']);
+      didAutoSetZones = true;
+    }
+    renderSummary(data);
+    renderLocations(data);
+    emitHallwayFidelityEvent('hallway_refresh_success', {
+      success: true,
+      metadata: {
+        total: Number(data.total || 0),
+        after_school_mode: !!data.after_school_mode
+      }
+    });
+  } catch (err) {
+    emitHallwayFidelityEvent('hallway_refresh_error', {
+      success: false,
+      error_code: 'refresh_failed',
+      error_message: err?.message || String(err)
+    });
+    throw err;
   }
-  renderSummary(data);
-  renderLocations(data);
 }
 
 async function initApp() {
@@ -686,6 +734,16 @@ function startPolling() {
 
   show(appShell);        // make sure app is visible
   hide(loginCard);
+
+  if (!FIDELITY_HALLWAY_PAGE_LOADED) {
+    FIDELITY_HALLWAY_PAGE_LOADED = true;
+    emitHallwayFidelityEvent('hallway_page_loaded', {
+      success: true,
+      metadata: {
+        authed: true
+      }
+    });
+  }
 
   fetchSnapshotOnce().catch(err => {
     console.error('snapshot error', err);
