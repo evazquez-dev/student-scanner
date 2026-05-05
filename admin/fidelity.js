@@ -27,7 +27,8 @@ const summaryCards = document.getElementById('summaryCards');
 const attendanceEvidenceCards = document.getElementById('attendanceEvidenceCards');
 const workflowBody = document.getElementById('workflowBody');
 const eventTypesBody = document.getElementById('eventTypesBody');
-const teacherGapsBody = document.getElementById('teacherGapsBody');
+const teacherAccountabilityBody = document.getElementById('teacherAccountabilityBody');
+const roomAccountabilityBody = document.getElementById('roomAccountabilityBody');
 const roomPeriodEvidenceBody = document.getElementById('roomPeriodEvidenceBody');
 const teacherSubmissionsBody = document.getElementById('teacherSubmissionsBody');
 const openWorkflowDetailsBody = document.getElementById('openWorkflowDetailsBody');
@@ -378,10 +379,178 @@ function teacherGapChipClass(status) {
   return 'info';
 }
 
-function renderTeacherRoomPeriodFidelity(fidelity = {}) {
-  if (!teacherGapsBody) return;
+function normalizeRoomKey(value) {
+  return String(value || '').toLowerCase().trim().replace(/\s+/g, '').replace(/^rm/, '').replace(/^room/, '').replace(/[^a-z0-9]/g, '');
+}
+
+function teacherGapPriority(status) {
+  if (status === 'no_scans_no_attendance') return 0;
+  if (status === 'no_scans_attendance_submitted') return 1;
+  if (status === 'scans_no_attendance') return 2;
+  if (status === 'weak_scan_evidence') return 3;
+  return 4;
+}
+
+function summarizeTeacherRows(rows = []) {
+  const summary = {
+    periods: rows.length,
+    periodsWithScans: 0,
+    periodsWithSubmits: 0,
+    totalScans: 0,
+    totalUnique: 0,
+    totalSubmits: 0,
+    totalLoads: 0,
+    critical: 0,
+    noScanSubmitted: 0,
+    scansNoAttendance: 0,
+    weak: 0,
+    worstTrust: rows.length ? 100 : 0
+  };
+  rows.forEach((row) => {
+    const scans = Number(row.scan_success_count || 0);
+    const submits = Number(row.teacher_submit_count || 0);
+    summary.totalScans += scans;
+    summary.totalUnique += Number(row.unique_students_scanned || 0);
+    summary.totalSubmits += submits;
+    summary.totalLoads += Number(row.teacher_loaded_count || 0);
+    if (scans > 0) summary.periodsWithScans++;
+    if (submits > 0) summary.periodsWithSubmits++;
+    if (row.status === 'no_scans_no_attendance') summary.critical++;
+    if (row.status === 'no_scans_attendance_submitted') summary.noScanSubmitted++;
+    if (row.status === 'scans_no_attendance') summary.scansNoAttendance++;
+    if (row.status === 'weak_scan_evidence') summary.weak++;
+    summary.worstTrust = Math.min(summary.worstTrust, Number(row.trust_score ?? 100));
+  });
+  return summary;
+}
+
+function groupStatusChip(summary) {
+  if (summary.critical > 0) return `<span class="chip bad">${esc(summary.critical)} empty</span>`;
+  if (summary.noScanSubmitted > 0) return `<span class="chip warn">${esc(summary.noScanSubmitted)} no scans</span>`;
+  if (summary.scansNoAttendance > 0) return `<span class="chip warn">${esc(summary.scansNoAttendance)} no submit</span>`;
+  if (summary.weak > 0) return `<span class="chip warn">${esc(summary.weak)} weak</span>`;
+  return '<span class="chip info">OK</span>';
+}
+
+function renderPeriodDetails(rows = [], options = {}) {
+  const list = Array.isArray(rows) ? rows.slice().sort((a, b) =>
+    teacherGapPriority(a.status) - teacherGapPriority(b.status) ||
+    String(a.period_local || '').localeCompare(String(b.period_local || ''), undefined, { numeric:true, sensitivity:'base' }) ||
+    String(a.room || '').localeCompare(String(b.room || ''), undefined, { numeric:true, sensitivity:'base' })
+  ) : [];
+  if (!list.length) {
+    return `<div class="miniRow"><div class="miniLabel muted">${esc(options.emptyText || 'No expected class periods for this grouping.')}</div><div class="miniValue">—</div></div>`;
+  }
+  return list.map((row) => {
+    const teachers = Array.isArray(row.teacher_last_names) ? row.teacher_last_names.join(', ') : '';
+    const sections = Array.isArray(row.sections)
+      ? row.sections.map((s) => s?.section_name || '').filter(Boolean).slice(0, 2).join(', ')
+      : '';
+    const where = options.showRoom === false ? `Period ${row.period_local || '—'}` : `${row.room || 'Unknown room'} / ${row.period_local || '—'}`;
+    return `
+      <div class="periodGrid">
+        <div><strong>Where</strong>${esc(where)}</div>
+        <div><strong>Teacher</strong>${esc(teachers || '—')}</div>
+        <div><strong>Status</strong><span class="chip ${teacherGapChipClass(row.status)}">${esc(teacherGapStatusLabel(row.status))}</span></div>
+        <div><strong>Scans</strong>${esc(row.scan_success_count || 0)} scans / ${esc(row.unique_students_scanned || 0)} unique</div>
+        <div><strong>Attendance</strong>${esc(row.teacher_submit_count || 0)} submits / ${esc(row.teacher_loaded_count || 0)} loads</div>
+        <div><strong>Section</strong>${esc(sections || '—')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function buildTeacherGroups(rows = []) {
+  const groups = {};
+  rows.forEach((row) => {
+    const teachers = Array.isArray(row.teacher_last_names) && row.teacher_last_names.length
+      ? row.teacher_last_names
+      : ['Unknown teacher'];
+    teachers.forEach((teacher) => {
+      const key = String(teacher || 'Unknown teacher').trim() || 'Unknown teacher';
+      const rec = groups[key] || (groups[key] = { label: key, rows: [] });
+      rec.rows.push(row);
+    });
+  });
+  return Object.values(groups).map((group) => ({
+    ...group,
+    summary: summarizeTeacherRows(group.rows)
+  })).sort((a, b) =>
+    b.summary.critical - a.summary.critical ||
+    b.summary.noScanSubmitted - a.summary.noScanSubmitted ||
+    b.summary.scansNoAttendance - a.summary.scansNoAttendance ||
+    a.summary.worstTrust - b.summary.worstTrust ||
+    a.label.localeCompare(b.label, undefined, { sensitivity:'base' })
+  );
+}
+
+function buildDeviceRoomIndex(devices = []) {
+  const byRoom = {};
+  (Array.isArray(devices) ? devices : []).forEach((device) => {
+    const label = device.last_bound_location || device.last_reported_location || 'Unbound';
+    const key = normalizeRoomKey(label) || String(label).toLowerCase();
+    const rec = byRoom[key] || (byRoom[key] = {
+      label,
+      devices: [],
+      active: 0,
+      heartbeats: 0,
+      scans: 0,
+      errors: 0,
+      mismatches: 0,
+      worstTrust: 100
+    });
+    rec.devices.push(device);
+    if (device.kiosk_active_today) rec.active++;
+    rec.heartbeats += Number(device.heartbeat_count || 0);
+    rec.scans += Number(device.scan_success_count || 0);
+    rec.errors += Number(device.scan_error_count || 0);
+    rec.mismatches += Number(device.location_mismatch_count || 0);
+    rec.worstTrust = Math.min(rec.worstTrust, Number(device.trust_score ?? 100));
+  });
+  return byRoom;
+}
+
+function roomScannerStatusChip(room, deviceRec) {
+  if (!deviceRec || !deviceRec.devices.length) return '<span class="chip bad">No scanner</span>';
+  if (deviceRec.active === 0) return '<span class="chip bad">Scanner inactive</span>';
+  if (deviceRec.scans === 0) return '<span class="chip warn">Active, zero scans</span>';
+  if (deviceRec.errors > 0 || deviceRec.mismatches > 0) return '<span class="chip warn">Scanner warnings</span>';
+  if (room.summary.critical > 0) return `<span class="chip bad">${esc(room.summary.critical)} empty period(s)</span>`;
+  return '<span class="chip info">Scanner working</span>';
+}
+
+function buildRoomGroups(rows = [], devices = []) {
+  const deviceByRoom = buildDeviceRoomIndex(devices);
+  const groups = {};
+  rows.forEach((row) => {
+    const key = normalizeRoomKey(row.room) || String(row.room || 'Unknown room').toLowerCase();
+    const rec = groups[key] || (groups[key] = { label: row.room || 'Unknown room', key, rows: [] });
+    rec.rows.push(row);
+  });
+  Object.entries(deviceByRoom).forEach(([key, deviceRec]) => {
+    if (!groups[key]) groups[key] = { label: deviceRec.label || 'Unknown room', key, rows: [] };
+  });
+  return Object.values(groups).map((group) => ({
+    ...group,
+    summary: summarizeTeacherRows(group.rows),
+    device: deviceByRoom[group.key] || null
+  })).sort((a, b) => {
+    const aNoDevice = !a.device || !a.device.devices.length ? 1 : 0;
+    const bNoDevice = !b.device || !b.device.devices.length ? 1 : 0;
+    const aInactive = a.device && a.device.active === 0 ? 1 : 0;
+    const bInactive = b.device && b.device.active === 0 ? 1 : 0;
+    return bNoDevice - aNoDevice ||
+      bInactive - aInactive ||
+      b.summary.critical - a.summary.critical ||
+      b.summary.noScanSubmitted - a.summary.noScanSubmitted ||
+      a.label.localeCompare(b.label, undefined, { numeric:true, sensitivity:'base' });
+  });
+}
+
+function renderTeacherAccountability(fidelity = {}) {
+  if (!teacherAccountabilityBody) return;
   if (fidelity?.configured === false) {
-    teacherGapsBody.innerHTML = `
+    teacherAccountabilityBody.innerHTML = `
       <div class="miniRow">
         <div class="miniLabel muted">Teacher assignments are not configured in the Worker.</div>
         <div class="miniValue">—</div>
@@ -390,7 +559,7 @@ function renderTeacherRoomPeriodFidelity(fidelity = {}) {
     return;
   }
   if (fidelity?.baseline_stale) {
-    teacherGapsBody.innerHTML = `
+    teacherAccountabilityBody.innerHTML = `
       <div class="miniRow">
         <div class="miniLabel">
           <div>Teacher assignment baseline date does not match this dashboard date.</div>
@@ -401,8 +570,7 @@ function renderTeacherRoomPeriodFidelity(fidelity = {}) {
     `;
     return;
   }
-
-  const gaps = Array.isArray(fidelity?.gaps) ? fidelity.gaps.slice(0, 40) : [];
+  const rows = Array.isArray(fidelity?.rows) ? fidelity.rows : [];
   const counts = fidelity?.counts || {};
   const summary = `
     <div class="miniRow">
@@ -415,36 +583,87 @@ function renderTeacherRoomPeriodFidelity(fidelity = {}) {
       </div>
     </div>
   `;
-
-  teacherGapsBody.innerHTML = gaps.length
-    ? summary + gaps.map((row) => {
-        const teachers = Array.isArray(row.teacher_last_names) && row.teacher_last_names.length
-          ? row.teacher_last_names.join(', ')
-          : 'Unknown teacher';
-        const sections = Array.isArray(row.sections)
-          ? row.sections.map((s) => s?.section_name || '').filter(Boolean).slice(0, 3).join(', ')
-          : '';
-        const submitters = Array.isArray(row.submitter_emails) && row.submitter_emails.length
-          ? `Submitted by: ${row.submitter_emails.slice(0, 2).join(', ')}`
-          : '';
-        const flags = Array.isArray(row.flags) ? row.flags : [];
-        const flagText = flags.slice(0, 2).join(' • ');
-        return `
-          <div class="miniRow">
-            <div class="miniLabel">
-              <div>${esc(row.room || 'Unknown room')} / ${esc(row.period_local || 'Unknown period')} - ${esc(teachers)}</div>
-              <div class="muted">${esc(sections || flagText || teacherGapStatusLabel(row.status))}</div>
-              ${submitters ? `<div class="muted">${esc(submitters)}</div>` : ''}
+  const groups = buildTeacherGroups(rows);
+  teacherAccountabilityBody.innerHTML = groups.length
+    ? summary + groups.map((group) => `
+      <details class="accountabilityGroup">
+        <summary>
+          <div class="groupSummary">
+            <div>
+              <div class="groupTitle">${esc(group.label)}</div>
+              <div class="groupSub">${esc(group.summary.periodsWithScans)}/${esc(group.summary.periods)} periods with scans • ${esc(group.summary.periodsWithSubmits)}/${esc(group.summary.periods)} attendance submitted • ${esc(group.summary.totalScans)} total scans</div>
             </div>
-            <div class="miniValue">
-              <div><span class="chip ${teacherGapChipClass(row.status)}">${esc(teacherGapStatusLabel(row.status))}</span></div>
-              <div class="muted">${esc(row.scan_success_count || 0)} scans, ${esc(row.unique_students_scanned || 0)} unique</div>
-              <div class="muted">${esc(row.teacher_submit_count || 0)} submits, ${esc(row.teacher_loaded_count || 0)} loads</div>
+            <div class="metricRow">
+              ${groupStatusChip(group.summary)}
+              <span class="score ${scoreClass(group.summary.worstTrust)}">${esc(group.summary.worstTrust)}</span>
             </div>
           </div>
+        </summary>
+        <div class="periodDetail">${renderPeriodDetails(group.rows)}</div>
+      </details>
+    `).join('')
+    : summary + `<div class="miniRow"><div class="miniLabel muted">No expected teacher room/period data found for this date.</div><div class="miniValue">—</div></div>`;
+}
+
+function renderRoomAccountability(fidelity = {}, devices = []) {
+  if (!roomAccountabilityBody) return;
+  if (fidelity?.configured === false) {
+    roomAccountabilityBody.innerHTML = `
+      <div class="miniRow">
+        <div class="miniLabel muted">Teacher assignments are not configured in the Worker.</div>
+        <div class="miniValue">—</div>
+      </div>
+    `;
+    return;
+  }
+  if (fidelity?.baseline_stale) {
+    roomAccountabilityBody.innerHTML = `
+      <div class="miniRow">
+        <div class="miniLabel">
+          <div>Teacher assignment baseline date does not match this dashboard date.</div>
+          <div class="muted">Room scanner status can still be read from device rows below, but teacher/period accountability is historical-risky.</div>
+        </div>
+        <div class="miniValue"><span class="chip warn">Historical caution</span></div>
+      </div>
+    `;
+    return;
+  }
+  const rows = Array.isArray(fidelity?.rows) ? fidelity.rows : [];
+  const groups = buildRoomGroups(rows, devices);
+  roomAccountabilityBody.innerHTML = groups.length
+    ? groups.map((group) => {
+        const device = group.device;
+        const deviceLine = device
+          ? `${device.active}/${device.devices.length} active scanner(s) • ${device.heartbeats} heartbeats • ${device.scans} device scans • ${device.errors} errors`
+          : 'No scanner bound to this room';
+        return `
+          <details class="accountabilityGroup">
+            <summary>
+              <div class="groupSummary">
+                <div>
+                  <div class="groupTitle">${esc(group.label)}</div>
+                  <div class="groupSub">${esc(deviceLine)} • ${esc(group.summary.periodsWithScans)}/${esc(group.summary.periods)} class periods with scans</div>
+                </div>
+                <div class="metricRow">
+                  ${roomScannerStatusChip(group, device)}
+                  ${groupStatusChip(group.summary)}
+                  <span class="score ${scoreClass(Math.min(group.summary.worstTrust || 100, device?.worstTrust ?? 100))}">${esc(Math.min(group.summary.worstTrust || 100, device?.worstTrust ?? 100))}</span>
+                </div>
+              </div>
+            </summary>
+            <div class="periodDetail">
+              ${device ? `<div class="miniRow"><div class="miniLabel muted">${esc(device.devices.map((d) => d.device_id || 'unknown device').join(', '))}</div><div class="miniValue">${esc(device.scans)} scans</div></div>` : ''}
+              ${renderPeriodDetails(group.rows, { showRoom:false, emptyText:'No expected class periods for this room today.' })}
+            </div>
+          </details>
         `;
       }).join('')
-    : summary + `<div class="miniRow"><div class="miniLabel muted">No teacher scan/attendance gaps found for this date.</div><div class="miniValue">—</div></div>`;
+    : `<div class="miniRow"><div class="miniLabel muted">No room or scanner data found for this date.</div><div class="miniValue">—</div></div>`;
+}
+
+function renderTeacherRoomPeriodFidelity(fidelity = {}, devices = []) {
+  renderTeacherAccountability(fidelity);
+  renderRoomAccountability(fidelity, devices);
 }
 
 function renderRoomPeriodEvidence(items = []) {
@@ -656,7 +875,7 @@ function renderDashboard(data, statusLabel = 'Live') {
   renderWorkflow(data.workflow || {});
   renderEventTypes(data.event_types || []);
   renderAttendanceEvidence(data.attendance_evidence || {});
-  renderTeacherRoomPeriodFidelity(data.teacher_room_period_fidelity || {});
+  renderTeacherRoomPeriodFidelity(data.teacher_room_period_fidelity || {}, data.devices || []);
   renderRoomPeriodEvidence(data.room_period_evidence || []);
   renderTeacherSubmissions(data.teacher_submissions || []);
   renderOpenWorkflowDetails(data.workflow || {});
