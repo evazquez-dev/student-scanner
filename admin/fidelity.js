@@ -5,6 +5,7 @@ const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
 const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
 const DASHBOARD_CACHE_PREFIX = 'ss_fidelity_dashboard_daily_cache_v3:';
+const RANGE_DEFAULT_DAYS = 5;
 const DASHBOARD_CACHE_LEGACY_PREFIXES = [
   'ss_fidelity_dashboard_cache_v1:',
   'ss_fidelity_dashboard_daily_cache_v1:',
@@ -23,12 +24,19 @@ const inactiveDevicesText = document.getElementById('inactiveDevicesText');
 const dateInput = document.getElementById('dateInput');
 const loadBtn = document.getElementById('loadBtn');
 const todayBtn = document.getElementById('todayBtn');
+const rangeStartInput = document.getElementById('rangeStartInput');
+const rangeEndInput = document.getElementById('rangeEndInput');
+const rangeLoadBtn = document.getElementById('rangeLoadBtn');
+const rangeMetaText = document.getElementById('rangeMetaText');
 const summaryCards = document.getElementById('summaryCards');
+const rangeSummaryCards = document.getElementById('rangeSummaryCards');
 const attendanceEvidenceCards = document.getElementById('attendanceEvidenceCards');
 const workflowBody = document.getElementById('workflowBody');
 const eventTypesBody = document.getElementById('eventTypesBody');
 const teacherAccountabilityBody = document.getElementById('teacherAccountabilityBody');
 const roomAccountabilityBody = document.getElementById('roomAccountabilityBody');
+const rangeTeacherAccountabilityBody = document.getElementById('rangeTeacherAccountabilityBody');
+const rangeRoomAccountabilityBody = document.getElementById('rangeRoomAccountabilityBody');
 const roomPeriodEvidenceBody = document.getElementById('roomPeriodEvidenceBody');
 const teacherSubmissionsBody = document.getElementById('teacherSubmissionsBody');
 const openWorkflowDetailsBody = document.getElementById('openWorkflowDetailsBody');
@@ -137,6 +145,13 @@ function localTodayKey(d = new Date()) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function addDaysKey(dateKey, days) {
+  const d = new Date(`${String(dateKey || localTodayKey()).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return '';
+  d.setDate(d.getDate() + Number(days || 0));
+  return localTodayKey(d);
+}
+
 function normalizeDashboardCacheDate(date = '') {
   return String(date || '').trim() || 'latest';
 }
@@ -188,7 +203,7 @@ function writeDashboardCache(date = '', data = null) {
 
 function setDashboardBusy(on, options = {}) {
   dashboardBusy = Boolean(on);
-  const controls = [dateInput, loadBtn, todayBtn].filter(Boolean);
+  const controls = [dateInput, loadBtn, todayBtn, rangeStartInput, rangeEndInput, rangeLoadBtn].filter(Boolean);
   for (const el of controls) el.disabled = dashboardBusy;
 
   if (appShell) appShell.setAttribute('aria-busy', dashboardBusy ? 'true' : 'false');
@@ -675,6 +690,126 @@ function renderTeacherRoomPeriodFidelity(fidelity = {}, devices = []) {
   renderRoomAccountability(fidelity, devices);
 }
 
+function rangeScoreText(value) {
+  if (value == null) return '—';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '—';
+  return `${n.toFixed(n % 1 === 0 ? 0 : 1)}%`;
+}
+
+function rangeGroupChip(group = {}) {
+  const noScore = Number(group.no_score_rows || 0);
+  const weak = Number(group.weak_rows || 0);
+  const possible = Number(group.points_possible || 0);
+  if (noScore > 0) return `<span class="chip bad">${esc(noScore)} zero-score</span>`;
+  if (weak > 0) return `<span class="chip warn">${esc(weak)} weak</span>`;
+  if (possible <= 0) return '<span class="chip warn">No denominator</span>';
+  return '<span class="chip info">OK</span>';
+}
+
+function renderRangeSummary(data = {}) {
+  if (!rangeSummaryCards) return;
+  const counts = data.counts || {};
+  const cards = [
+    ['Range score', rangeScoreText(counts.score_pct), `${counts.points_earned || 0}/${counts.points_possible || 0} eligible students P/L`],
+    ['Snapshot days', counts.snapshot_days ?? 0, `${data.start || '—'} to ${data.end || '—'}`],
+    ['Teachers', counts.teacher_count ?? 0, 'with saved daily accountability rows'],
+    ['Rooms', counts.room_count ?? 0, 'with saved daily accountability rows'],
+    ['Zero-score rows', counts.no_score_rows ?? 0, 'room/period snapshots with no P/L evidence'],
+    ['Class scans', counts.real_class_scans ?? 0, `${counts.teacher_submits || 0} teacher submits`]
+  ];
+  rangeSummaryCards.innerHTML = cards.map(([label, value, sub]) => `
+    <article class="card">
+      <h2>${esc(label)}</h2>
+      <div class="big">${esc(value == null ? '—' : value)}</div>
+      <div class="small">${esc(sub || '')}</div>
+    </article>
+  `).join('');
+  if (rangeMetaText) {
+    const q = data.quarter ? ` • ${data.quarter.label}: ${data.quarter.start} to ${data.quarter.end}` : '';
+    rangeMetaText.textContent = `Loaded ${data.start || '—'} to ${data.end || '—'} from saved daily snapshots${q}.`;
+  }
+}
+
+function renderRangeDetails(rows = [], options = {}) {
+  const list = Array.isArray(rows) ? rows.slice().sort((a, b) =>
+    String(a.date || '').localeCompare(String(b.date || '')) ||
+    teacherGapPriority(a.status) - teacherGapPriority(b.status) ||
+    String(a.period_local || '').localeCompare(String(b.period_local || ''), undefined, { numeric:true, sensitivity:'base' }) ||
+    String(a.room || '').localeCompare(String(b.room || ''), undefined, { numeric:true, sensitivity:'base' })
+  ) : [];
+  if (!list.length) {
+    return `<div class="miniRow"><div class="miniLabel muted">No saved daily snapshots for this grouping in the selected range.</div><div class="miniValue">—</div></div>`;
+  }
+  return list.map((row) => {
+    const teachers = Array.isArray(row.teacher_last_names) ? row.teacher_last_names.join(', ') : '';
+    const where = options.showRoom === false ? `Period ${row.period_local || '—'}` : `${row.room || 'Unknown room'} / ${row.period_local || '—'}`;
+    return `
+      <div class="periodGrid">
+        <div><strong>Date</strong>${esc(row.date || '—')}</div>
+        <div><strong>Where</strong>${esc(where)}</div>
+        <div><strong>Teacher</strong>${esc(teachers || '—')}</div>
+        <div><strong>Score</strong><span class="score ${scoreClass(row.score_pct)}">${esc(rangeScoreText(row.score_pct))}</span></div>
+        <div><strong>Points</strong>${esc(row.points_earned || 0)} / ${esc(row.points_possible || 0)} P/L</div>
+        <div><strong>Scans / Attendance</strong>${esc(row.real_class_scan_count || 0)} scans / ${esc(row.teacher_submit_count || 0)} submits</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderRangeGroups(target, groups = [], options = {}) {
+  if (!target) return;
+  const list = Array.isArray(groups) ? groups : [];
+  target.innerHTML = list.length
+    ? list.map((group) => `
+      <details class="accountabilityGroup">
+        <summary>
+          <div class="groupSummary">
+            <div>
+              <div class="groupTitle">${esc(group.label || 'Unknown')}</div>
+              <div class="groupSub">${esc(group.points_earned || 0)}/${esc(group.points_possible || 0)} eligible students P/L • ${esc(group.rows || 0)} saved room/period rows • ${esc(group.snapshot_days || 0)} day(s) • ${esc(group.real_class_scans || 0)} class scans</div>
+            </div>
+            <div class="metricRow">
+              ${rangeGroupChip(group)}
+              <span class="score ${scoreClass(group.score_pct)}">${esc(rangeScoreText(group.score_pct))}</span>
+            </div>
+          </div>
+        </summary>
+        <div class="periodDetail">${renderRangeDetails(group.details || [], options)}</div>
+      </details>
+    `).join('')
+    : `<div class="miniRow"><div class="miniLabel muted">No saved daily snapshots found for this range. Load a daily dashboard after the updated GAS is deployed to start filling this data.</div><div class="miniValue">—</div></div>`;
+}
+
+function renderRangeDashboard(data = {}) {
+  renderRangeSummary(data);
+  renderRangeGroups(rangeTeacherAccountabilityBody, data.teachers || [], { showRoom:true });
+  renderRangeGroups(rangeRoomAccountabilityBody, data.rooms || [], { showRoom:false });
+}
+
+function renderRangePlaceholder() {
+  if (rangeSummaryCards) {
+    rangeSummaryCards.innerHTML = `
+      <article class="card">
+        <h2>Range score</h2>
+        <div class="big">—</div>
+        <div class="small">Choose dates and load a range.</div>
+      </article>
+    `;
+  }
+  const empty = `<div class="miniRow"><div class="miniLabel muted">Range data is not loaded yet.</div><div class="miniValue">—</div></div>`;
+  if (rangeTeacherAccountabilityBody) rangeTeacherAccountabilityBody.innerHTML = empty;
+  if (rangeRoomAccountabilityBody) rangeRoomAccountabilityBody.innerHTML = empty;
+}
+
+function initRangeInputsFromDaily(data = {}) {
+  if (!rangeEndInput || !rangeStartInput) return;
+  const end = String(data.date || data.latest_date || '').slice(0, 10);
+  if (!end) return;
+  if (!rangeEndInput.value) rangeEndInput.value = end;
+  if (!rangeStartInput.value) rangeStartInput.value = addDaysKey(end, -(RANGE_DEFAULT_DAYS - 1));
+}
+
 function renderRoomPeriodEvidence(items = []) {
   if (!roomPeriodEvidenceBody) return;
   const list = Array.isArray(items)
@@ -874,12 +1009,26 @@ async function fetchDashboard(date = '') {
   return data;
 }
 
+async function fetchRangeDashboard(start = '', end = '') {
+  const u = new URL('/admin/fidelity_range_dashboard', API_BASE);
+  if (start) u.searchParams.set('start', start);
+  if (end) u.searchParams.set('end', end);
+  const r = await adminFetch(u, { method: 'GET' });
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data?.ok) {
+    throw new Error(data?.detail || data?.error || `HTTP ${r.status}`);
+  }
+  return data;
+}
+
 function renderDashboard(data, statusLabel = 'Live') {
   dateText.textContent = data.date || '—';
   latestDateText.textContent = data.latest_date || '—';
   boundDevicesText.textContent = String(data.counts?.bound_devices ?? '—');
   inactiveDevicesText.textContent = String(data.counts?.inactive_bound_devices ?? '—');
   if (data.date) dateInput.value = data.date;
+  initRangeInputsFromDaily(data);
+  if (rangeSummaryCards && !rangeSummaryCards.innerHTML.trim()) renderRangePlaceholder();
   renderSummaryCards(data.counts || {});
   renderWorkflow(data.workflow || {});
   renderEventTypes(data.event_types || []);
@@ -891,6 +1040,32 @@ function renderDashboard(data, statusLabel = 'Live') {
   renderLowTrust(data || {});
   renderDevices(data.devices || []);
   setStatus(true, statusLabel);
+}
+
+async function loadRangeDashboard(start = '', end = '', options = {}) {
+  if (dashboardBusy) return null;
+  setError('');
+  setStatus(true, 'Getting range…');
+  setDashboardBusy(true, {
+    button: options.button || rangeLoadBtn,
+    buttonText: 'Loading Range…',
+    title: 'Getting range data…',
+    detail: options.detail || 'Please wait while saved daily fidelity snapshots are loaded.'
+  });
+  try {
+    const data = await fetchRangeDashboard(start, end);
+    if (data.start && rangeStartInput) rangeStartInput.value = data.start;
+    if (data.end && rangeEndInput) rangeEndInput.value = data.end;
+    renderRangeDashboard(data);
+    setStatus(true, 'Range loaded');
+    return data;
+  } catch (err) {
+    setStatus(false, 'Error');
+    setError(err?.message || String(err));
+    return null;
+  } finally {
+    setDashboardBusy(false);
+  }
 }
 
 async function loadDashboard(date = '', options = {}) {
@@ -1016,5 +1191,14 @@ todayBtn.addEventListener('click', () => {
   loadDashboard('', {
     button: todayBtn,
     detail: 'Refreshing the latest available fidelity dashboard now.'
+  }).catch(() => {});
+});
+
+rangeLoadBtn.addEventListener('click', () => {
+  const start = String(rangeStartInput?.value || '').trim();
+  const end = String(rangeEndInput?.value || '').trim();
+  loadRangeDashboard(start, end, {
+    button: rangeLoadBtn,
+    detail: 'Loading saved daily accountability snapshots for the selected range.'
   }).catch(() => {});
 });

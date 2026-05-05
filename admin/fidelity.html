@@ -464,6 +464,34 @@
 
       <section class="cards" id="summaryCards"></section>
 
+      <section class="toolbar">
+        <div class="field">
+          <label for="rangeStartInput">Range Start</label>
+          <input id="rangeStartInput" type="date">
+        </div>
+        <div class="field">
+          <label for="rangeEndInput">Range End</label>
+          <input id="rangeEndInput" type="date">
+        </div>
+        <button id="rangeLoadBtn" class="btn primary" type="button">Load Range</button>
+        <div id="rangeMetaText" class="toolbarNote">Range checks use daily score snapshots saved in the fidelity workbook. Load a range when you want multi-day accountability.</div>
+      </section>
+
+      <section class="cards" id="rangeSummaryCards"></section>
+
+      <section class="accountabilityGrid">
+        <div class="card">
+          <h2>Teacher Range Accountability</h2>
+          <div class="small">Multi-day score by teacher. Open a teacher to see the saved daily room/period snapshots.</div>
+          <div id="rangeTeacherAccountabilityBody" class="groupList"></div>
+        </div>
+        <div class="card">
+          <h2>Room Range Accountability</h2>
+          <div class="small">Multi-day score by room. Open a room to see which periods and teachers produced weak evidence.</div>
+          <div id="rangeRoomAccountabilityBody" class="groupList"></div>
+        </div>
+      </section>
+
       <section class="accountabilityGrid">
         <div class="card">
           <h2>Teacher Accountability</h2>
@@ -554,6 +582,6 @@
     </main>
   </div>
 
-  <script src="./fidelity.js?v=20260505-point-score"></script>
+  <script src="./fidelity.js?v=20260505-range-snapshots"></script>
 </body>
 </html>
