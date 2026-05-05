@@ -213,6 +213,58 @@
           </details>
 
           <details style="margin-top:10px;">
+            <summary><strong>Teacher assignments</strong> <span id="teacherAssignmentsCountLabel" class="muted"></span></summary>
+            <div class="row" style="gap:8px; margin-top:8px;">
+              <button id="btnLoadTeacherAssignments" class="btn ghost">Refresh</button>
+              <span id="teacherAssignmentsMeta" class="muted"></span>
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:210px;">Metric</th>
+                    <th>Value</th>
+                  </tr>
+                </thead>
+                <tbody id="teacherAssignmentsSummaryTbody"></tbody>
+              </table>
+            </div>
+            <div class="muted" style="margin-top:8px;">
+              Matched room/periods below are based on today’s active Student_Period_Room_Map in the Worker.
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:90px;">Room</th>
+                    <th style="width:90px;">Period</th>
+                    <th>Teacher last name(s)</th>
+                    <th>Section(s)</th>
+                    <th style="width:110px;">Students</th>
+                  </tr>
+                </thead>
+                <tbody id="teacherAssignmentsMatchedTbody"></tbody>
+              </table>
+            </div>
+            <div class="muted" style="margin-top:8px;">
+              Sections below are teacher-assignment sections that did not match today’s active room/period map.
+              For rotating classes, that can simply mean they do not meet today.
+            </div>
+            <div class="tableWrap" style="margin-top:8px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Section</th>
+                    <th style="width:45%;">Teacher last name(s)</th>
+                  </tr>
+                </thead>
+                <tbody id="teacherAssignmentsUnmatchedTbody"></tbody>
+              </table>
+            </div>
+            <pre id="teacherAssignmentsOut" class="pane">—</pre>
+          </details>
+
+          <details style="margin-top:10px;">
             <summary><strong>Regents students</strong> <span id="regentsCountLabel" class="muted"></span></summary>
             <div class="row" style="gap:8px; margin-top:8px;">
               <button id="btnLoadRegentsSummary" class="btn ghost">Refresh</button>
@@ -421,6 +473,6 @@
     </div>
   </main>
 
-  <script src="./admin.js" type="module"></script>
+  <script src="./admin.js?v=20260505-teacher-overview" type="module"></script>
 </body>
 </html>

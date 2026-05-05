@@ -101,6 +101,13 @@ const classesSummaryTbody      = document.getElementById('classesSummaryTbody');
 const classesSummaryCountLabel = document.getElementById('classesSummaryCountLabel');
 const classesSummaryMeta       = document.getElementById('classesSummaryMeta');
 
+const teacherAssignmentsOut            = document.getElementById('teacherAssignmentsOut');
+const teacherAssignmentsSummaryTbody   = document.getElementById('teacherAssignmentsSummaryTbody');
+const teacherAssignmentsMatchedTbody   = document.getElementById('teacherAssignmentsMatchedTbody');
+const teacherAssignmentsUnmatchedTbody = document.getElementById('teacherAssignmentsUnmatchedTbody');
+const teacherAssignmentsCountLabel     = document.getElementById('teacherAssignmentsCountLabel');
+const teacherAssignmentsMeta           = document.getElementById('teacherAssignmentsMeta');
+
 const regentsOut          = document.getElementById('regentsOut');
 const regentsByLunchTbody = document.getElementById('regentsByLunchTbody');
 const regentsCountLabel   = document.getElementById('regentsCountLabel');
@@ -400,6 +407,14 @@ function fmtPct(p){
   if (!Number.isFinite(n)) return '';
   return (n * 100).toFixed(1) + '%';
 }
+function periodSortValue(period){
+  const s = String(period || '').trim().toUpperCase();
+  const n = Number(s);
+  if (Number.isFinite(n)) return n;
+  const lch = s.match(/^LCH(\d+)$/);
+  if (lch) return 4 + Number(lch[1]) / 10;
+  return 99;
+}
 
 async function getAdminJson(path) {
   const r = await adminFetch(path, { method: 'GET' });
@@ -559,6 +574,96 @@ async function loadClassesSummary() {
   }
 }
 
+async function loadTeacherAssignments() {
+  if (teacherAssignmentsOut) teacherAssignmentsOut.textContent = 'Loading…';
+  try {
+    const res = await getAdminJson('/admin/teacher_assignments?full=1');
+    if (!res.ok) {
+      if (teacherAssignmentsOut) teacherAssignmentsOut.textContent = `HTTP ${res.status}\n\n${res.text}`;
+      return;
+    }
+    const data = res.data || {};
+    const store = (data.data && typeof data.data === 'object') ? data.data : {};
+    const configured = data.configured !== false;
+    const assignments = Number(data.assignments || 0) || 0;
+    const teachers = Number(data.teachers || 0) || 0;
+    const sections = Number(data.sections || 0) || 0;
+    const matchedSections = Number(data.matched_sections || 0) || 0;
+    const roomPeriods = Number(data.room_periods || 0) || 0;
+    const unmatched = Array.isArray(data.unmatched_sections) ? data.unmatched_sections : [];
+    const byRoomPeriod = (store.by_room_period && typeof store.by_room_period === 'object') ? store.by_room_period : {};
+    const matchedRows = Object.values(byRoomPeriod).sort((a, b) => {
+      const ap = periodSortValue(a?.period_local);
+      const bp = periodSortValue(b?.period_local);
+      if (ap !== bp) return ap - bp;
+      const ar = String(a?.room || '');
+      const br = String(b?.room || '');
+      return ar.localeCompare(br, undefined, { numeric:true, sensitivity:'base' });
+    });
+
+    if (teacherAssignmentsCountLabel) {
+      teacherAssignmentsCountLabel.textContent = configured ? `(${assignments})` : '(not configured)';
+    }
+    if (teacherAssignmentsMeta) {
+      const bits = [];
+      if (data.date) bits.push(data.date);
+      if (data.ts) bits.push('ts: ' + fmtTs(data.ts));
+      if (store.source?.spreadsheet_id) bits.push('source configured');
+      if (unmatched.length) bits.push(`${unmatched.length} unmatched/not active today shown`);
+      teacherAssignmentsMeta.textContent = bits.join(' • ');
+    }
+
+    if (teacherAssignmentsSummaryTbody) {
+      const summaryRows = [
+        ['Configured', configured ? 'Yes' : 'No'],
+        ['Assignments', assignments],
+        ['Teacher last names', teachers],
+        ['Unique sections', sections],
+        ['Matched active sections', matchedSections],
+        ['Matched room/periods', roomPeriods],
+        ['Rendered room/period rows', matchedRows.length],
+        ['Unmatched/not active today', unmatched.length]
+      ];
+      teacherAssignmentsSummaryTbody.innerHTML = summaryRows.map(([label, value]) => {
+        return `<tr><td>${esc(label)}</td><td class="mono">${esc(value)}</td></tr>`;
+      }).join('');
+    }
+
+    if (teacherAssignmentsMatchedTbody) {
+      teacherAssignmentsMatchedTbody.innerHTML = matchedRows.map(row => {
+        const teacherNames = Array.isArray(row?.teacher_last_names) ? row.teacher_last_names.join(', ') : '';
+        const sectionNames = Array.isArray(row?.sections)
+          ? row.sections.map(s => s?.section_name || '').filter(Boolean).join(', ')
+          : '';
+        return `<tr>
+          <td class="mono">${esc(row?.room || '')}</td>
+          <td class="mono">${esc(row?.period_local || '')}</td>
+          <td class="mono">${esc(teacherNames)}</td>
+          <td class="mono">${esc(sectionNames)}</td>
+          <td class="mono">${esc(row?.student_count || 0)}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="5" class="muted">No matched teacher room/periods reported.</td></tr>';
+    }
+
+    if (teacherAssignmentsUnmatchedTbody) {
+      teacherAssignmentsUnmatchedTbody.innerHTML = unmatched.map(row => {
+        const section = row?.section_name || row?.section_key || '';
+        const teachersForSection = Array.isArray(row?.teacher_last_names)
+          ? row.teacher_last_names.join(', ')
+          : '';
+        return `<tr>
+          <td class="mono">${esc(section)}</td>
+          <td class="mono">${esc(teachersForSection)}</td>
+        </tr>`;
+      }).join('') || '<tr><td colspan="2" class="muted">No unmatched teacher sections reported.</td></tr>';
+    }
+
+    if (teacherAssignmentsOut) teacherAssignmentsOut.textContent = `HTTP ${res.status}\n\nOK.`;
+  } catch (e) {
+    if (teacherAssignmentsOut) teacherAssignmentsOut.textContent = `Error: ${e.message || e}`;
+  }
+}
+
 async function loadRegentsSummary() {
   if (regentsOut) regentsOut.textContent = 'Loading…';
   try {
@@ -627,6 +732,7 @@ async function refreshOverviews() {
     loadBellSchedule(),
     loadPeriodMap(),
     loadClassesSummary(),
+    loadTeacherAssignments(),
     loadRegentsSummary(),
     loadStaffPullRoles()
   ]);
@@ -637,6 +743,7 @@ document.getElementById('btnLoadBindings')?.addEventListener('click', loadBindin
 document.getElementById('btnLoadBell')?.addEventListener('click', loadBellSchedule);
 document.getElementById('btnLoadPeriodMap')?.addEventListener('click', loadPeriodMap);
 document.getElementById('btnLoadClassesSummary')?.addEventListener('click', loadClassesSummary);
+document.getElementById('btnLoadTeacherAssignments')?.addEventListener('click', loadTeacherAssignments);
 document.getElementById('btnLoadRegentsSummary')?.addEventListener('click', loadRegentsSummary);
 document.getElementById('btnLoadStaffPullRoles')?.addEventListener('click', loadStaffPullRoles);
 
