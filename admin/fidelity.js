@@ -373,11 +373,14 @@ function renderRoomPeriodEvidence(items = []) {
         const status = evidenceStatusLabel(row.evidence_status);
         const scanLine = `${row.scan_success_count || 0} scans, ${row.unique_students_scanned || 0} unique`;
         const teacherLine = `${row.teacher_submit_count || 0} submits, ${row.teacher_loaded_count || 0} loads`;
+        const expectedTeachers = Array.isArray(row.expected_teacher_last_names)
+          ? row.expected_teacher_last_names.filter(Boolean).slice(0, 4).join(', ')
+          : '';
         return `
           <div class="miniRow">
             <div class="miniLabel">
               <div>${esc(label)}</div>
-              <div class="muted">${esc(flags.slice(0, 2).join(' • ') || status)}</div>
+              <div class="muted">${esc(expectedTeachers ? `Expected: ${expectedTeachers}` : (flags.slice(0, 2).join(' • ') || status))}</div>
             </div>
             <div class="miniValue">
               <div><span class="score ${scoreClass(row.trust_score)}">${esc(row.trust_score ?? 0)}</span></div>
