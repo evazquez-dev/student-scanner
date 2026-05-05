@@ -31,22 +31,29 @@ const inCountEl  = document.getElementById('inCount');
 let FIDELITY_TEACHER_PAGE_LOADED = false;
 
 function emitTeacherFidelityEvent(eventType, extra = {}){
+  const currentRoom = normRoom(roomInput?.value || '');
+  const currentPeriod = normPeriod(periodInput?.value || '');
+  const extraMetadata = (extra && extra.metadata) || {};
+  const extraEvent = { ...(extra || {}) };
+  delete extraEvent.metadata;
   adminFetch('/admin/fidelity_events', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       event: {
+        ...extraEvent,
         event_type: eventType,
         event_at_iso: new Date().toISOString(),
         source_app: 'admin_teacher_attendance',
         page: 'teacher_attendance',
+        room: currentRoom,
+        period_local: currentPeriod,
         metadata: {
           page_mode: PAGE_MODE || 'class',
-          room: normRoom(roomInput?.value || ''),
-          period_local: normPeriod(periodInput?.value || ''),
-          ...((extra && extra.metadata) || {})
-        },
-        ...extra
+          room: currentRoom,
+          period_local: currentPeriod,
+          ...extraMetadata
+        }
       }
     })
   }).catch(() => {});

@@ -26,6 +26,10 @@ const summaryCards = document.getElementById('summaryCards');
 const attendanceEvidenceCards = document.getElementById('attendanceEvidenceCards');
 const workflowBody = document.getElementById('workflowBody');
 const eventTypesBody = document.getElementById('eventTypesBody');
+const roomPeriodEvidenceBody = document.getElementById('roomPeriodEvidenceBody');
+const teacherSubmissionsBody = document.getElementById('teacherSubmissionsBody');
+const openWorkflowDetailsBody = document.getElementById('openWorkflowDetailsBody');
+const lowTrustBody = document.getElementById('lowTrustBody');
 const inBuildingNoEntranceBody = document.getElementById('inBuildingNoEntranceBody');
 const deviceTbody = document.getElementById('deviceTbody');
 const errorBox = document.getElementById('errorBox');
@@ -254,7 +258,8 @@ function renderSummaryCards(counts = {}) {
     ['Total scans', counts.total_scans, `${counts.unique_students_scanned || 0} unique students`],
     ['Manual rate', fmtPct(counts.manual_rate_pct), `${counts.manual_entries || 0} manual entries`],
     ['Scan errors', counts.scan_errors, `${fmtPct(counts.scan_error_rate_pct)} of scans`],
-    ['Teacher submits', counts.teacher_submits, `${counts.teacher_submit_errors || 0} submit errors`],
+    ['Teacher submits', counts.teacher_submits, `${counts.teacher_submitters || 0} submitters; ${counts.teacher_submit_errors || 0} errors`],
+    ['Weak room/periods', counts.weak_room_periods, 'need scan-evidence review'],
     ['Location mismatches', counts.mismatch_devices, `${counts.bound_devices || 0} bound devices`],
     ['Bathroom open', counts.bathroom_open, 'students still out'],
     ['Staff pull open', counts.staff_pull_open, 'students not cleared']
@@ -350,6 +355,133 @@ function renderEventTypes(items = []) {
     : `<div class="miniRow"><div class="miniLabel muted">No events for this date.</div><div class="miniValue">—</div></div>`;
 }
 
+function evidenceStatusLabel(status) {
+  if (status === 'no_scan_evidence') return 'No scan evidence';
+  if (status === 'weak_scan_evidence') return 'Weak scan evidence';
+  return 'Scan evidence seen';
+}
+
+function renderRoomPeriodEvidence(items = []) {
+  if (!roomPeriodEvidenceBody) return;
+  const list = Array.isArray(items)
+    ? items.filter((row) => row?.evidence_status !== 'scan_evidence_seen' || Number(row?.trust_score || 0) < 80).slice(0, 24)
+    : [];
+  roomPeriodEvidenceBody.innerHTML = list.length
+    ? list.map((row) => {
+        const flags = Array.isArray(row.flags) ? row.flags : [];
+        const label = `${row.room || 'Unknown room'} / ${row.period_local || 'Unknown period'}`;
+        const status = evidenceStatusLabel(row.evidence_status);
+        const scanLine = `${row.scan_success_count || 0} scans, ${row.unique_students_scanned || 0} unique`;
+        const teacherLine = `${row.teacher_submit_count || 0} submits, ${row.teacher_loaded_count || 0} loads`;
+        return `
+          <div class="miniRow">
+            <div class="miniLabel">
+              <div>${esc(label)}</div>
+              <div class="muted">${esc(flags.slice(0, 2).join(' • ') || status)}</div>
+            </div>
+            <div class="miniValue">
+              <div><span class="score ${scoreClass(row.trust_score)}">${esc(row.trust_score ?? 0)}</span></div>
+              <div class="muted">${esc(scanLine)}</div>
+              <div class="muted">${esc(teacherLine)}</div>
+            </div>
+          </div>
+        `;
+      }).join('')
+    : `<div class="miniRow"><div class="miniLabel muted">No weak room/period scan evidence flagged for this date.</div><div class="miniValue">—</div></div>`;
+}
+
+function renderTeacherSubmissions(items = []) {
+  if (!teacherSubmissionsBody) return;
+  const list = Array.isArray(items) ? items.slice(0, 30) : [];
+  teacherSubmissionsBody.innerHTML = list.length
+    ? list.map((row) => {
+        const where = `${row.room || 'Unknown room'} / ${row.period_local || 'Unknown period'}`;
+        const who = row.actor_email || 'Unknown teacher';
+        const last = row.last_submit_at_iso || row.last_error_at_iso || '';
+        const status = Number(row.error_count || 0) > 0
+          ? `${row.submit_count || 0} submitted, ${row.error_count || 0} errors`
+          : `${row.submit_count || 0} submitted`;
+        return `
+          <div class="miniRow">
+            <div class="miniLabel">
+              <div>${esc(who)}</div>
+              <div class="muted">${esc(where)}</div>
+            </div>
+            <div class="miniValue">
+              <div>${esc(status)}</div>
+              <div class="muted">${esc(fmtTs(last))}</div>
+            </div>
+          </div>
+        `;
+      }).join('')
+    : `<div class="miniRow"><div class="miniLabel muted">No teacher attendance submissions for this date.</div><div class="miniValue">—</div></div>`;
+}
+
+function renderOpenWorkflowDetails(workflow = {}) {
+  if (!openWorkflowDetailsBody) return;
+  const bathroom = Array.isArray(workflow?.bathroom?.open_students)
+    ? workflow.bathroom.open_students.map((row) => ({ ...row, type: 'Bathroom' }))
+    : [];
+  const staff = Array.isArray(workflow?.staff_pull?.open_students)
+    ? workflow.staff_pull.open_students.map((row) => ({ ...row, type: 'Staff pull' }))
+    : [];
+  const list = bathroom.concat(staff).slice(0, 30);
+  openWorkflowDetailsBody.innerHTML = list.length
+    ? list.map((row) => {
+        const where = row.location || row.room || 'Unknown location';
+        const period = row.period_local ? `Period ${row.period_local}` : 'No period';
+        return `
+          <div class="miniRow">
+            <div class="miniLabel">
+              <div>${esc(row.type)}: <span class="mono">${esc(row.osis || '')}</span></div>
+              <div class="muted">${esc(where)} • ${esc(period)}</div>
+            </div>
+            <div class="miniValue">
+              <div>${esc(row.open_count || 1)} open</div>
+              <div class="muted">${esc(fmtTs(row.last_event_at_iso))}</div>
+            </div>
+          </div>
+        `;
+      }).join('')
+    : `<div class="miniRow"><div class="miniLabel muted">No open bathroom or staff-pull workflows for this date.</div><div class="miniValue">—</div></div>`;
+}
+
+function renderLowTrust(data = {}) {
+  if (!lowTrustBody) return;
+  const devices = Array.isArray(data.devices) ? data.devices : [];
+  const roomPeriods = Array.isArray(data.room_period_evidence) ? data.room_period_evidence : [];
+  const lowDevices = devices
+    .filter((row) => Number(row.trust_score || 0) < 80 || (Array.isArray(row.flags) && row.flags.length))
+    .sort((a, b) => Number(a.trust_score || 0) - Number(b.trust_score || 0))
+    .slice(0, 6)
+    .map((row) => ({
+      label: row.last_bound_location || row.last_reported_location || row.device_id || 'Unknown kiosk',
+      sub: (Array.isArray(row.flags) ? row.flags[0] : '') || `${row.scan_success_count || 0} scans`,
+      score: row.trust_score
+    }));
+  const lowRooms = roomPeriods
+    .filter((row) => row?.evidence_status !== 'scan_evidence_seen' || Number(row?.trust_score || 0) < 80)
+    .sort((a, b) => Number(a.trust_score || 0) - Number(b.trust_score || 0))
+    .slice(0, 6)
+    .map((row) => ({
+      label: `${row.room || 'Unknown room'} / ${row.period_local || 'Unknown period'}`,
+      sub: evidenceStatusLabel(row.evidence_status),
+      score: row.trust_score
+    }));
+  const list = lowDevices.concat(lowRooms).slice(0, 10);
+  lowTrustBody.innerHTML = list.length
+    ? list.map((row) => `
+      <div class="miniRow">
+        <div class="miniLabel">
+          <div>${esc(row.label)}</div>
+          <div class="muted">${esc(row.sub || '')}</div>
+        </div>
+        <div class="miniValue"><span class="score ${scoreClass(row.score)}">${esc(row.score ?? 0)}</span></div>
+      </div>
+    `).join('')
+    : `<div class="miniRow"><div class="miniLabel muted">No low-trust areas flagged for this date.</div><div class="miniValue">—</div></div>`;
+}
+
 function renderDevices(devices = []) {
   if (!deviceTbody) return;
   deviceTbody.innerHTML = Array.isArray(devices) && devices.length
@@ -423,6 +555,10 @@ function renderDashboard(data, statusLabel = 'Live') {
   renderWorkflow(data.workflow || {});
   renderEventTypes(data.event_types || []);
   renderAttendanceEvidence(data.attendance_evidence || {});
+  renderRoomPeriodEvidence(data.room_period_evidence || []);
+  renderTeacherSubmissions(data.teacher_submissions || []);
+  renderOpenWorkflowDetails(data.workflow || {});
+  renderLowTrust(data || {});
   renderDevices(data.devices || []);
   setStatus(true, statusLabel);
 }
