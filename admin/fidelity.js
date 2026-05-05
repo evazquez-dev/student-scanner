@@ -21,7 +21,6 @@ const summaryCards = document.getElementById('summaryCards');
 const attendanceEvidenceCards = document.getElementById('attendanceEvidenceCards');
 const workflowBody = document.getElementById('workflowBody');
 const eventTypesBody = document.getElementById('eventTypesBody');
-const noEntranceBody = document.getElementById('noEntranceBody');
 const inBuildingNoEntranceBody = document.getElementById('inBuildingNoEntranceBody');
 const deviceTbody = document.getElementById('deviceTbody');
 const errorBox = document.getElementById('errorBox');
@@ -189,10 +188,9 @@ function renderAttendanceEvidence(evidence = {}) {
         ['Attendance evidence', 'Not configured', 'Run setupFidelityAttendanceSource() in the fidelity GAS project']
       ]
     : [
-        ['Entrance scans', counts.entrance_scanned ?? 0, `${counts.total_roster ?? 0} rostered students`],
-        ['No entrance scan', counts.no_entrance_scan ?? 0, `${fmtPct(counts.entrance_coverage_pct ?? 0)} coverage`],
+        ['Entrance scans', counts.entrance_scanned ?? 0, 'students with entry evidence'],
         ['Any scans today', counts.any_scan_today ?? 0, 'students with any kiosk evidence'],
-        ['In-building no entrance', counts.in_building_scan_no_entrance ?? 0, 'students seen inside without entry evidence']
+        ['Inside no entrance', counts.in_building_scan_no_entrance ?? 0, 'students seen inside without entry evidence']
       ];
   attendanceEvidenceCards.innerHTML = cards.map(([label, value, sub]) => `
     <article class="card">
@@ -202,11 +200,6 @@ function renderAttendanceEvidence(evidence = {}) {
     </article>
   `).join('');
 
-  renderStudentSampleList(
-    noEntranceBody,
-    evidence?.samples?.no_entrance_scan || [],
-    'No rostered students are missing entrance evidence for this date.'
-  );
   renderStudentSampleList(
     inBuildingNoEntranceBody,
     evidence?.samples?.in_building_scan_no_entrance || [],
