@@ -4,10 +4,11 @@ const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')
 const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
 const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
-const DASHBOARD_CACHE_PREFIX = 'ss_fidelity_dashboard_daily_cache_v2:';
+const DASHBOARD_CACHE_PREFIX = 'ss_fidelity_dashboard_daily_cache_v3:';
 const DASHBOARD_CACHE_LEGACY_PREFIXES = [
   'ss_fidelity_dashboard_cache_v1:',
-  'ss_fidelity_dashboard_daily_cache_v1:'
+  'ss_fidelity_dashboard_daily_cache_v1:',
+  'ss_fidelity_dashboard_daily_cache_v2:'
 ];
 
 const loginCard = document.getElementById('loginCard');
@@ -26,6 +27,7 @@ const summaryCards = document.getElementById('summaryCards');
 const attendanceEvidenceCards = document.getElementById('attendanceEvidenceCards');
 const workflowBody = document.getElementById('workflowBody');
 const eventTypesBody = document.getElementById('eventTypesBody');
+const teacherGapsBody = document.getElementById('teacherGapsBody');
 const roomPeriodEvidenceBody = document.getElementById('roomPeriodEvidenceBody');
 const teacherSubmissionsBody = document.getElementById('teacherSubmissionsBody');
 const openWorkflowDetailsBody = document.getElementById('openWorkflowDetailsBody');
@@ -259,6 +261,7 @@ function renderSummaryCards(counts = {}) {
     ['Manual rate', fmtPct(counts.manual_rate_pct), `${counts.manual_entries || 0} manual entries`],
     ['Scan errors', counts.scan_errors, `${fmtPct(counts.scan_error_rate_pct)} of scans`],
     ['Teacher submits', counts.teacher_submits, `${counts.teacher_submitters || 0} submitters; ${counts.teacher_submit_errors || 0} errors`],
+    ['No scan + no attendance', counts.teacher_no_scans_no_attendance ?? 0, `${counts.expected_teacher_room_periods || 0} expected teacher room/periods`],
     ['Weak room/periods', counts.weak_room_periods, 'need scan-evidence review'],
     ['Location mismatches', counts.mismatch_devices, `${counts.bound_devices || 0} bound devices`],
     ['Bathroom open', counts.bathroom_open, 'students still out'],
@@ -361,6 +364,89 @@ function evidenceStatusLabel(status) {
   return 'Scan evidence seen';
 }
 
+function teacherGapStatusLabel(status) {
+  if (status === 'no_scans_no_attendance') return 'No scans + no attendance';
+  if (status === 'no_scans_attendance_submitted') return 'No scans, attendance submitted';
+  if (status === 'scans_no_attendance') return 'Scans, no attendance submit';
+  if (status === 'weak_scan_evidence') return 'Weak scan evidence';
+  return 'OK';
+}
+
+function teacherGapChipClass(status) {
+  if (status === 'no_scans_no_attendance') return 'bad';
+  if (status === 'no_scans_attendance_submitted' || status === 'scans_no_attendance' || status === 'weak_scan_evidence') return 'warn';
+  return 'info';
+}
+
+function renderTeacherRoomPeriodFidelity(fidelity = {}) {
+  if (!teacherGapsBody) return;
+  if (fidelity?.configured === false) {
+    teacherGapsBody.innerHTML = `
+      <div class="miniRow">
+        <div class="miniLabel muted">Teacher assignments are not configured in the Worker.</div>
+        <div class="miniValue">—</div>
+      </div>
+    `;
+    return;
+  }
+  if (fidelity?.baseline_stale) {
+    teacherGapsBody.innerHTML = `
+      <div class="miniRow">
+        <div class="miniLabel">
+          <div>Teacher assignment baseline date does not match this dashboard date.</div>
+          <div class="muted">Dashboard: ${esc(fidelity.dashboard_date || '—')} • Teacher assignments: ${esc(fidelity.teacher_assignment_date || '—')}</div>
+        </div>
+        <div class="miniValue"><span class="chip warn">Historical caution</span></div>
+      </div>
+    `;
+    return;
+  }
+
+  const gaps = Array.isArray(fidelity?.gaps) ? fidelity.gaps.slice(0, 40) : [];
+  const counts = fidelity?.counts || {};
+  const summary = `
+    <div class="miniRow">
+      <div class="miniLabel">
+        <div>Expected teacher room/periods: ${esc(counts.expected_room_periods ?? 0)}</div>
+        <div class="muted">${esc(counts.no_scan_room_periods ?? 0)} with no scans • ${esc(counts.no_attendance_submit_room_periods ?? 0)} with no teacher submit</div>
+      </div>
+      <div class="miniValue">
+        <div><span class="chip bad">${esc(counts.no_scans_no_attendance ?? 0)} critical</span></div>
+      </div>
+    </div>
+  `;
+
+  teacherGapsBody.innerHTML = gaps.length
+    ? summary + gaps.map((row) => {
+        const teachers = Array.isArray(row.teacher_last_names) && row.teacher_last_names.length
+          ? row.teacher_last_names.join(', ')
+          : 'Unknown teacher';
+        const sections = Array.isArray(row.sections)
+          ? row.sections.map((s) => s?.section_name || '').filter(Boolean).slice(0, 3).join(', ')
+          : '';
+        const submitters = Array.isArray(row.submitter_emails) && row.submitter_emails.length
+          ? `Submitted by: ${row.submitter_emails.slice(0, 2).join(', ')}`
+          : '';
+        const flags = Array.isArray(row.flags) ? row.flags : [];
+        const flagText = flags.slice(0, 2).join(' • ');
+        return `
+          <div class="miniRow">
+            <div class="miniLabel">
+              <div>${esc(row.room || 'Unknown room')} / ${esc(row.period_local || 'Unknown period')} - ${esc(teachers)}</div>
+              <div class="muted">${esc(sections || flagText || teacherGapStatusLabel(row.status))}</div>
+              ${submitters ? `<div class="muted">${esc(submitters)}</div>` : ''}
+            </div>
+            <div class="miniValue">
+              <div><span class="chip ${teacherGapChipClass(row.status)}">${esc(teacherGapStatusLabel(row.status))}</span></div>
+              <div class="muted">${esc(row.scan_success_count || 0)} scans, ${esc(row.unique_students_scanned || 0)} unique</div>
+              <div class="muted">${esc(row.teacher_submit_count || 0)} submits, ${esc(row.teacher_loaded_count || 0)} loads</div>
+            </div>
+          </div>
+        `;
+      }).join('')
+    : summary + `<div class="miniRow"><div class="miniLabel muted">No teacher scan/attendance gaps found for this date.</div><div class="miniValue">—</div></div>`;
+}
+
 function renderRoomPeriodEvidence(items = []) {
   if (!roomPeriodEvidenceBody) return;
   const list = Array.isArray(items)
@@ -453,6 +539,9 @@ function renderLowTrust(data = {}) {
   if (!lowTrustBody) return;
   const devices = Array.isArray(data.devices) ? data.devices : [];
   const roomPeriods = Array.isArray(data.room_period_evidence) ? data.room_period_evidence : [];
+  const teacherGaps = Array.isArray(data.teacher_room_period_fidelity?.gaps)
+    ? data.teacher_room_period_fidelity.gaps
+    : [];
   const lowDevices = devices
     .filter((row) => Number(row.trust_score || 0) < 80 || (Array.isArray(row.flags) && row.flags.length))
     .sort((a, b) => Number(a.trust_score || 0) - Number(b.trust_score || 0))
@@ -471,7 +560,16 @@ function renderLowTrust(data = {}) {
       sub: evidenceStatusLabel(row.evidence_status),
       score: row.trust_score
     }));
-  const list = lowDevices.concat(lowRooms).slice(0, 10);
+  const lowTeacherGaps = teacherGaps
+    .filter((row) => row?.status !== 'ok')
+    .sort((a, b) => Number(a.trust_score || 0) - Number(b.trust_score || 0))
+    .slice(0, 6)
+    .map((row) => ({
+      label: `${row.room || 'Unknown room'} / ${row.period_local || 'Unknown period'}`,
+      sub: `${teacherGapStatusLabel(row.status)} - ${Array.isArray(row.teacher_last_names) ? row.teacher_last_names.join(', ') : ''}`,
+      score: row.trust_score
+    }));
+  const list = lowTeacherGaps.concat(lowDevices, lowRooms).slice(0, 10);
   lowTrustBody.innerHTML = list.length
     ? list.map((row) => `
       <div class="miniRow">
@@ -558,6 +656,7 @@ function renderDashboard(data, statusLabel = 'Live') {
   renderWorkflow(data.workflow || {});
   renderEventTypes(data.event_types || []);
   renderAttendanceEvidence(data.attendance_evidence || {});
+  renderTeacherRoomPeriodFidelity(data.teacher_room_period_fidelity || {});
   renderRoomPeriodEvidence(data.room_period_evidence || []);
   renderTeacherSubmissions(data.teacher_submissions || []);
   renderOpenWorkflowDetails(data.workflow || {});
