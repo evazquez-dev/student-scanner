@@ -248,6 +248,7 @@ function fmtTs(iso) {
 }
 
 function scoreClass(score) {
+  if (score == null || score === '—') return 'ok';
   const n = Number(score || 0);
   if (n >= 80) return 'ok';
   if (n >= 55) return 'warn';
@@ -262,7 +263,8 @@ function renderSummaryCards(counts = {}) {
     ['Manual rate', fmtPct(counts.manual_rate_pct), `${counts.manual_entries || 0} manual entries`],
     ['Scan errors', counts.scan_errors, `${fmtPct(counts.scan_error_rate_pct)} of scans`],
     ['Teacher submits', counts.teacher_submits, `${counts.teacher_submitters || 0} submitters; ${counts.teacher_submit_errors || 0} errors`],
-    ['No scan + no attendance', counts.teacher_no_scans_no_attendance ?? 0, `${counts.expected_teacher_room_periods || 0} expected teacher room/periods`],
+    ['Teacher score', fmtPct(counts.overall_score_pct), `${counts.points_earned || 0}/${counts.points_possible || 0} eligible students P/L`],
+    ['No score earned', counts.teacher_no_scans_no_attendance ?? 0, `${counts.expected_teacher_room_periods || 0} expected teacher room/periods`],
     ['Weak room/periods', counts.weak_room_periods, 'need scan-evidence review'],
     ['Location mismatches', counts.mismatch_devices, `${counts.bound_devices || 0} bound devices`],
     ['Bathroom open', counts.bathroom_open, 'students still out'],
@@ -400,6 +402,9 @@ function summarizeTeacherRows(rows = []) {
     totalUnique: 0,
     totalSubmits: 0,
     totalLoads: 0,
+    pointsEarned: 0,
+    pointsPossible: 0,
+    realClassScans: 0,
     critical: 0,
     noScanSubmitted: 0,
     scansNoAttendance: 0,
@@ -413,6 +418,9 @@ function summarizeTeacherRows(rows = []) {
     summary.totalUnique += Number(row.unique_students_scanned || 0);
     summary.totalSubmits += submits;
     summary.totalLoads += Number(row.teacher_loaded_count || 0);
+    summary.pointsEarned += Number(row.points_earned || 0);
+    summary.pointsPossible += Number(row.points_possible || 0);
+    summary.realClassScans += Number(row.real_class_scan_count || 0);
     if (scans > 0) summary.periodsWithScans++;
     if (submits > 0) summary.periodsWithSubmits++;
     if (row.status === 'no_scans_no_attendance') summary.critical++;
@@ -421,6 +429,7 @@ function summarizeTeacherRows(rows = []) {
     if (row.status === 'weak_scan_evidence') summary.weak++;
     summary.worstTrust = Math.min(summary.worstTrust, Number(row.trust_score ?? 100));
   });
+  summary.scorePct = summary.pointsPossible > 0 ? Math.round(summary.pointsEarned / summary.pointsPossible * 1000) / 10 : null;
   return summary;
 }
 
@@ -451,10 +460,10 @@ function renderPeriodDetails(rows = [], options = {}) {
       <div class="periodGrid">
         <div><strong>Where</strong>${esc(where)}</div>
         <div><strong>Teacher</strong>${esc(teachers || '—')}</div>
-        <div><strong>Status</strong><span class="chip ${teacherGapChipClass(row.status)}">${esc(teacherGapStatusLabel(row.status))}</span></div>
-        <div><strong>Scans</strong>${esc(row.scan_success_count || 0)} scans / ${esc(row.unique_students_scanned || 0)} unique</div>
+        <div><strong>Score</strong><span class="score ${scoreClass(row.score_pct)}">${esc(row.score_pct == null ? '—' : `${row.score_pct}%`)}</span></div>
+        <div><strong>Points</strong>${esc(row.points_earned || 0)} / ${esc(row.points_possible || 0)} P/L</div>
+        <div><strong>Scans</strong>${esc(row.real_class_scan_count || 0)} class scans / ${esc(row.unique_students_scanned || 0)} unique</div>
         <div><strong>Attendance</strong>${esc(row.teacher_submit_count || 0)} submits / ${esc(row.teacher_loaded_count || 0)} loads</div>
-        <div><strong>Section</strong>${esc(sections || '—')}</div>
       </div>
     `;
   }).join('');
@@ -591,11 +600,11 @@ function renderTeacherAccountability(fidelity = {}) {
           <div class="groupSummary">
             <div>
               <div class="groupTitle">${esc(group.label)}</div>
-              <div class="groupSub">${esc(group.summary.periodsWithScans)}/${esc(group.summary.periods)} periods with scans • ${esc(group.summary.periodsWithSubmits)}/${esc(group.summary.periods)} attendance submitted • ${esc(group.summary.totalScans)} total scans</div>
+              <div class="groupSub">${esc(group.summary.pointsEarned)}/${esc(group.summary.pointsPossible)} eligible students P/L • ${esc(group.summary.periodsWithSubmits)}/${esc(group.summary.periods)} attendance submitted • ${esc(group.summary.realClassScans)} class scans</div>
             </div>
             <div class="metricRow">
               ${groupStatusChip(group.summary)}
-              <span class="score ${scoreClass(group.summary.worstTrust)}">${esc(group.summary.worstTrust)}</span>
+              <span class="score ${scoreClass(group.summary.scorePct)}">${esc(group.summary.scorePct == null ? '—' : `${group.summary.scorePct}%`)}</span>
             </div>
           </div>
         </summary>
@@ -642,12 +651,12 @@ function renderRoomAccountability(fidelity = {}, devices = []) {
               <div class="groupSummary">
                 <div>
                   <div class="groupTitle">${esc(group.label)}</div>
-                  <div class="groupSub">${esc(deviceLine)} • ${esc(group.summary.periodsWithScans)}/${esc(group.summary.periods)} class periods with scans</div>
+                  <div class="groupSub">${esc(deviceLine)} • ${esc(group.summary.pointsEarned)}/${esc(group.summary.pointsPossible)} eligible students P/L • ${esc(group.summary.realClassScans)} class scans</div>
                 </div>
                 <div class="metricRow">
                   ${roomScannerStatusChip(group, device)}
                   ${groupStatusChip(group.summary)}
-                  <span class="score ${scoreClass(Math.min(group.summary.worstTrust || 100, device?.worstTrust ?? 100))}">${esc(Math.min(group.summary.worstTrust || 100, device?.worstTrust ?? 100))}</span>
+                  <span class="score ${scoreClass(group.summary.scorePct)}">${esc(group.summary.scorePct == null ? '—' : `${group.summary.scorePct}%`)}</span>
                 </div>
               </div>
             </summary>
