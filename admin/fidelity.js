@@ -4,6 +4,11 @@ const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')
 const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
 const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
+const DASHBOARD_CACHE_PREFIX = 'ss_fidelity_dashboard_daily_cache_v2:';
+const DASHBOARD_CACHE_LEGACY_PREFIXES = [
+  'ss_fidelity_dashboard_cache_v1:',
+  'ss_fidelity_dashboard_daily_cache_v1:'
+];
 
 const loginCard = document.getElementById('loginCard');
 const loginOut = document.getElementById('loginOut');
@@ -24,6 +29,11 @@ const eventTypesBody = document.getElementById('eventTypesBody');
 const inBuildingNoEntranceBody = document.getElementById('inBuildingNoEntranceBody');
 const deviceTbody = document.getElementById('deviceTbody');
 const errorBox = document.getElementById('errorBox');
+const busyOverlay = document.getElementById('busyOverlay');
+const busyTitle = document.getElementById('busyTitle');
+const busyDetail = document.getElementById('busyDetail');
+let dashboardBusy = false;
+let dashboardBusyButton = null;
 
 function getStoredAdminSessionSid() {
   try {
@@ -111,6 +121,100 @@ function setError(msg) {
   }
   errorBox.style.display = 'block';
   errorBox.textContent = text;
+}
+
+function localTodayKey(d = new Date()) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function normalizeDashboardCacheDate(date = '') {
+  return String(date || '').trim() || 'latest';
+}
+
+function dashboardCacheKey(date = '') {
+  return `${DASHBOARD_CACHE_PREFIX}${localTodayKey()}:${normalizeDashboardCacheDate(date)}`;
+}
+
+function pruneDashboardCache() {
+  try {
+    const todayPrefix = `${DASHBOARD_CACHE_PREFIX}${localTodayKey()}:`;
+    for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const isCurrentCache = key.startsWith(DASHBOARD_CACHE_PREFIX);
+      const isLegacyCache = DASHBOARD_CACHE_LEGACY_PREFIXES.some((prefix) => key.startsWith(prefix));
+      if ((isCurrentCache && !key.startsWith(todayPrefix)) || isLegacyCache) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {}
+}
+
+function readDashboardCache(date = '') {
+  pruneDashboardCache();
+  try {
+    const raw = localStorage.getItem(dashboardCacheKey(date));
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    if (cached?.cache_day !== localTodayKey() || !cached?.data?.ok) return null;
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+function writeDashboardCache(date = '', data = null) {
+  if (!data?.ok) return;
+  pruneDashboardCache();
+  try {
+    localStorage.setItem(dashboardCacheKey(date), JSON.stringify({
+      cache_day: localTodayKey(),
+      requested_date: normalizeDashboardCacheDate(date),
+      saved_at_iso: new Date().toISOString(),
+      data
+    }));
+  } catch {}
+}
+
+function setDashboardBusy(on, options = {}) {
+  dashboardBusy = Boolean(on);
+  const controls = [dateInput, loadBtn, todayBtn].filter(Boolean);
+  for (const el of controls) el.disabled = dashboardBusy;
+
+  if (appShell) appShell.setAttribute('aria-busy', dashboardBusy ? 'true' : 'false');
+
+  if (dashboardBusy) {
+    dashboardBusyButton = options.button || loadBtn || null;
+    if (dashboardBusyButton) {
+      if (!dashboardBusyButton.dataset.origText) {
+        dashboardBusyButton.dataset.origText = dashboardBusyButton.textContent || '';
+      }
+      dashboardBusyButton.classList.add('is-loading');
+      dashboardBusyButton.textContent = options.buttonText || options.title || 'Getting data…';
+    }
+    if (busyTitle) busyTitle.textContent = options.title || 'Getting data…';
+    if (busyDetail) {
+      busyDetail.textContent = options.detail || 'Please wait while the fidelity tracker loads.';
+    }
+    if (busyOverlay) {
+      busyOverlay.classList.add('is-visible');
+      busyOverlay.setAttribute('aria-hidden', 'false');
+    }
+    return;
+  }
+
+  if (dashboardBusyButton) {
+    dashboardBusyButton.classList.remove('is-loading');
+    dashboardBusyButton.textContent = dashboardBusyButton.dataset.origText || dashboardBusyButton.textContent || '';
+  }
+  dashboardBusyButton = null;
+  if (busyOverlay) {
+    busyOverlay.classList.remove('is-visible');
+    busyOverlay.setAttribute('aria-hidden', 'true');
+  }
 }
 
 function esc(s) {
@@ -309,31 +413,58 @@ async function fetchDashboard(date = '') {
   return data;
 }
 
-async function loadDashboard(date = '') {
+function renderDashboard(data, statusLabel = 'Live') {
+  dateText.textContent = data.date || '—';
+  latestDateText.textContent = data.latest_date || '—';
+  boundDevicesText.textContent = String(data.counts?.bound_devices ?? '—');
+  inactiveDevicesText.textContent = String(data.counts?.inactive_bound_devices ?? '—');
+  if (data.date) dateInput.value = data.date;
+  renderSummaryCards(data.counts || {});
+  renderWorkflow(data.workflow || {});
+  renderEventTypes(data.event_types || []);
+  renderAttendanceEvidence(data.attendance_evidence || {});
+  renderDevices(data.devices || []);
+  setStatus(true, statusLabel);
+}
+
+async function loadDashboard(date = '', options = {}) {
+  if (dashboardBusy) return null;
   setError('');
-  setStatus(true, 'Loading…');
-  loadBtn.disabled = true;
-  todayBtn.disabled = true;
+  setStatus(true, 'Getting data…');
+  setDashboardBusy(true, {
+    button: options.button || loadBtn,
+    title: 'Getting data…',
+    detail: options.detail || 'Please wait while the fidelity tracker loads fresh data.'
+  });
   try {
     const data = await fetchDashboard(date);
-    dateText.textContent = data.date || '—';
-    latestDateText.textContent = data.latest_date || '—';
-    boundDevicesText.textContent = String(data.counts?.bound_devices ?? '—');
-    inactiveDevicesText.textContent = String(data.counts?.inactive_bound_devices ?? '—');
-    if (data.date) dateInput.value = data.date;
-    renderSummaryCards(data.counts || {});
-    renderWorkflow(data.workflow || {});
-    renderEventTypes(data.event_types || []);
-    renderAttendanceEvidence(data.attendance_evidence || {});
-    renderDevices(data.devices || []);
-    setStatus(true, 'Live');
+    writeDashboardCache(date, data);
+    if (data.date) writeDashboardCache(data.date, data);
+    if (!date || (data.date && data.latest_date && data.date === data.latest_date)) {
+      writeDashboardCache('', data);
+    }
+    renderDashboard(data, 'Live');
+    return data;
   } catch (err) {
     setStatus(false, 'Error');
     setError(err?.message || String(err));
+    return null;
   } finally {
-    loadBtn.disabled = false;
-    todayBtn.disabled = false;
+    setDashboardBusy(false);
   }
+}
+
+async function loadInitialDashboard() {
+  setError('');
+  const cached = readDashboardCache('');
+  if (cached?.data) {
+    renderDashboard(cached.data, 'Cached');
+    return cached.data;
+  }
+  return loadDashboard('', {
+    button: loadBtn,
+    detail: 'First dashboard load today. This may take a moment while the fidelity tracker is read.'
+  });
 }
 
 async function waitForGoogle(timeoutMs = 8000) {
@@ -358,7 +489,7 @@ async function onGoogleCredential(resp) {
     if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`);
     hide(loginCard);
     show(appShell);
-    await loadDashboard('');
+    await loadInitialDashboard();
   } catch (e) {
     show(loginCard);
     hide(appShell);
@@ -374,7 +505,7 @@ async function tryBootstrapSession() {
     if (!j?.ok) return false;
     hide(loginCard);
     show(appShell);
-    await loadDashboard('');
+    await loadInitialDashboard();
     return true;
   } catch {
     return false;
@@ -408,10 +539,16 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 loadBtn.addEventListener('click', () => {
-  loadDashboard(String(dateInput.value || '').trim()).catch(() => {});
+  loadDashboard(String(dateInput.value || '').trim(), {
+    button: loadBtn,
+    detail: 'Refreshing from the fidelity tracker now.'
+  }).catch(() => {});
 });
 
 todayBtn.addEventListener('click', () => {
   dateInput.value = '';
-  loadDashboard('').catch(() => {});
+  loadDashboard('', {
+    button: todayBtn,
+    detail: 'Refreshing the latest available fidelity dashboard now.'
+  }).catch(() => {});
 });
