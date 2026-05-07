@@ -543,6 +543,11 @@
       color: var(--excused);
     }
 
+    .codeSelect--EL{
+      border-color: var(--warn);
+      color: var(--warn);
+    }
+
     .muted{ color: var(--muted); font-variant-numeric: tabular-nums; }
     .mono{ font-variant-numeric: tabular-nums; }
 
@@ -858,7 +863,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260505-fidelity-room-period';
+    const pageAssetVer = '20260507-excused-late';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 

@@ -798,7 +798,7 @@ function renderOutInOrganizer(){
     btn.dataset.osis = String(osis || '').trim();
     btn.textContent = (isOut && outSinceISO) ? `IN ${elapsedFromISO(outSinceISO)}` : (isOut ? 'IN' : 'OUT');
 
-        const codeIsPL = (code === 'P' || code === 'L');
+    const codeIsPL = isClassPresenceCode(code);
     const hasFirstIn = hasSessionFirstIn(osis);
     const blocked = zoneBlocksOutIn(r?.zone);
     const canToggle = allowOutIn && codeIsPL && hasFirstIn && !blocked;
@@ -810,7 +810,7 @@ function renderOutInOrganizer(){
           : (!allowOutIn
               ? 'Pick the current period to enable Out/In'
               : (!codeIsPL
-                  ? 'Mark Present (P) or Late (L) to enable Out/In'
+                  ? 'Mark Present, Late, or Excused Late to enable Out/In'
                   : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)')));
 
     btn.addEventListener('click', async () => {
@@ -840,7 +840,7 @@ function renderOutInOrganizer(){
             (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
 
           const rowRec = ROW_DATA.get(osis);
-          const codeIsPL = (rowRec?.chosen === 'P' || rowRec?.chosen === 'L');
+          const codeIsPL = isClassPresenceCode(rowRec?.chosen);
           const hasFirstIn = hasSessionFirstIn(osis);
           const blocked = zoneBlocksOutIn(rowRec?.zone);
           const canToggleNow = allowOutIn && codeIsPL && hasFirstIn && !blocked;
@@ -852,7 +852,7 @@ function renderOutInOrganizer(){
                 : (!allowOutIn
                     ? 'Pick the current period to enable Out/In'
                     : (!codeIsPL
-                        ? 'Mark Present (P) or Late (L) to enable Out/In'
+                        ? 'Mark Present, Late, or Excused Late to enable Out/In'
                         : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)')));
         }
 
@@ -864,7 +864,7 @@ function renderOutInOrganizer(){
         // restore enabled state if still allowed
         const rowRec = ROW_DATA.get(osis) || r;
         const codeNow = (rowRec?.chosen || 'A');
-        const codeIsPL = (codeNow === 'P' || codeNow === 'L');
+        const codeIsPL = isClassPresenceCode(codeNow);
         const hasFirstIn = hasSessionFirstIn(osis);
         const blocked = zoneBlocksOutIn(rowRec?.zone);
         const canToggleNow = allowOutIn && codeIsPL && hasFirstIn && !blocked;
@@ -875,7 +875,7 @@ function renderOutInOrganizer(){
             : (!allowOutIn
                 ? 'Pick the current period to enable Out/In'
                 : (!codeIsPL
-                    ? 'Mark Present (P) or Late (L) to enable Out/In'
+                    ? 'Mark Present, Late, or Excused Late to enable Out/In'
                     : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
         }
       }
@@ -1017,11 +1017,31 @@ function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
   }
 }
 
-// Cosmetic labels for attendance codes (keep values as A/L/P for API payloads)
-const CODE_LABELS = { P: 'Present', L: 'Late', A: 'Absent', E: 'Excused' };
+// Cosmetic labels for attendance codes (keep values as API payload codes)
+const CODE_LABELS = { P: 'Present', L: 'Late', A: 'Absent', E: 'Excused', EL: 'Excused Late', LE: 'Excused Late' };
 function codeLabel(code){
   const c = String(code || '').trim().toUpperCase();
   return CODE_LABELS[c] || (c || '—');
+}
+function normalizeAttendanceCode(code){
+  const c = String(code || '').trim().toUpperCase();
+  return c === 'LE' ? 'EL' : c;
+}
+function isClassPresenceCode(code){
+  const c = normalizeAttendanceCode(code);
+  return c === 'P' || c === 'L' || c === 'EL';
+}
+function isSystemLockedAttendanceCode(code){
+  return normalizeAttendanceCode(code) === 'EL';
+}
+function isSystemLockedAttendanceRow(row){
+  if (!row) return false;
+  return [
+    row.chosen,
+    row.baseline,
+    row.scanSuggested,
+    row.snapshotLetter
+  ].some(isSystemLockedAttendanceCode);
 }
 
 function onAuthed(){
@@ -1788,7 +1808,8 @@ let ROW_DATA = new Map();           // osis -> row record object
 
 function countChanges(){
   return (lastMergedRows || [])
-    .filter(r => (String(r.chosen||'A').toUpperCase() !== String(r.baseline||'A').toUpperCase()))
+    .filter(r => !isSystemLockedAttendanceRow(r))
+    .filter(r => (normalizeAttendanceCode(r.chosen || 'A') !== normalizeAttendanceCode(r.baseline || 'A')))
     .length;
 }
 
@@ -1883,26 +1904,33 @@ function stageBulkCodeToSelected(){
 
   // Update local state + UI (same style as individual dropdown changes)
   const overrides = loadOverrides(date, room, periodLocal);
+  let stagedCount = 0;
+  let lockedSkipped = 0;
 
   for (const osis of osisList){
     const r = ROW_DATA.get(osis);
     const ui = ROW_UI.get(osis);
     if (!r || !ui) continue;
+    if (isSystemLockedAttendanceRow(r)) {
+      lockedSkipped++;
+      continue;
+    }
 
     r.chosen = codeLetter;
+    stagedCount++;
 
     if (ui.selEl){
       ui.selEl.value = codeLetter;
       ui.selEl.className = 'codeSelect codeSelect--' + codeLetter;
     }
 
-    const snapL = String(r.snapshotLetter || '').trim().toUpperCase();
-    const scanL = String(r.scanSuggested  || '').trim().toUpperCase();
-    const baseL = String(r.baseline      || '').trim().toUpperCase();
-    const pickL = String(r.chosen        || 'A').trim().toUpperCase();
-    const mismatch = (baseL === 'E') ? (pickL !== 'E') : (!!snapL && !!scanL && snapL !== scanL);
+    const snapL = normalizeAttendanceCode(r.snapshotLetter || '');
+    const scanL = normalizeAttendanceCode(r.scanSuggested || '');
+    const baseL = normalizeAttendanceCode(r.baseline || '');
+    const pickL = normalizeAttendanceCode(r.chosen || 'A');
+    const mismatch = (baseL === 'E' || baseL === 'EL') ? (pickL !== baseL) : (!!snapL && !!scanL && snapL !== scanL);
     r._mismatch = mismatch;
-    const changed  = (String(r.chosen||'A') !== String(r.baseline||'A'));
+    const changed  = (normalizeAttendanceCode(r.chosen || 'A') !== normalizeAttendanceCode(r.baseline || 'A'));
 
     if (ui.rowEl){
       ui.rowEl.className =
@@ -1915,7 +1943,7 @@ function stageBulkCodeToSelected(){
 
     // Enable Out/In only if Present or Late
     if (ui.outInBtn){
-      const codeIsPL = (codeLetter === 'P' || codeLetter === 'L');
+      const codeIsPL = isClassPresenceCode(codeLetter);
       const hasFirstIn = hasSessionFirstIn(osis);
       const blocked = zoneBlocksOutIn(r?.zone);
       const canToggle = codeIsPL && hasFirstIn && !blocked;
@@ -1925,7 +1953,7 @@ function stageBulkCodeToSelected(){
         : (blocked
             ? 'Disabled while student is With Staff'
             : (!codeIsPL
-                ? 'Mark Present (P) or Late (L) to enable Out/In'
+                ? 'Mark Present, Late, or Excused Late to enable Out/In'
                 : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
     }
   }
@@ -1939,7 +1967,8 @@ function stageBulkCodeToSelected(){
   // Force deliberate next choice
   if (bulkCodeSelect) bulkCodeSelect.value = '';
 
-  setStatus(true, `Staged ${osisList.length} student(s) as ${codeLabel(codeLetter)} — click Submit changes.`);
+  const skipMsg = lockedSkipped ? ` (${lockedSkipped} system-locked EL skipped)` : '';
+  setStatus(true, `Staged ${stagedCount} student(s) as ${codeLabel(codeLetter)}${skipMsg} — click Submit changes.`);
   updateBulkUI();
   // After staging bulk changes, clear selection so checkboxes uncheck
   clearSelection();        // clears SELECTED_OSIS, unchecks row checkboxes, persists selection
@@ -2051,7 +2080,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   for (const r of (snapshotRows || [])){
     const osis = String(r?.osis || '').trim();
     if (!osis) continue;
-    snapBy.set(osis, { codeLetter: String(r.codeLetter || '').trim().toUpperCase() || 'A' });
+    snapBy.set(osis, { codeLetter: normalizeAttendanceCode(r.codeLetter || '') || 'A' });
   }
 
   const compBy = new Map();
@@ -2059,7 +2088,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const osis = String(r?.osis || '').trim();
     if (!osis) continue;
     compBy.set(osis, {
-      codeLetter: String(r.codeLetter || '').trim().toUpperCase() || 'A',
+      codeLetter: normalizeAttendanceCode(r.codeLetter || '') || 'A',
       evidence: r.evidence || null
     });
   }
@@ -2069,6 +2098,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   const haveSnapshot = snapBy.size > 0;
 
   const overrides = loadOverrides(date, room, period);
+  let overridesPruned = false;
 
   // Union keys
   const allOsis = new Set([...snapBy.keys(), ...compBy.keys()]);
@@ -2085,18 +2115,23 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const phoneOutActive = !!(snap?.phone_out === true && String(snap?.date || '').trim() === String(date || '').trim());
     const phoneReturnRequested = !!(snap?.phone_return_requested === true && phoneOutActive);
 
-    const snapshotLetter = snapRec?.codeLetter || '';
-    const scanSuggested  = compRec?.codeLetter || '';
+    const snapshotLetter = normalizeAttendanceCode(snapRec?.codeLetter || '');
+    const scanSuggested  = normalizeAttendanceCode(compRec?.codeLetter || '');
     const evidence = compRec?.evidence || null;
 
     const scanTime = evidence?.lastISO || evidence?.firstISO || null;
     const scanStatus = evidence?.status || (scanSuggested === 'A' ? 'Absent' : '');
     const scanRoom = evidence?.room || '';
 
-    const baseline = (haveSnapshot ? snapshotLetter : scanSuggested) || 'A';
+    const baseline = normalizeAttendanceCode((haveSnapshot ? snapshotLetter : scanSuggested) || 'A');
+    const systemLocked = [baseline, snapshotLetter, scanSuggested].some(isSystemLockedAttendanceCode);
 
     // UI “chosen” starts from baseline unless user previously tweaked locally
-    const chosen = (overrides[osis] || baseline || 'A').toUpperCase();
+    const chosen = systemLocked ? 'EL' : normalizeAttendanceCode(overrides[osis] || baseline || 'A');
+    if (systemLocked && Object.prototype.hasOwnProperty.call(overrides, osis)) {
+      delete overrides[osis];
+      overridesPruned = true;
+    }
 
     merged.push({
       osis,
@@ -2110,11 +2145,13 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       scanSuggested,
       baseline,
       chosen,
+      systemLocked,
       scanTime,
       scanStatus,
       scanRoom
     });
   }
+  if (overridesPruned) saveOverrides(date, room, period, overrides);
 
   // Sort by name then OSIS
   merged.sort((a,b) => {
@@ -2130,7 +2167,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   const visible = new Set(CURRENT_OSIS_LIST);
   let pruned = false;
   for (const osis of Array.from(SELECTED_OSIS)){
-    if (!visible.has(osis)) { SELECTED_OSIS.delete(osis); pruned = true; }
+    const row = merged.find(r => r.osis === osis);
+    if (!visible.has(osis) || isSystemLockedAttendanceRow(row)) { SELECTED_OSIS.delete(osis); pruned = true; }
   }
   if (pruned) saveSelection(date, room, period, SELECTED_OSIS);
   updateBulkUI();
@@ -2140,20 +2178,20 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
   for(const r of merged){
     const computeMismatch = () => {
-      const snapL = String(r.snapshotLetter || '').trim().toUpperCase();
-      const scanL = String(r.scanSuggested  || '').trim().toUpperCase();
-      const baseL = String(r.baseline      || '').trim().toUpperCase();
-      const pickL = String(r.chosen        || 'A').trim().toUpperCase();
+      const snapL = normalizeAttendanceCode(r.snapshotLetter || '');
+      const scanL = normalizeAttendanceCode(r.scanSuggested || '');
+      const baseL = normalizeAttendanceCode(r.baseline || '');
+      const pickL = normalizeAttendanceCode(r.chosen || 'A');
 
-      // Excused baseline should not show red by default.
-      // Show red only when a user changes away from Excused.
-      if (baseL === 'E') return pickL !== 'E';
+      // Excused-style baselines should not show red by default.
+      // Show red only when a user changes away from that excused status.
+      if (baseL === 'E' || baseL === 'EL') return pickL !== baseL;
 
       return !!snapL && !!scanL && (snapL !== scanL);
     };
 
     const mismatch = computeMismatch();
-    const changed  = (r.chosen || 'A') !== (r.baseline || 'A');
+    const changed  = normalizeAttendanceCode(r.chosen || 'A') !== normalizeAttendanceCode(r.baseline || 'A');
 
     const row = document.createElement('div');
     row.className = 'row' + (mismatch ? ' row--mismatch' : '') + (changed ? ' row--changed' : '');
@@ -2167,7 +2205,14 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = SELECTED_OSIS.has(r.osis);
+    if (r.systemLocked) {
+      cb.checked = false;
+      cb.disabled = true;
+      cb.title = 'Excused Late is system-controlled and cannot be changed by teachers.';
+      SELECTED_OSIS.delete(r.osis);
+    }
     cb.addEventListener('change', () => {
+      if (r.systemLocked) return;
       if (cb.checked) SELECTED_OSIS.add(r.osis);
       else SELECTED_OSIS.delete(r.osis);
       updateBulkUI();
@@ -2281,11 +2326,11 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     }
 
     if (mismatch) {
-      const baseL = String(r.baseline || '').trim().toUpperCase();
-      const pickL = String(r.chosen || 'A').trim().toUpperCase();
-      if (baseL === 'E' && pickL !== 'E') {
-        addTextPart('changed from Excused', '');
-      } else if (!(baseL === 'E' && pickL === 'E')) {
+      const baseL = normalizeAttendanceCode(r.baseline || '');
+      const pickL = normalizeAttendanceCode(r.chosen || 'A');
+      if ((baseL === 'E' || baseL === 'EL') && pickL !== baseL) {
+        addTextPart(`changed from ${codeLabel(baseL)}`, '');
+      } else if (!((baseL === 'E' || baseL === 'EL') && pickL === baseL)) {
         addTextPart(`mismatch (scan:${codeLabel(r.scanSuggested)} vs snap:${codeLabel(r.snapshotLetter)})`, '');
       }
     }
@@ -2333,10 +2378,15 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     const c3 = document.createElement('div');
     const sel = document.createElement('select');
-    const includeExcusedOption = [r.chosen, r.baseline, r.scanSuggested, r.snapshotLetter]
-      .some(v => String(v || '').trim().toUpperCase() === 'E');
-    const selectOptions = includeExcusedOption ? ['P','L','A','E'] : ['P','L','A'];
-    const currentCode = String(r.chosen || r.baseline || 'A').trim().toUpperCase();
+    const currentCode = r.systemLocked ? 'EL' : normalizeAttendanceCode(r.chosen || r.baseline || 'A');
+    const specialOptions = [];
+    if (!r.systemLocked) {
+      for (const v of [r.chosen, r.baseline, r.scanSuggested, r.snapshotLetter]) {
+        const c = normalizeAttendanceCode(v);
+        if (c === 'E' && !specialOptions.includes(c)) specialOptions.push(c);
+      }
+    }
+    const selectOptions = r.systemLocked ? ['EL'] : ['P','L','A', ...specialOptions];
 
     for(const opt of selectOptions){
       const o = document.createElement('option');
@@ -2349,16 +2399,25 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     r.chosen = sel.value;
     sel.className = 'codeSelect codeSelect--' + (r.chosen || 'A');
     sel.title = `Baseline: ${codeLabel(r.baseline)} • Scan: ${codeLabel(r.scanSuggested)} • Snapshot: ${codeLabel(r.snapshotLetter)}`;
+    if (r.systemLocked) {
+      sel.disabled = true;
+      sel.title = 'Excused Late is system-controlled and cannot be changed by teachers.';
+    }
 
     sel.addEventListener('change', () => {
-      r.chosen = String(sel.value || 'A').toUpperCase();
+      if (r.systemLocked) {
+        sel.value = 'EL';
+        r.chosen = 'EL';
+        return;
+      }
+      r.chosen = normalizeAttendanceCode(sel.value || 'A');
 
       // update color
       sel.className = 'codeSelect codeSelect--' + r.chosen;
 
       // Save locally as “only if changed”, otherwise clear
       const obj = loadOverrides(date, room, period);
-      if (r.chosen !== (r.baseline || 'A')){
+      if (normalizeAttendanceCode(r.chosen) !== normalizeAttendanceCode(r.baseline || 'A')){
         obj[r.osis] = r.chosen;
       } else {
         delete obj[r.osis];
@@ -2368,12 +2427,12 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       // Update row styles + submit state
       const mismatchNow = computeMismatch();
       r._mismatch = mismatchNow;
-      row.className = 'row' + (mismatchNow ? ' row--mismatch' : '') + ((r.chosen || 'A') !== (r.baseline || 'A') ? ' row--changed' : '');
+      row.className = 'row' + (mismatchNow ? ' row--mismatch' : '') + (normalizeAttendanceCode(r.chosen || 'A') !== normalizeAttendanceCode(r.baseline || 'A') ? ' row--changed' : '');
       updateSubmitButtons();
 
       // Enable Out/In only if Present or Late AND first scan into room exists
       if (outInBtn){
-        const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
+        const codeIsPL = isClassPresenceCode(r.chosen);
         const hasFirstIn = hasSessionFirstIn(r.osis);
         const blocked = zoneBlocksOutIn(r.zone);
         const canToggle = codeIsPL && hasFirstIn && !blocked;
@@ -2384,7 +2443,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           outInBtn.title = blocked
             ? 'Disabled while student is With Staff'
             : (!codeIsPL
-                ? 'Mark Present (P) or Late (L) to enable Out/In'
+                ? 'Mark Present, Late, or Excused Late to enable Out/In'
                 : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
         }
       }
@@ -2431,7 +2490,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       // Enable Out/In only if Present or Late
       outInBtn = btn;
       try{ uiRef.outInBtn = btn; }catch{}
-      const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
+      const codeIsPL = isClassPresenceCode(r.chosen);
       const hasFirstIn = !!(sessRec && sessRec.firstInISO);
       const blocked = zoneBlocksOutIn(r.zone);
       const canToggleInitial = codeIsPL && hasFirstIn && !blocked;
@@ -2440,7 +2499,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
         btn.title = blocked
           ? 'Disabled while student is With Staff'
           : (!codeIsPL
-              ? 'Mark Present (P) or Late (L) to enable Out/In'
+              ? 'Mark Present, Late, or Excused Late to enable Out/In'
               : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
       }
 
@@ -2468,7 +2527,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           renderOutInOrganizer();
         } finally {
           // stay disabled unless Present/Late, first-in exists, and student is not With Staff
-          const codeIsPL = (r.chosen === 'P' || r.chosen === 'L');
+          const codeIsPL = isClassPresenceCode(r.chosen);
           const hasFirstInNow = !!(sessionState?.students?.[r.osis]?.firstInISO || sessRec?.firstInISO || hasSessionFirstIn(r.osis));
           const blocked = zoneBlocksOutIn(r.zone);
           const canToggleNow = codeIsPL && hasFirstInNow && !blocked;
@@ -2477,7 +2536,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
             btn.title = blocked
               ? 'Disabled while student is With Staff'
               : (!codeIsPL
-                  ? 'Mark Present (P) or Late (L) to enable Out/In'
+                  ? 'Mark Present, Late, or Excused Late to enable Out/In'
                   : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
           } else {
             btn.title = btn.dataset.toggleTitle || 'Toggle Out/In';
@@ -2531,8 +2590,9 @@ async function submitChanges(){
 
   // Only send rows whose CHOSEN differs from BASELINE
   const changes = (lastMergedRows || [])
-    .filter(r => (String(r.chosen||'A').toUpperCase() !== String(r.baseline||'A').toUpperCase()))
-    .map(r => ({ osis: String(r.osis), codeLetter: String(r.chosen||'A').toUpperCase() }));
+    .filter(r => !isSystemLockedAttendanceRow(r))
+    .filter(r => (normalizeAttendanceCode(r.chosen || 'A') !== normalizeAttendanceCode(r.baseline || 'A')))
+    .map(r => ({ osis: String(r.osis), codeLetter: normalizeAttendanceCode(r.chosen || 'A') }));
 
   if (!changes.length){
     setErr('No changes to submit.');
