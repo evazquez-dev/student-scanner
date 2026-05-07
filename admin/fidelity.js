@@ -456,6 +456,31 @@ function groupStatusChip(summary) {
   return '<span class="chip info">OK</span>';
 }
 
+function scoreNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function compareScoresAsc(a, b) {
+  const an = scoreNumberOrNull(a);
+  const bn = scoreNumberOrNull(b);
+  if (an == null && bn == null) return 0;
+  if (an == null) return 1;
+  if (bn == null) return -1;
+  return an - bn;
+}
+
+function roomAccountabilitySortScore(group) {
+  const score = scoreNumberOrNull(group?.summary?.scorePct);
+  if (score != null) return score;
+  const device = group?.device;
+  if (device && Array.isArray(device.devices) && device.devices.length) {
+    const trust = scoreNumberOrNull(device.worstTrust);
+    if (trust != null) return trust;
+  }
+  return 0;
+}
+
 function renderPeriodDetails(rows = [], options = {}) {
   const list = Array.isArray(rows) ? rows.slice().sort((a, b) =>
     teacherGapPriority(a.status) - teacherGapPriority(b.status) ||
@@ -500,6 +525,7 @@ function buildTeacherGroups(rows = []) {
     ...group,
     summary: summarizeTeacherRows(group.rows)
   })).sort((a, b) =>
+    compareScoresAsc(a.summary.scorePct, b.summary.scorePct) ||
     b.summary.critical - a.summary.critical ||
     b.summary.noScanSubmitted - a.summary.noScanSubmitted ||
     b.summary.scansNoAttendance - a.summary.scansNoAttendance ||
@@ -563,7 +589,8 @@ function buildRoomGroups(rows = [], devices = []) {
     const bNoDevice = !b.device || !b.device.devices.length ? 1 : 0;
     const aInactive = a.device && a.device.active === 0 ? 1 : 0;
     const bInactive = b.device && b.device.active === 0 ? 1 : 0;
-    return bNoDevice - aNoDevice ||
+    return compareScoresAsc(roomAccountabilitySortScore(a), roomAccountabilitySortScore(b)) ||
+      bNoDevice - aNoDevice ||
       bInactive - aInactive ||
       b.summary.critical - a.summary.critical ||
       b.summary.noScanSubmitted - a.summary.noScanSubmitted ||
@@ -759,7 +786,12 @@ function renderRangeDetails(rows = [], options = {}) {
 
 function renderRangeGroups(target, groups = [], options = {}) {
   if (!target) return;
-  const list = Array.isArray(groups) ? groups : [];
+  const list = Array.isArray(groups)
+    ? groups.slice().sort((a, b) =>
+        compareScoresAsc(a?.score_pct, b?.score_pct) ||
+        String(a?.label || '').localeCompare(String(b?.label || ''), undefined, { numeric:true, sensitivity:'base' })
+      )
+    : [];
   target.innerHTML = list.length
     ? list.map((group) => `
       <details class="accountabilityGroup">
