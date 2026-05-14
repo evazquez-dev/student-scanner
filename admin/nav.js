@@ -21,6 +21,7 @@
     behavior_history: 'Logged Behaviors',
     attendance_change: 'Attendance Change',
     supervised_lunch: 'Supervised Lunch',
+    reflection_hold: 'Reflection Hold',
     excused_apply: 'Attendance Change', // legacy alias
     admin_roles: 'Admin Roles',
     admin: 'Super Admin Dashboard'
@@ -39,6 +40,7 @@
     'admin_roles_admin_session_v1',
     'attendance_change_admin_session_v1',
     'supervised_lunch_admin_session_v1',
+    'reflection_hold_admin_session_v1',
     'excused_apply_admin_session_v1', // legacy
     'admin_session_v1',
     'admin_session_sid' // legacy generic key
@@ -147,6 +149,7 @@
           student_view: isSuperAdmin,
           behavior_history: true,
           supervised_lunch: true,
+          reflection_hold: isAdminLike,
           phone_pass: isAdminLike,
           teacher_trace_lookup: isAdminLike,
           attendance_change: isSuperAdmin,
@@ -228,6 +231,7 @@
           { key:'student_view',       label: MODULES.student_view || 'Student View',             href:'./student_view.html',       badge:'student lookup' },
           { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch audit' },
           { key:'supervised_lunch',   label: MODULES.supervised_lunch || 'Supervised Lunch',     href:'./supervised_lunch.html',   badge:'room setup' },
+          { key:'reflection_hold',     label: MODULES.reflection_hold || 'Reflection Hold',       href:'./reflection_hold.html',    badge:'after-school gate' },
         ]
       },
       {

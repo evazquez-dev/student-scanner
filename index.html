@@ -2541,6 +2541,20 @@
           Number.isFinite(afterSchoolStartMin) &&
           nowMin >= afterSchoolStartMin &&
           nowMin < (afterSchoolStartMin + 40);
+        const denyActiveHoldExit = !!res.after_school_exit_blocked;
+
+        if (denyActiveHoldExit) {
+          const label = 'DENIED EXIT';
+          const reason = String(res.after_school_exit_block_reason || 'Hold active').trim() || 'Hold active';
+          beepBad();
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: reason, when });
+          showSuccess(res.name, code, label, reason, when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
+          setStatus(`Denied: ${reason}.`);
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
+          return;
+        }
 
         if (denyRpExit) {
           const label = 'DENIED EXIT';
@@ -2549,6 +2563,8 @@
           showSuccess(res.name, code, label, 'Regents Prep', when);
           apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
           setStatus('Denied: Regents Prep students cannot dismiss from Front Entrance during the first 40 minutes of after-school.');
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
           return;
         }
 
