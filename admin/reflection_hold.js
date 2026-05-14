@@ -27,7 +27,8 @@
     previewRows: [],
     previewSignature: '',
     eligibleOsis: [],
-    activeHolds: []
+    activeHolds: [],
+    locations: []
   };
 
   (function initTheme(){
@@ -105,7 +106,6 @@
     return {
       date: state.today,
       holdLabel: String($('holdLabel')?.value || '').trim() || 'Reflection Hold',
-      teacherName: String($('teacherName')?.value || '').trim(),
       room: String($('roomInput')?.value || '').trim(),
       reason: String($('reasonInput')?.value || '').trim(),
       osisList: Array.from(state.selectedOsis).sort()
@@ -134,6 +134,60 @@
     $('rosterSelectedCount').textContent = String(state.selectedOsis.size);
     $('eligibleCount').textContent = String(state.eligibleOsis.length);
     $('confirmBtn').disabled = !(state.eligibleOsis.length && state.previewSignature === currentSignature());
+    const hasActive = state.activeHolds.length > 0;
+    if ($('saveActiveBtn')) $('saveActiveBtn').disabled = !hasActive;
+    if ($('releaseAllBtn')) $('releaseAllBtn').disabled = !hasActive;
+    if ($('cancelAllBtn')) $('cancelAllBtn').disabled = !hasActive;
+  }
+
+  function renderRoomOptions(preferred = ''){
+    const sel = $('roomInput');
+    if (!sel) return;
+    const current = String(preferred || sel.value || '').trim();
+    sel.innerHTML = '<option value="">Select location...</option>';
+    for (const loc of state.locations) {
+      const name = String(loc?.name || loc || '').trim();
+      if (!name) continue;
+      const type = String(loc?.type || '').trim();
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = type ? `${name} (${type})` : name;
+      sel.appendChild(opt);
+    }
+    if (current && !Array.from(sel.options).some((opt) => opt.value === current)) {
+      const opt = document.createElement('option');
+      opt.value = current;
+      opt.textContent = `${current} (saved)`;
+      sel.appendChild(opt);
+    }
+    if (current && Array.from(sel.options).some((opt) => opt.value === current)) {
+      sel.value = current;
+    }
+  }
+
+  function renderActiveHoldPanel(){
+    const panel = $('activeHoldPanel');
+    const summary = $('activeHoldSummary');
+    if (!panel || !summary) return;
+    if (!state.activeHolds.length) {
+      panel.style.display = 'none';
+      summary.textContent = '—';
+      return;
+    }
+    const first = state.activeHolds[0] || {};
+    const count = state.activeHolds.length;
+    const room = String(first.room || '').trim() || 'No room saved';
+    const label = String(first.hold_label || first.label || 'Reflection Hold').trim();
+    const reason = String(first.reason || '').trim();
+    const since = first.held_by_since ? fmtClock(first.held_by_since) : '';
+    panel.style.display = '';
+    summary.textContent = [
+      `${count} student(s) held`,
+      `label: ${label}`,
+      `room: ${room}`,
+      reason ? `note: ${reason}` : '',
+      since ? `since ${since}` : ''
+    ].filter(Boolean).join(' • ');
   }
 
   function renderRoster(){
@@ -209,7 +263,7 @@
     const body = $('activeBody');
     body.innerHTML = '';
     if (!state.activeHolds.length) {
-      body.innerHTML = '<tr><td colspan="5" class="muted">No active reflection holds today.</td></tr>';
+      body.innerHTML = '<tr><td colspan="7" class="muted">No active reflection holds today.</td></tr>';
       return;
     }
     for (const row of state.activeHolds) {
@@ -218,6 +272,8 @@
         <td>${esc(row.name || '')}</td>
         <td class="mono">${esc(row.osis || '')}</td>
         <td>${esc(row.label || 'Reflection Hold')}</td>
+        <td>${esc(row.room || '')}</td>
+        <td>${esc(row.reason || '')}</td>
         <td class="mono">${esc(fmtClock(row.held_by_since) || '')}</td>
         <td><button type="button" class="danger releaseBtn" data-osis="${esc(row.osis || '')}">Release</button></td>
       `;
@@ -244,7 +300,8 @@
 
     state.today = String(opts.date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }));
     state.adminEmail = String(opts?.who?.email || access.email || '');
-    state.activeHolds = Array.isArray(opts.active_holds) ? opts.active_holds : [];
+    state.activeHolds = Array.isArray(opts.my_active_holds) ? opts.my_active_holds : (Array.isArray(opts.active_holds) ? opts.active_holds : []);
+    state.locations = Array.isArray(opts.locations) ? opts.locations : [];
     state.roster = (Array.isArray(rosterData.students) ? rosterData.students : []).map((s) => ({
       osis: String(s.osis || ''),
       name: String(s.name || ''),
@@ -253,8 +310,18 @@
 
     $('todayLabel').textContent = state.today;
     $('adminLabel').textContent = state.adminEmail || '—';
+    const firstHold = state.activeHolds[0] || null;
+    renderRoomOptions(firstHold?.room || '');
+    if (firstHold) {
+      $('holdLabel').value = String(firstHold.hold_label || 'Reflection Hold');
+      $('reasonInput').value = String(firstHold.reason || '');
+      if (firstHold.room) $('roomInput').value = String(firstHold.room);
+      state.selectedOsis = new Set(state.activeHolds.map((h) => normalizeOsis(h.osis)).filter(Boolean));
+    }
     renderRoster();
+    renderActiveHoldPanel();
     renderActiveHolds();
+    updateCounts();
   }
 
   async function loadHoldCheck(){
@@ -263,6 +330,10 @@
       return;
     }
     const payload = formPayload();
+    if (!payload.room) {
+      setStatus('Choose a room/location before loading the hold check.', false);
+      return;
+    }
     setStatus('Checking selected students for existing holds...', true);
     $('loadCheckBtn').disabled = true;
     $('confirmBtn').disabled = true;
@@ -302,6 +373,10 @@
       return;
     }
     const payload = formPayload();
+    if (!payload.room) {
+      setStatus('Choose a room/location before confirming.', false);
+      return;
+    }
     setStatus('Confirming reflection hold...', true);
     $('confirmBtn').disabled = true;
     try {
@@ -325,20 +400,65 @@
     }
   }
 
-  async function releaseHold(osisRaw){
+  async function saveActiveHoldChanges(){
+    if (!state.activeHolds.length) {
+      setStatus('No active hold for this owner to update.', false);
+      return;
+    }
+    const payload = formPayload();
+    if (!payload.room) {
+      setStatus('Choose a room/location before saving hold changes.', false);
+      return;
+    }
+    setStatus('Saving active hold changes...', true);
+    $('saveActiveBtn').disabled = true;
+    try {
+      const resp = await adminFetch('/admin/reflection_hold/update', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          date: state.today,
+          holdLabel: payload.holdLabel,
+          room: payload.room,
+          reason: payload.reason
+        })
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || !data?.ok) throw new Error(data?.error || `update HTTP ${resp.status}`);
+      setStatus(`Saved changes for ${data.updated_count || 0} active hold(s).`, true);
+      await loadOptions();
+    } catch (err) {
+      setStatus(String(err?.message || err), false);
+    } finally {
+      updateCounts();
+    }
+  }
+
+  async function releaseHold(osisRaw = '', mode = 'release'){
     const osis = normalizeOsis(osisRaw);
-    if (!osis) return;
-    setStatus(`Releasing ${osis}...`, true);
+    const isCancel = String(mode || '').toLowerCase() === 'cancel';
+    const verb = isCancel ? 'Canceling' : 'Releasing';
+    if (osisRaw && !osis) return;
+    if (!osis && !state.activeHolds.length) {
+      setStatus('No active hold for this owner.', false);
+      return;
+    }
+    setStatus(osis ? `${verb} ${osis}...` : `${verb} active hold...`, true);
     try {
       const resp = await adminFetch('/admin/reflection_hold/release', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ date: state.today, osisList: [osis] })
+        body: JSON.stringify({ date: state.today, osisList: osis ? [osis] : [], mine: true, mode: isCancel ? 'cancel' : 'release' })
       });
       const data = await resp.json().catch(() => null);
       if (!resp.ok || !data?.ok) throw new Error(data?.error || `release HTTP ${resp.status}`);
-      setStatus(`Released ${data.released_count || 0} reflection hold(s).`, true);
+      setStatus(`${isCancel ? 'Canceled' : 'Released'} ${data.released_count || 0} reflection hold(s).`, true);
+      state.selectedOsis = new Set();
+      state.previewRows = [];
+      state.eligibleOsis = [];
+      state.previewSignature = '';
       await loadOptions();
+      renderPreview();
     } catch (err) {
       setStatus(String(err?.message || err), false);
     }
@@ -346,8 +466,15 @@
 
   function bootEvents(){
     $('rosterSearch')?.addEventListener('input', renderRoster);
-    for (const id of ['holdLabel', 'teacherName', 'roomInput', 'reasonInput']) {
+    for (const id of ['holdLabel', 'roomInput', 'reasonInput']) {
       $(id)?.addEventListener('input', () => {
+        state.previewRows = [];
+        state.previewSignature = '';
+        state.eligibleOsis = [];
+        renderPreview();
+        updateCounts();
+      });
+      $(id)?.addEventListener('change', () => {
         state.previewRows = [];
         state.previewSignature = '';
         state.eligibleOsis = [];
@@ -373,6 +500,9 @@
     });
     $('loadCheckBtn')?.addEventListener('click', loadHoldCheck);
     $('confirmBtn')?.addEventListener('click', confirmHold);
+    $('saveActiveBtn')?.addEventListener('click', saveActiveHoldChanges);
+    $('releaseAllBtn')?.addEventListener('click', () => releaseHold('', 'release'));
+    $('cancelAllBtn')?.addEventListener('click', () => releaseHold('', 'cancel'));
     $('refreshBtn')?.addEventListener('click', async () => {
       try {
         setStatus('Refreshing active holds...', true);

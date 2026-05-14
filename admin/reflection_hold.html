@@ -51,7 +51,7 @@
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grow{flex:1 1 190px;min-width:190px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:980px){.grid{grid-template-columns:1fr}}
     label{display:block;font-weight:800;margin-bottom:4px}
-    input[type="text"], textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--fg);font:inherit}
+    input[type="text"], select, textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--fg);font:inherit}
     textarea{min-height:42px;resize:vertical}
     button{border:1px solid var(--border);background:var(--soft2);color:var(--fg);border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:800}
     button.primary{border-color:var(--accent);background:var(--accentSoft)} button.danger{border-color:var(--bad)} button[disabled]{opacity:.55;cursor:not-allowed}
@@ -84,9 +84,19 @@
       <div class="card">
         <div class="row">
           <div class="pill">Date: <span id="todayLabel" class="mono">—</span></div>
-          <div class="pill">Admin: <span id="adminLabel" class="mono">—</span></div>
+          <div class="pill">Owner: <span id="adminLabel" class="mono">—</span></div>
           <div class="pill">Selected: <span id="selectedCount" class="mono">0</span></div>
           <div class="pill">Ready after check: <span id="eligibleCount" class="mono">0</span></div>
+        </div>
+
+        <div id="activeHoldPanel" class="status" style="margin-top:10px;display:none;">
+          <b>Active hold for this owner</b>
+          <div id="activeHoldSummary" class="muted" style="margin-top:6px;">—</div>
+          <div class="row" style="margin-top:10px;">
+            <button id="saveActiveBtn" class="primary" type="button">Save hold changes</button>
+            <button id="releaseAllBtn" type="button">Release hold</button>
+            <button id="cancelAllBtn" class="danger" type="button">Cancel hold</button>
+          </div>
         </div>
 
         <div class="row" style="margin-top:10px;">
@@ -95,12 +105,10 @@
             <input id="holdLabel" type="text" value="Reflection Hold" />
           </div>
           <div class="grow">
-            <label for="teacherName">Teacher / owner</label>
-            <input id="teacherName" type="text" placeholder="Teacher name or team" />
-          </div>
-          <div class="grow">
-            <label for="roomInput">Room</label>
-            <input id="roomInput" type="text" placeholder="Optional room" />
+            <label for="roomInput">Room / location <span class="muted">(required)</span></label>
+            <select id="roomInput">
+              <option value="">Loading locations...</option>
+            </select>
           </div>
         </div>
 
@@ -171,7 +179,7 @@
       </div>
 
       <div class="card">
-        <h2>Active reflection holds today</h2>
+        <h2>Your active reflection holds today</h2>
         <div class="listBox">
           <div class="listBody">
             <table>
@@ -180,12 +188,14 @@
                   <th>Name</th>
                   <th>OSIS</th>
                   <th>Hold</th>
+                  <th>Room</th>
+                  <th>Note</th>
                   <th>Since</th>
                   <th style="width:120px;">Action</th>
                 </tr>
               </thead>
               <tbody id="activeBody">
-                <tr><td colspan="5" class="muted">Loading...</td></tr>
+                <tr><td colspan="7" class="muted">Loading...</td></tr>
               </tbody>
             </table>
           </div>
