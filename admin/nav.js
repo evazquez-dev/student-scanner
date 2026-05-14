@@ -16,6 +16,7 @@
     student_scans: 'Student Scans',
     student_view: 'Student View',
     hallway: 'Hallway Monitor',
+    after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
     behavior_history: 'Logged Behaviors',
@@ -33,6 +34,7 @@
     'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
     'senior_lunch_audit_admin_session_v1',
+    'after_school_monitor_admin_session_v1',
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
     'student_scans_admin_session_v1',
@@ -141,6 +143,7 @@
           admin_dashboard: isSuperAdmin,
           admin_roles: isSuperAdmin,
           hallway: isAdminLike,
+          after_school_monitor: isAdminLike,
           staff_pull: isAdminLike,
           teacher_attendance: true,
           attendance_status: isAdminLike,
@@ -160,6 +163,7 @@
       try {
         const hr = await adminFetch('/admin/hallway_state_monitor', { method: 'GET' });
         out.can.hallway = hr.ok;
+        out.can.after_school_monitor = hr.ok;
       } catch {}
       try {
         const sr = await adminFetch('/admin/staff_pull/options', { method: 'GET' });
@@ -238,6 +242,7 @@
         title: 'Passes',
         items: [
           { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'hall monitor' },
+          { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', badge:'dismissal' },
           { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'staff request' },
           { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phone locker' },
         ]

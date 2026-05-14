@@ -11,6 +11,7 @@
     student_scans: 'Student Scan Report',
     student_view: 'Student View',
     hallway: 'Hallway Monitor',
+    after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
     behavior_history: 'Logged Behaviors',
