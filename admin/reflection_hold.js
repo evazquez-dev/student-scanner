@@ -240,13 +240,20 @@
         chip = '<span class="chip bad">Unknown</span>';
         detail = 'Not found in current roster';
       } else if (row.already_held) {
-        chip = '<span class="chip warn">Already held</span>';
+        const holdType = String(row?.hold?.type || '').trim();
+        chip = holdType === 'regents_prep'
+          ? '<span class="chip bad">Regents Prep</span>'
+          : '<span class="chip warn">Already held</span>';
         const hold = row.hold || {};
         detail = [
-          hold.held_by_title || hold.held_target_label || hold.held_by_role || 'Hold active',
-          hold.held_by_email || '',
-          hold.held_by_since ? `since ${fmtClock(hold.held_by_since)}` : ''
+          hold.label || hold.held_by_title || hold.held_target_label || hold.held_by_role || 'Hold active',
+          hold.owner_email || hold.held_by_email || '',
+          hold.since || hold.held_by_since ? `since ${fmtClock(hold.since || hold.held_by_since)}` : '',
+          hold.reason || ''
         ].filter(Boolean).join(' • ');
+      } else if (row.lower_priority_hold) {
+        const hold = row.lower_priority_hold || {};
+        detail = `${hold.label || 'Lower-priority hold'} will be replaced by Reflection Hold.`;
       }
       tr.innerHTML = `
         <td>${chip}</td>
