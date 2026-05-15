@@ -19,6 +19,7 @@ const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const dateText = document.getElementById('dateText');
 const latestDateText = document.getElementById('latestDateText');
+const latestSnapshotText = document.getElementById('latestSnapshotText');
 const boundDevicesText = document.getElementById('boundDevicesText');
 const inactiveDevicesText = document.getElementById('inactiveDevicesText');
 const dateInput = document.getElementById('dateInput');
@@ -260,6 +261,27 @@ function fmtTs(iso) {
   const d = new Date(s);
   if (Number.isNaN(d.getTime())) return s;
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function fmtDateTime(iso) {
+  const s = String(iso || '').trim();
+  if (!s) return '—';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function setLatestSnapshotMeta(meta = null) {
+  const latest = meta?.latest_snapshot || meta || null;
+  const stamp = latest?.snapshot_at_iso || '';
+  const label = stamp ? `${latest.date || '—'} ${fmtTs(stamp)}` : '—';
+  if (latestSnapshotText) latestSnapshotText.textContent = label;
+  if (todayBtn) {
+    todayBtn.textContent = stamp ? `Use Latest (${fmtDateTime(stamp)})` : 'Use Latest';
+    todayBtn.title = stamp
+      ? `Latest Fidelity_Score_Daily snapshot: ${label}`
+      : 'No Fidelity_Score_Daily snapshot has been reported yet.';
+  }
 }
 
 function scoreClass(score) {
@@ -1030,10 +1052,23 @@ function renderDevices(devices = []) {
     : `<tr><td colspan="11" class="muted">No fidelity device data for this date.</td></tr>`;
 }
 
-async function fetchDashboard(date = '') {
+async function fetchDashboard(date = '', options = {}) {
   const u = new URL('/admin/fidelity_dashboard', API_BASE);
-  if (date) u.searchParams.set('date', date);
+  const requestDate = options.forceTodaySnapshot && (!date || date === localTodayKey())
+    ? localTodayKey()
+    : date;
+  if (requestDate) u.searchParams.set('date', requestDate);
+  if (options.forceTodaySnapshot) u.searchParams.set('score_snapshot', '1');
   const r = await adminFetch(u, { method: 'GET' });
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data?.ok) {
+    throw new Error(data?.detail || data?.error || `HTTP ${r.status}`);
+  }
+  return data;
+}
+
+async function fetchScoreSnapshotMeta() {
+  const r = await adminFetch('/admin/fidelity_score_snapshot_meta', { method: 'GET' });
   const data = await r.json().catch(() => null);
   if (!r.ok || !data?.ok) {
     throw new Error(data?.detail || data?.error || `HTTP ${r.status}`);
@@ -1056,6 +1091,7 @@ async function fetchRangeDashboard(start = '', end = '') {
 function renderDashboard(data, statusLabel = 'Live') {
   dateText.textContent = data.date || '—';
   latestDateText.textContent = data.latest_date || '—';
+  if (data.score_snapshot) setLatestSnapshotMeta(data.score_snapshot.latest || data.score_snapshot.meta || null);
   boundDevicesText.textContent = String(data.counts?.bound_devices ?? '—');
   inactiveDevicesText.textContent = String(data.counts?.inactive_bound_devices ?? '—');
   if (data.date) dateInput.value = data.date;
@@ -1104,23 +1140,35 @@ async function loadDashboard(date = '', options = {}) {
   if (dashboardBusy) return null;
   setError('');
   setStatus(true, 'Getting data…');
+  const forceTodaySnapshot = options.forceTodaySnapshot === true;
   setDashboardBusy(true, {
     button: options.button || loadBtn,
-    title: 'Getting data…',
+    buttonText: options.buttonText || (forceTodaySnapshot ? 'Saving Snapshot…' : undefined),
+    title: options.title || (forceTodaySnapshot ? 'Saving today’s snapshot…' : 'Getting data…'),
     detail: options.detail || 'Please wait while the fidelity tracker loads fresh data.'
   });
   try {
-    const data = await fetchDashboard(date);
-    writeDashboardCache(date, data);
+    const data = await fetchDashboard(date, { forceTodaySnapshot });
+    const cacheDate = forceTodaySnapshot && (!date || date === localTodayKey()) ? localTodayKey() : date;
+    writeDashboardCache(cacheDate, data);
     if (data.date) writeDashboardCache(data.date, data);
-    if (!date || (data.date && data.latest_date && data.date === data.latest_date)) {
+    if (!cacheDate || (data.date && data.latest_date && data.date === data.latest_date)) {
       writeDashboardCache('', data);
     }
-    renderDashboard(data, 'Live');
+    renderDashboard(data, data.stale ? 'Cached' : 'Live');
+    if (data.warning) setError(data.warning);
+    if (data.score_snapshot?.requested && data.score_snapshot?.result?.ok === false) {
+      setError(`Dashboard loaded, but Fidelity_Score_Daily was not saved: ${data.score_snapshot.result.error || 'unknown error'}`);
+    }
     return data;
   } catch (err) {
     setStatus(false, 'Error');
-    setError(err?.message || String(err));
+    const msg = err?.message || String(err);
+    if (forceTodaySnapshot && /timeout|524|aborted/i.test(msg)) {
+      setError(`${msg}. The snapshot request may still be finishing. Come back in about 5 minutes and use the latest snapshot.`);
+    } else {
+      setError(msg);
+    }
     return null;
   } finally {
     setDashboardBusy(false);
@@ -1129,6 +1177,7 @@ async function loadDashboard(date = '', options = {}) {
 
 async function loadInitialDashboard() {
   setError('');
+  refreshScoreSnapshotMeta().catch(() => {});
   const cached = readDashboardCache('');
   if (cached?.data) {
     renderDashboard(cached.data, 'Cached');
@@ -1138,6 +1187,16 @@ async function loadInitialDashboard() {
     button: loadBtn,
     detail: 'First dashboard load today. This may take a moment while the fidelity tracker is read.'
   });
+}
+
+async function refreshScoreSnapshotMeta() {
+  try {
+    const meta = await fetchScoreSnapshotMeta();
+    setLatestSnapshotMeta(meta);
+    return meta;
+  } catch {
+    return null;
+  }
 }
 
 async function waitForGoogle(timeoutMs = 8000) {
@@ -1212,9 +1271,14 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 loadBtn.addEventListener('click', () => {
-  loadDashboard(String(dateInput.value || '').trim(), {
+  const selectedDate = String(dateInput.value || '').trim();
+  const shouldSnapshotToday = !selectedDate || selectedDate === localTodayKey();
+  loadDashboard(selectedDate, {
     button: loadBtn,
-    detail: 'Refreshing from the fidelity tracker now.'
+    forceTodaySnapshot: shouldSnapshotToday,
+    detail: shouldSnapshotToday
+      ? 'Building today’s Fidelity Dashboard and saving Fidelity_Score_Daily. This can take about 2 minutes; this page will wait up to 5 minutes. If it times out, come back in 5 minutes and use the latest snapshot.'
+      : 'Refreshing this historical dashboard only. Fidelity_Score_Daily rows are only edited for today.'
   }).catch(() => {});
 });
 
@@ -1222,7 +1286,7 @@ todayBtn.addEventListener('click', () => {
   dateInput.value = '';
   loadDashboard('', {
     button: todayBtn,
-    detail: 'Refreshing the latest available fidelity dashboard now.'
+    detail: 'Loading the latest available fidelity dashboard without forcing a new score snapshot.'
   }).catch(() => {});
 });
 
