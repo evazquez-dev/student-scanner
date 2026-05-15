@@ -152,7 +152,7 @@
           student_view: isSuperAdmin,
           behavior_history: true,
           supervised_lunch: true,
-          reflection_hold: isAdminLike,
+          reflection_hold: true,
           phone_pass: isAdminLike,
           teacher_trace_lookup: isAdminLike,
           attendance_change: isSuperAdmin,
