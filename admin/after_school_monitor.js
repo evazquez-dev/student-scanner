@@ -110,6 +110,14 @@
     if (type === 'late_arrival') return '<span class="chip late">Late Arrival</span>';
     return '';
   }
+  function nameWithBadges(row){
+    const types = Array.isArray(row?.hold_types) ? row.hold_types : [];
+    const badges = [
+      types.includes('regents_prep') ? '<span class="nameBadge regents">RP</span>' : '',
+      types.includes('late_arrival') ? '<span class="nameBadge late">Late</span>' : ''
+    ].filter(Boolean).join('');
+    return `${esc(row?.name || '')}${badges ? `<span class="nameBadges">${badges}</span>` : ''}`;
+  }
   function rowMatchesFilter(row){
     if (state.filter === 'all') return true;
     if (state.filter === 'in_after_school') return !!row.in_after_school;
@@ -228,7 +236,7 @@
       const loc = row.location_label || row.loc || row.zone || '';
       return `
         <tr>
-          <td>${esc(row.name || '')}</td>
+          <td>${nameWithBadges(row)}</td>
           <td class="mono">${esc(row.osis || '')}</td>
           <td class="mono">${esc(row.grade || '')}</td>
           <td>${holdHtml || '<span class="muted">—</span>'}${holdDetails}</td>

@@ -120,6 +120,21 @@
     el.className = 'status ' + (ok ? 'ok' : 'bad');
     el.textContent = msg;
   }
+  function hasRegentsPrep(row){
+    return !!row?.regents_prep || String(row?.hold?.type || '').trim() === 'regents_prep';
+  }
+  function hasLateArrival(row){
+    return !!row?.late_arrival ||
+      String(row?.lower_priority_hold?.type || '').trim() === 'late_arrival' ||
+      String(row?.hold?.type || '').trim() === 'late_arrival';
+  }
+  function nameWithBadges(row){
+    const badges = [
+      hasRegentsPrep(row) ? '<span class="nameBadge regents">RP</span>' : '',
+      hasLateArrival(row) ? '<span class="nameBadge late">Late</span>' : ''
+    ].filter(Boolean).join('');
+    return `${esc(row?.name || '')}${badges ? `<span class="nameBadges">${badges}</span>` : ''}`;
+  }
   function fmtClock(iso){
     const ms = Date.parse(String(iso || ''));
     if (!Number.isFinite(ms)) return '';
@@ -215,7 +230,7 @@
         renderPreview();
       });
       td0.appendChild(cb);
-      const td1 = document.createElement('td'); td1.textContent = String(s.name || '');
+      const td1 = document.createElement('td'); td1.innerHTML = nameWithBadges(s);
       const td2 = document.createElement('td'); td2.className = 'mono'; td2.textContent = String(s.osis || '');
       const td3 = document.createElement('td'); td3.className = 'mono'; td3.textContent = String(s.grade || '');
       tr.append(td0, td1, td2, td3);
@@ -257,7 +272,7 @@
       }
       tr.innerHTML = `
         <td>${chip}</td>
-        <td>${esc(row.name || '')}</td>
+        <td>${nameWithBadges(row)}</td>
         <td class="mono">${esc(row.osis || '')}</td>
         <td>${esc(detail || '—')}</td>
       `;
@@ -276,7 +291,7 @@
     for (const row of state.activeHolds) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${esc(row.name || '')}</td>
+        <td>${nameWithBadges(row)}</td>
         <td class="mono">${esc(row.osis || '')}</td>
         <td>${esc(row.label || 'Reflection Hold')}</td>
         <td>${esc(row.room || '')}</td>
@@ -301,7 +316,7 @@
     const opts = await optsResp.json().catch(() => null);
     if (!optsResp.ok || !opts?.ok) throw new Error(opts?.error || `reflection_hold/options HTTP ${optsResp.status}`);
 
-    const rosterResp = await adminFetch('/admin/roster/all?limit=5000', { method: 'GET' });
+    const rosterResp = await adminFetch('/admin/roster/all?limit=5000&reflection_hold_flags=1', { method: 'GET' });
     const rosterData = await rosterResp.json().catch(() => null);
     if (!rosterResp.ok || !rosterData?.ok) throw new Error(rosterData?.error || `roster/all HTTP ${rosterResp.status}`);
 
@@ -312,7 +327,9 @@
     state.roster = (Array.isArray(rosterData.students) ? rosterData.students : []).map((s) => ({
       osis: String(s.osis || ''),
       name: String(s.name || ''),
-      grade: String(s.grade || '')
+      grade: String(s.grade || ''),
+      regents_prep: !!s.regents_prep,
+      late_arrival: !!s.late_arrival
     })).filter((s) => !!s.osis);
 
     $('todayLabel').textContent = state.today;
