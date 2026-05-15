@@ -61,6 +61,9 @@
     table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:980px}
     th,td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
     th{position:sticky;top:0;background:var(--head);z-index:2;backdrop-filter:blur(6px)}
+    .sortBtn{appearance:none;border:0;background:transparent;color:inherit;border-radius:7px;padding:2px 4px;margin:-2px -4px;display:inline-flex;align-items:center;gap:6px;font:inherit;font-weight:900;cursor:pointer}
+    .sortBtn:hover,.sortBtn.active{background:var(--hover)}
+    .sortIndicator{display:inline-block;min-width:10px;color:var(--accent);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
     tr:hover td{background:var(--hover)}
     .chip{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:4px 8px;font-size:.77rem;font-weight:900;white-space:nowrap}
     .chip.regents{border-color:rgba(167,139,250,.65);color:var(--purple)}
@@ -107,13 +110,13 @@
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>OSIS</th>
-                <th>Grade</th>
-                <th>Hold / Status</th>
-                <th>Phone Locker</th>
-                <th>Current Location</th>
-                <th>Updated</th>
+                <th aria-sort="none"><button class="sortBtn" data-sort-key="name" type="button">Name <span class="sortIndicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button class="sortBtn" data-sort-key="osis" type="button">OSIS <span class="sortIndicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button class="sortBtn" data-sort-key="grade" type="button">Grade <span class="sortIndicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button class="sortBtn" data-sort-key="status" type="button">Hold / Status <span class="sortIndicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button class="sortBtn" data-sort-key="locker" type="button">Phone Locker <span class="sortIndicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button class="sortBtn" data-sort-key="location" type="button">Current Location <span class="sortIndicator" aria-hidden="true"></span></button></th>
+                <th aria-sort="none"><button class="sortBtn" data-sort-key="updated" type="button">Updated <span class="sortIndicator" aria-hidden="true"></span></button></th>
               </tr>
             </thead>
             <tbody id="studentBody">
