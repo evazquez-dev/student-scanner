@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/" />
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com" />
+  <title>EagleNEST - Early Dismissal</title>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./early_dismissal.js?v=20260519-page" defer></script>
+  <script>
+    (function(){
+      try{
+        var key = 'ss_theme_v1';
+        var t = localStorage.getItem(key);
+        if(!t){
+          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        }
+        document.documentElement.dataset.theme = t;
+      }catch(e){}
+    })();
+  </script>
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg:#0b1020; --panel:#111827; --panel2:#0f172a; --fg:#e5e7eb; --muted:#9ca3af;
+      --border:#273449; --control:#0b1220; --soft:rgba(148,163,184,.10);
+      --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --accent:#38bdf8;
+    }
+    :root[data-theme="light"]{
+      color-scheme:light;
+      --bg:#f4f7fb; --panel:#fff; --panel2:#f8fafc; --fg:#111827; --muted:#526174;
+      --border:#cbd5e1; --control:#fff; --soft:rgba(15,23,42,.055);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+    .wrap{max-width:1240px;margin:0 auto;padding:72px 16px 28px}
+    .card{border:1px solid var(--border);border-radius:8px;background:var(--panel);padding:14px;margin-bottom:12px}
+    h1{font-size:1.18rem;margin:0 0 4px} h2{font-size:.98rem;margin:0 0 8px}
+    .muted{color:var(--muted)} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.grow{flex:1 1 260px}
+    .pill{display:inline-flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid var(--border);border-radius:999px;background:var(--soft);font-size:.82rem}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+    input[type="search"]{width:100%;min-height:38px;border:1px solid var(--border);border-radius:6px;background:var(--control);color:var(--fg);padding:8px 10px;font:inherit}
+    button{min-height:36px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);color:var(--fg);font-weight:800;padding:7px 10px;cursor:pointer}
+    button:disabled{opacity:.48;cursor:not-allowed}.danger{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.12);color:var(--bad)}
+    .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:10px}
+    .kpi{border:1px solid var(--border);border-radius:8px;background:var(--soft);padding:10px}
+    .kpi .label{font-size:.72rem;color:var(--muted);text-transform:uppercase}.kpi .value{font-weight:900;font-size:1.18rem}
+    .status{white-space:pre-wrap;border:1px solid var(--border);border-radius:8px;background:var(--soft);padding:10px;margin-top:10px}
+    .status.bad{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.10);color:var(--bad)}
+    .tableWrap{border:1px solid var(--border);border-radius:8px;overflow:auto;background:var(--panel)}
+    table{width:100%;border-collapse:collapse;min-width:920px;font-size:.9rem}
+    th,td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
+    th{position:sticky;top:0;background:var(--panel2);z-index:1}
+    tr:hover td{background:var(--soft)}
+    .tag{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:3px 8px;font-weight:900;font-size:.75rem;white-space:nowrap}
+    .tag.active{border-color:rgba(34,197,94,.65);color:var(--ok)}
+    .tag.changed{border-color:rgba(245,158,11,.65);color:var(--warn)}
+    .tag.undone{border-color:rgba(148,163,184,.65);color:var(--muted)}
+  </style>
+</head>
+<body data-module="early_dismissal">
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <div class="grow">
+          <h1 data-brand-title>EagleNEST - Early Dismissal</h1>
+          <div class="muted">Today's early dismissals</div>
+        </div>
+        <button id="themeToggle" type="button">Theme</button>
+      </div>
+    </div>
+
+    <section id="loginCard" class="card" style="display:none;">
+      <h2>Sign in</h2>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="mono muted"></pre>
+    </section>
+
+    <main id="appShell" style="display:none;">
+      <section class="card">
+        <div class="row">
+          <div class="pill">Date: <span id="dateText" class="mono">-</span></div>
+          <div class="pill">Updated: <span id="updatedText" class="mono">-</span></div>
+          <div class="pill">Access: <span id="accessText">-</span></div>
+          <button id="refreshBtn" type="button">Refresh</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="label">Total</div><div id="totalCount" class="value">0</div></div>
+          <div class="kpi"><div class="label">Active</div><div id="activeCount" class="value">0</div></div>
+          <div class="kpi"><div class="label">Changed</div><div id="changedCount" class="value">0</div></div>
+          <div class="kpi"><div class="label">Undone</div><div id="undoneCount" class="value">0</div></div>
+        </div>
+        <div id="statusBox" class="status">Loading...</div>
+      </section>
+
+      <section class="card">
+        <div class="toolbar">
+          <input id="searchInput" class="grow" type="search" placeholder="Search name, OSIS, reason, status..." autocomplete="off">
+        </div>
+        <div class="tableWrap" style="margin-top:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Student</th>
+                <th>Submitted</th>
+                <th>Reason</th>
+                <th>Status</th>
+                <th>Current Location</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="dismissalBody">
+              <tr><td colspan="6" class="muted">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

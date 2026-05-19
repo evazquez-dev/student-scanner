@@ -16,6 +16,7 @@
     student_scans: 'Student Scans',
     student_view: 'Student View',
     hallway: 'Hallway Monitor',
+    early_dismissal: 'Early Dismissal',
     after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
@@ -30,6 +31,8 @@
 
   const ADMIN_SESSION_HEADER = 'x-admin-session';
   const NAV_SESSION_KEYS = [
+    'early_dismissal_admin_session_v1',
+    'ss_admin_session_sid_v1',
     'teacher_att_admin_session_v1',
     'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
@@ -145,6 +148,7 @@
           hallway: isAdminLike,
           after_school_monitor: isAdminLike,
           staff_pull: isAdminLike,
+          early_dismissal: true,
           teacher_attendance: true,
           attendance_status: isAdminLike,
           senior_lunch_audit: isAdminLike,
@@ -242,6 +246,7 @@
         title: 'Passes',
         items: [
           { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'hall monitor' },
+          { key:'early_dismissal',     label: MODULES.early_dismissal || 'Early Dismissal',       href:'./early_dismissal.html',    badge:'dismissal' },
           { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', badge:'dismissal' },
           { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'staff request' },
           { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phone locker' },

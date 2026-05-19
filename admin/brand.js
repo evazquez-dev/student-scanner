@@ -11,6 +11,7 @@
     student_scans: 'Student Scan Report',
     student_view: 'Student View',
     hallway: 'Hallway Monitor',
+    early_dismissal: 'Early Dismissal',
     after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
