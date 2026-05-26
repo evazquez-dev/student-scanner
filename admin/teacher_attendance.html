@@ -9,9 +9,6 @@
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
   <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
 
-  <!-- Google Identity Services -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-
   <!-- Icons -->
   <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
@@ -258,6 +255,31 @@
     }
 
     #appShell{ display:none; }
+    .demoBanner{
+      display:flex;
+      align-items:flex-start;
+      gap:0.85rem;
+      margin:0 0 0.85rem;
+      padding:0.85rem 1rem;
+      border:1px solid rgba(56,189,248,0.35);
+      border-radius:1rem;
+      background:linear-gradient(135deg, rgba(56,189,248,0.18), rgba(34,197,94,0.12));
+      box-shadow:0 18px 60px rgba(0,0,0,0.35);
+      color:var(--fg);
+    }
+    .demoBanner[hidden]{ display:none; }
+    .demoBanner strong{
+      display:block;
+      margin-bottom:0.12rem;
+      font-size:0.78rem;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+    }
+    .demoBanner span{
+      color:var(--muted);
+      font-size:0.84rem;
+      line-height:1.35;
+    }
 
     header{ margin-bottom: 0.6rem; }
     h1{
@@ -701,6 +723,13 @@
 
     <!-- App -->
     <div id="appShell">
+      <div id="demoBanner" class="demoBanner" hidden>
+        <div>
+          <strong>Demo Mode</strong>
+          <span>Synthetic teacher attendance and student movement data only. No Worker, Google sign-in, GAS, or live student records are used.</span>
+        </div>
+      </div>
+
       <header>
         <h1 data-brand-title>EagleNEST — Teacher Attendance</h1>
         <div class="sub">Pulls scheduled roster + scan evidence from the Worker’s attendance durable object.</div>
@@ -863,7 +892,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260507-excused-late';
+    const pageAssetVer = '20260518-teacher-demo-mode';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 

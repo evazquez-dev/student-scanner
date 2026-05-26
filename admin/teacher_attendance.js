@@ -10,6 +10,9 @@ const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')
 const ADMIN_SESSION_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
 const THEME_KEY = 'ss_theme_v1';
+const URL_PARAMS = new URLSearchParams(window.location.search);
+const DEMO_MODE = URL_PARAMS.get('demo') === '1';
+const DEMO_FIXTURE_URL = './demo/teacher_attendance_demo.json';
 const themeToggleBtn = document.getElementById('themeToggleBtn');
 
 // Mobile view toggle (Attendance vs Out/In Organizer)
@@ -29,8 +32,13 @@ const inListEl  = document.getElementById('inList');
 const outCountEl = document.getElementById('outCount');
 const inCountEl  = document.getElementById('inCount');
 let FIDELITY_TEACHER_PAGE_LOADED = false;
+let demoFixturePromise = null;
+let DEMO_SESSION_STATE = null;
+let DEMO_SUBMITTED_CODES = {};
+let googleIdentityScriptPromise = null;
 
 function emitTeacherFidelityEvent(eventType, extra = {}){
+  if (DEMO_MODE) return;
   const currentRoom = normRoom(roomInput?.value || '');
   const currentPeriod = normPeriod(periodInput?.value || '');
   const extraMetadata = (extra && extra.metadata) || {};
@@ -450,6 +458,7 @@ function initSecretMenu(){
 }
 
 function openSecretMenuAtEvent(ev, studentCtx){
+  if (DEMO_MODE) return;
   if (!isSecretEnabled()) return;
   ev.preventDefault();
   ev.stopPropagation();
@@ -670,7 +679,7 @@ function applyView(){
   // Mobile-only behavior; desktop always stays in table view
   if (!isMobileNow()) {
     if (tableBox) tableBox.style.display = '';
-    if (outInBox) outInBox.style.display = 'none';
+    if (outInBox) outInBox.style.display = DEMO_MODE ? 'block' : 'none';
     return;
   }
   const v = getView();
@@ -896,6 +905,7 @@ function renderOutInOrganizer(){
 const loginCard  = document.getElementById('loginCard');
 const loginOut   = document.getElementById('loginOut');
 const appShell   = document.getElementById('appShell');
+const demoBanner = document.getElementById('demoBanner');
 
 const statusDot  = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
@@ -1069,6 +1079,64 @@ function setStatus(ok, msg){
   statusText.textContent = msg;
 }
 
+function cloneJson(value){
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function loadDemoFixture(){
+  if (!demoFixturePromise) {
+    demoFixturePromise = fetch(DEMO_FIXTURE_URL, { cache:'no-store' })
+      .then(async (resp) => {
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok || !data?.ok) throw new Error(`Demo fixture failed to load: HTTP ${resp.status}`);
+        return data;
+      });
+  }
+  return demoFixturePromise;
+}
+
+function demoPreviewKey(room, period){
+  return `${String(room || '').trim()}|${String(period || '').trim()}`;
+}
+
+async function getDemoSessionState(date, room, periodLocal){
+  const fixture = await loadDemoFixture();
+  const key = demoPreviewKey(room, periodLocal);
+  if (!DEMO_SESSION_STATE) DEMO_SESSION_STATE = {};
+  if (!DEMO_SESSION_STATE[key]) {
+    const base = fixture.class_sessions?.[key] || { ok:true, students:{} };
+    DEMO_SESSION_STATE[key] = cloneJson(base);
+  }
+  const state = cloneJson(DEMO_SESSION_STATE[key]);
+  state.ok = true;
+  state.date = String(date || fixture.date || getNYDateISO_()).slice(0, 10);
+  state.room = String(room || '');
+  state.periodLocal = String(periodLocal || '');
+  return state;
+}
+
+async function getDemoPreview(room, period, opts = {}){
+  const fixture = await loadDemoFixture();
+  const key = demoPreviewKey(room, period);
+  const preview = fixture.previews?.[key] || fixture.previews?.[fixture.default_preview_key] || {};
+  const rows = opts.forceCompute ? (preview.computed_rows || []) : (preview.snapshot_rows || []);
+  const out = cloneJson(rows);
+  if (!opts.forceCompute) {
+    out.forEach((row) => {
+      const osis = String(row?.osis || '').trim();
+      if (osis && DEMO_SUBMITTED_CODES[osis]) row.codeLetter = DEMO_SUBMITTED_CODES[osis];
+    });
+  }
+  return {
+    ok: true,
+    demo: true,
+    date: String(fixture.date || getNYDateISO_()).slice(0, 10),
+    room: String(room || fixture.default_room || ''),
+    period_local: String(period || fixture.default_period || ''),
+    rows: out
+  };
+}
+
 function clearBehaviorLiveTimer(){
   if (SECRET_BEHAVIOR_LIVE_TIMER) {
     clearTimeout(SECRET_BEHAVIOR_LIVE_TIMER);
@@ -1088,6 +1156,10 @@ function scheduleBehaviorLiveReset(ms = 7000){
 }
 
 function setLiveStatusFromBehaviorState(){
+  if (DEMO_MODE) {
+    setStatus(true, 'Demo');
+    return;
+  }
   // First successful refresh after a behavior click: confirm logged once
   if (SECRET_BEHAVIOR_UI_STATE === 'await_refresh') {
     const HOLD_MS = 7000;
@@ -1114,7 +1186,23 @@ function setLiveStatusFromBehaviorState(){
   setStatus(true, 'Live');
 }
 
+function loadGoogleIdentityScript(){
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (googleIdentityScriptPromise) return googleIdentityScriptPromise;
+  googleIdentityScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Google script failed to load'));
+    document.head.appendChild(script);
+  });
+  return googleIdentityScriptPromise;
+}
+
 async function waitForGoogle(timeoutMs = 8000){
+  await loadGoogleIdentityScript();
   const start = Date.now();
   while(!window.google?.accounts?.id){
     if(Date.now()-start > timeoutMs) throw new Error('Google script failed to load');
@@ -1160,6 +1248,7 @@ function stashAdminSessionFromResponse(resp){
 
 // Always include cookie + optional header session for iOS cross-origin fallback
 async function adminFetch(pathOrUrl, init = {}){
+  if (DEMO_MODE) throw new Error('Demo mode blocks live admin requests.');
   const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
 
   const headers = new Headers(init.headers || {});
@@ -1199,11 +1288,16 @@ function getStoredMode(){
 }
 
 function setStoredMode(mode){
+  if (DEMO_MODE) return;
   const m = (String(mode||'') === 'after_school') ? 'after_school' : 'class';
   try{ localStorage.setItem(MODE_KEY, m); }catch{}
 }
 
 async function fetchAfterSchoolOptions(){
+  if (DEMO_MODE) {
+    const fixture = await loadDemoFixture();
+    return cloneJson(fixture.after_school_options || { ok:true, after_school_mode:false, eligible:false, rooms:[] });
+  }
   const r = await adminFetch('/admin/after_school/options', { method:'GET' });
   const data = await r.json().catch(()=>null);
   if (!r.ok || !data?.ok) {
@@ -1213,6 +1307,17 @@ async function fetchAfterSchoolOptions(){
 }
 
 async function fetchAfterSchoolRoom(homeRoomLabel, dateOpt){
+  if (DEMO_MODE) {
+    const fixture = await loadDemoFixture();
+    const rows = fixture.after_school_rooms?.[String(homeRoomLabel || '').trim()] || [];
+    return {
+      ok: true,
+      demo: true,
+      date: String(dateOpt || fixture.date || getNYDateISO_()).slice(0, 10),
+      homeRoomLabel,
+      students: cloneJson(rows)
+    };
+  }
   const u = new URL('/admin/after_school/room', API_BASE);
   u.searchParams.set('room', String(homeRoomLabel || '').trim());
   if (dateOpt) u.searchParams.set('date', String(dateOpt));
@@ -1226,6 +1331,9 @@ async function fetchAfterSchoolRoom(homeRoomLabel, dateOpt){
 }
 
 async function afterSchoolToggle({ date, homeRoomLabel, osis, to }){
+  if (DEMO_MODE) {
+    return { ok:true, demo:true, date, homeRoomLabel, osis, in_room: String(to || '').toLowerCase() === 'in' };
+  }
   // Prefer the admin endpoint (cookie-auth). If it doesn't exist yet, fall back to public log.
   try{
     const r = await adminFetch('/admin/after_school/toggle', {
@@ -1329,7 +1437,7 @@ function applyModeUI(){
 
   // Hide the mobile organizer button in after-school mode (it is class-session based)
   if (viewToggleBtn) viewToggleBtn.style.display = isAS ? 'none' : '';
-  if (outInBox) outInBox.style.display = isAS ? 'none' : (isMobileNow() && getView() === 'organizer' ? 'block' : 'none');
+  if (outInBox) outInBox.style.display = isAS ? 'none' : (DEMO_MODE ? 'block' : (isMobileNow() && getView() === 'organizer' ? 'block' : 'none'));
 
   // Table shape
   if (tableBox) tableBox.classList.toggle('afterSchoolMode', !!isAS);
@@ -1421,6 +1529,7 @@ async function exitAfterSchoolMode(){
 }
 
 async function fetchClassSessionState(date, room, periodLocal){
+  if (DEMO_MODE) return getDemoSessionState(date, room, periodLocal);
   const u = new URL('/admin/class_session/state', API_BASE);
   u.searchParams.set('date', String(date || ''));
   u.searchParams.set('room', String(room || ''));
@@ -1435,6 +1544,20 @@ async function fetchClassSessionState(date, room, periodLocal){
 }
 
 async function toggleClassSessionOutIn({ date, room, periodLocal, osis }){
+  if (DEMO_MODE) {
+    const key = demoPreviewKey(room, periodLocal);
+    await getDemoSessionState(date, room, periodLocal);
+    const state = DEMO_SESSION_STATE[key] || (DEMO_SESSION_STATE[key] = { ok:true, students:{} });
+    state.students = state.students || {};
+    const sid = String(osis || '').trim();
+    const rec = state.students[sid] || (state.students[sid] = { osis: sid });
+    rec.firstInISO = rec.firstInISO || new Date().toISOString();
+    rec.out = rec.out || {};
+    rec.out.isOut = !rec.out.isOut;
+    if (rec.out.isOut) rec.out.outSinceISO = new Date().toISOString();
+    else delete rec.out.outSinceISO;
+    return { ok:true, demo:true, osis: sid, isOut: !!rec.out.isOut, outSinceISO: rec.out.outSinceISO || '' };
+  }
   const r = await adminFetch('/admin/class_session/toggle', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -1462,6 +1585,10 @@ async function populateDropdowns(){
 }
 
 async function fetchTeacherOptions(){
+  if (DEMO_MODE) {
+    const fixture = await loadDemoFixture();
+    return cloneJson(fixture.options || { ok:true, rooms:[], periods:[], period_options:[] });
+  }
   const endpoint = _optionsEndpoint();
   const apiOrigin = _apiOrigin();
   const sameOrigin = (apiOrigin === location.origin);
@@ -1987,6 +2114,26 @@ function tickRefreshLabel(){
 }
 
 async function fetchRosterSnapshotMap(){
+  if (DEMO_MODE) {
+    const fixture = await loadDemoFixture();
+    const data = fixture.hallway_state || { date: fixture.date || getNYDateISO_(), by_location:{}, rows:[] };
+    const map = new Map();
+    const byLoc = data.by_location || {};
+    for (const arr of Object.values(byLoc)) {
+      if (!Array.isArray(arr)) continue;
+      for (const s of arr) {
+        const osis = String(s?.osis || '').trim();
+        if (osis) map.set(osis, cloneJson(s));
+      }
+    }
+    if (Array.isArray(data.rows)) {
+      for (const s of data.rows) {
+        const osis = String(s?.osis || '').trim();
+        if (osis && !map.has(osis)) map.set(osis, cloneJson(s));
+      }
+    }
+    return { date: data.date || fixture.date || getNYDateISO_(), map };
+  }
   const r = await adminFetch('/admin/hallway_state', { method:'GET' });
   const data = await r.json().catch(()=>null);
   if(!r.ok || !data?.ok) {
@@ -2021,6 +2168,7 @@ async function fetchRosterSnapshotMap(){
 }
 
 async function fetchPreview(room, period, whenType, opts = {}){
+  if (DEMO_MODE) return getDemoPreview(room, period, opts);
   const u = new URL('/admin/meeting/preview', API_BASE);
   u.searchParams.set('room', room);
   u.searchParams.set('period', period);
@@ -2041,6 +2189,7 @@ async function fetchPreview(room, period, whenType, opts = {}){
   return data;
 }
 async function sendPhoneToReturn(osis){
+  if (DEMO_MODE) return { ok:true, demo:true, osis };
   const r = await adminFetch('/admin/phone_pass/send_to_return', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -2602,6 +2751,16 @@ async function submitChanges(){
   if (submitBtn){ submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
   if (submitBtnBottom){ submitBtnBottom.disabled = true; submitBtnBottom.textContent = 'Submitting…'; }
   try{
+    if (DEMO_MODE) {
+      for (const change of changes) {
+        DEMO_SUBMITTED_CODES[String(change.osis || '').trim()] = normalizeAttendanceCode(change.codeLetter || 'A');
+      }
+      saveOverrides(date, room, periodLocal, {});
+      setStatus(true, `Demo saved ${changes.length} change${changes.length === 1 ? '' : 's'}.`);
+      await refreshOnce();
+      return;
+    }
+
     const r = await adminFetch('/admin/teacher_att/submit', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -2914,11 +3073,46 @@ function startCurrentPeriodTicker(){
   }, 60000);
 }
 
+async function bootDemoTeacherAttendance(){
+  hide(loginCard);
+  show(appShell);
+  if (demoBanner) demoBanner.hidden = false;
+  document.body.classList.add('demoMode');
+  IS_AUTHED = true;
+  PAGE_MODE = 'class';
+  setStoredMode('class');
+  setStatus(true, 'Demo');
+
+  const fixture = await loadDemoFixture();
+  const opts = await fetchTeacherOptions();
+  TEACHER_OPTS_CACHE = opts;
+  renderCurrentPeriod(opts);
+  startCurrentPeriodTicker();
+
+  const urlRoom = (qs().get('room') || '').trim();
+  const urlPeriod = (qs().get('period') || '').trim();
+  const preferredPeriod = urlPeriod || String(fixture.default_period || opts.current_period_local || '').trim();
+  const preferredRoom = urlRoom || String(fixture.default_room || '').trim();
+  const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
+
+  fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
+  applyRoomDropdownFromOpts(opts, preferredRoom);
+  showOptionsSnapshot(opts, 'demo');
+  await refreshAfterSchoolEligibility();
+  applyModeUI();
+
+  LAST_UI_PICK.room = roomInput.value.trim();
+  LAST_UI_PICK.period = periodInput.value.trim();
+  startAutoRefresh();
+
+  if (roomInput.value.trim() && periodInput.value.trim()) await refreshOnce();
+}
+
 async function bootTeacherAttendance(){
   initThemeToggle();
   initViewToggle();
   initSecretMenu();
-  if (isSecretEnabled()) {
+  if (!DEMO_MODE && isSecretEnabled()) {
     void ensureSecretMenuModel().catch(() => {});
   }
   startOutElapsedTicker();
@@ -2926,6 +3120,7 @@ async function bootTeacherAttendance(){
 
   // Restore mode preference (will only activate after-school if Worker says we're in that window)
   PAGE_MODE = getStoredMode();
+  if (DEMO_MODE) PAGE_MODE = 'class';
 
   // Prefill from URL (?room=316&period=3) or localStorage
   const p = qs();
@@ -2956,6 +3151,7 @@ async function bootTeacherAttendance(){
 
   // Keep last non-empty room/period across browser reload (Cmd+R / Ctrl+R)
   window.addEventListener('beforeunload', () => {
+    if (DEMO_MODE) return;
     try{
       const r = String(roomInput?.value || '').trim();
       const p = String(periodInput?.value || '').trim();
@@ -2969,13 +3165,15 @@ async function bootTeacherAttendance(){
   });
 
   // Teachers always operate on END
-  localStorage.removeItem('teacher_att_when');
+  if (!DEMO_MODE) localStorage.removeItem('teacher_att_when');
 
   roomInput.addEventListener('change', (ev) => {
     const v = roomInput.value.trim();
     try {
-      if (PAGE_MODE === 'after_school') localStorage.setItem(AS_ROOM_KEY, v);
-      else localStorage.setItem('teacher_att_room', v);
+      if (!DEMO_MODE) {
+        if (PAGE_MODE === 'after_school') localStorage.setItem(AS_ROOM_KEY, v);
+        else localStorage.setItem('teacher_att_room', v);
+      }
     } catch {}
 
     // Auto-refresh on real user pick only, and only if changed
@@ -2988,7 +3186,7 @@ async function bootTeacherAttendance(){
   periodInput.addEventListener('change', (ev) => {
     if (PAGE_MODE === 'after_school') return;
     const v = periodInput.value.trim();
-    localStorage.setItem('teacher_att_period', v);
+    if (!DEMO_MODE) localStorage.setItem('teacher_att_period', v);
 
     // Period can change advisor-mode room list; update rooms first
     if (TEACHER_OPTS_CACHE) applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE);
@@ -3062,6 +3260,12 @@ async function bootTeacherAttendance(){
       SELECTED_OSIS
     );
   });
+
+  if (DEMO_MODE) {
+    await bootDemoTeacherAttendance();
+    setInterval(tickRefreshLabel, 1000);
+    return;
+  }
 
   try{
     const r = await adminFetch('/admin/session/check', { method:'GET' });

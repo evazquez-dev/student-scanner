@@ -1,0 +1,796 @@
+{
+  "ok": true,
+  "dashboard": {
+    "ok": true,
+    "demo": true,
+    "date": "2026-05-18",
+    "latest_date": "2026-05-18",
+    "generated_at_iso": "2026-05-18T19:05:00.000Z",
+    "quarter": {
+      "label": "Quarter 4",
+      "start": "2026-04-13",
+      "end": "2026-06-12"
+    },
+    "score_snapshot": {
+      "latest": {
+        "date": "2026-05-18",
+        "snapshot_at_iso": "2026-05-18T19:05:00.000Z",
+        "rows": 8
+      }
+    },
+    "counts": {
+      "active_kiosks": 18,
+      "devices_with_scans": 16,
+      "total_scans": 1248,
+      "unique_students_scanned": 312,
+      "manual_entries": 42,
+      "manual_rate_pct": 3.4,
+      "scan_errors": 8,
+      "scan_error_rate_pct": 0.6,
+      "mismatch_devices": 1,
+      "teacher_submits": 82,
+      "teacher_submitters": 31,
+      "teacher_submit_errors": 1,
+      "hallway_refresh_errors": 2,
+      "bathroom_open": 3,
+      "staff_pull_open": 1,
+      "bound_devices": 22,
+      "inactive_bound_devices": 4,
+      "overall_score_pct": 78.4,
+      "points_earned": 247,
+      "points_possible": 315,
+      "expected_teacher_room_periods": 8,
+      "teacher_no_scans_no_attendance": 1,
+      "teacher_no_scan_room_periods": 2,
+      "teacher_no_attendance_submit_room_periods": 2,
+      "weak_room_periods": 3
+    },
+    "workflow": {
+      "bathroom": {
+        "out_count": 126,
+        "back_count": 123,
+        "open_count": 3,
+        "open_students": [
+          {
+            "osis": "DEMO-3104",
+            "location": "Bathroom (Second Floor)",
+            "period_local": "6",
+            "open_count": 1,
+            "last_event_at_iso": "2026-05-18T18:12:00.000Z"
+          }
+        ]
+      },
+      "staff_pull": {
+        "start_count": 18,
+        "end_count": 17,
+        "open_count": 1,
+        "open_students": [
+          {
+            "osis": "DEMO-2210",
+            "location": "Counseling",
+            "period_local": "5",
+            "open_count": 1,
+            "last_event_at_iso": "2026-05-18T17:38:00.000Z"
+          }
+        ]
+      }
+    },
+    "event_types": [
+      { "event_type": "scan_success", "count": 1248 },
+      { "event_type": "teacher_attendance_submit", "count": 82 },
+      { "event_type": "kiosk_heartbeat", "count": 612 },
+      { "event_type": "bathroom_out", "count": 126 },
+      { "event_type": "bathroom_back", "count": 123 },
+      { "event_type": "staff_pull_start", "count": 18 },
+      { "event_type": "staff_pull_end", "count": 17 },
+      { "event_type": "scan_error", "count": 8 }
+    ],
+    "attendance_evidence": {
+      "ok": true,
+      "configured": true,
+      "counts": {
+        "total_roster": 324,
+        "entrance_scanned": 309,
+        "any_scan_today": 318,
+        "in_building_scan_no_entrance": 3
+      },
+      "samples": {
+        "in_building_scan_no_entrance": [
+          {
+            "osis": "DEMO-1842",
+            "name": "Demo Student A",
+            "grade": "10",
+            "first_seen_at_iso": "2026-05-18T13:04:00.000Z",
+            "first_seen_location": "204"
+          },
+          {
+            "osis": "DEMO-2931",
+            "name": "Demo Student B",
+            "grade": "11",
+            "first_seen_at_iso": "2026-05-18T14:15:00.000Z",
+            "first_seen_location": "Gym"
+          }
+        ]
+      }
+    },
+    "teacher_room_period_fidelity": {
+      "ok": true,
+      "configured": true,
+      "counts": {
+        "expected_room_periods": 8,
+        "no_scans_no_attendance": 1,
+        "no_scans_attendance_submitted": 1,
+        "scans_no_attendance": 1,
+        "weak_scan_evidence": 2,
+        "no_scan_room_periods": 2,
+        "no_attendance_submit_room_periods": 2,
+        "points_earned": 247,
+        "points_possible": 315,
+        "overall_score_pct": 78.4,
+        "possible_students": 315,
+        "present_late_students": 247,
+        "real_class_scans": 231,
+        "pulled_excluded_students": 9,
+        "not_in_building_students": 37,
+        "missing_attendance_students": 18
+      },
+      "rows": [
+        {
+          "room": "309",
+          "room_key": "309",
+          "period_local": "3",
+          "teacher_last_names": ["Patel"],
+          "sections": [{ "section_name": "Living Environment/Biology (2)", "section_key": "SCI051.2" }],
+          "status": "no_scans_no_attendance",
+          "trust_score": 18,
+          "score_pct": 0,
+          "points_earned": 0,
+          "points_possible": 27,
+          "possible_student_count": 27,
+          "present_late_count": 0,
+          "real_class_scan_count": 0,
+          "not_in_building_count": 3,
+          "pulled_excluded_count": 1,
+          "missing_attendance_count": 27,
+          "scan_success_count": 0,
+          "scan_error_count": 0,
+          "unique_students_scanned": 0,
+          "teacher_loaded_count": 0,
+          "teacher_submit_count": 0,
+          "teacher_submit_error_count": 0,
+          "submitter_emails": [],
+          "flags": ["No class scans", "No teacher attendance submit"]
+        },
+        {
+          "room": "Gym",
+          "room_key": "gym",
+          "period_local": "5",
+          "teacher_last_names": ["Santos"],
+          "sections": [{ "section_name": "Physical Education (5A)", "section_key": "PE.5A" }],
+          "status": "no_scans_attendance_submitted",
+          "trust_score": 42,
+          "score_pct": 55.6,
+          "points_earned": 15,
+          "points_possible": 27,
+          "possible_student_count": 27,
+          "present_late_count": 15,
+          "real_class_scan_count": 0,
+          "not_in_building_count": 6,
+          "pulled_excluded_count": 0,
+          "missing_attendance_count": 3,
+          "scan_success_count": 0,
+          "scan_error_count": 0,
+          "unique_students_scanned": 0,
+          "teacher_loaded_count": 1,
+          "teacher_submit_count": 1,
+          "teacher_submit_error_count": 0,
+          "submitter_emails": ["demo.teacher@example.invalid"],
+          "last_submit_at_iso": "2026-05-18T17:51:00.000Z",
+          "flags": ["Attendance submitted but scanner evidence missing"]
+        },
+        {
+          "room": "205",
+          "room_key": "205",
+          "period_local": "6",
+          "teacher_last_names": ["Brooks"],
+          "sections": [{ "section_name": "Chemistry (3)", "section_key": "SCI101.3" }],
+          "status": "scans_no_attendance",
+          "trust_score": 58,
+          "score_pct": 72.4,
+          "points_earned": 21,
+          "points_possible": 29,
+          "possible_student_count": 29,
+          "present_late_count": 21,
+          "real_class_scan_count": 24,
+          "not_in_building_count": 4,
+          "pulled_excluded_count": 2,
+          "missing_attendance_count": 8,
+          "scan_success_count": 24,
+          "scan_error_count": 1,
+          "unique_students_scanned": 24,
+          "teacher_loaded_count": 2,
+          "teacher_submit_count": 0,
+          "teacher_submit_error_count": 1,
+          "last_error_at_iso": "2026-05-18T18:32:00.000Z",
+          "flags": ["Scans seen", "No final teacher submit"]
+        },
+        {
+          "room": "316",
+          "room_key": "316",
+          "period_local": "5",
+          "teacher_last_names": ["Nguyen"],
+          "sections": [{ "section_name": "AP Spanish (2)", "section_key": "SP500.2" }],
+          "status": "weak_scan_evidence",
+          "trust_score": 68,
+          "score_pct": 78.1,
+          "points_earned": 25,
+          "points_possible": 32,
+          "possible_student_count": 32,
+          "present_late_count": 25,
+          "real_class_scan_count": 12,
+          "not_in_building_count": 5,
+          "pulled_excluded_count": 2,
+          "missing_attendance_count": 4,
+          "scan_success_count": 12,
+          "scan_error_count": 0,
+          "unique_students_scanned": 12,
+          "teacher_loaded_count": 2,
+          "teacher_submit_count": 1,
+          "teacher_submit_error_count": 0,
+          "submitter_emails": ["demo.teacher@example.invalid"],
+          "last_submit_at_iso": "2026-05-18T18:01:00.000Z",
+          "flags": ["Low class scan coverage"]
+        },
+        {
+          "room": "211",
+          "room_key": "211",
+          "period_local": "3",
+          "teacher_last_names": ["Lee", "Rivera"],
+          "sections": [{ "section_name": "English Language Arts II (3)", "section_key": "ELA200.3" }],
+          "status": "weak_scan_evidence",
+          "trust_score": 74,
+          "score_pct": 84.4,
+          "points_earned": 27,
+          "points_possible": 32,
+          "possible_student_count": 32,
+          "present_late_count": 27,
+          "real_class_scan_count": 15,
+          "not_in_building_count": 4,
+          "pulled_excluded_count": 1,
+          "missing_attendance_count": 2,
+          "scan_success_count": 15,
+          "scan_error_count": 0,
+          "unique_students_scanned": 15,
+          "teacher_loaded_count": 2,
+          "teacher_submit_count": 2,
+          "teacher_submit_error_count": 0,
+          "submitter_emails": ["demo.teacher@example.invalid"],
+          "last_submit_at_iso": "2026-05-18T14:48:00.000Z",
+          "flags": ["Attendance submitted", "Class scan coverage below target"]
+        },
+        {
+          "room": "204",
+          "room_key": "204",
+          "period_local": "2",
+          "teacher_last_names": ["Chen"],
+          "sections": [{ "section_name": "Algebra I (2)", "section_key": "MTH100.2" }],
+          "status": "ok",
+          "trust_score": 88,
+          "score_pct": 89.2,
+          "points_earned": 33,
+          "points_possible": 37,
+          "possible_student_count": 37,
+          "present_late_count": 33,
+          "real_class_scan_count": 31,
+          "not_in_building_count": 6,
+          "pulled_excluded_count": 1,
+          "missing_attendance_count": 1,
+          "scan_success_count": 31,
+          "scan_error_count": 1,
+          "unique_students_scanned": 31,
+          "teacher_loaded_count": 2,
+          "teacher_submit_count": 1,
+          "teacher_submit_error_count": 0,
+          "submitter_emails": ["demo.teacher@example.invalid"],
+          "last_submit_at_iso": "2026-05-18T13:55:00.000Z",
+          "flags": []
+        },
+        {
+          "room": "201",
+          "room_key": "201",
+          "period_local": "1",
+          "teacher_last_names": ["Rivera"],
+          "sections": [{ "section_name": "English Language Arts I (1)", "section_key": "ELA100.1" }],
+          "status": "ok",
+          "trust_score": 96,
+          "score_pct": 96.8,
+          "points_earned": 30,
+          "points_possible": 31,
+          "possible_student_count": 31,
+          "present_late_count": 30,
+          "real_class_scan_count": 30,
+          "not_in_building_count": 5,
+          "pulled_excluded_count": 1,
+          "missing_attendance_count": 0,
+          "scan_success_count": 30,
+          "scan_error_count": 0,
+          "unique_students_scanned": 30,
+          "teacher_loaded_count": 1,
+          "teacher_submit_count": 1,
+          "teacher_submit_error_count": 0,
+          "submitter_emails": ["demo.teacher@example.invalid"],
+          "last_submit_at_iso": "2026-05-18T12:50:00.000Z",
+          "flags": []
+        },
+        {
+          "room": "112",
+          "room_key": "112",
+          "period_local": "4",
+          "teacher_last_names": ["Morgan"],
+          "sections": [{ "section_name": "Government & Economics (1)", "section_key": "HST401.1" }],
+          "status": "ok",
+          "trust_score": 99,
+          "score_pct": 100,
+          "points_earned": 96,
+          "points_possible": 96,
+          "possible_student_count": 96,
+          "present_late_count": 96,
+          "real_class_scan_count": 119,
+          "not_in_building_count": 4,
+          "pulled_excluded_count": 1,
+          "missing_attendance_count": 0,
+          "scan_success_count": 119,
+          "scan_error_count": 0,
+          "unique_students_scanned": 96,
+          "teacher_loaded_count": 2,
+          "teacher_submit_count": 2,
+          "teacher_submit_error_count": 0,
+          "submitter_emails": ["demo.teacher@example.invalid"],
+          "last_submit_at_iso": "2026-05-18T16:46:00.000Z",
+          "flags": []
+        }
+      ],
+      "gaps": [
+        {
+          "room": "309",
+          "period_local": "3",
+          "teacher_last_names": ["Patel"],
+          "status": "no_scans_no_attendance",
+          "trust_score": 18
+        },
+        {
+          "room": "Gym",
+          "period_local": "5",
+          "teacher_last_names": ["Santos"],
+          "status": "no_scans_attendance_submitted",
+          "trust_score": 42
+        },
+        {
+          "room": "205",
+          "period_local": "6",
+          "teacher_last_names": ["Brooks"],
+          "status": "scans_no_attendance",
+          "trust_score": 58
+        },
+        {
+          "room": "316",
+          "period_local": "5",
+          "teacher_last_names": ["Nguyen"],
+          "status": "weak_scan_evidence",
+          "trust_score": 68
+        }
+      ]
+    },
+    "room_period_evidence": [
+      {
+        "room": "309",
+        "period_local": "3",
+        "evidence_status": "no_scan_evidence",
+        "trust_score": 18,
+        "scan_success_count": 0,
+        "unique_students_scanned": 0,
+        "teacher_submit_count": 0,
+        "teacher_loaded_count": 0,
+        "expected_teacher_last_names": ["Patel"],
+        "flags": ["No scans", "No attendance submit"]
+      },
+      {
+        "room": "Gym",
+        "period_local": "5",
+        "evidence_status": "no_scan_evidence",
+        "trust_score": 42,
+        "scan_success_count": 0,
+        "unique_students_scanned": 0,
+        "teacher_submit_count": 1,
+        "teacher_loaded_count": 1,
+        "expected_teacher_last_names": ["Santos"],
+        "flags": ["Attendance submit only"]
+      },
+      {
+        "room": "316",
+        "period_local": "5",
+        "evidence_status": "weak_scan_evidence",
+        "trust_score": 68,
+        "scan_success_count": 12,
+        "unique_students_scanned": 12,
+        "teacher_submit_count": 1,
+        "teacher_loaded_count": 2,
+        "expected_teacher_last_names": ["Nguyen"],
+        "flags": ["Low coverage"]
+      }
+    ],
+    "teacher_submissions": [
+      {
+        "actor_email": "demo.teacher@example.invalid",
+        "room": "201",
+        "period_local": "1",
+        "submit_count": 1,
+        "error_count": 0,
+        "last_submit_at_iso": "2026-05-18T12:50:00.000Z"
+      },
+      {
+        "actor_email": "demo.teacher@example.invalid",
+        "room": "204",
+        "period_local": "2",
+        "submit_count": 1,
+        "error_count": 0,
+        "last_submit_at_iso": "2026-05-18T13:55:00.000Z"
+      },
+      {
+        "actor_email": "demo.teacher@example.invalid",
+        "room": "205",
+        "period_local": "6",
+        "submit_count": 0,
+        "error_count": 1,
+        "last_error_at_iso": "2026-05-18T18:32:00.000Z"
+      }
+    ],
+    "devices": [
+      {
+        "ny_date": "2026-05-18",
+        "device_id": "demo-device-201-a",
+        "last_reported_location": "201",
+        "last_bound_location": "201",
+        "kiosk_active_today": true,
+        "first_scan_time": "2026-05-18T12:03:00.000Z",
+        "last_scan_time": "2026-05-18T18:49:00.000Z",
+        "heartbeat_count": 42,
+        "scan_success_count": 164,
+        "scan_error_count": 0,
+        "manual_entry_count": 2,
+        "unique_students_scanned": 101,
+        "location_mismatch_count": 0,
+        "manual_rate_pct": 1.2,
+        "periods": [
+          { "period_local": "1", "count": 30 },
+          { "period_local": "4", "count": 41 }
+        ],
+        "flags": [],
+        "trust_score": 96
+      },
+      {
+        "ny_date": "2026-05-18",
+        "device_id": "demo-device-204-a",
+        "last_reported_location": "204",
+        "last_bound_location": "204",
+        "kiosk_active_today": true,
+        "first_scan_time": "2026-05-18T12:58:00.000Z",
+        "last_scan_time": "2026-05-18T18:36:00.000Z",
+        "heartbeat_count": 39,
+        "scan_success_count": 136,
+        "scan_error_count": 1,
+        "manual_entry_count": 4,
+        "unique_students_scanned": 92,
+        "location_mismatch_count": 0,
+        "manual_rate_pct": 2.9,
+        "periods": [
+          { "period_local": "2", "count": 31 },
+          { "period_local": "5", "count": 28 }
+        ],
+        "flags": ["One scan error"],
+        "trust_score": 88
+      },
+      {
+        "ny_date": "2026-05-18",
+        "device_id": "demo-device-205-a",
+        "last_reported_location": "205",
+        "last_bound_location": "205",
+        "kiosk_active_today": true,
+        "first_scan_time": "2026-05-18T13:04:00.000Z",
+        "last_scan_time": "2026-05-18T18:34:00.000Z",
+        "heartbeat_count": 36,
+        "scan_success_count": 87,
+        "scan_error_count": 2,
+        "manual_entry_count": 6,
+        "unique_students_scanned": 64,
+        "location_mismatch_count": 0,
+        "manual_rate_pct": 6.5,
+        "periods": [{ "period_local": "6", "count": 24 }],
+        "flags": ["Teacher submit missing"],
+        "trust_score": 58
+      },
+      {
+        "ny_date": "2026-05-18",
+        "device_id": "demo-device-309-a",
+        "last_reported_location": "309",
+        "last_bound_location": "309",
+        "kiosk_active_today": true,
+        "first_scan_time": "",
+        "last_scan_time": "",
+        "heartbeat_count": 31,
+        "scan_success_count": 0,
+        "scan_error_count": 0,
+        "manual_entry_count": 0,
+        "unique_students_scanned": 0,
+        "location_mismatch_count": 0,
+        "manual_rate_pct": 0,
+        "periods": [],
+        "flags": ["Active, zero scans"],
+        "trust_score": 18
+      },
+      {
+        "ny_date": "2026-05-18",
+        "device_id": "demo-device-316-a",
+        "last_reported_location": "316",
+        "last_bound_location": "316",
+        "kiosk_active_today": true,
+        "first_scan_time": "2026-05-18T17:07:00.000Z",
+        "last_scan_time": "2026-05-18T18:02:00.000Z",
+        "heartbeat_count": 37,
+        "scan_success_count": 12,
+        "scan_error_count": 0,
+        "manual_entry_count": 1,
+        "unique_students_scanned": 12,
+        "location_mismatch_count": 0,
+        "manual_rate_pct": 7.7,
+        "periods": [{ "period_local": "5", "count": 12 }],
+        "flags": ["Low class scan coverage"],
+        "trust_score": 68
+      },
+      {
+        "ny_date": "2026-05-18",
+        "device_id": "demo-device-gym-a",
+        "last_reported_location": "Gym",
+        "last_bound_location": "Gym",
+        "kiosk_active_today": false,
+        "first_scan_time": "",
+        "last_scan_time": "",
+        "heartbeat_count": 0,
+        "scan_success_count": 0,
+        "scan_error_count": 0,
+        "manual_entry_count": 0,
+        "unique_students_scanned": 0,
+        "location_mismatch_count": 0,
+        "manual_rate_pct": 0,
+        "periods": [],
+        "flags": ["No activity today"],
+        "trust_score": 40
+      }
+    ],
+    "bindings": [
+      { "device_id": "demo-device-201-a", "location": "201" },
+      { "device_id": "demo-device-204-a", "location": "204" },
+      { "device_id": "demo-device-205-a", "location": "205" },
+      { "device_id": "demo-device-309-a", "location": "309" },
+      { "device_id": "demo-device-316-a", "location": "316" },
+      { "device_id": "demo-device-gym-a", "location": "Gym" }
+    ]
+  },
+  "score_snapshot_meta": {
+    "ok": true,
+    "latest_snapshot": {
+      "date": "2026-05-18",
+      "snapshot_at_iso": "2026-05-18T19:05:00.000Z",
+      "rows": 8
+    }
+  },
+  "range": {
+    "ok": true,
+    "demo": true,
+    "start": "2026-05-12",
+    "end": "2026-05-18",
+    "latest_date": "2026-05-18",
+    "generated_at_iso": "2026-05-18T19:05:00.000Z",
+    "quarter": {
+      "label": "Quarter 4",
+      "start": "2026-04-13",
+      "end": "2026-06-12"
+    },
+    "counts": {
+      "score_pct": 81.7,
+      "points_earned": 1458,
+      "points_possible": 1784,
+      "snapshot_days": 5,
+      "teacher_count": 6,
+      "room_count": 6,
+      "no_score_rows": 4,
+      "weak_rows": 11,
+      "real_class_scans": 1396,
+      "teacher_submits": 391
+    },
+    "teachers": [
+      {
+        "label": "Patel",
+        "rows": 5,
+        "snapshot_days": 5,
+        "points_earned": 66,
+        "points_possible": 145,
+        "score_pct": 45.5,
+        "real_class_scans": 83,
+        "teacher_submits": 3,
+        "no_score_rows": 2,
+        "weak_rows": 2,
+        "details": [
+          {
+            "date": "2026-05-18",
+            "room": "309",
+            "period_local": "3",
+            "teacher_last_names": ["Patel"],
+            "status": "no_scans_no_attendance",
+            "score_pct": 0,
+            "points_earned": 0,
+            "points_possible": 27,
+            "real_class_scan_count": 0,
+            "teacher_submit_count": 0
+          },
+          {
+            "date": "2026-05-15",
+            "room": "309",
+            "period_local": "3",
+            "teacher_last_names": ["Patel"],
+            "status": "weak_scan_evidence",
+            "score_pct": 61.3,
+            "points_earned": 19,
+            "points_possible": 31,
+            "real_class_scan_count": 11,
+            "teacher_submit_count": 1
+          }
+        ]
+      },
+      {
+        "label": "Santos",
+        "rows": 5,
+        "snapshot_days": 5,
+        "points_earned": 83,
+        "points_possible": 141,
+        "score_pct": 58.9,
+        "real_class_scans": 40,
+        "teacher_submits": 5,
+        "no_score_rows": 1,
+        "weak_rows": 3,
+        "details": [
+          {
+            "date": "2026-05-18",
+            "room": "Gym",
+            "period_local": "5",
+            "teacher_last_names": ["Santos"],
+            "status": "no_scans_attendance_submitted",
+            "score_pct": 55.6,
+            "points_earned": 15,
+            "points_possible": 27,
+            "real_class_scan_count": 0,
+            "teacher_submit_count": 1
+          }
+        ]
+      },
+      {
+        "label": "Rivera",
+        "rows": 8,
+        "snapshot_days": 5,
+        "points_earned": 211,
+        "points_possible": 224,
+        "score_pct": 94.2,
+        "real_class_scans": 226,
+        "teacher_submits": 8,
+        "no_score_rows": 0,
+        "weak_rows": 1,
+        "details": [
+          {
+            "date": "2026-05-18",
+            "room": "201",
+            "period_local": "1",
+            "teacher_last_names": ["Rivera"],
+            "status": "ok",
+            "score_pct": 96.8,
+            "points_earned": 30,
+            "points_possible": 31,
+            "real_class_scan_count": 30,
+            "teacher_submit_count": 1
+          },
+          {
+            "date": "2026-05-18",
+            "room": "211",
+            "period_local": "3",
+            "teacher_last_names": ["Lee", "Rivera"],
+            "status": "weak_scan_evidence",
+            "score_pct": 84.4,
+            "points_earned": 27,
+            "points_possible": 32,
+            "real_class_scan_count": 15,
+            "teacher_submit_count": 2
+          }
+        ]
+      }
+    ],
+    "rooms": [
+      {
+        "label": "309",
+        "rows": 5,
+        "snapshot_days": 5,
+        "points_earned": 66,
+        "points_possible": 145,
+        "score_pct": 45.5,
+        "real_class_scans": 83,
+        "teacher_submits": 3,
+        "no_score_rows": 2,
+        "weak_rows": 2,
+        "details": [
+          {
+            "date": "2026-05-18",
+            "room": "309",
+            "period_local": "3",
+            "teacher_last_names": ["Patel"],
+            "status": "no_scans_no_attendance",
+            "score_pct": 0,
+            "points_earned": 0,
+            "points_possible": 27,
+            "real_class_scan_count": 0,
+            "teacher_submit_count": 0
+          }
+        ]
+      },
+      {
+        "label": "Gym",
+        "rows": 5,
+        "snapshot_days": 5,
+        "points_earned": 83,
+        "points_possible": 141,
+        "score_pct": 58.9,
+        "real_class_scans": 40,
+        "teacher_submits": 5,
+        "no_score_rows": 1,
+        "weak_rows": 3,
+        "details": [
+          {
+            "date": "2026-05-18",
+            "room": "Gym",
+            "period_local": "5",
+            "teacher_last_names": ["Santos"],
+            "status": "no_scans_attendance_submitted",
+            "score_pct": 55.6,
+            "points_earned": 15,
+            "points_possible": 27,
+            "real_class_scan_count": 0,
+            "teacher_submit_count": 1
+          }
+        ]
+      },
+      {
+        "label": "201",
+        "rows": 5,
+        "snapshot_days": 5,
+        "points_earned": 162,
+        "points_possible": 168,
+        "score_pct": 96.4,
+        "real_class_scans": 170,
+        "teacher_submits": 5,
+        "no_score_rows": 0,
+        "weak_rows": 0,
+        "details": [
+          {
+            "date": "2026-05-18",
+            "room": "201",
+            "period_local": "1",
+            "teacher_last_names": ["Rivera"],
+            "status": "ok",
+            "score_pct": 96.8,
+            "points_earned": 30,
+            "points_possible": 31,
+            "real_class_scan_count": 30,
+            "teacher_submit_count": 1
+          }
+        ]
+      }
+    ]
+  }
+}

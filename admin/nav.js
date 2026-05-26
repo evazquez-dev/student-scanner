@@ -2,6 +2,7 @@
 (() => {
   const metaApiBase = (document.querySelector('meta[name="api-base"]')?.content || '').trim();
   const API_BASE = (metaApiBase ? metaApiBase.replace(/\/*$/, '') : location.origin) + '/';
+  const DEMO_MODE = new URLSearchParams(location.search).get('demo') === '1';
 
   const LS_OPEN = 'ss_nav_open_v1';
 
@@ -120,6 +121,18 @@
   }
 
   async function getAccess() {
+    if (DEMO_MODE) {
+      return {
+        ok: true,
+        email: 'demo@example.invalid',
+        role: 'demo',
+        can: {
+          teacher_attendance: true,
+          fidelity: true
+        }
+      };
+    }
+
     // Preferred: one fast call
     try {
       const r = await adminFetch('/admin/access', { method: 'GET' });
@@ -378,7 +391,9 @@
     logoutBtn.type = 'button';
     logoutBtn.textContent = 'Logout';
     logoutBtn.addEventListener('click', async () => {
-      try { await adminFetch('/admin/session/logout', { method: 'POST' }); } catch {}
+      if (!DEMO_MODE) {
+        try { await adminFetch('/admin/session/logout', { method: 'POST' }); } catch {}
+      }
       clearStoredAdminSessionSid();
       location.reload();
     });

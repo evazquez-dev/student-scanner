@@ -1,0 +1,325 @@
+{
+  "ok": true,
+  "date": "2026-05-18",
+  "default_room": "204",
+  "default_period": "3",
+  "default_preview_key": "204|3",
+  "options": {
+    "ok": true,
+    "demo": true,
+    "date": "2026-05-18",
+    "current_period_local": "3",
+    "rooms": ["112", "204", "205", "309", "316", "Gym"],
+    "periods": ["1", "2", "3", "4", "5", "6"],
+    "period_options": [
+      { "value": "1", "label": "1 (8:00 AM - 8:54 AM)" },
+      { "value": "2", "label": "2 (8:56 AM - 9:50 AM)" },
+      { "value": "3", "label": "3 (9:52 AM - 10:46 AM)" },
+      { "value": "4", "label": "4 (10:48 AM - 11:42 AM)" },
+      { "value": "5", "label": "5 (12:48 PM - 1:42 PM)" },
+      { "value": "6", "label": "6 (1:44 PM - 2:38 PM)" }
+    ],
+    "advisors_by_period": {},
+    "lunch_advisors_by_period": {},
+    "lunch_advisor_to_room": {}
+  },
+  "hallway_state": {
+    "ok": true,
+    "date": "2026-05-18",
+    "by_location": {
+      "204": [
+        {
+          "osis": "DEMO-2001",
+          "name": "Alex Demo",
+          "grade": "9",
+          "zone": "class",
+          "locLabel": "204",
+          "loc": "204"
+        },
+        {
+          "osis": "DEMO-2002",
+          "name": "Brielle Demo",
+          "grade": "10",
+          "zone": "class",
+          "locLabel": "204",
+          "loc": "204"
+        },
+        {
+          "osis": "DEMO-2008",
+          "name": "Harper Demo",
+          "grade": "11",
+          "zone": "class",
+          "locLabel": "204",
+          "loc": "204",
+          "phone_out": true,
+          "date": "2026-05-18"
+        }
+      ],
+      "Hallway": [
+        {
+          "osis": "DEMO-2003",
+          "name": "Casey Demo",
+          "grade": "9",
+          "zone": "hallway",
+          "locLabel": "Hallway",
+          "loc": "Hallway"
+        }
+      ],
+      "Bathroom (Second Floor)": [
+        {
+          "osis": "DEMO-2004",
+          "name": "Devon Demo",
+          "grade": "10",
+          "zone": "bathroom",
+          "locLabel": "Bathroom (Second Floor)",
+          "loc": "Bathroom (Second Floor)"
+        }
+      ],
+      "Counseling": [
+        {
+          "osis": "DEMO-2005",
+          "name": "Emery Demo",
+          "grade": "11",
+          "zone": "with_staff",
+          "locLabel": "Counseling",
+          "loc": "Counseling"
+        }
+      ],
+      "205": [
+        {
+          "osis": "DEMO-2006",
+          "name": "Finley Demo",
+          "grade": "12",
+          "zone": "class",
+          "locLabel": "205",
+          "loc": "205"
+        }
+      ],
+      "Off Campus": [
+        {
+          "osis": "DEMO-2007",
+          "name": "Gray Demo",
+          "grade": "9",
+          "zone": "off_campus",
+          "locLabel": "Off Campus",
+          "loc": "Off Campus"
+        }
+      ]
+    },
+    "rows": [
+      {
+        "osis": "DEMO-2001",
+        "name": "Alex Demo",
+        "grade": "9",
+        "zone": "class",
+        "locLabel": "204",
+        "loc": "204"
+      },
+      {
+        "osis": "DEMO-2002",
+        "name": "Brielle Demo",
+        "grade": "10",
+        "zone": "class",
+        "locLabel": "204",
+        "loc": "204"
+      },
+      {
+        "osis": "DEMO-2003",
+        "name": "Casey Demo",
+        "grade": "9",
+        "zone": "hallway",
+        "locLabel": "Hallway",
+        "loc": "Hallway"
+      },
+      {
+        "osis": "DEMO-2004",
+        "name": "Devon Demo",
+        "grade": "10",
+        "zone": "bathroom",
+        "locLabel": "Bathroom (Second Floor)",
+        "loc": "Bathroom (Second Floor)"
+      },
+      {
+        "osis": "DEMO-2005",
+        "name": "Emery Demo",
+        "grade": "11",
+        "zone": "with_staff",
+        "locLabel": "Counseling",
+        "loc": "Counseling"
+      },
+      {
+        "osis": "DEMO-2006",
+        "name": "Finley Demo",
+        "grade": "12",
+        "zone": "class",
+        "locLabel": "205",
+        "loc": "205"
+      },
+      {
+        "osis": "DEMO-2007",
+        "name": "Gray Demo",
+        "grade": "9",
+        "zone": "off_campus",
+        "locLabel": "Off Campus",
+        "loc": "Off Campus"
+      },
+      {
+        "osis": "DEMO-2008",
+        "name": "Harper Demo",
+        "grade": "11",
+        "zone": "class",
+        "locLabel": "204",
+        "loc": "204",
+        "phone_out": true,
+        "date": "2026-05-18"
+      }
+    ]
+  },
+  "previews": {
+    "204|3": {
+      "snapshot_rows": [
+        { "osis": "DEMO-2001", "codeLetter": "P" },
+        { "osis": "DEMO-2002", "codeLetter": "L" },
+        { "osis": "DEMO-2003", "codeLetter": "P" },
+        { "osis": "DEMO-2004", "codeLetter": "P" },
+        { "osis": "DEMO-2005", "codeLetter": "E" },
+        { "osis": "DEMO-2006", "codeLetter": "A" },
+        { "osis": "DEMO-2007", "codeLetter": "A" },
+        { "osis": "DEMO-2008", "codeLetter": "EL" }
+      ],
+      "computed_rows": [
+        {
+          "osis": "DEMO-2001",
+          "codeLetter": "P",
+          "evidence": {
+            "status": "Present",
+            "room": "204",
+            "firstISO": "2026-05-18T13:53:20.000Z",
+            "lastISO": "2026-05-18T13:53:20.000Z"
+          }
+        },
+        {
+          "osis": "DEMO-2002",
+          "codeLetter": "L",
+          "evidence": {
+            "status": "Late",
+            "room": "204",
+            "firstISO": "2026-05-18T14:01:42.000Z",
+            "lastISO": "2026-05-18T14:01:42.000Z"
+          }
+        },
+        {
+          "osis": "DEMO-2003",
+          "codeLetter": "P",
+          "evidence": {
+            "status": "Present",
+            "room": "204",
+            "firstISO": "2026-05-18T13:54:10.000Z",
+            "lastISO": "2026-05-18T13:54:10.000Z"
+          }
+        },
+        {
+          "osis": "DEMO-2004",
+          "codeLetter": "P",
+          "evidence": {
+            "status": "Present",
+            "room": "204",
+            "firstISO": "2026-05-18T13:55:05.000Z",
+            "lastISO": "2026-05-18T13:55:05.000Z"
+          }
+        },
+        {
+          "osis": "DEMO-2005",
+          "codeLetter": "E",
+          "evidence": {
+            "status": "With Staff",
+            "room": "Counseling",
+            "firstISO": "2026-05-18T13:58:00.000Z",
+            "lastISO": "2026-05-18T13:58:00.000Z"
+          }
+        },
+        {
+          "osis": "DEMO-2006",
+          "codeLetter": "P",
+          "evidence": {
+            "status": "Wrong Room",
+            "room": "205",
+            "firstISO": "2026-05-18T13:54:36.000Z",
+            "lastISO": "2026-05-18T13:54:36.000Z"
+          }
+        },
+        {
+          "osis": "DEMO-2007",
+          "codeLetter": "A",
+          "evidence": null
+        },
+        {
+          "osis": "DEMO-2008",
+          "codeLetter": "EL",
+          "evidence": {
+            "status": "Excused Late",
+            "room": "204",
+            "firstISO": "2026-05-18T14:04:00.000Z",
+            "lastISO": "2026-05-18T14:04:00.000Z"
+          }
+        }
+      ]
+    }
+  },
+  "class_sessions": {
+    "204|3": {
+      "ok": true,
+      "students": {
+        "DEMO-2001": {
+          "osis": "DEMO-2001",
+          "firstInISO": "2026-05-18T13:53:20.000Z",
+          "out": { "isOut": false }
+        },
+        "DEMO-2002": {
+          "osis": "DEMO-2002",
+          "firstInISO": "2026-05-18T14:01:42.000Z",
+          "out": { "isOut": false }
+        },
+        "DEMO-2003": {
+          "osis": "DEMO-2003",
+          "firstInISO": "2026-05-18T13:54:10.000Z",
+          "out": {
+            "isOut": true,
+            "outSinceISO": "2026-05-18T14:18:00.000Z"
+          }
+        },
+        "DEMO-2004": {
+          "osis": "DEMO-2004",
+          "firstInISO": "2026-05-18T13:55:05.000Z",
+          "out": {
+            "isOut": true,
+            "outSinceISO": "2026-05-18T14:20:00.000Z"
+          }
+        },
+        "DEMO-2005": {
+          "osis": "DEMO-2005",
+          "firstInISO": "2026-05-18T13:58:00.000Z",
+          "out": { "isOut": false }
+        },
+        "DEMO-2006": {
+          "osis": "DEMO-2006",
+          "firstInISO": "2026-05-18T13:54:36.000Z",
+          "out": { "isOut": false }
+        },
+        "DEMO-2008": {
+          "osis": "DEMO-2008",
+          "firstInISO": "2026-05-18T14:04:00.000Z",
+          "out": { "isOut": false }
+        }
+      }
+    }
+  },
+  "after_school_options": {
+    "ok": true,
+    "demo": true,
+    "after_school_mode": false,
+    "eligible": false,
+    "rooms": []
+  },
+  "after_school_rooms": {}
+}

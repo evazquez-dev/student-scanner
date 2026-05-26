@@ -7,7 +7,6 @@
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
   <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
 
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
@@ -174,6 +173,32 @@
       margin-top:.1rem;
       color:var(--muted);
       font-size:.78rem;
+    }
+    .demoBanner{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:1rem;
+      margin:0 0 1rem;
+      padding:.85rem 1rem;
+      border:1px solid rgba(56,189,248,.35);
+      border-radius:1rem;
+      background:linear-gradient(135deg, rgba(56,189,248,.18), rgba(34,197,94,.12));
+      box-shadow:0 18px 60px rgba(0,0,0,.32);
+      color:var(--fg);
+    }
+    .demoBanner[hidden]{ display:none; }
+    .demoBanner strong{
+      display:block;
+      margin-bottom:.12rem;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      font-size:.78rem;
+    }
+    .demoBanner span{
+      color:var(--muted);
+      font-size:.84rem;
+      line-height:1.35;
     }
     .cards{
       display:grid;
@@ -438,6 +463,13 @@
     </section>
 
     <main id="appShell" class="appShell">
+      <div id="demoBanner" class="demoBanner" hidden>
+        <div>
+          <strong>Demo Mode</strong>
+          <span>Synthetic presentation data only. This view does not call the Worker, Google Apps Script, or any live student records.</span>
+        </div>
+      </div>
+
       <header>
         <h1 data-brand-title>Fidelity Dashboard</h1>
         <div class="sub">
@@ -458,9 +490,9 @@
           <label for="dateInput">Date</label>
           <input id="dateInput" type="date">
         </div>
-        <button id="loadBtn" class="btn primary" type="button">Reload Dashboard</button>
+        <button id="loadBtn" class="btn primary" type="button">Refresh Dashboard View</button>
         <button id="todayBtn" class="btn" type="button">Use Latest</button>
-        <div class="toolbarNote">This dashboard auto-loads once per day in this browser. Use these buttons to manually reload fresh data.</div>
+        <div class="toolbarNote">This page reads saved Fidelity_Score_Daily accountability rows plus live device/event summaries. The daily score snapshot is built automatically after the last period, or manually from the Fidelity GAS project.</div>
       </section>
 
       <section class="cards" id="summaryCards"></section>
@@ -575,14 +607,14 @@
         <div class="busyPanel" role="status" aria-live="polite">
           <div class="busySpinner" aria-hidden="true"></div>
           <div>
-            <div id="busyTitle" class="busyTitle">Getting data…</div>
-            <div id="busyDetail" class="busyDetail">Please wait while the fidelity tracker loads.</div>
+            <div id="busyTitle" class="busyTitle">Refreshing dashboard view…</div>
+            <div id="busyDetail" class="busyDetail">Reading saved score rows and live event summaries.</div>
           </div>
         </div>
       </div>
     </main>
   </div>
 
-  <script src="./fidelity.js?v=20260515-score-snapshot-reload"></script>
+  <script src="./fidelity.js?v=20260518-demo-mode"></script>
 </body>
 </html>

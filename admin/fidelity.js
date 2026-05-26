@@ -6,6 +6,9 @@ const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
 const DASHBOARD_CACHE_PREFIX = 'ss_fidelity_dashboard_daily_cache_v3:';
 const RANGE_DEFAULT_DAYS = 5;
+const URL_PARAMS = new URLSearchParams(window.location.search);
+const DEMO_MODE = URL_PARAMS.get('demo') === '1';
+const DEMO_FIXTURE_URL = './demo/fidelity_demo.json';
 const DASHBOARD_CACHE_LEGACY_PREFIXES = [
   'ss_fidelity_dashboard_cache_v1:',
   'ss_fidelity_dashboard_daily_cache_v1:',
@@ -15,6 +18,7 @@ const DASHBOARD_CACHE_LEGACY_PREFIXES = [
 const loginCard = document.getElementById('loginCard');
 const loginOut = document.getElementById('loginOut');
 const appShell = document.getElementById('appShell');
+const demoBanner = document.getElementById('demoBanner');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const dateText = document.getElementById('dateText');
@@ -50,6 +54,8 @@ const busyTitle = document.getElementById('busyTitle');
 const busyDetail = document.getElementById('busyDetail');
 let dashboardBusy = false;
 let dashboardBusyButton = null;
+let demoFixturePromise = null;
+let googleIdentityScriptPromise = null;
 
 function getStoredAdminSessionSid() {
   try {
@@ -96,6 +102,7 @@ function stashAdminSessionFromResponse(resp) {
 }
 
 async function adminFetch(pathOrUrl, init = {}) {
+  if (DEMO_MODE) throw new Error('Demo mode blocks live admin requests.');
   const u = pathOrUrl instanceof URL ? pathOrUrl : new URL(pathOrUrl, API_BASE);
   const headers = new Headers(init.headers || {});
   const sid = getStoredAdminSessionSid();
@@ -162,6 +169,7 @@ function dashboardCacheKey(date = '') {
 }
 
 function pruneDashboardCache() {
+  if (DEMO_MODE) return;
   try {
     const todayPrefix = `${DASHBOARD_CACHE_PREFIX}${localTodayKey()}:`;
     for (let i = localStorage.length - 1; i >= 0; i -= 1) {
@@ -177,6 +185,7 @@ function pruneDashboardCache() {
 }
 
 function readDashboardCache(date = '') {
+  if (DEMO_MODE) return null;
   pruneDashboardCache();
   try {
     const raw = localStorage.getItem(dashboardCacheKey(date));
@@ -190,6 +199,7 @@ function readDashboardCache(date = '') {
 }
 
 function writeDashboardCache(date = '', data = null) {
+  if (DEMO_MODE) return;
   if (!data?.ok) return;
   pruneDashboardCache();
   try {
@@ -277,10 +287,13 @@ function setLatestSnapshotMeta(meta = null) {
   const label = stamp ? `${latest.date || '—'} ${fmtTs(stamp)}` : '—';
   if (latestSnapshotText) latestSnapshotText.textContent = label;
   if (todayBtn) {
-    todayBtn.textContent = stamp ? `Use Latest (${fmtDateTime(stamp)})` : 'Use Latest';
+    const prefix = DEMO_MODE ? 'Use Demo Latest' : 'Use Latest';
+    todayBtn.textContent = stamp ? `${prefix} (${fmtDateTime(stamp)})` : prefix;
     todayBtn.title = stamp
-      ? `Latest Fidelity_Score_Daily snapshot: ${label}`
-      : 'No Fidelity_Score_Daily snapshot has been reported yet.';
+      ? `${DEMO_MODE ? 'Demo snapshot' : 'Latest Fidelity_Score_Daily snapshot'}: ${label}`
+      : DEMO_MODE
+        ? 'No demo snapshot metadata is available.'
+        : 'No Fidelity_Score_Daily snapshot has been reported yet.';
   }
 }
 
@@ -1052,7 +1065,47 @@ function renderDevices(devices = []) {
     : `<tr><td colspan="11" class="muted">No fidelity device data for this date.</td></tr>`;
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function loadDemoFixture() {
+  if (!demoFixturePromise) {
+    demoFixturePromise = fetch(DEMO_FIXTURE_URL, { cache: 'no-store' })
+      .then(async (resp) => {
+        const data = await resp.json().catch(() => null);
+        if (!resp.ok || !data?.ok) throw new Error(`Demo fixture failed to load: HTTP ${resp.status}`);
+        return data;
+      });
+  }
+  return demoFixturePromise;
+}
+
+async function demoDashboardForDate(date = '') {
+  const fixture = await loadDemoFixture();
+  const data = cloneJson(fixture.dashboard || fixture);
+  const selectedDate = String(date || data.date || fixture.date || localTodayKey()).slice(0, 10);
+  data.demo = true;
+  data.date = selectedDate;
+  data.latest_date = selectedDate;
+  if (data.score_snapshot?.latest) {
+    data.score_snapshot.latest.date = selectedDate;
+  }
+  return data;
+}
+
+async function demoRangeForDates(start = '', end = '') {
+  const fixture = await loadDemoFixture();
+  const data = cloneJson(fixture.range || {});
+  data.ok = true;
+  data.demo = true;
+  data.start = String(start || data.start || addDaysKey(localTodayKey(), -(RANGE_DEFAULT_DAYS - 1))).slice(0, 10);
+  data.end = String(end || data.end || localTodayKey()).slice(0, 10);
+  return data;
+}
+
 async function fetchDashboard(date = '', options = {}) {
+  if (DEMO_MODE) return demoDashboardForDate(date);
   const u = new URL('/admin/fidelity_dashboard', API_BASE);
   const requestDate = options.forceTodaySnapshot && (!date || date === localTodayKey())
     ? localTodayKey()
@@ -1068,6 +1121,10 @@ async function fetchDashboard(date = '', options = {}) {
 }
 
 async function fetchScoreSnapshotMeta() {
+  if (DEMO_MODE) {
+    const fixture = await loadDemoFixture();
+    return cloneJson(fixture.score_snapshot_meta || { ok: true, latest_snapshot: fixture.dashboard?.score_snapshot?.latest || null });
+  }
   const r = await adminFetch('/admin/fidelity_score_snapshot_meta', { method: 'GET' });
   const data = await r.json().catch(() => null);
   if (!r.ok || !data?.ok) {
@@ -1077,6 +1134,7 @@ async function fetchScoreSnapshotMeta() {
 }
 
 async function fetchRangeDashboard(start = '', end = '') {
+  if (DEMO_MODE) return demoRangeForDates(start, end);
   const u = new URL('/admin/fidelity_range_dashboard', API_BASE);
   if (start) u.searchParams.set('start', start);
   if (end) u.searchParams.set('end', end);
@@ -1125,7 +1183,7 @@ async function loadRangeDashboard(start = '', end = '', options = {}) {
     if (data.start && rangeStartInput) rangeStartInput.value = data.start;
     if (data.end && rangeEndInput) rangeEndInput.value = data.end;
     renderRangeDashboard(data);
-    setStatus(true, 'Range loaded');
+    setStatus(true, data.demo ? 'Demo range' : 'Range loaded');
     return data;
   } catch (err) {
     setStatus(false, 'Error');
@@ -1139,13 +1197,13 @@ async function loadRangeDashboard(start = '', end = '', options = {}) {
 async function loadDashboard(date = '', options = {}) {
   if (dashboardBusy) return null;
   setError('');
-  setStatus(true, 'Getting data…');
+  setStatus(true, 'Refreshing view…');
   const forceTodaySnapshot = options.forceTodaySnapshot === true;
   setDashboardBusy(true, {
     button: options.button || loadBtn,
-    buttonText: options.buttonText || (forceTodaySnapshot ? 'Saving Snapshot…' : undefined),
-    title: options.title || (forceTodaySnapshot ? 'Saving today’s snapshot…' : 'Getting data…'),
-    detail: options.detail || 'Please wait while the fidelity tracker loads fresh data.'
+    buttonText: options.buttonText || (forceTodaySnapshot ? 'Saving Snapshot…' : 'Refreshing View…'),
+    title: options.title || (forceTodaySnapshot ? 'Saving today’s snapshot…' : 'Refreshing dashboard view…'),
+    detail: options.detail || 'Reading saved Fidelity_Score_Daily accountability rows and live device/event summaries.'
   });
   try {
     const data = await fetchDashboard(date, { forceTodaySnapshot });
@@ -1155,7 +1213,7 @@ async function loadDashboard(date = '', options = {}) {
     if (!cacheDate || (data.date && data.latest_date && data.date === data.latest_date)) {
       writeDashboardCache('', data);
     }
-    renderDashboard(data, data.stale ? 'Cached' : 'Live');
+    renderDashboard(data, data.demo ? 'Demo' : (data.stale ? 'Cached' : 'Live'));
     if (data.warning) setError(data.warning);
     if (data.score_snapshot?.requested && data.score_snapshot?.result?.ok === false) {
       setError(`Dashboard loaded, but Fidelity_Score_Daily was not saved: ${data.score_snapshot.result.error || 'unknown error'}`);
@@ -1185,7 +1243,9 @@ async function loadInitialDashboard() {
   }
   return loadDashboard('', {
     button: loadBtn,
-    detail: 'First dashboard load today. This may take a moment while the fidelity tracker is read.'
+    detail: DEMO_MODE
+      ? 'Loading the local synthetic fidelity fixture. No live systems are contacted.'
+      : 'First dashboard load today. Reading saved score rows plus live device/event summaries.'
   });
 }
 
@@ -1199,7 +1259,23 @@ async function refreshScoreSnapshotMeta() {
   }
 }
 
+function loadGoogleIdentityScript() {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (googleIdentityScriptPromise) return googleIdentityScriptPromise;
+  googleIdentityScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Google script failed to load'));
+    document.head.appendChild(script);
+  });
+  return googleIdentityScriptPromise;
+}
+
 async function waitForGoogle(timeoutMs = 8000) {
+  await loadGoogleIdentityScript();
   const start = Date.now();
   while (!window.google?.accounts?.id) {
     if (Date.now() - start > timeoutMs) throw new Error('Google script failed to load');
@@ -1244,7 +1320,28 @@ async function tryBootstrapSession() {
   }
 }
 
+async function startDemoMode() {
+  document.body.classList.add('demoMode');
+  if (demoBanner) demoBanner.hidden = false;
+  if (loadBtn) loadBtn.textContent = 'Reload Demo View';
+  if (todayBtn) todayBtn.textContent = 'Use Demo Latest';
+  if (rangeLoadBtn) rangeLoadBtn.textContent = 'Load Demo Range';
+  hide(loginCard);
+  show(appShell);
+  setStatus(true, 'Demo');
+  await loadInitialDashboard();
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
+  if (DEMO_MODE) {
+    startDemoMode().catch((e) => {
+      show(appShell);
+      setStatus(false, 'Demo error');
+      setError(e?.message || String(e));
+    });
+    return;
+  }
+
   const booted = await tryBootstrapSession();
   if (booted) return;
 
@@ -1272,13 +1369,14 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 loadBtn.addEventListener('click', () => {
   const selectedDate = String(dateInput.value || '').trim();
-  const shouldSnapshotToday = !selectedDate || selectedDate === localTodayKey();
   loadDashboard(selectedDate, {
     button: loadBtn,
-    forceTodaySnapshot: shouldSnapshotToday,
-    detail: shouldSnapshotToday
-      ? 'Building today’s Fidelity Dashboard and saving Fidelity_Score_Daily. This can take about 2 minutes; this page will wait up to 5 minutes. If it times out, come back in 5 minutes and use the latest snapshot.'
-      : 'Refreshing this historical dashboard only. Fidelity_Score_Daily rows are only edited for today.'
+    buttonText: DEMO_MODE ? 'Reloading Demo…' : 'Refreshing View…',
+    title: DEMO_MODE ? 'Reloading demo data…' : 'Refreshing dashboard view…',
+    forceTodaySnapshot: false,
+    detail: DEMO_MODE
+      ? 'Loading the local synthetic fidelity fixture. No live systems are contacted.'
+      : 'Reading saved Fidelity_Score_Daily accountability rows plus live device/event summaries. This does not rebuild the daily score snapshot.'
   }).catch(() => {});
 });
 
@@ -1286,7 +1384,11 @@ todayBtn.addEventListener('click', () => {
   dateInput.value = '';
   loadDashboard('', {
     button: todayBtn,
-    detail: 'Loading the latest available fidelity dashboard without forcing a new score snapshot.'
+    buttonText: DEMO_MODE ? 'Loading Demo…' : undefined,
+    title: DEMO_MODE ? 'Loading demo latest…' : undefined,
+    detail: DEMO_MODE
+      ? 'Loading the latest synthetic demo dashboard.'
+      : 'Loading the latest available fidelity dashboard without forcing a new score snapshot.'
   }).catch(() => {});
 });
 
@@ -1295,6 +1397,10 @@ rangeLoadBtn.addEventListener('click', () => {
   const end = String(rangeEndInput?.value || '').trim();
   loadRangeDashboard(start, end, {
     button: rangeLoadBtn,
-    detail: 'Loading saved daily accountability snapshots for the selected range.'
+    buttonText: DEMO_MODE ? 'Loading Demo Range…' : undefined,
+    title: DEMO_MODE ? 'Loading demo range…' : undefined,
+    detail: DEMO_MODE
+      ? 'Loading the local synthetic multi-day accountability fixture.'
+      : 'Loading saved daily accountability snapshots for the selected range.'
   }).catch(() => {});
 });
