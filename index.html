@@ -2856,6 +2856,26 @@
     if (document.activeElement !== manualInput) manualInput.focus({preventScroll:true});
     manualInput.setSelectionRange(manualInput.value.length, manualInput.value.length);
   }
+  function numpadDigitShim(e) {
+    if (!e || e.altKey || e.ctrlKey || e.metaKey) return '';
+    if (/^[0-9]$/.test(String(e.key || ''))) return '';
+    const m = String(e.code || '').match(/^Numpad([0-9])$/);
+    return m ? m[1] : '';
+  }
+  function appendManualDigit(digit) {
+    if (!manualInput || !/^[0-9]$/.test(String(digit || ''))) return;
+    keepFocus();
+    const start = Number.isFinite(manualInput.selectionStart) ? manualInput.selectionStart : manualInput.value.length;
+    const end = Number.isFinite(manualInput.selectionEnd) ? manualInput.selectionEnd : start;
+    manualInput.value = manualInput.value.slice(0, start) + digit + manualInput.value.slice(end);
+    const next = start + 1;
+    manualInput.setSelectionRange(next, next);
+    try {
+      manualInput.dispatchEvent(new InputEvent('input', { bubbles:true, data:digit, inputType:'insertText' }));
+    } catch {
+      manualInput.dispatchEvent(new Event('input', { bubbles:true }));
+    }
+  }
   function isModalVisible() {
     const m = document.getElementById('locModal');
     if (!m) return false;
@@ -2865,7 +2885,9 @@
   window.addEventListener('keydown', (e) => {
     if (IS_MODAL_OPEN || isModalVisible()) return;
 
-    if (!INPUT_SESSION.startedAt && e.key && e.key.length === 1) {
+    const shimDigit = numpadDigitShim(e);
+
+    if (!INPUT_SESSION.startedAt && ((e.key && e.key.length === 1) || shimDigit)) {
       INPUT_SESSION.startedAt = Date.now();
     }
     INPUT_SESSION.lastKeyAt = Date.now();
@@ -2887,6 +2909,12 @@
     }
   
     // ===== NORMAL MODE =====
+    if (shimDigit) {
+      e.preventDefault();
+      appendManualDigit(shimDigit);
+      return;
+    }
+
     // Just keep the input focused; Enter handling is via the form submit
     keepFocus();
   }, true);
