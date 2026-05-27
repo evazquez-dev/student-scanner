@@ -1,7 +1,7 @@
 {
   "start_url": "/student-scanner/",
   "scope": "/student-scanner/",
-  "display": "standalone",
+  "display": "fullscreen",
   "name": "Student Scanner",
   "short_name": "Scanner",
   "background_color": "#ffffff",
