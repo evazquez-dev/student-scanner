@@ -22,6 +22,15 @@ const SECRET_BEHAVIOR_MENU_ENDPOINT = '/admin/behavior/menu';
 const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
 const SECRET_MENU_CACHE_PREFIX = 'ta_behavior_menu_cache_v1:';
 const INCIDENT_CREATOR_FALLBACK_URL = '/incident-creator.html';
+const DEMO_BEHAVIOR_MENU_PAYLOAD = {
+  submenus: ['Positive', 'Negative', 'Incident Creator'],
+  options_by_submenu: {
+    Positive: ['On task', 'Helping peer', 'Strong participation'],
+    Negative: ['Off task', 'Disrespectful', 'Phone out']
+  },
+  incident_creator: { label: 'Incident Creator', url: INCIDENT_CREATOR_FALLBACK_URL },
+  ny_date: getNYDateISO_()
+};
 const viewToggleBtn = document.getElementById('viewToggleBtn');
 
 // Organizer DOM (optional; only present if you added the Organizer markup in HTML)
@@ -84,6 +93,7 @@ const SECRET_MENU = {
 let SECRET_BEHAVIOR_UI_STATE = 'idle';
 let SECRET_BEHAVIOR_LIVE_TIMER = null;
 let SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+let DEMO_BEHAVIOR_LOGS = [];
 let SECRET_MENU_MODEL = {
   loaded: false,
   loading: false,
@@ -267,6 +277,15 @@ function optionsForSubmenu_(submenuLabel){
 
 async function ensureSecretMenuModel({ force = false } = {}){
   const nyDate = getNYDateISO_();
+  if (DEMO_MODE) {
+    SECRET_MENU_MODEL = normalizeBehaviorMenuPayload_({
+      ...DEMO_BEHAVIOR_MENU_PAYLOAD,
+      ny_date: nyDate,
+      fetched_at: new Date().toISOString()
+    }, nyDate);
+    return SECRET_MENU_MODEL;
+  }
+
   if (!force && SECRET_MENU_MODEL.loaded && SECRET_MENU_MODEL.nyDate === nyDate) return SECRET_MENU_MODEL;
 
   if (!force) {
@@ -367,6 +386,10 @@ function initSecretMenu(){
     if (act === 'incident') {
       const url = dec('data-url').trim() || SECRET_MENU_MODEL?.incidentCreator?.url || INCIDENT_CREATOR_FALLBACK_URL;
       closeSecretMenu();
+      if (DEMO_MODE) {
+        setStatus(true, 'Demo incident no-op');
+        return;
+      }
       if (!url) {
         setErr('Incident Creator URL is not configured yet.');
         return;
@@ -404,6 +427,7 @@ function initSecretMenu(){
       }
       // Keep pending text until refresh paints final status
       SECRET_BEHAVIOR_UI_STATE = 'await_refresh';
+      if (DEMO_MODE) setLiveStatusFromBehaviorState();
     } catch(err){
       clearBehaviorLiveTimer();
       SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
@@ -458,7 +482,6 @@ function initSecretMenu(){
 }
 
 function openSecretMenuAtEvent(ev, studentCtx){
-  if (DEMO_MODE) return;
   if (!isSecretEnabled()) return;
   ev.preventDefault();
   ev.stopPropagation();
@@ -607,6 +630,12 @@ async function sendSecretBehaviorEvent({ eventKey, eventLabel, submenu = '', opt
       option: String(option || label || '')
     }
   };
+
+  if (DEMO_MODE) {
+    DEMO_BEHAVIOR_LOGS.push({ ...payload, demo: true, loggedAtISO: new Date().toISOString() });
+    window.__TA_DEMO_BEHAVIOR_LOGS = DEMO_BEHAVIOR_LOGS;
+    return { ok: true, demo: true, noop: true };
+  }
 
   const r = await adminFetch(SECRET_BEHAVIOR_ENDPOINT, {
     method: 'POST',
@@ -1148,23 +1177,20 @@ function scheduleBehaviorLiveReset(ms = 7000){
   clearBehaviorLiveTimer();
   SECRET_BEHAVIOR_LIVE_TIMER = setTimeout(() => {
     SECRET_BEHAVIOR_LIVE_TIMER = null;
+    const loggedLabel = DEMO_MODE ? 'Demo behavior logged' : 'Behavior logged';
     if (SECRET_BEHAVIOR_UI_STATE !== 'idle') return;
-    if ((statusText?.textContent || '').trim() !== 'Behavior logged') return;
+    if ((statusText?.textContent || '').trim() !== loggedLabel) return;
     SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
-    setStatus(true, 'Live');
+    setStatus(true, DEMO_MODE ? 'Demo' : 'Live');
   }, ms);
 }
 
 function setLiveStatusFromBehaviorState(){
-  if (DEMO_MODE) {
-    setStatus(true, 'Demo');
-    return;
-  }
   // First successful refresh after a behavior click: confirm logged once
   if (SECRET_BEHAVIOR_UI_STATE === 'await_refresh') {
     const HOLD_MS = 7000;
     SECRET_BEHAVIOR_LOGGED_UNTIL = Date.now() + HOLD_MS;
-    setStatus(true, 'Behavior logged');
+    setStatus(true, DEMO_MODE ? 'Demo behavior logged' : 'Behavior logged');
     SECRET_BEHAVIOR_UI_STATE = 'idle';
     scheduleBehaviorLiveReset(HOLD_MS);
     return;
@@ -1179,11 +1205,11 @@ function setLiveStatusFromBehaviorState(){
   // Keep "Behavior logged" visible for the full hold window,
   // even if another refresh happens before the timer expires.
   if (SECRET_BEHAVIOR_LOGGED_UNTIL > Date.now()) {
-    setStatus(true, 'Behavior logged');
+    setStatus(true, DEMO_MODE ? 'Demo behavior logged' : 'Behavior logged');
     return;
   }
 
-  setStatus(true, 'Live');
+  setStatus(true, DEMO_MODE ? 'Demo' : 'Live');
 }
 
 function loadGoogleIdentityScript(){

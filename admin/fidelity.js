@@ -4,7 +4,7 @@ const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')
 const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
 const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
-const DASHBOARD_CACHE_PREFIX = 'ss_fidelity_dashboard_daily_cache_v3:';
+const DASHBOARD_CACHE_PREFIX = 'ss_fidelity_dashboard_historical_cache_v4:';
 const RANGE_DEFAULT_DAYS = 5;
 const URL_PARAMS = new URLSearchParams(window.location.search);
 const DEMO_MODE = URL_PARAMS.get('demo') === '1';
@@ -12,7 +12,8 @@ const DEMO_FIXTURE_URL = './demo/fidelity_demo.json';
 const DASHBOARD_CACHE_LEGACY_PREFIXES = [
   'ss_fidelity_dashboard_cache_v1:',
   'ss_fidelity_dashboard_daily_cache_v1:',
-  'ss_fidelity_dashboard_daily_cache_v2:'
+  'ss_fidelity_dashboard_daily_cache_v2:',
+  'ss_fidelity_dashboard_daily_cache_v3:'
 ];
 
 const loginCard = document.getElementById('loginCard');
@@ -287,13 +288,13 @@ function setLatestSnapshotMeta(meta = null) {
   const label = stamp ? `${latest.date || '—'} ${fmtTs(stamp)}` : '—';
   if (latestSnapshotText) latestSnapshotText.textContent = label;
   if (todayBtn) {
-    const prefix = DEMO_MODE ? 'Use Demo Latest' : 'Use Latest';
+    const prefix = DEMO_MODE ? 'Use Demo Snapshot' : 'Use Latest Snapshot';
     todayBtn.textContent = stamp ? `${prefix} (${fmtDateTime(stamp)})` : prefix;
     todayBtn.title = stamp
-      ? `${DEMO_MODE ? 'Demo snapshot' : 'Latest Fidelity_Score_Daily snapshot'}: ${label}`
+      ? `${DEMO_MODE ? 'Demo snapshot' : 'Latest historical Fidelity_Score_Daily snapshot'}: ${label}`
       : DEMO_MODE
         ? 'No demo snapshot metadata is available.'
-        : 'No Fidelity_Score_Daily snapshot has been reported yet.';
+        : 'No historical Fidelity_Score_Daily snapshot has been reported yet.';
   }
 }
 
@@ -308,17 +309,17 @@ function scoreClass(score) {
 function renderSummaryCards(counts = {}) {
   if (!summaryCards) return;
   const cards = [
-    ['Active kiosks', counts.active_kiosks, `${counts.devices_with_scans || 0} with scans`],
-    ['Total scans', counts.total_scans, `${counts.unique_students_scanned || 0} unique students`],
-    ['Manual rate', fmtPct(counts.manual_rate_pct), `${counts.manual_entries || 0} manual entries`],
-    ['Scan errors', counts.scan_errors, `${fmtPct(counts.scan_error_rate_pct)} of scans`],
-    ['Teacher submits', counts.teacher_submits, `${counts.teacher_submitters || 0} submitters; ${counts.teacher_submit_errors || 0} errors`],
-    ['Teacher score', fmtPct(counts.overall_score_pct), `${counts.points_earned || 0}/${counts.points_possible || 0} eligible students P/L`],
-    ['No score earned', counts.teacher_no_scans_no_attendance ?? 0, `${counts.expected_teacher_room_periods || 0} expected teacher room/periods`],
-    ['Weak room/periods', counts.weak_room_periods, 'need scan-evidence review'],
-    ['Location mismatches', counts.mismatch_devices, `${counts.bound_devices || 0} bound devices`],
-    ['Bathroom open', counts.bathroom_open, 'students still out'],
-    ['Staff pull open', counts.staff_pull_open, 'students not cleared']
+    ['Historical score', fmtPct(counts.overall_score_pct), `${counts.points_earned || 0}/${counts.points_possible || 0} eligible students P/L`],
+    ['Saved rows', counts.expected_room_periods ?? counts.expected_teacher_room_periods ?? 0, 'room/period rows from Fidelity_Score_Daily'],
+    ['Present/Late', counts.present_late_students ?? 0, `${counts.possible_students || 0} possible students`],
+    ['Class scans', counts.real_class_scans ?? counts.total_scans ?? 0, `${counts.teacher_submits || 0} teacher submits`],
+    ['No score earned', counts.no_scans_no_attendance ?? counts.teacher_no_scans_no_attendance ?? 0, 'rows with zero Present/Late evidence'],
+    ['No scanner evidence', counts.no_scan_room_periods ?? counts.teacher_no_scan_room_periods ?? 0, 'saved rows with no class scans'],
+    ['No teacher submit', counts.no_attendance_submit_room_periods ?? counts.teacher_no_attendance_submit_room_periods ?? 0, 'saved rows with no attendance submit'],
+    ['Weak rows', counts.weak_scan_evidence ?? counts.weak_room_periods ?? 0, 'saved rows below threshold'],
+    ['Missing attendance', counts.missing_attendance_students ?? 0, 'eligible students not marked P/L'],
+    ['Excluded pulls', counts.pulled_excluded_students ?? 0, 'staff-pull exclusions in saved rows'],
+    ['Not in building', counts.not_in_building_students ?? 0, 'students excluded by building evidence']
   ];
   summaryCards.innerHTML = cards.map(([label, value, sub]) => `
     <article class="card">
@@ -739,7 +740,7 @@ function renderRoomAccountability(fidelity = {}, devices = []) {
             </summary>
             <div class="periodDetail">
               ${device ? `<div class="miniRow"><div class="miniLabel muted">${esc(device.devices.map((d) => d.device_id || 'unknown device').join(', '))}</div><div class="miniValue">${esc(device.scans)} scans</div></div>` : ''}
-              ${renderPeriodDetails(group.rows, { showRoom:false, emptyText:'No expected class periods for this room today.' })}
+              ${renderPeriodDetails(group.rows, { showRoom:false, emptyText:'No expected class periods for this room in this snapshot.' })}
             </div>
           </details>
         `;
@@ -789,7 +790,7 @@ function renderRangeSummary(data = {}) {
   `).join('');
   if (rangeMetaText) {
     const q = data.quarter ? ` • ${data.quarter.label}: ${data.quarter.start} to ${data.quarter.end}` : '';
-    rangeMetaText.textContent = `Loaded ${data.start || '—'} to ${data.end || '—'} from saved daily snapshots${q}.`;
+    rangeMetaText.textContent = `Loaded ${data.start || '—'} to ${data.end || '—'} from saved historical snapshots${q}. Today is excluded.`;
   }
 }
 
@@ -860,7 +861,7 @@ function renderRangePlaceholder() {
       <article class="card">
         <h2>Range score</h2>
         <div class="big">—</div>
-        <div class="small">Choose dates and load a range.</div>
+        <div class="small">Choose previous dates and load a range.</div>
       </article>
     `;
   }
@@ -1099,19 +1100,17 @@ async function demoRangeForDates(start = '', end = '') {
   const data = cloneJson(fixture.range || {});
   data.ok = true;
   data.demo = true;
-  data.start = String(start || data.start || addDaysKey(localTodayKey(), -(RANGE_DEFAULT_DAYS - 1))).slice(0, 10);
-  data.end = String(end || data.end || localTodayKey()).slice(0, 10);
+  const defaultEnd = addDaysKey(localTodayKey(), -1);
+  data.start = String(start || data.start || addDaysKey(defaultEnd, -(RANGE_DEFAULT_DAYS - 1))).slice(0, 10);
+  data.end = String(end || data.end || defaultEnd).slice(0, 10);
   return data;
 }
 
 async function fetchDashboard(date = '', options = {}) {
   if (DEMO_MODE) return demoDashboardForDate(date);
   const u = new URL('/admin/fidelity_dashboard', API_BASE);
-  const requestDate = options.forceTodaySnapshot && (!date || date === localTodayKey())
-    ? localTodayKey()
-    : date;
+  const requestDate = date;
   if (requestDate) u.searchParams.set('date', requestDate);
-  if (options.forceTodaySnapshot) u.searchParams.set('score_snapshot', '1');
   const r = await adminFetch(u, { method: 'GET' });
   const data = await r.json().catch(() => null);
   if (!r.ok || !data?.ok) {
@@ -1146,12 +1145,12 @@ async function fetchRangeDashboard(start = '', end = '') {
   return data;
 }
 
-function renderDashboard(data, statusLabel = 'Live') {
+function renderDashboard(data, statusLabel = 'Historical') {
   dateText.textContent = data.date || '—';
   latestDateText.textContent = data.latest_date || '—';
   if (data.score_snapshot) setLatestSnapshotMeta(data.score_snapshot.latest || data.score_snapshot.meta || null);
-  boundDevicesText.textContent = String(data.counts?.bound_devices ?? '—');
-  inactiveDevicesText.textContent = String(data.counts?.inactive_bound_devices ?? '—');
+  boundDevicesText.textContent = String(data.counts?.expected_room_periods ?? data.counts?.expected_teacher_room_periods ?? '—');
+  inactiveDevicesText.textContent = String(data.counts?.no_scans_no_attendance ?? data.counts?.teacher_no_scans_no_attendance ?? '—');
   if (data.date) dateInput.value = data.date;
   initRangeInputsFromDaily(data);
   if (rangeSummaryCards && !rangeSummaryCards.innerHTML.trim()) renderRangePlaceholder();
@@ -1197,36 +1196,28 @@ async function loadRangeDashboard(start = '', end = '', options = {}) {
 async function loadDashboard(date = '', options = {}) {
   if (dashboardBusy) return null;
   setError('');
-  setStatus(true, 'Refreshing view…');
-  const forceTodaySnapshot = options.forceTodaySnapshot === true;
+  setStatus(true, 'Loading history…');
   setDashboardBusy(true, {
     button: options.button || loadBtn,
-    buttonText: options.buttonText || (forceTodaySnapshot ? 'Saving Snapshot…' : 'Refreshing View…'),
-    title: options.title || (forceTodaySnapshot ? 'Saving today’s snapshot…' : 'Refreshing dashboard view…'),
-    detail: options.detail || 'Reading saved Fidelity_Score_Daily accountability rows and live device/event summaries.'
+    buttonText: options.buttonText || 'Loading History…',
+    title: options.title || 'Loading historical snapshot…',
+    detail: options.detail || 'Reading saved Fidelity_Score_Daily accountability rows. Today is excluded.'
   });
   try {
-    const data = await fetchDashboard(date, { forceTodaySnapshot });
-    const cacheDate = forceTodaySnapshot && (!date || date === localTodayKey()) ? localTodayKey() : date;
+    const data = await fetchDashboard(date);
+    const cacheDate = date;
     writeDashboardCache(cacheDate, data);
     if (data.date) writeDashboardCache(data.date, data);
     if (!cacheDate || (data.date && data.latest_date && data.date === data.latest_date)) {
       writeDashboardCache('', data);
     }
-    renderDashboard(data, data.demo ? 'Demo' : (data.stale ? 'Cached' : 'Live'));
+    renderDashboard(data, data.demo ? 'Demo' : (data.stale ? 'Cached' : 'Historical'));
     if (data.warning) setError(data.warning);
-    if (data.score_snapshot?.requested && data.score_snapshot?.result?.ok === false) {
-      setError(`Dashboard loaded, but Fidelity_Score_Daily was not saved: ${data.score_snapshot.result.error || 'unknown error'}`);
-    }
     return data;
   } catch (err) {
     setStatus(false, 'Error');
     const msg = err?.message || String(err);
-    if (forceTodaySnapshot && /timeout|524|aborted/i.test(msg)) {
-      setError(`${msg}. The snapshot request may still be finishing. Come back in about 5 minutes and use the latest snapshot.`);
-    } else {
-      setError(msg);
-    }
+    setError(msg);
     return null;
   } finally {
     setDashboardBusy(false);
@@ -1235,18 +1226,36 @@ async function loadDashboard(date = '', options = {}) {
 
 async function loadInitialDashboard() {
   setError('');
-  refreshScoreSnapshotMeta().catch(() => {});
+  const meta = await refreshScoreSnapshotMeta().catch(() => null);
+  const latestDate = String(meta?.latest_score_date || meta?.latest_snapshot?.date || '').slice(0, 10);
+  if (latestDate) {
+    if (rangeEndInput && !rangeEndInput.value) rangeEndInput.value = latestDate;
+    if (rangeStartInput && !rangeStartInput.value) rangeStartInput.value = addDaysKey(latestDate, -(RANGE_DEFAULT_DAYS - 1));
+  }
   const cached = readDashboardCache('');
+  let daily = null;
   if (cached?.data) {
     renderDashboard(cached.data, 'Cached');
-    return cached.data;
+    daily = cached.data;
+  } else {
+    daily = await loadDashboard('', {
+      button: loadBtn,
+      detail: DEMO_MODE
+        ? 'Loading the local synthetic fidelity fixture. No live systems are contacted.'
+        : 'Loading the latest saved historical score snapshot. Today is excluded.'
+    });
   }
-  return loadDashboard('', {
-    button: loadBtn,
-    detail: DEMO_MODE
-      ? 'Loading the local synthetic fidelity fixture. No live systems are contacted.'
-      : 'First dashboard load today. Reading saved score rows plus live device/event summaries.'
-  });
+  await loadRangeDashboard(
+    String(rangeStartInput?.value || '').trim(),
+    String(rangeEndInput?.value || '').trim(),
+    {
+      button: rangeLoadBtn,
+      detail: DEMO_MODE
+        ? 'Loading the local synthetic multi-day accountability fixture.'
+        : 'Loading the default previous-day range from Fidelity_Score_Daily.'
+    }
+  );
+  return daily;
 }
 
 async function refreshScoreSnapshotMeta() {
@@ -1323,8 +1332,8 @@ async function tryBootstrapSession() {
 async function startDemoMode() {
   document.body.classList.add('demoMode');
   if (demoBanner) demoBanner.hidden = false;
-  if (loadBtn) loadBtn.textContent = 'Reload Demo View';
-  if (todayBtn) todayBtn.textContent = 'Use Demo Latest';
+  if (loadBtn) loadBtn.textContent = 'Reload Demo Snapshot';
+  if (todayBtn) todayBtn.textContent = 'Use Demo Snapshot';
   if (rangeLoadBtn) rangeLoadBtn.textContent = 'Load Demo Range';
   hide(loginCard);
   show(appShell);
@@ -1371,12 +1380,11 @@ loadBtn.addEventListener('click', () => {
   const selectedDate = String(dateInput.value || '').trim();
   loadDashboard(selectedDate, {
     button: loadBtn,
-    buttonText: DEMO_MODE ? 'Reloading Demo…' : 'Refreshing View…',
-    title: DEMO_MODE ? 'Reloading demo data…' : 'Refreshing dashboard view…',
-    forceTodaySnapshot: false,
+    buttonText: DEMO_MODE ? 'Reloading Demo…' : 'Loading History…',
+    title: DEMO_MODE ? 'Reloading demo data…' : 'Loading historical snapshot…',
     detail: DEMO_MODE
       ? 'Loading the local synthetic fidelity fixture. No live systems are contacted.'
-      : 'Reading saved Fidelity_Score_Daily accountability rows plus live device/event summaries. This does not rebuild the daily score snapshot.'
+      : 'Reading saved Fidelity_Score_Daily accountability rows only. Today is excluded.'
   }).catch(() => {});
 });
 
@@ -1385,10 +1393,10 @@ todayBtn.addEventListener('click', () => {
   loadDashboard('', {
     button: todayBtn,
     buttonText: DEMO_MODE ? 'Loading Demo…' : undefined,
-    title: DEMO_MODE ? 'Loading demo latest…' : undefined,
+    title: DEMO_MODE ? 'Loading demo snapshot…' : 'Loading latest historical snapshot…',
     detail: DEMO_MODE
       ? 'Loading the latest synthetic demo dashboard.'
-      : 'Loading the latest available fidelity dashboard without forcing a new score snapshot.'
+      : 'Loading the latest saved Fidelity_Score_Daily snapshot before today.'
   }).catch(() => {});
 });
 

@@ -473,26 +473,26 @@
       <header>
         <h1 data-brand-title>Fidelity Dashboard</h1>
         <div class="sub">
-          Daily trust view for kiosk usage, scan quality, teacher submission health, and workflow closure. This page interprets the fidelity tracker and flags low-confidence devices.
+          Historical accountability view built from saved Fidelity_Score_Daily snapshots. Today is excluded so the tracker reflects completed prior days only.
         </div>
         <div class="pillRow">
           <div class="pill"><span id="statusDot" class="dot"></span><span id="statusText">Loading…</span></div>
-          <div class="pill">Date: <span id="dateText">—</span></div>
-          <div class="pill">Latest data: <span id="latestDateText">—</span></div>
+          <div class="pill">Snapshot date: <span id="dateText">—</span></div>
+          <div class="pill">Latest historical day: <span id="latestDateText">—</span></div>
           <div class="pill">Latest snapshot: <span id="latestSnapshotText">—</span></div>
-          <div class="pill">Bound devices: <span id="boundDevicesText">—</span></div>
-          <div class="pill">Inactive today: <span id="inactiveDevicesText">—</span></div>
+          <div class="pill">Snapshot rows: <span id="boundDevicesText">—</span></div>
+          <div class="pill">Zero-score rows: <span id="inactiveDevicesText">—</span></div>
         </div>
       </header>
 
       <section class="toolbar">
         <div class="field">
-          <label for="dateInput">Date</label>
+          <label for="dateInput">Snapshot Date</label>
           <input id="dateInput" type="date">
         </div>
-        <button id="loadBtn" class="btn primary" type="button">Refresh Dashboard View</button>
-        <button id="todayBtn" class="btn" type="button">Use Latest</button>
-        <div class="toolbarNote">This page reads saved Fidelity_Score_Daily accountability rows plus live device/event summaries. The daily score snapshot is built automatically after the last period, or manually from the Fidelity GAS project.</div>
+        <button id="loadBtn" class="btn primary" type="button">Load Snapshot</button>
+        <button id="todayBtn" class="btn" type="button">Use Latest Snapshot</button>
+        <div class="toolbarNote">This page reads saved Fidelity_Score_Daily accountability rows only. Requests for today use the latest completed historical snapshot instead.</div>
       </section>
 
       <section class="cards" id="summaryCards"></section>
@@ -507,7 +507,7 @@
           <input id="rangeEndInput" type="date">
         </div>
         <button id="rangeLoadBtn" class="btn primary" type="button">Load Range</button>
-        <div id="rangeMetaText" class="toolbarNote">Range checks use daily score snapshots saved in the fidelity workbook. Load a range when you want multi-day accountability.</div>
+        <div id="rangeMetaText" class="toolbarNote">Range checks use previous-day score snapshots saved in the fidelity workbook. Today is excluded from every range.</div>
       </section>
 
       <section class="cards" id="rangeSummaryCards"></section>
@@ -528,17 +528,17 @@
       <section class="accountabilityGrid">
         <div class="card">
           <h2>Teacher Accountability</h2>
-          <div class="small">Lowest score first by teacher. Open a teacher to see room/period details, scan evidence, and attendance submission evidence.</div>
+          <div class="small">Latest saved historical snapshot by teacher. Open a teacher to see room/period details from Fidelity_Score_Daily.</div>
           <div id="teacherAccountabilityBody" class="groupList"></div>
         </div>
         <div class="card">
-          <h2>Room / Scanner Accountability</h2>
-          <div class="small">Lowest score first by room/scanner. Open a room to see scanner health and period-level teacher/scan evidence.</div>
+          <h2>Room Accountability</h2>
+          <div class="small">Latest saved historical snapshot by room. Open a room to see period-level teacher and scan evidence.</div>
           <div id="roomAccountabilityBody" class="groupList"></div>
         </div>
       </section>
 
-      <section class="grid2">
+      <section class="grid2" hidden data-live-only>
         <div class="card">
           <h2>Workflow Closure</h2>
           <div id="workflowBody" class="miniList"></div>
@@ -549,7 +549,7 @@
         </div>
       </section>
 
-      <section class="grid2">
+      <section class="grid2" hidden data-live-only>
         <div class="card">
           <h2>Weak / No Room-Period Evidence</h2>
           <div id="roomPeriodEvidenceBody" class="miniList"></div>
@@ -560,16 +560,16 @@
         </div>
       </section>
 
-      <section class="cards" id="attendanceEvidenceCards"></section>
+      <section class="cards" id="attendanceEvidenceCards" hidden data-live-only></section>
 
-      <section class="sampleGrid">
+      <section class="sampleGrid" hidden data-live-only>
         <div class="card">
           <h2>Inside Without Entrance Scan</h2>
           <div id="inBuildingNoEntranceBody" class="miniList"></div>
         </div>
       </section>
 
-      <section class="grid2">
+      <section class="grid2" hidden data-live-only>
         <div class="card">
           <h2>Open Workflow Details</h2>
           <div id="openWorkflowDetailsBody" class="miniList"></div>
@@ -580,7 +580,7 @@
         </div>
       </section>
 
-      <section class="tableWrap">
+      <section class="tableWrap" hidden data-live-only>
         <table>
           <thead>
             <tr>
@@ -608,13 +608,13 @@
           <div class="busySpinner" aria-hidden="true"></div>
           <div>
             <div id="busyTitle" class="busyTitle">Refreshing dashboard view…</div>
-            <div id="busyDetail" class="busyDetail">Reading saved score rows and live event summaries.</div>
+            <div id="busyDetail" class="busyDetail">Reading saved historical score rows.</div>
           </div>
         </div>
       </div>
     </main>
   </div>
 
-  <script src="./fidelity.js?v=20260518-demo-mode"></script>
+  <script src="./fidelity.js?v=20260528-historical-only"></script>
 </body>
 </html>
