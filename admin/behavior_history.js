@@ -175,12 +175,17 @@ function fillSelect(el, items, placeholder, selected){
   if (prev) el.value = prev;
 }
 
+function isAdminViewer(){
+  const role = String(ACCESS?.role || ACCESS?.viewer?.role || '').toLowerCase();
+  return !!ACCESS?.viewer?.is_admin || role === 'admin' || role === 'super_admin';
+}
+
 function currentFilters(){
   const deleted = String(deletedFilter?.value || 'active').trim();
   return {
     q: String(qInput?.value || '').trim(),
     event_key: String(eventFilter?.value || '').trim(),
-    actor_email: ACCESS?.viewer?.is_admin ? String(actorFilter?.value || '').trim() : '',
+    actor_email: isAdminViewer() ? String(actorFilter?.value || '').trim() : '',
     include_deleted: (deleted === 'all') ? '1' : '',
     deleted_only: (deleted === 'deleted') ? '1' : '',
     date_from: String(dateFromInput?.value || '').trim(),
@@ -193,7 +198,7 @@ function updateViewerUi(){
   const role = ACCESS?.role || ACCESS?.viewer?.role || '—';
   viewerPill.textContent = email;
   rolePill.textContent = role;
-  if (ACCESS?.role === 'admin' || ACCESS?.role === 'super_admin') {
+  if (isAdminViewer()) {
     show(actorFilterWrap);
   } else {
     hide(actorFilterWrap);
