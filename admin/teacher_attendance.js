@@ -22,7 +22,7 @@ const SECRET_BEHAVIOR_MENU_ENDPOINT = '/admin/behavior/menu';
 const BEHAVIOR_RECENT_ENDPOINT = '/admin/behavior/recent';
 const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
 const SECRET_MENU_CACHE_PREFIX = 'ta_behavior_menu_cache_v1:';
-const BEHAVIOR_LOG_EXPANDED_KEY = 'ta_behavior_log_expanded_v1';
+const BEHAVIOR_LOG_FILTER_KEY = 'ta_behavior_log_filters_v1';
 const INCIDENT_CREATOR_FALLBACK_URL = '/incident-creator.html';
 const DEMO_BEHAVIOR_MENU_PAYLOAD = {
   submenus: ['Positive', 'Negative', 'Incident Creator'],
@@ -674,20 +674,6 @@ async function sendSecretBehaviorTest(){
   });
 }
 
-function behaviorLogExpanded_(){
-  try {
-    const raw = localStorage.getItem(BEHAVIOR_LOG_EXPANDED_KEY);
-    if (raw === '0') return false;
-    if (raw === '1') return true;
-  } catch {}
-  return true;
-}
-
-function setBehaviorLogExpanded_(on){
-  try { localStorage.setItem(BEHAVIOR_LOG_EXPANDED_KEY, on ? '1' : '0'); } catch {}
-  renderBehaviorLogSection_();
-}
-
 function behaviorLogContext_(date, room, periodLocal){
   return {
     date: String(date || '').trim(),
@@ -732,6 +718,44 @@ function behaviorLogRowId_(row){
   return r.behavior_id || r.submission_id || `${r.whenISO}|${r.osis}|${r.event_key}`;
 }
 
+function behaviorLogCategory_(row){
+  const r = normalizeBehaviorLogRow_(row);
+  const text = `${r.submenu} ${r.event_key} ${r.event_label}`.toLowerCase();
+  if (text.includes('positive')) return 'positive';
+  if (text.includes('negative')) return 'negative';
+  return 'other';
+}
+
+function getBehaviorLogFilters_(){
+  try {
+    const raw = localStorage.getItem(BEHAVIOR_LOG_FILTER_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === 'object') {
+      return {
+        positive: parsed.positive !== false,
+        negative: parsed.negative !== false
+      };
+    }
+  } catch {}
+  return { positive: true, negative: true };
+}
+
+function setBehaviorLogFilters_(filters){
+  const next = {
+    positive: filters?.positive !== false,
+    negative: filters?.negative !== false
+  };
+  try { localStorage.setItem(BEHAVIOR_LOG_FILTER_KEY, JSON.stringify(next)); } catch {}
+  renderBehaviorLogSection_();
+}
+
+function behaviorLogRowVisible_(row, filters = getBehaviorLogFilters_()){
+  const category = behaviorLogCategory_(row);
+  if (category === 'positive') return filters.positive !== false;
+  if (category === 'negative') return filters.negative !== false;
+  return true;
+}
+
 function sortBehaviorLogRows_(rows){
   return [...rows].sort((a, b) => {
     const at = String(a?.whenISO || '');
@@ -760,7 +784,18 @@ function appendBehaviorLogEntry_(row, { expandIfFirst = false } = {}){
   next.unshift(normalized);
   BEHAVIOR_LOG_ROWS = sortBehaviorLogRows_(next).slice(0, 200);
   BEHAVIOR_LOG_ERROR = '';
-  if (expandIfFirst && BEHAVIOR_LOG_ROWS.length === 1) setBehaviorLogExpanded_(true);
+  if (expandIfFirst && BEHAVIOR_LOG_ROWS.length === 1) {
+    const category = behaviorLogCategory_(normalized);
+    const filters = getBehaviorLogFilters_();
+    if (category === 'positive' && filters.positive === false) {
+      setBehaviorLogFilters_({ ...filters, positive: true });
+      return;
+    }
+    if (category === 'negative' && filters.negative === false) {
+      setBehaviorLogFilters_({ ...filters, negative: true });
+      return;
+    }
+  }
   renderBehaviorLogSection_();
 }
 
@@ -778,18 +813,23 @@ function renderBehaviorLogSection_(){
   behaviorLogBox.hidden = !hasRows && !hasError;
   if (behaviorLogBox.hidden) return;
 
-  const expanded = behaviorLogExpanded_();
-  if (behaviorLogCount) behaviorLogCount.textContent = `${BEHAVIOR_LOG_ROWS.length} logged`;
-  if (behaviorLogToggleBtn) {
-    behaviorLogToggleBtn.textContent = expanded ? 'Hide' : 'Show';
-    behaviorLogToggleBtn.setAttribute('aria-expanded', String(expanded));
+  const filters = getBehaviorLogFilters_();
+  const visibleRows = BEHAVIOR_LOG_ROWS.filter((row) => behaviorLogRowVisible_(row, filters));
+  if (behaviorLogCount) {
+    behaviorLogCount.textContent = visibleRows.length === BEHAVIOR_LOG_ROWS.length
+      ? `${BEHAVIOR_LOG_ROWS.length} logged`
+      : `${visibleRows.length} shown • ${BEHAVIOR_LOG_ROWS.length} logged`;
+  }
+  if (behaviorLogPositiveBtn) {
+    behaviorLogPositiveBtn.textContent = filters.positive ? 'Positive: Hide' : 'Positive: Show';
+    behaviorLogPositiveBtn.setAttribute('aria-pressed', String(filters.positive));
+  }
+  if (behaviorLogNegativeBtn) {
+    behaviorLogNegativeBtn.textContent = filters.negative ? 'Negative: Hide' : 'Negative: Show';
+    behaviorLogNegativeBtn.setAttribute('aria-pressed', String(filters.negative));
   }
 
-  behaviorLogList.hidden = !expanded;
-  if (!expanded) {
-    behaviorLogList.innerHTML = '';
-    return;
-  }
+  behaviorLogList.hidden = false;
 
   if (hasError) {
     behaviorLogList.innerHTML = `<div class="behaviorLogEmpty">${escapeHtml_(BEHAVIOR_LOG_ERROR)}</div>`;
@@ -801,7 +841,12 @@ function renderBehaviorLogSection_(){
     return;
   }
 
-  behaviorLogList.innerHTML = BEHAVIOR_LOG_ROWS.map((row) => {
+  if (!visibleRows.length) {
+    behaviorLogList.innerHTML = '<div class="behaviorLogEmpty">Positive and negative behaviors are hidden.</div>';
+    return;
+  }
+
+  behaviorLogList.innerHTML = visibleRows.map((row) => {
     const r = normalizeBehaviorLogRow_(row);
     const eventLabel = r.event_label || r.event_key || 'Behavior';
     const name = r.name || '(Unknown)';
@@ -1169,7 +1214,8 @@ const optionsDiagBox = document.getElementById('optionsDiag');
 const subtitleRight = document.getElementById('subtitleRight');
 const rowsEl     = document.getElementById('rows');
 const behaviorLogBox = document.getElementById('behaviorLogBox');
-const behaviorLogToggleBtn = document.getElementById('behaviorLogToggleBtn');
+const behaviorLogPositiveBtn = document.getElementById('behaviorLogPositiveBtn');
+const behaviorLogNegativeBtn = document.getElementById('behaviorLogNegativeBtn');
 const behaviorLogCount = document.getElementById('behaviorLogCount');
 const behaviorLogList = document.getElementById('behaviorLogList');
 
@@ -3444,8 +3490,14 @@ async function bootTeacherAttendance(){
     setStatus(false, 'Error');
   }));
 
-  behaviorLogToggleBtn?.addEventListener('click', () => {
-    setBehaviorLogExpanded_(!behaviorLogExpanded_());
+  behaviorLogPositiveBtn?.addEventListener('click', () => {
+    const filters = getBehaviorLogFilters_();
+    setBehaviorLogFilters_({ ...filters, positive: !filters.positive });
+  });
+
+  behaviorLogNegativeBtn?.addEventListener('click', () => {
+    const filters = getBehaviorLogFilters_();
+    setBehaviorLogFilters_({ ...filters, negative: !filters.negative });
   });
 
   submitBtn?.addEventListener('click', () => submitChanges().catch(err => {

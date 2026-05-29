@@ -657,6 +657,16 @@
       color:var(--muted);
       font-size:0.78rem;
     }
+    .behaviorLogControls{
+      display:flex;
+      gap:0.45rem;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .behaviorLogControls .btn[aria-pressed="false"]{
+      opacity:0.72;
+      border-color:var(--card-border);
+    }
     .behaviorLogList{
       border-top:1px solid var(--card-border);
       display:flex;
@@ -763,6 +773,8 @@
       .bulkSelect{ width:100%; min-width:0; }
       .bulkActions .btn{ width:100%; }
       .behaviorLogHead{ align-items:flex-start; }
+      .behaviorLogControls{ width:100%; justify-content:stretch; }
+      .behaviorLogControls .btn{ flex:1 1 130px; }
       .behaviorLogItem{ grid-template-columns:minmax(0,1fr); gap:0.2rem; }
       .behaviorLogEvent{ justify-self:start; text-align:left; max-width:100%; }
     }
@@ -902,17 +914,6 @@
             <div id="rows"></div>
           </div>
 
-          <div class="behaviorLog" id="behaviorLogBox" hidden>
-            <div class="behaviorLogHead">
-              <div class="behaviorLogTitle">
-                <strong>Logged behaviors</strong>
-                <span id="behaviorLogCount">0 logged</span>
-              </div>
-              <button class="btn btn-mini" id="behaviorLogToggleBtn" type="button" aria-expanded="true">Hide</button>
-            </div>
-            <div class="behaviorLogList" id="behaviorLogList"></div>
-          </div>
-
           <div class="bulkBar" id="bulkBar">
             <div class="bulkLeft">
               <span id="bulkSelectedCount">0 selected</span>
@@ -927,6 +928,20 @@
 
               <button class="btn btn-primary" id="submitBtnBottom" disabled>Submit changes</button>
             </div>
+          </div>
+
+          <div class="behaviorLog" id="behaviorLogBox" hidden>
+            <div class="behaviorLogHead">
+              <div class="behaviorLogTitle">
+                <strong>Logged behaviors</strong>
+                <span id="behaviorLogCount">0 logged</span>
+              </div>
+              <div class="behaviorLogControls">
+                <button class="btn btn-mini" id="behaviorLogPositiveBtn" type="button" aria-pressed="true">Positive: Hide</button>
+                <button class="btn btn-mini" id="behaviorLogNegativeBtn" type="button" aria-pressed="true">Negative: Hide</button>
+              </div>
+            </div>
+            <div class="behaviorLogList" id="behaviorLogList"></div>
           </div>
 
         </section>
@@ -982,7 +997,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260529-behavior-log-panel';
+    const pageAssetVer = '20260529-behavior-log-filters';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 
