@@ -19,8 +19,10 @@ const themeToggleBtn = document.getElementById('themeToggleBtn');
 const VIEW_KEY = 'teacher_att_view'; // 'attendance' | 'organizer'
 const SECRET_BEHAVIOR_ENDPOINT = '/admin/behavior/log';
 const SECRET_BEHAVIOR_MENU_ENDPOINT = '/admin/behavior/menu';
+const BEHAVIOR_RECENT_ENDPOINT = '/admin/behavior/recent';
 const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
 const SECRET_MENU_CACHE_PREFIX = 'ta_behavior_menu_cache_v1:';
+const BEHAVIOR_LOG_EXPANDED_KEY = 'ta_behavior_log_expanded_v1';
 const INCIDENT_CREATOR_FALLBACK_URL = '/incident-creator.html';
 const DEMO_BEHAVIOR_MENU_PAYLOAD = {
   submenus: ['Positive', 'Negative', 'Incident Creator'],
@@ -94,6 +96,9 @@ let SECRET_BEHAVIOR_UI_STATE = 'idle';
 let SECRET_BEHAVIOR_LIVE_TIMER = null;
 let SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
 let DEMO_BEHAVIOR_LOGS = [];
+let BEHAVIOR_LOG_ROWS = [];
+let BEHAVIOR_LOG_CONTEXT = { date: '', room: '', periodLocal: '' };
+let BEHAVIOR_LOG_ERROR = '';
 let SECRET_MENU_MODEL = {
   loaded: false,
   loading: false,
@@ -633,8 +638,10 @@ async function sendSecretBehaviorEvent({ eventKey, eventLabel, submenu = '', opt
   };
 
   if (DEMO_MODE) {
-    DEMO_BEHAVIOR_LOGS.push({ ...payload, demo: true, loggedAtISO: new Date().toISOString() });
+    const demoEntry = { ...payload, demo: true, loggedAtISO: new Date().toISOString() };
+    DEMO_BEHAVIOR_LOGS.push(demoEntry);
     window.__TA_DEMO_BEHAVIOR_LOGS = DEMO_BEHAVIOR_LOGS;
+    appendBehaviorLogEntry_(demoEntry, { expandIfFirst: true });
     return { ok: true, demo: true, noop: true };
   }
 
@@ -648,6 +655,14 @@ async function sendSecretBehaviorEvent({ eventKey, eventLabel, submenu = '', opt
   if (!r.ok || !data?.ok) {
     throw new Error(data?.error || `behavior/log HTTP ${r.status}`);
   }
+  appendBehaviorLogEntry_(data?.behavior_log || {
+    ...payload,
+    submission_id: data?.submission_id || '',
+    behavior_id: data?.behavior_id || '',
+    event_key: key,
+    event_label: label
+  }, { expandIfFirst: true });
+  return data;
 }
 
 async function sendSecretBehaviorTest(){
@@ -657,6 +672,188 @@ async function sendSecretBehaviorTest(){
     submenu: 'test',
     option: 'test'
   });
+}
+
+function behaviorLogExpanded_(){
+  try {
+    const raw = localStorage.getItem(BEHAVIOR_LOG_EXPANDED_KEY);
+    if (raw === '0') return false;
+    if (raw === '1') return true;
+  } catch {}
+  return true;
+}
+
+function setBehaviorLogExpanded_(on){
+  try { localStorage.setItem(BEHAVIOR_LOG_EXPANDED_KEY, on ? '1' : '0'); } catch {}
+  renderBehaviorLogSection_();
+}
+
+function behaviorLogContext_(date, room, periodLocal){
+  return {
+    date: String(date || '').trim(),
+    room: normRoom(room),
+    periodLocal: normPeriod(periodLocal)
+  };
+}
+
+function sameBehaviorLogContext_(a, b){
+  return String(a?.date || '').trim() === String(b?.date || '').trim()
+    && normRoom(a?.room || '').toLowerCase() === normRoom(b?.room || '').toLowerCase()
+    && normPeriod(a?.periodLocal || '').toLowerCase() === normPeriod(b?.periodLocal || '').toLowerCase();
+}
+
+function normalizeBehaviorLogRow_(row){
+  const src = row && typeof row === 'object' ? row : {};
+  const meta = src.meta && typeof src.meta === 'object' && !Array.isArray(src.meta) ? src.meta : {};
+  return {
+    submission_id: String(src.submission_id || src.submissionId || '').trim(),
+    behavior_id: String(src.behavior_id || src.behaviorId || '').trim(),
+    whenISO: String(src.whenISO || src.when_iso || src.loggedAtISO || new Date().toISOString()).trim(),
+    date: String(src.date || '').trim(),
+    room: normRoom(src.room || ''),
+    periodLocal: normPeriod(src.periodLocal || src.period_local || src.period || ''),
+    osis: String(src.osis || '').trim(),
+    name: String(src.name || '').trim(),
+    event_key: String(src.event_key || src.eventKey || '').trim(),
+    event_label: String(src.event_label || src.eventLabel || src.event_key || src.eventKey || '').trim(),
+    actor_email: String(src.actor_email || src.actorEmail || '').trim(),
+    submenu: String(src.submenu || meta.submenu || '').trim(),
+    option: String(src.option || meta.option || '').trim()
+  };
+}
+
+function behaviorLogRowMatchesContext_(row, ctx){
+  const r = normalizeBehaviorLogRow_(row);
+  return sameBehaviorLogContext_(r, ctx);
+}
+
+function behaviorLogRowId_(row){
+  const r = normalizeBehaviorLogRow_(row);
+  return r.behavior_id || r.submission_id || `${r.whenISO}|${r.osis}|${r.event_key}`;
+}
+
+function sortBehaviorLogRows_(rows){
+  return [...rows].sort((a, b) => {
+    const at = String(a?.whenISO || '');
+    const bt = String(b?.whenISO || '');
+    return bt.localeCompare(at) || String(b?.submission_id || '').localeCompare(String(a?.submission_id || ''));
+  });
+}
+
+function setBehaviorLogRows_(ctx, rows){
+  BEHAVIOR_LOG_CONTEXT = behaviorLogContext_(ctx?.date, ctx?.room, ctx?.periodLocal);
+  BEHAVIOR_LOG_ROWS = sortBehaviorLogRows_((Array.isArray(rows) ? rows : []).map(normalizeBehaviorLogRow_));
+  BEHAVIOR_LOG_ERROR = '';
+  renderBehaviorLogSection_();
+}
+
+function appendBehaviorLogEntry_(row, { expandIfFirst = false } = {}){
+  const normalized = normalizeBehaviorLogRow_(row);
+  const ctx = behaviorLogContext_(normalized.date, normalized.room, normalized.periodLocal);
+  if (!ctx.date || !ctx.room || !ctx.periodLocal) return;
+  if (!sameBehaviorLogContext_(ctx, BEHAVIOR_LOG_CONTEXT)) {
+    BEHAVIOR_LOG_CONTEXT = ctx;
+    BEHAVIOR_LOG_ROWS = [];
+  }
+  const id = behaviorLogRowId_(normalized);
+  const next = BEHAVIOR_LOG_ROWS.filter((item) => behaviorLogRowId_(item) !== id);
+  next.unshift(normalized);
+  BEHAVIOR_LOG_ROWS = sortBehaviorLogRows_(next).slice(0, 200);
+  BEHAVIOR_LOG_ERROR = '';
+  if (expandIfFirst && BEHAVIOR_LOG_ROWS.length === 1) setBehaviorLogExpanded_(true);
+  renderBehaviorLogSection_();
+}
+
+function clearBehaviorLogSection_(){
+  BEHAVIOR_LOG_ROWS = [];
+  BEHAVIOR_LOG_CONTEXT = { date: '', room: '', periodLocal: '' };
+  BEHAVIOR_LOG_ERROR = '';
+  renderBehaviorLogSection_();
+}
+
+function renderBehaviorLogSection_(){
+  if (!behaviorLogBox || !behaviorLogList) return;
+  const hasRows = BEHAVIOR_LOG_ROWS.length > 0;
+  const hasError = !!BEHAVIOR_LOG_ERROR;
+  behaviorLogBox.hidden = !hasRows && !hasError;
+  if (behaviorLogBox.hidden) return;
+
+  const expanded = behaviorLogExpanded_();
+  if (behaviorLogCount) behaviorLogCount.textContent = `${BEHAVIOR_LOG_ROWS.length} logged`;
+  if (behaviorLogToggleBtn) {
+    behaviorLogToggleBtn.textContent = expanded ? 'Hide' : 'Show';
+    behaviorLogToggleBtn.setAttribute('aria-expanded', String(expanded));
+  }
+
+  behaviorLogList.hidden = !expanded;
+  if (!expanded) {
+    behaviorLogList.innerHTML = '';
+    return;
+  }
+
+  if (hasError) {
+    behaviorLogList.innerHTML = `<div class="behaviorLogEmpty">${escapeHtml_(BEHAVIOR_LOG_ERROR)}</div>`;
+    return;
+  }
+
+  if (!hasRows) {
+    behaviorLogList.innerHTML = '<div class="behaviorLogEmpty">No behaviors logged yet.</div>';
+    return;
+  }
+
+  behaviorLogList.innerHTML = BEHAVIOR_LOG_ROWS.map((row) => {
+    const r = normalizeBehaviorLogRow_(row);
+    const eventLabel = r.event_label || r.event_key || 'Behavior';
+    const name = r.name || '(Unknown)';
+    const details = [
+      r.osis,
+      fmtClock(r.whenISO),
+      r.submenu && r.submenu !== eventLabel ? r.submenu : ''
+    ].filter(Boolean).join(' • ');
+    return `
+      <div class="behaviorLogItem">
+        <div class="behaviorLogMain">
+          <div class="behaviorLogName">${escapeHtml_(name)}</div>
+          <div class="behaviorLogMeta">${escapeHtml_(details)}</div>
+        </div>
+        <div class="behaviorLogEvent">${escapeHtml_(eventLabel)}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function refreshBehaviorLogForContext_(ctx){
+  const scope = behaviorLogContext_(ctx?.date, ctx?.room, ctx?.periodLocal);
+  if (!scope.date || !scope.room || !scope.periodLocal || PAGE_MODE === 'after_school') {
+    clearBehaviorLogSection_();
+    return;
+  }
+
+  BEHAVIOR_LOG_CONTEXT = scope;
+
+  if (DEMO_MODE) {
+    const rows = DEMO_BEHAVIOR_LOGS
+      .map(normalizeBehaviorLogRow_)
+      .filter((row) => behaviorLogRowMatchesContext_(row, scope));
+    setBehaviorLogRows_(scope, rows);
+    return;
+  }
+
+  const u = new URL(BEHAVIOR_RECENT_ENDPOINT, API_BASE);
+  u.searchParams.set('date', scope.date);
+  u.searchParams.set('room', scope.room);
+  u.searchParams.set('periodLocal', scope.periodLocal);
+  u.searchParams.set('limit', '100');
+
+  try {
+    const r = await adminFetch(u, { method: 'GET' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.ok) throw new Error(data?.error || `behavior/recent HTTP ${r.status}`);
+    setBehaviorLogRows_(scope, Array.isArray(data.rows) ? data.rows : []);
+  } catch (err) {
+    BEHAVIOR_LOG_ERROR = `Logged behaviors could not load: ${err?.message || err}`;
+    renderBehaviorLogSection_();
+  }
 }
 
 // Last rendered context (for organizer view)
@@ -971,6 +1168,10 @@ const errBox     = document.getElementById('errBox');
 const optionsDiagBox = document.getElementById('optionsDiag');
 const subtitleRight = document.getElementById('subtitleRight');
 const rowsEl     = document.getElementById('rows');
+const behaviorLogBox = document.getElementById('behaviorLogBox');
+const behaviorLogToggleBtn = document.getElementById('behaviorLogToggleBtn');
+const behaviorLogCount = document.getElementById('behaviorLogCount');
+const behaviorLogList = document.getElementById('behaviorLogList');
 
 const DEBUG = false;
 const debugEl = document.getElementById('debugLog');
@@ -2996,6 +3197,7 @@ async function refreshClassOnce(){
     snapshotMap: (snap && snap.map) ? snap.map : new Map(),
     sessionState
   });
+  await refreshBehaviorLogForContext_({ date, room, periodLocal: period });
 
   setLiveStatusFromBehaviorState();
   emitTeacherFidelityEvent('teacher_period_loaded', {
@@ -3023,6 +3225,7 @@ async function refreshAfterSchoolOnce(){
   const data = await fetchAfterSchoolRoom(homeRoomLabel);
   const date = String(data?.date || '').trim();
   renderAfterSchoolRows({ date, homeRoomLabel, rows: (data?.students || data?.rows || []) });
+  clearBehaviorLogSection_();
   setLiveStatusFromBehaviorState();
   emitTeacherFidelityEvent('teacher_period_loaded', {
     success: true,
@@ -3241,7 +3444,9 @@ async function bootTeacherAttendance(){
     setStatus(false, 'Error');
   }));
 
-  
+  behaviorLogToggleBtn?.addEventListener('click', () => {
+    setBehaviorLogExpanded_(!behaviorLogExpanded_());
+  });
 
   submitBtn?.addEventListener('click', () => submitChanges().catch(err => {
     console.error(err);

@@ -627,6 +627,82 @@
       min-width: 160px;
     }
 
+    .behaviorLog{
+      margin-top:0.75rem;
+      border:1px solid var(--card-border);
+      border-radius:0.9rem;
+      background: var(--control-bg);
+      overflow:hidden;
+    }
+    .behaviorLog[hidden]{ display:none; }
+    .behaviorLogHead{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:0.75rem;
+      padding:0.65rem 0.75rem;
+    }
+    .behaviorLogTitle{
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:0.08rem;
+    }
+    .behaviorLogTitle strong{
+      font-size:0.86rem;
+      letter-spacing:0.03em;
+      text-transform:uppercase;
+    }
+    .behaviorLogTitle span{
+      color:var(--muted);
+      font-size:0.78rem;
+    }
+    .behaviorLogList{
+      border-top:1px solid var(--card-border);
+      display:flex;
+      flex-direction:column;
+    }
+    .behaviorLogList[hidden]{ display:none; }
+    .behaviorLogItem{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(90px,auto);
+      gap:0.75rem;
+      align-items:center;
+      padding:0.55rem 0.75rem;
+      border-top:1px solid rgba(148,163,184,0.16);
+    }
+    .behaviorLogItem:first-child{ border-top:0; }
+    .behaviorLogMain{ min-width:0; }
+    .behaviorLogName{
+      font-weight:700;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .behaviorLogMeta{
+      color:var(--muted);
+      font-size:0.76rem;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .behaviorLogEvent{
+      justify-self:end;
+      max-width:190px;
+      color:var(--fg);
+      font-size:0.78rem;
+      font-weight:800;
+      text-align:right;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .behaviorLogEmpty{
+      padding:0.7rem 0.75rem;
+      color:var(--muted);
+      font-size:0.82rem;
+    }
+
     @media (max-width: 900px){
       /* page width on phones */
       body[data-module="teacher_attendance"]{
@@ -686,6 +762,9 @@
       .bulkActions{ width:100%; }
       .bulkSelect{ width:100%; min-width:0; }
       .bulkActions .btn{ width:100%; }
+      .behaviorLogHead{ align-items:flex-start; }
+      .behaviorLogItem{ grid-template-columns:minmax(0,1fr); gap:0.2rem; }
+      .behaviorLogEvent{ justify-self:start; text-align:left; max-width:100%; }
     }
 
     /* Hide the Out/In column entirely when not on the current period */
@@ -823,6 +902,17 @@
             <div id="rows"></div>
           </div>
 
+          <div class="behaviorLog" id="behaviorLogBox" hidden>
+            <div class="behaviorLogHead">
+              <div class="behaviorLogTitle">
+                <strong>Logged behaviors</strong>
+                <span id="behaviorLogCount">0 logged</span>
+              </div>
+              <button class="btn btn-mini" id="behaviorLogToggleBtn" type="button" aria-expanded="true">Hide</button>
+            </div>
+            <div class="behaviorLogList" id="behaviorLogList"></div>
+          </div>
+
           <div class="bulkBar" id="bulkBar">
             <div class="bulkLeft">
               <span id="bulkSelectedCount">0 selected</span>
@@ -892,7 +982,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260529-secret-menu-theme';
+    const pageAssetVer = '20260529-behavior-log-panel';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 
