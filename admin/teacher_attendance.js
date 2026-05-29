@@ -350,8 +350,9 @@ function initSecretMenu(){
   el.style.zIndex = '99999';
   el.style.minWidth = '210px';
   el.style.maxWidth = '320px';
-  el.style.background = 'var(--card, #111)';
-  el.style.border = '1px solid rgba(255,255,255,.18)';
+  el.style.background = 'var(--card-bg, #111827)';
+  el.style.color = 'var(--fg, #e5e7eb)';
+  el.style.border = '1px solid var(--card-border, rgba(255,255,255,.18))';
   el.style.borderRadius = '10px';
   el.style.boxShadow = '0 10px 30px rgba(0,0,0,.35)';
   el.style.padding = '6px';
