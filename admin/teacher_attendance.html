@@ -586,7 +586,7 @@
 
     /* Bulk actions bar (sticky at bottom of the card) */
     .bulkBar{
-      margin-top: 0.75rem;
+      margin-top: 1.25rem;
       position: sticky;
       bottom: 0;
       z-index: 50;
@@ -628,7 +628,7 @@
     }
 
     .behaviorLog{
-      margin-top:0.75rem;
+      margin-top:1.25rem;
       border:1px solid var(--card-border);
       border-radius:0.9rem;
       background: var(--control-bg);
@@ -997,7 +997,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260529-behavior-log-filters';
+    const pageAssetVer = '20260529-behavior-log-spacing';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 
