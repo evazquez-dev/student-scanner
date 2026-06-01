@@ -134,6 +134,7 @@ const attLateInp = document.getElementById('attLateMinutes');
 const campusOutModeSel = document.getElementById('campusOutMode');
 const sendToPowerSchoolInp = document.getElementById('sendToPowerSchool');
 const regentsPrepExitGateInp = document.getElementById('regentsPrepExitGate');
+const chairsReminderEnabledInp = document.getElementById('chairsReminderEnabled');
 const webappScheduleModeSel = document.getElementById('webappScheduleMode');
 
 // Shell / inner
@@ -984,12 +985,13 @@ function webappScheduleModeLabel(mode) {
   return normalizeWebappScheduleMode(mode) === 'original' ? 'Original' : 'Special';
 }
 
-async function saveAttendanceCfg({ lateMin, campusOutMode, sendToPowerSchool, webappScheduleMode }) {
+async function saveAttendanceCfg({ lateMin, campusOutMode, sendToPowerSchool, chairsReminderEnabled, webappScheduleMode }) {
   const body = new URLSearchParams();
   body.set('late_min', String(lateMin));
   body.set('campus_out_mode', normalizeCampusOutMode(campusOutMode));
   body.set('send_to_powerschool', normalizeSendToPowerSchool(sendToPowerSchool) ? 'true' : 'false');
   body.set('regents_prep_exit_gate', regentsPrepExitGateInp?.checked ? 'true' : 'false');
+  body.set('chairs_reminder_enabled', chairsReminderEnabled === false ? 'false' : 'true');
   body.set('webapp_schedule_mode', normalizeWebappScheduleMode(webappScheduleMode));
 
   const r = await adminFetch('/admin/attendance_cfg', {
@@ -1006,7 +1008,7 @@ async function saveAttendanceCfg({ lateMin, campusOutMode, sendToPowerSchool, we
 }
 
 async function loadAttendanceCfg() {
-  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp || !regentsPrepExitGateInp || !webappScheduleModeSel) return;
+  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp || !regentsPrepExitGateInp || !chairsReminderEnabledInp || !webappScheduleModeSel) return;
   attOut.textContent = 'Loading…';
   try {
     const cfg = await getAttendanceCfg();
@@ -1019,6 +1021,7 @@ async function loadAttendanceCfg() {
       cfg.send_to_powerschool ?? cfg.sendToPowerSchool ?? cfg.push_to_powerschool
     );
     regentsPrepExitGateInp.checked = !!(cfg.regents_prep_exit_gate ?? cfg.regentsPrepExitGate);
+    chairsReminderEnabledInp.checked = (cfg.chairs_reminder_enabled ?? cfg.chairsReminderEnabled) !== false;
     webappScheduleModeSel.value = normalizeWebappScheduleMode(
       cfg.webapp_schedule_mode ?? cfg.webappScheduleMode
     );
@@ -1027,6 +1030,7 @@ async function loadAttendanceCfg() {
       `Campus-out dismissal: ${campusOutModeLabel(campusOutModeSel.value)}. ` +
       `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchoolInp.checked)}. ` +
       `Regents Prep exit gate: ${regentsPrepExitGateInp.checked ? 'On' : 'Off'}. ` +
+      `Chair reminder: ${chairsReminderEnabledInp.checked ? 'On' : 'Off'}. ` +
       `Web app lunch/advisory schedule: ${webappScheduleModeLabel(webappScheduleModeSel.value)}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;
@@ -1036,7 +1040,7 @@ async function loadAttendanceCfg() {
 document.getElementById('btnAttLoad')?.addEventListener('click', loadAttendanceCfg);
 
 document.getElementById('btnAttSave')?.addEventListener('click', async () => {
-  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp || !regentsPrepExitGateInp || !webappScheduleModeSel) return;
+  if (!attOut || !attLateInp || !campusOutModeSel || !sendToPowerSchoolInp || !regentsPrepExitGateInp || !chairsReminderEnabledInp || !webappScheduleModeSel) return;
 
   const raw = attLateInp.value.trim();
   const n = Number(raw);
@@ -1052,6 +1056,7 @@ document.getElementById('btnAttSave')?.addEventListener('click', async () => {
       lateMin: n,
       campusOutMode: campusOutModeSel.value,
       sendToPowerSchool: sendToPowerSchoolInp.checked,
+      chairsReminderEnabled: chairsReminderEnabledInp.checked,
       webappScheduleMode: webappScheduleModeSel.value
     });
     if (!cfg.ok) throw new Error(cfg.error || 'Unknown error');
@@ -1062,18 +1067,21 @@ document.getElementById('btnAttSave')?.addEventListener('click', async () => {
       cfg.send_to_powerschool ?? cfg.sendToPowerSchool ?? cfg.push_to_powerschool ?? sendToPowerSchoolInp.checked
     );
     const regentsPrepExitGate = !!(cfg.regents_prep_exit_gate ?? cfg.regentsPrepExitGate ?? regentsPrepExitGateInp.checked);
+    const chairsReminderEnabled = (cfg.chairs_reminder_enabled ?? cfg.chairsReminderEnabled ?? chairsReminderEnabledInp.checked) !== false;
     const webappScheduleMode = normalizeWebappScheduleMode(
       cfg.webapp_schedule_mode ?? cfg.webappScheduleMode ?? webappScheduleModeSel.value
     );
     campusOutModeSel.value = savedMode;
     sendToPowerSchoolInp.checked = sendToPowerSchool;
     regentsPrepExitGateInp.checked = regentsPrepExitGate;
+    chairsReminderEnabledInp.checked = chairsReminderEnabled;
     webappScheduleModeSel.value = webappScheduleMode;
     attOut.textContent =
       `Saved. Late after ${cfg.late_min} minute(s). ` +
       `Campus-out dismissal: ${campusOutModeLabel(savedMode)}. ` +
       `PowerSchool sync: ${powerSchoolSyncLabel(sendToPowerSchool)}. ` +
       `Regents Prep exit gate: ${regentsPrepExitGate ? 'On' : 'Off'}. ` +
+      `Chair reminder: ${chairsReminderEnabled ? 'On' : 'Off'}. ` +
       `Web app lunch/advisory schedule: ${webappScheduleModeLabel(webappScheduleMode)}.`;
   } catch (e) {
     attOut.textContent = `Error: ${e.message || e}`;

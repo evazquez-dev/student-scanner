@@ -352,6 +352,12 @@
           </div>
 
           <div class="row" style="align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap;">
+            <label for="chairsReminderEnabled">Last-period chair reminder</label>
+            <input id="chairsReminderEnabled" type="checkbox" checked />
+            <span class="muted">When on, teachers see a yellow reminder during the current day’s last scheduled period.</span>
+          </div>
+
+          <div class="row" style="align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap;">
             <label for="webappScheduleMode">Web app lunch/advisory schedule</label>
             <select id="webappScheduleMode" style="min-width:260px">
               <option value="special">Use special schedule</option>
@@ -473,6 +479,6 @@
     </div>
   </main>
 
-  <script src="./admin.js?v=20260505-teacher-overview" type="module"></script>
+  <script src="./admin.js?v=20260601-chair-reminder-toggle" type="module"></script>
 </body>
 </html>

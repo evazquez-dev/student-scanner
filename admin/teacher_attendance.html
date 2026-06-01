@@ -317,6 +317,23 @@
     }
     .pill-dot--ok{ background: var(--ok); }
     .pill-dot--bad{ background: var(--bad); }
+    .chairReminder{
+      display: flex;
+      align-items: center;
+      width: 100%;
+      min-height: 2.35rem;
+      margin: 0 0 0.75rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 0.6rem;
+      border: 1px solid rgba(245,158,11,0.7);
+      background: rgba(245,158,11,0.18);
+      color: var(--fg);
+      font-size: 0.9rem;
+      font-weight: 800;
+    }
+    .chairReminder[hidden]{
+      display: none;
+    }
 
     .layout{
       display:grid;
@@ -825,6 +842,8 @@
         <h1 data-brand-title>EagleNEST — Teacher Attendance</h1>
         <div class="sub">Pulls scheduled roster + scan evidence from the Worker’s attendance durable object.</div>
 
+        <div id="chairReminder" class="chairReminder" hidden>the chairs need to be put on top of desks</div>
+
         <div class="pill-row">
           <div class="pill">
             <span class="pill-dot" id="statusDot"></span>
@@ -997,7 +1016,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260529-behavior-log-spacing';
+    const pageAssetVer = '20260601-chair-reminder';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 

@@ -1184,6 +1184,7 @@ const statusText = document.getElementById('statusText');
 const dateText   = document.getElementById('dateText');
 const refreshText= document.getElementById('refreshText');
 const currentPeriodText = document.getElementById('currentPeriodText');
+const chairReminder = document.getElementById('chairReminder');
 const tableBox = document.getElementById('tableBox');
 const outInHeader = document.getElementById('outInHeader');
 
@@ -1722,6 +1723,7 @@ function applyModeUI(){
   if (outInHeader) outInHeader.textContent = isAS ? 'In/Out' : 'Out/In';
 
   setAfterSchoolButtonUI();
+  renderChairReminder();
 }
 
 async function refreshAfterSchoolEligibility(){
@@ -1846,6 +1848,8 @@ async function toggleClassSessionOutIn({ date, room, periodLocal, osis }){
 
 async function populateDropdowns(){
   const opts = await fetchTeacherOptions();
+  TEACHER_OPTS_CACHE = opts;
+  renderCurrentPeriod(opts);
 
   const savedPeriod = localStorage.getItem('teacher_att_period') || '';
 
@@ -3303,6 +3307,7 @@ function renderCurrentPeriod(opts){
   CURRENT_PERIOD_LOCAL = cur;
   if(!cur){
     currentPeriodText.textContent = 'Current: —';
+    renderChairReminder(opts);
     return;
   }
 
@@ -3315,9 +3320,12 @@ function renderCurrentPeriod(opts){
   }
 
   currentPeriodText.textContent = `Current: ${label}`;
+  renderChairReminder(opts);
 }
 
 function getLastScheduledPeriodLocal(){
+  const configured = String(TEACHER_OPTS_CACHE?.last_period_local || '').trim();
+  if (configured) return configured;
   const items = Array.isArray(TEACHER_OPTS_CACHE?.period_options)
     ? TEACHER_OPTS_CACHE.period_options
     : (Array.isArray(TEACHER_OPTS_CACHE?.periods) ? TEACHER_OPTS_CACHE.periods : []);
@@ -3333,6 +3341,20 @@ function isLastScheduledPeriodLocal(periodLocal){
   return !!current && !!last && current === last;
 }
 
+function isChairReminderActive(opts = TEACHER_OPTS_CACHE){
+  if (PAGE_MODE === 'after_school') return false;
+  if (!opts || opts.chairs_reminder_enabled === false) return false;
+  if (opts.chairs_reminder_active === true) return true;
+  const cur = String(opts.current_period_local || CURRENT_PERIOD_LOCAL || '').trim();
+  const last = String(opts.last_period_local || getLastScheduledPeriodLocal() || '').trim();
+  return !!cur && !!last && cur === last;
+}
+
+function renderChairReminder(opts = TEACHER_OPTS_CACHE){
+  if (!chairReminder) return;
+  chairReminder.hidden = !isChairReminderActive(opts);
+}
+
 function startCurrentPeriodTicker(){
   if(CURRENT_PERIOD_TIMER) return;
 
@@ -3341,6 +3363,7 @@ function startCurrentPeriodTicker(){
     if(!IS_AUTHED) return;
     try{
       const opts = await fetchTeacherOptions();
+      TEACHER_OPTS_CACHE = opts;
       renderCurrentPeriod(opts);
     }catch(_){}
 
