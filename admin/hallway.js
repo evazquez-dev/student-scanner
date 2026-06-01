@@ -77,6 +77,7 @@ async function adminFetch(pathOrUrl, init = {}) {
 
 const GOOGLE_CLIENT_ID = document.querySelector('meta[name="google-client-id"]')?.content || '';
 const SNAPSHOT_PATH = '/admin/hallway_state_monitor';
+const BATHROOM_CLEAR_PATH = '/admin/bathroom/clear';
 
 const loginCard  = document.getElementById('loginCard');
 const loginOut   = document.getElementById('loginOut');
@@ -98,6 +99,7 @@ let activeZones = new Set(DEFAULT_ACTIVE_ZONES);
 let lastSnapshot = null;
 let userToggledZones = false;
 let didAutoSetZones = false;
+let pendingBathroomClears = new Set();
 
 const POLL_MS = 10_000;
 let lastRefreshTs = null;
@@ -331,6 +333,10 @@ function fmtScheduledRoom(room, kind) {
   return (kind === 'next') ? `→ ${pretty}` : pretty;
 }
 
+function bathroomClearKey(osis, updatedAt) {
+  return `${String(osis || '').trim()}|${String(updatedAt || '').trim()}`;
+}
+
 /**
  * Map zone string from API → CSS class for mini badge.
  * Matches the classes defined in hallway.html CSS.
@@ -521,11 +527,16 @@ function renderLocations(data) {
     h5.className = 'row-ts';
     h5.textContent = 'Last seen';
 
+    const h6 = document.createElement('div');
+    h6.className = 'row-action';
+    h6.textContent = 'Action';
+
     headerRow.appendChild(h1);
     headerRow.appendChild(h2);
     headerRow.appendChild(h3);
     headerRow.appendChild(h4);
     headerRow.appendChild(h5);
+    headerRow.appendChild(h6);
     list.appendChild(headerRow);
 
     for (const s of rows) {
@@ -575,11 +586,31 @@ function renderLocations(data) {
       col5.className = 'row-ts';
       col5.textContent = fmtShortTs(s.updated_at);
 
+      const col6 = document.createElement('div');
+      col6.className = 'row-action';
+      if (s.zone === 'bathroom' && s.osis) {
+        const key = bathroomClearKey(s.osis, s.updated_at);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'row-actionBtn';
+        btn.dataset.action = 'clear-bathroom';
+        btn.dataset.osis = s.osis || '';
+        btn.dataset.name = s.name || '';
+        btn.dataset.location = s.loc || s.locLabel || '';
+        btn.dataset.updatedAt = s.updated_at || '';
+        btn.disabled = pendingBathroomClears.has(key);
+        btn.textContent = btn.disabled ? 'Clearing...' : 'Clear bathroom';
+        col6.appendChild(btn);
+      } else {
+        col6.textContent = '—';
+      }
+
       row.appendChild(col1);
       row.appendChild(col2);
       row.appendChild(col3);
       row.appendChild(col4);
       row.appendChild(col5);
+      row.appendChild(col6);
       list.appendChild(row);
     }
 
@@ -588,6 +619,73 @@ function renderLocations(data) {
     locContainer.appendChild(group);
   }
 }
+
+async function clearBathroomFromButton(btn) {
+  const osis = String(btn?.dataset?.osis || '').trim();
+  if (!osis) return;
+
+  const name = String(btn?.dataset?.name || '').trim();
+  const location = String(btn?.dataset?.location || '').trim();
+  const updatedAt = String(btn?.dataset?.updatedAt || '').trim();
+  const key = bathroomClearKey(osis, updatedAt);
+  if (pendingBathroomClears.has(key)) return;
+
+  const label = name ? `${name} (${osis})` : osis;
+  const ok = window.confirm(`Clear ${label} from the bathroom and mark them in the hallway?`);
+  if (!ok) return;
+
+  pendingBathroomClears.add(key);
+  if (lastSnapshot) renderLocations(lastSnapshot);
+  setStatus(true, 'Clearing bathroom...');
+
+  try {
+    const r = await adminFetch(BATHROOM_CLEAR_PATH, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        osis,
+        name,
+        expectedLocation: location,
+        expectedUpdatedAt: updatedAt
+      })
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.ok) {
+      throw new Error(data?.error || `HTTP ${r.status}`);
+    }
+
+    emitHallwayFidelityEvent('hallway_bathroom_clear', {
+      success: true,
+      metadata: {
+        osis,
+        location
+      }
+    });
+    setStatus(true, 'Bathroom cleared');
+    await fetchSnapshotOnce();
+  } catch (err) {
+    emitHallwayFidelityEvent('hallway_bathroom_clear_error', {
+      success: false,
+      error_code: 'bathroom_clear_failed',
+      error_message: err?.message || String(err),
+      metadata: { osis, location }
+    });
+    setStatus(false, 'Clear failed');
+    alert(`Could not clear bathroom: ${err?.message || err}`);
+    await fetchSnapshotOnce().catch(() => {});
+  } finally {
+    pendingBathroomClears.delete(key);
+    if (lastSnapshot) renderLocations(lastSnapshot);
+  }
+}
+
+locContainer.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('button[data-action="clear-bathroom"]');
+  if (!btn) return;
+  clearBathroomFromButton(btn).catch(err => {
+    console.error('bathroom clear error', err);
+  });
+});
 
 // Toggle zones by clicking summary items
 summaryGrid.addEventListener('click', (ev) => {

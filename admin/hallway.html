@@ -291,7 +291,8 @@
         minmax(0, 0.8fr)    /* Bathroom visits */
         minmax(0, 0.9fr)    /* Scheduled room */
         minmax(0, 1fr)      /* Location */
-        minmax(0, 1.2fr);   /* Last seen */
+        minmax(0, 1.2fr)    /* Last seen */
+        minmax(7.5rem, 0.85fr); /* Action */
       gap: 0.4rem;
       font-size: 0.8rem;
       padding: 0.25rem 0.1rem;
@@ -332,6 +333,33 @@
       text-align: right;
       font-variant-numeric: tabular-nums;
       color: var(--muted);
+    }
+    .row-action {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      min-width: 0;
+      color: var(--muted);
+    }
+    .row-actionBtn {
+      width: 7.25rem;
+      min-height: 2rem;
+      border-radius: 0.45rem;
+      border: 1px solid rgba(56,189,248,0.65);
+      background: rgba(56,189,248,0.12);
+      color: var(--fg);
+      font: inherit;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .row-actionBtn:hover:not(:disabled) {
+      border-color: rgba(56,189,248,0.95);
+      background: rgba(56,189,248,0.2);
+    }
+    .row-actionBtn:disabled {
+      cursor: wait;
+      opacity: 0.65;
     }
 
     /* Mini zone badges next to student names */
@@ -437,6 +465,12 @@
     :root[data-theme="light"] .zone-chip{
       background: rgba(241,245,249,0.95);
       border-color: rgba(100,116,139,0.55);
+    }
+
+    :root[data-theme="light"] .row-actionBtn{
+      background: rgba(56,189,248,0.12);
+      border-color: rgba(14,165,233,0.5);
+      color: var(--fg);
     }
 
     /* ---- Fix “summary buttons” in light mode ---- */
@@ -567,7 +601,7 @@
               z-index:9999;
               display:none;"></pre>
   
-  <script type="module" src="./hallway.js"></script>
+  <script type="module" src="./hallway.js?v=20260601-bathroom-clear"></script>
 
 </body>
 </html>
