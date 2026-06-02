@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="./nav.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./attendance_change.js?v=20260507-el" defer></script>
+  <script src="./attendance_change.js?v=20260602-el-option" defer></script>
 
   <style>
     :root{
@@ -136,8 +136,8 @@
     <div class="card">
       <h1 data-brand-title>EagleNEST — Attendance Change</h1>
       <div class="muted">
-        Bulk-update attendance codes for a selected date range of periods. Choose <b>Absent</b>, <b>Present</b>, <b>Late</b>, or <b>Excused</b>.
-        Only <b>Excused</b> creates a lock for remaining periods. You can also scan current statuses first and optionally apply changes only to specific current statuses.
+        Bulk-update attendance codes for a selected date range of periods. Choose <b>Absent</b>, <b>Present</b>, <b>Late</b>, <b>Excused Late</b>, or <b>Excused</b>.
+        Only <b>Excused (E)</b> creates a lock for remaining periods. You can also scan current statuses first and optionally apply changes only to specific current statuses.
       </div>
     </div>
 
@@ -178,6 +178,7 @@
               <option value="A">Absent (A)</option>
               <option value="P">Present (P)</option>
               <option value="L">Late (L)</option>
+              <option value="EL">Excused Late (EL)</option>
               <option value="E" selected>Excused (E)</option>
             </select>
           </div>

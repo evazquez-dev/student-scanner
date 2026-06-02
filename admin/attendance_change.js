@@ -375,6 +375,7 @@
         Absent_A: counts.A || 0,
         Present_P: counts.P || 0,
         Late_L: counts.L || 0,
+        ExcusedLate_EL: counts.EL || 0,
         Excused_E: counts.E || 0,
         NoStatus: counts.NONE || 0
       },
@@ -408,6 +409,7 @@
         Absent_A: counts.A || 0,
         Present_P: counts.P || 0,
         Late_L: counts.L || 0,
+        ExcusedLate_EL: counts.EL || 0,
         Excused_E: counts.E || 0,
         NoStatus: counts.NONE || 0
       } : null,
