@@ -1044,6 +1044,14 @@
     const v = String(current || '').toLowerCase();
     return v.includes('front entrance') || v.includes('main entrance') || v.includes('front door');
   }
+  function isVariedEntranceLocation(loc) {
+    const current = loc || getLocation();
+    const meta = getLocationMeta(current);
+    const type = String((meta && meta.type) || '').toLowerCase();
+    const mode = String((meta && meta.mode) || '').toLowerCase();
+    const v = String(current || '').trim().toLowerCase();
+    return type === 'varied' || mode === 'varied' || v === 'front entrance (varied)';
+  }
 
 
   function lunchSlotFromLocation(loc){ return String(loc||'').toLowerCase().includes('2') ? 2 : 1; }
@@ -1194,6 +1202,9 @@
     if (!name) return 'default';
   
     const meta = getLocationMeta(name);
+    const metaType = String((meta && meta.type) || '').toLowerCase();
+    const metaMode = String((meta && meta.mode) || '').toLowerCase();
+    if (metaType === 'varied' || metaMode === 'varied') return 'morning';
     if (meta && meta.type) return meta.type;
   
     const s = name.toLowerCase();
@@ -1833,6 +1844,7 @@
   async function apiLookup(code){
     const loc = getLocation();
     const body = new URLSearchParams({ action:'lookup', code });
+    if (loc) body.set('location', loc);
 
     if (isClassKiosk(loc)) {
       const kioskRoom = normalizeRoomLabelClient(loc);
@@ -2332,6 +2344,39 @@
 
       // 🔔 Auto-reset per period for class kiosks
       maybeResetClassStateForPeriod(res);
+
+      // ---- VARIED FRONT ENTRANCE (building IN/OUT toggle) ----
+      if (isVariedEntranceLocation(loc)) {
+        const nextAction = String(res.varied_next_action || 'in').toLowerCase();
+        const allowed = res.varied_allowed !== false;
+
+        if (!allowed) {
+          const reason = String(res.varied_denial_reason || '').toLowerCase() === 'no_schedule'
+            ? 'NO SCHEDULE'
+            : '';
+          beepBad();
+          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: reason, when });
+          showSuccess(res.name, code, 'NOT ALLOWED', reason, when);
+          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
+          setStatus('Denied: student has no schedule.');
+          resetInputSession();
+          PENDING_INPUT_METHOD = 'unknown';
+          return;
+        }
+
+        const isOut = nextAction === 'out';
+        const label = isOut ? 'OUT' : 'IN';
+        const detail = isOut ? 'Off Campus' : 'Hallway';
+        if (isOut) beepNeutralUp();
+        else beepGood();
+        updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: detail, when });
+        showSuccess(res.name, code, label, detail, when);
+        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(isOut ? 'varied_out' : 'varied_in') });
+        setStatus('Ready. Scan next card…');
+        resetInputSession();
+        PENDING_INPUT_METHOD = 'unknown';
+        return;
+      }
 
       // ---- CLASS KIOSK LOGIC ----
       if (isClassKiosk(loc)) {
