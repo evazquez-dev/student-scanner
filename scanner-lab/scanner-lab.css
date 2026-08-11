@@ -215,6 +215,16 @@ button:disabled {
   text-align: center;
 }
 
+.infoBanner {
+  padding: 14px 16px;
+  background: #e8f1fb;
+  border: 2px solid var(--brand);
+  color: var(--brand-dark);
+  font-size: 1.05rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .failureBanner {
   padding: 16px;
   background: #fdeceb;
@@ -350,6 +360,16 @@ input[type="radio"] {
   object-fit: contain;
 }
 
+.labNote {
+  margin: 14px 0;
+  padding: 12px 14px;
+  background: #fff7e5;
+  border: 1px solid #ecc56d;
+  color: #3d2a06;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
 .compactHeader {
   margin-bottom: 10px;
 }
@@ -375,6 +395,7 @@ input[type="radio"] {
   display: block;
   width: 100%;
   height: auto;
+  object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -408,7 +429,23 @@ input[type="radio"] {
   border: 1px solid #0c111a;
 }
 
+.mappingCheckWrap {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  margin: 12px 0;
+  padding: 12px;
+  background: #0c111a;
+  border: 1px solid #0c111a;
+}
+
 #decoderInputCanvas {
+  max-width: 100%;
+  max-height: 360px;
+  background: #fff;
+}
+
+#cropMappingCanvas {
   max-width: 100%;
   max-height: 360px;
   background: #fff;

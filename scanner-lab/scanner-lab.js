@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-11-2';
+  const LAB_BUILD = '2026-08-11-3';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -28,17 +28,34 @@
     frameCallback: 0,
     startedAt: 0,
     attempts: 0,
-    successes: 0,
+    pdf417Successes: 0,
+    aamvaSuccesses: 0,
     lastDecodeMs: 0,
     lastFormat: 'none',
     lastVariant: 'none',
     lastRaw: '',
     lastError: '',
-    lastPayload: '',
+    lastPdf417Payload: '',
+    lastAamvaPayload: '',
     lastCandidateInfo: '-',
-    matchingReads: 0,
-    aamvaDetected: false
+    matchingPdf417Reads: 0,
+    matchingAamvaReads: 0,
+    pdf417Detected: false,
+    aamvaDetected: false,
+    selfTestDetected: false
   };
+
+  function emptyDecodeState() {
+    return {
+      success: false,
+      ms: 0,
+      count: 0,
+      format: '-',
+      candidateInfo: '-',
+      dimensions: '-',
+      variant: 'none'
+    };
+  }
 
   const photo = {
     file: null,
@@ -61,7 +78,10 @@
     manualCropVariant: 'none',
     decodeMs: 0,
     variant: 'none',
-    lastError: ''
+    lastError: '',
+    directPhotoResult: emptyDecodeState(),
+    allFormatsResult: emptyDecodeState(),
+    manualCropResult: emptyDecodeState()
   };
 
   const selfTest = {
@@ -79,7 +99,8 @@
     mode: '',
     startX: 0,
     startY: 0,
-    startRect: null
+    startRect: null,
+    lastMapping: null
   };
 
   let wasmInfo = null;
@@ -113,6 +134,10 @@
 
   function selectedRegionMode() {
     return document.querySelector('input[name="regionMode"]:checked')?.value || 'full';
+  }
+
+  function selectedTestTarget() {
+    return document.querySelector('input[name="testTarget"]:checked')?.value || 'selftest';
   }
 
   function diagnosticPdf417Options(extra) {
@@ -466,16 +491,25 @@
 
   function clearLiveResults() {
     live.attempts = 0;
-    live.successes = 0;
+    live.pdf417Successes = 0;
+    live.aamvaSuccesses = 0;
     live.lastDecodeMs = 0;
     live.lastFormat = 'none';
     live.lastVariant = 'none';
     live.lastRaw = '';
     live.lastError = '';
-    live.lastPayload = '';
+    live.startedAt = live.running ? performance.now() : 0;
+    live.lastPdf417Payload = '';
+    live.lastAamvaPayload = '';
     live.lastCandidateInfo = '-';
-    live.matchingReads = 0;
+    live.matchingPdf417Reads = 0;
+    live.matchingAamvaReads = 0;
+    live.pdf417Detected = false;
     live.aamvaDetected = false;
+    live.selfTestDetected = false;
+    $('livePdf417Banner').hidden = true;
+    $('liveSelfTestBanner').hidden = true;
+    $('liveNonAamvaNote').hidden = true;
     $('liveValidBanner').hidden = true;
     clearParsed('live');
     renderDecodedText();
@@ -489,15 +523,20 @@
     rememberActiveDimensions(video);
     const elapsedSec = live.startedAt ? Math.max(0.001, (performance.now() - live.startedAt) / 1000) : 0;
     const rate = elapsedSec ? live.attempts / elapsedSec : 0;
+    const target = selectedTestTarget() === 'state_id' ? 'State ID / Driver License' : 'Scanner Self-Test';
     setText('liveCameraState', live.running ? 'ACTIVE' : 'OFF');
     setText('liveFrameSize', `${video?.videoWidth || 0} x ${video?.videoHeight || 0}`);
+    setText('liveTarget', target);
     setText('liveAttempts', live.attempts);
-    setText('liveSuccesses', live.successes);
+    setText('livePdf417Successes', live.pdf417Successes);
     setText('liveScanRate', `${rate.toFixed(1)}/sec`);
     setText('liveDecodeMs', live.lastDecodeMs ? `${live.lastDecodeMs} ms` : '-');
     setText('liveFormat', live.lastFormat || 'none');
+    setText('livePdf417Detected', yesNo(live.pdf417Detected));
+    setText('livePdf417Matches', `${live.matchingPdf417Reads} / ${REQUIRED_MATCHES}`);
     setText('liveAamva', yesNo(live.aamvaDetected));
-    setText('liveMatches', `${live.matchingReads} / ${REQUIRED_MATCHES}`);
+    setText('liveAamvaSuccesses', live.aamvaSuccesses);
+    setText('liveAamvaMatches', `${live.matchingAamvaReads} / ${REQUIRED_MATCHES}`);
     setText('liveVariant', live.lastVariant || 'none');
     setText('liveStatus', status || (live.running ? 'Searching...' : 'Idle'));
   }
@@ -542,33 +581,53 @@
       if (!hit.candidate) {
         live.lastFormat = resultFormat(hit.lastResult);
         live.aamvaDetected = false;
-        live.matchingReads = 0;
         updateLiveMetrics(hit.lastResult ? 'Candidate rejected' : 'Searching...');
         return;
       }
 
       const payload = String(hit.candidate.text || '');
       const isAamva = !!IdScan?.looksLikeAamvaPdf417?.(payload);
-      live.successes += 1;
+      const isSelfTest = payload === SELFTEST_TEXT;
+      live.pdf417Successes += 1;
       live.lastFormat = resultFormat(hit.candidate);
       live.lastVariant = hit.variant;
+      live.pdf417Detected = true;
       live.aamvaDetected = isAamva;
+      live.selfTestDetected = isSelfTest;
       live.lastRaw = payload;
-      if (isAamva && payload === live.lastPayload) live.matchingReads += 1;
-      else live.matchingReads = isAamva ? 1 : 0;
-      live.lastPayload = isAamva ? payload : '';
+      if (payload === live.lastPdf417Payload) live.matchingPdf417Reads += 1;
+      else live.matchingPdf417Reads = 1;
+      live.lastPdf417Payload = payload;
       if (isAamva) {
+        live.aamvaSuccesses += 1;
+        if (payload === live.lastAamvaPayload) live.matchingAamvaReads += 1;
+        else live.matchingAamvaReads = 1;
+        live.lastAamvaPayload = payload;
         renderParsed('live', payload);
-        $('liveValidBanner').hidden = false;
+        $('liveValidBanner').hidden = live.matchingAamvaReads < REQUIRED_MATCHES;
         if (navigator.vibrate) {
           try { navigator.vibrate(60); } catch {}
         }
       } else {
         clearParsed('live');
         $('liveValidBanner').hidden = true;
+        live.matchingAamvaReads = 0;
+        live.lastAamvaPayload = '';
       }
+      $('livePdf417Banner').hidden = false;
+      $('liveSelfTestBanner').hidden = !(selectedTestTarget() === 'selftest' && isSelfTest && live.matchingPdf417Reads >= REQUIRED_MATCHES);
+      $('liveNonAamvaNote').hidden = isAamva;
       renderDecodedText();
-      updateLiveMetrics(isAamva ? 'Valid AAMVA' : 'Barcode detected');
+      const target = selectedTestTarget();
+      let status = isAamva ? 'PDF417 detected; valid AAMVA State ID' : 'PDF417 detected, but not AAMVA';
+      if (isSelfTest && target === 'selftest' && live.matchingPdf417Reads >= REQUIRED_MATCHES) {
+        status = 'Live iPad PDF417 scanning works; self-test barcode is not AAMVA';
+      } else if (isSelfTest) {
+        status = 'PDF417 self-test detected; waiting for matching read';
+      } else if (target === 'state_id' && isAamva && live.matchingAamvaReads >= REQUIRED_MATCHES) {
+        status = 'Valid AAMVA State ID';
+      }
+      updateLiveMetrics(status);
     } catch (err) {
       live.lastError = errorText(err);
       setError('liveError', err);
@@ -650,6 +709,10 @@
     photo.decodeMs = 0;
     photo.variant = 'none';
     photo.lastError = '';
+    photo.directPhotoResult = emptyDecodeState();
+    photo.allFormatsResult = emptyDecodeState();
+    photo.manualCropResult = emptyDecodeState();
+    crop.lastMapping = null;
     setText('photoDimensions', '-');
     setText('directResultCount', '-');
     setText('directFormat', '-');
@@ -673,6 +736,7 @@
     setError('photoError', '');
     setCropToolVisible(false);
     clearDecoderInputPreview();
+    clearCropMappingDiagnostics();
     updateInterpretation();
   }
 
@@ -690,6 +754,23 @@
     setText('decoderInputRotation', '-');
     setText('decoderInputProcessing', '-');
     setText('decoderInputBarcodePixels', '-');
+  }
+
+  function clearCropMappingDiagnostics() {
+    crop.lastMapping = null;
+    const canvas = $('cropMappingCanvas');
+    if (canvas) {
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 1, 1);
+    }
+    setText('cropElementSize', '-');
+    setText('cropNaturalSize', '-');
+    setText('cropRenderedRect', '-');
+    setText('cropDisplaySelection', '-');
+    setText('cropNaturalSelection', '-');
+    setText('cropMappingValid', 'NO');
   }
 
   async function imageFileToCanvas(file) {
@@ -734,15 +815,25 @@
   async function decodeDirectOriginalFile(file) {
     setText('directResultCount', 'running');
     const read = await runBarcodeRead(file, diagnosticPdf417Options());
+    const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
+    const resultState = {
+      ...emptyDecodeState(),
+      success: !!decoded,
+      ms: read.ms,
+      count: read.results.length,
+      format: resultFormat(decoded || read.first),
+      candidateInfo: resultDiagnosticSummary(decoded || read.first),
+      variant: 'direct original File'
+    };
+    photo.directPhotoResult = resultState;
     photo.directCount = read.results.length;
     photo.directMs = read.ms;
-    const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
     photo.directSuccess = !!decoded;
-    photo.directFormat = resultFormat(decoded || read.first);
-    photo.directCandidateInfo = resultDiagnosticSummary(decoded || read.first);
+    photo.directFormat = resultState.format;
+    photo.directCandidateInfo = resultState.candidateInfo;
     setText('directResultCount', read.results.length);
-    setText('directFormat', photo.directFormat);
-    setText('directError', photo.directCandidateInfo);
+    setText('directFormat', resultState.format);
+    setText('directError', resultState.candidateInfo);
     setText('directDecodeMs', `${read.ms} ms`);
     return decoded || null;
   }
@@ -818,12 +909,22 @@
       setText('allFormatsDetected', 'running');
       const read = await runBarcodeRead(photo.file, allFormatsOptions());
       const decoded = read.results.find(hasDecodedText);
-      photo.allFormatsSuccess = !!decoded;
-      photo.allFormatsFormat = resultFormat(decoded || read.first);
-      photo.allFormatsMs = read.ms;
-      setText('allFormatsDetected', yesNo(photo.allFormatsSuccess));
-      setText('allFormatsFormat', `${photo.allFormatsFormat}; ${read.ms} ms; ${resultDiagnosticSummary(decoded || read.first)}`);
-      setText('photoStatus', photo.allFormatsSuccess ? 'All-formats barcode detected' : 'All-formats found no barcode');
+      const resultState = {
+        ...emptyDecodeState(),
+        success: !!decoded,
+        ms: read.ms,
+        count: read.results.length,
+        format: resultFormat(decoded || read.first),
+        candidateInfo: resultDiagnosticSummary(decoded || read.first),
+        variant: 'all formats original File'
+      };
+      photo.allFormatsResult = resultState;
+      photo.allFormatsSuccess = resultState.success;
+      photo.allFormatsFormat = resultState.format;
+      photo.allFormatsMs = resultState.ms;
+      setText('allFormatsDetected', yesNo(resultState.success));
+      setText('allFormatsFormat', `${resultState.format}; ${resultState.ms} ms; ${resultState.candidateInfo}`);
+      setText('photoStatus', resultState.success ? 'All-formats barcode detected' : 'All-formats found no barcode');
     } catch (err) {
       photo.lastError = errorText(err);
       setError('photoError', err);
@@ -837,7 +938,9 @@
     if (!stage) return;
     stage.hidden = !show || !photo.objectUrl;
     if (!stage.hidden && $('cropImage')?.src !== photo.objectUrl) {
-      $('cropImage').src = photo.objectUrl;
+      const img = $('cropImage');
+      img.onload = () => renderCropBox();
+      img.src = photo.objectUrl;
     }
     renderCropBox();
   }
@@ -854,23 +957,166 @@
   function renderCropBox() {
     const box = $('cropBox');
     if (!box) return;
-    box.style.left = `${crop.rect.x * 100}%`;
-    box.style.top = `${crop.rect.y * 100}%`;
-    box.style.width = `${crop.rect.w * 100}%`;
-    box.style.height = `${crop.rect.h * 100}%`;
+    const stage = $('cropStage');
+    const rendered = getRenderedImageRect($('cropImage'));
+    if (!stage || !rendered || rendered.width <= 0 || rendered.height <= 0) {
+      box.style.left = `${crop.rect.x * 100}%`;
+      box.style.top = `${crop.rect.y * 100}%`;
+      box.style.width = `${crop.rect.w * 100}%`;
+      box.style.height = `${crop.rect.h * 100}%`;
+      clearCropMappingDiagnostics();
+      return;
+    }
+    const stageRect = stage.getBoundingClientRect();
+    const left = (rendered.left - stageRect.left) + stage.scrollLeft + (crop.rect.x * rendered.width);
+    const top = (rendered.top - stageRect.top) + stage.scrollTop + (crop.rect.y * rendered.height);
+    box.style.left = `${left}px`;
+    box.style.top = `${top}px`;
+    box.style.width = `${crop.rect.w * rendered.width}px`;
+    box.style.height = `${crop.rect.h * rendered.height}px`;
+    try {
+      renderCropMappingDiagnostics(displayCropToNaturalPixels(crop.rect, 0));
+    } catch {
+      clearCropMappingDiagnostics();
+    }
+  }
+
+  function getRenderedImageRect(img) {
+    if (!img) return null;
+    const elementRect = img.getBoundingClientRect();
+    const naturalWidth = img.naturalWidth || photo.sourceCanvas?.width || 0;
+    const naturalHeight = img.naturalHeight || photo.sourceCanvas?.height || 0;
+    if (!elementRect.width || !elementRect.height || !naturalWidth || !naturalHeight) {
+      return {
+        left: elementRect.left,
+        top: elementRect.top,
+        width: elementRect.width,
+        height: elementRect.height,
+        elementRect,
+        naturalWidth,
+        naturalHeight
+      };
+    }
+
+    const fit = getComputedStyle(img).objectFit || 'fill';
+    if (fit !== 'contain' && fit !== 'scale-down') {
+      return {
+        left: elementRect.left,
+        top: elementRect.top,
+        width: elementRect.width,
+        height: elementRect.height,
+        elementRect,
+        naturalWidth,
+        naturalHeight
+      };
+    }
+
+    const scale = Math.min(elementRect.width / naturalWidth, elementRect.height / naturalHeight);
+    const renderedWidth = naturalWidth * scale;
+    const renderedHeight = naturalHeight * scale;
+    return {
+      left: elementRect.left + ((elementRect.width - renderedWidth) / 2),
+      top: elementRect.top + ((elementRect.height - renderedHeight) / 2),
+      width: renderedWidth,
+      height: renderedHeight,
+      elementRect,
+      naturalWidth,
+      naturalHeight
+    };
+  }
+
+  function displayCropToNaturalPixels(rect, margin) {
+    if (!photo.sourceCanvas) throw new Error('Take a barcode photo first');
+    const img = $('cropImage');
+    const rendered = getRenderedImageRect(img);
+    const sourceWidth = photo.sourceCanvas.width;
+    const sourceHeight = photo.sourceCanvas.height;
+    const pad = Number(margin || 0);
+    const x = Math.max(0, Math.min(1, rect.x - pad));
+    const y = Math.max(0, Math.min(1, rect.y - pad));
+    const right = Math.max(x, Math.min(1, rect.x + rect.w + pad));
+    const bottom = Math.max(y, Math.min(1, rect.y + rect.h + pad));
+    const sx = Math.max(0, Math.min(sourceWidth - 1, Math.round(x * sourceWidth)));
+    const sy = Math.max(0, Math.min(sourceHeight - 1, Math.round(y * sourceHeight)));
+    const sw = Math.max(1, Math.min(sourceWidth - sx, Math.round((right - x) * sourceWidth)));
+    const sh = Math.max(1, Math.min(sourceHeight - sy, Math.round((bottom - y) * sourceHeight)));
+    const displaySelection = rendered ? {
+      x: rect.x * rendered.width,
+      y: rect.y * rendered.height,
+      w: rect.w * rendered.width,
+      h: rect.h * rendered.height
+    } : null;
+    return {
+      valid: !!rendered && rendered.width > 0 && rendered.height > 0 && sw > 0 && sh > 0,
+      rendered,
+      sourceWidth,
+      sourceHeight,
+      displaySelection,
+      sx,
+      sy,
+      sw,
+      sh,
+      coords: `x=${sx}, y=${sy}, w=${sw}, h=${sh}`
+    };
+  }
+
+  function formatRect(rect) {
+    if (!rect) return '-';
+    const parts = ['left', 'top', 'width', 'height'].filter((key) => rect[key] != null);
+    if (!parts.length) return '-';
+    return parts.map((key) => `${key}=${Math.round(Number(rect[key]) * 10) / 10}`).join(', ');
+  }
+
+  function renderCropMappingDiagnostics(mapping) {
+    if (!mapping) {
+      clearCropMappingDiagnostics();
+      return;
+    }
+    const elementRect = mapping.rendered?.elementRect || null;
+    const rendered = mapping.rendered ? {
+      left: mapping.rendered.left - (elementRect?.left || 0),
+      top: mapping.rendered.top - (elementRect?.top || 0),
+      width: mapping.rendered.width,
+      height: mapping.rendered.height
+    } : null;
+    setText('cropElementSize', elementRect ? `${Math.round(elementRect.width)} x ${Math.round(elementRect.height)}` : '-');
+    setText('cropNaturalSize', `${mapping.sourceWidth} x ${mapping.sourceHeight}`);
+    setText('cropRenderedRect', formatRect(rendered));
+    setText('cropDisplaySelection', mapping.displaySelection ? formatRect({
+      left: mapping.displaySelection.x,
+      top: mapping.displaySelection.y,
+      width: mapping.displaySelection.w,
+      height: mapping.displaySelection.h
+    }) : '-');
+    setText('cropNaturalSelection', mapping.coords);
+    setText('cropMappingValid', yesNo(mapping.valid));
+    crop.lastMapping = mapping;
+    drawCropMappingCheck(mapping);
+  }
+
+  function drawCropMappingCheck(mapping) {
+    const canvas = $('cropMappingCanvas');
+    if (!canvas || !mapping || !photo.sourceCanvas) return;
+    const max = 420;
+    const scale = Math.min(1, max / Math.max(photo.sourceCanvas.width, photo.sourceCanvas.height));
+    canvas.width = Math.max(1, Math.round(photo.sourceCanvas.width * scale));
+    canvas.height = Math.max(1, Math.round(photo.sourceCanvas.height * scale));
+    const ctx = canvas.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(photo.sourceCanvas, 0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = Math.max(3, Math.round(5 * scale));
+    ctx.strokeStyle = '#ffca28';
+    ctx.fillStyle = 'rgb(255 202 40 / 0.12)';
+    ctx.fillRect(mapping.sx * scale, mapping.sy * scale, mapping.sw * scale, mapping.sh * scale);
+    ctx.strokeRect(mapping.sx * scale, mapping.sy * scale, mapping.sw * scale, mapping.sh * scale);
   }
 
   function cropCanvasFromRect() {
-    if (!photo.sourceCanvas) throw new Error('Take a barcode photo first');
-    const margin = 0.025;
-    const x = Math.max(0, crop.rect.x - margin);
-    const y = Math.max(0, crop.rect.y - margin);
-    const right = Math.min(1, crop.rect.x + crop.rect.w + margin);
-    const bottom = Math.min(1, crop.rect.y + crop.rect.h + margin);
-    const sx = Math.round(x * photo.sourceCanvas.width);
-    const sy = Math.round(y * photo.sourceCanvas.height);
-    const sw = Math.max(1, Math.round((right - x) * photo.sourceCanvas.width));
-    const sh = Math.max(1, Math.round((bottom - y) * photo.sourceCanvas.height));
+    const mapping = displayCropToNaturalPixels(crop.rect, 0.025);
+    if (!mapping.valid) throw new Error('Crop coordinates are outside the rendered image');
+    renderCropMappingDiagnostics(mapping);
+    const { sx, sy, sw, sh } = mapping;
     const canvas = document.createElement('canvas');
     canvas.width = sw;
     canvas.height = sh;
@@ -878,7 +1124,7 @@
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, sw, sh);
     ctx.drawImage(photo.sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
-    return { canvas, coords: `x=${sx}, y=${sy}, w=${sw}, h=${sh}` };
+    return { canvas, coords: mapping.coords, mapping };
   }
 
   async function decodeManualCrop() {
@@ -903,8 +1149,19 @@
         lastResult = read.first || lastResult;
         const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
         if (decoded) {
+          const resultState = {
+            ...emptyDecodeState(),
+            success: true,
+            ms: Math.round(performance.now() - started),
+            count: read.results.length,
+            format: resultFormat(decoded),
+            candidateInfo: resultDiagnosticSummary(decoded),
+            dimensions: photo.manualCropDimensions,
+            variant
+          };
+          photo.manualCropResult = resultState;
           photo.manualCropSuccess = true;
-          photo.manualCropMs = Math.round(performance.now() - started);
+          photo.manualCropMs = resultState.ms;
           photo.manualCropVariant = variant;
           photo.detected = true;
           photo.variant = `manual crop, ${variant}`;
@@ -924,6 +1181,15 @@
       }
       photo.manualCropSuccess = false;
       photo.manualCropMs = Math.round(performance.now() - started);
+      photo.manualCropResult = {
+        ...emptyDecodeState(),
+        success: false,
+        ms: photo.manualCropMs,
+        dimensions: photo.manualCropDimensions,
+        variant: 'manual crop',
+        candidateInfo: resultDiagnosticSummary(lastResult),
+        format: resultFormat(lastResult)
+      };
       setText('manualCropDetected', 'NO');
       setText('manualCropMs', `${photo.manualCropMs} ms`);
       setText('manualCropVariant', resultDiagnosticSummary(lastResult));
@@ -949,7 +1215,8 @@
   }
 
   function pointerToCropPoint(ev) {
-    const rect = $('cropStage').getBoundingClientRect();
+    const rect = getRenderedImageRect($('cropImage'));
+    if (!rect || rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 };
     return {
       x: Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)),
       y: Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height))
@@ -1066,13 +1333,18 @@
 
   function updateInterpretation() {
     let text = 'Run the decoder self-test and photo tests.';
+    const directSuccess = photo.directPhotoResult.success;
+    const allFormatsSuccess = photo.allFormatsResult.success;
+    const manualCropSuccess = photo.manualCropResult.success;
     if (selfTest.hasRun && !selfTest.success) {
       text = 'CASE A: Self-test FAILS -> ZXing integration/WASM problem. Do not spend time tuning the iPad camera until the decoder pipeline is fixed.';
-    } else if (selfTest.success && !photo.directSuccess && photo.manualCropSuccess) {
+    } else if (selfTest.success && live.selfTestDetected && live.matchingPdf417Reads >= REQUIRED_MATCHES && !live.aamvaDetected) {
+      text = 'LIVE SELF-TEST: iPad rear camera and local PDF417 decoding are working. This barcode is intentionally not an AAMVA State ID.';
+    } else if (selfTest.success && !directSuccess && manualCropSuccess) {
       text = 'CASE B: Self-test PASSES, direct original photo FAILS, manual tight crop PASSES -> image framing/crop problem.';
-    } else if (selfTest.success && photo.directSuccess) {
+    } else if (selfTest.success && directSuccess) {
       text = 'CASE C: Self-test PASSES and direct original photo PASSES -> custom preprocessing/live path is the likely problem.';
-    } else if (selfTest.success && photo.file && !photo.directSuccess && !photo.manualCropSuccess && !photo.allFormatsSuccess) {
+    } else if (selfTest.success && photo.file && !directSuccess && !manualCropSuccess && !allFormatsSuccess) {
       text = 'CASE D: Self-test PASSES, direct original photo FAILS, manual crop FAILS, all-formats FAILS -> investigate real barcode image quality or alternate decoder.';
     }
     setText('interpretation', text);
@@ -1136,21 +1408,19 @@
       `WASM byte size: ${wasmInfo?.byteSize || '-'}`,
       `Self-test success: ${yesNo(selfTest.success).toLowerCase()}`,
       `Self-test decode ms: ${selfTest.ms || '-'}`,
-      `Direct original File PDF417 success: ${yesNo(photo.directSuccess).toLowerCase()}`,
-      `Direct original File result count: ${photo.directCount}`,
-      `Direct original File format: ${photo.directFormat}`,
-      `Direct original File candidate/error: ${photo.directCandidateInfo}`,
-      `Direct original File decode ms: ${photo.directMs || '-'}`,
-      `All-formats success: ${yesNo(photo.allFormatsSuccess).toLowerCase()}`,
-      `All-formats format: ${photo.allFormatsFormat}`,
-      `All-formats decode ms: ${photo.allFormatsMs || '-'}`,
-      `Manual crop PDF417 success: ${yesNo(photo.manualCropSuccess).toLowerCase()}`,
-      `Manual crop dimensions: ${photo.manualCropDimensions}`,
-      `Manual crop variant: ${photo.manualCropVariant}`,
-      `Manual crop decode ms: ${photo.manualCropMs || '-'}`,
+      `Test Target: ${selectedTestTarget() === 'state_id' ? 'State ID / Driver License' : 'Scanner Self-Test'}`,
+      `Direct photo result: success=${yesNo(photo.directPhotoResult.success).toLowerCase()}; count=${photo.directPhotoResult.count}; format=${photo.directPhotoResult.format}; ms=${photo.directPhotoResult.ms || '-'}; candidate=${photo.directPhotoResult.candidateInfo}`,
+      `All-formats result: success=${yesNo(photo.allFormatsResult.success).toLowerCase()}; count=${photo.allFormatsResult.count}; format=${photo.allFormatsResult.format}; ms=${photo.allFormatsResult.ms || '-'}; candidate=${photo.allFormatsResult.candidateInfo}`,
+      `Manual crop result: success=${yesNo(photo.manualCropResult.success).toLowerCase()}; dimensions=${photo.manualCropResult.dimensions || photo.manualCropDimensions}; variant=${photo.manualCropResult.variant}; ms=${photo.manualCropResult.ms || '-'}; candidate=${photo.manualCropResult.candidateInfo}`,
+      `Manual crop mapping valid: ${yesNo(!!crop.lastMapping?.valid).toLowerCase()}`,
+      `Natural image dimensions: ${crop.lastMapping ? `${crop.lastMapping.sourceWidth} x ${crop.lastMapping.sourceHeight}` : photo.dimensions}`,
+      `Rendered image dimensions: ${crop.lastMapping?.rendered ? `${Math.round(crop.lastMapping.rendered.width)} x ${Math.round(crop.lastMapping.rendered.height)}` : '-'}`,
+      `Mapped crop dimensions: ${crop.lastMapping ? `${crop.lastMapping.sw} x ${crop.lastMapping.sh}` : '-'}`,
       `Live attempts: ${live.attempts}`,
-      `Live PDF417 successes: ${live.successes}`,
-      `Live consecutive matches: ${live.matchingReads} / ${REQUIRED_MATCHES}`,
+      `Live PDF417 total successes: ${live.pdf417Successes}`,
+      `Live matching PDF417 reads: ${live.matchingPdf417Reads} / ${REQUIRED_MATCHES}`,
+      `Live AAMVA successes: ${live.aamvaSuccesses}`,
+      `Live matching AAMVA reads: ${live.matchingAamvaReads} / ${REQUIRED_MATCHES}`,
       `Live candidate/error: ${live.lastCandidateInfo}`,
       `Decode options: formats=${options.formats.join(',')}; tryHarder=${options.tryHarder}; tryRotate=${options.tryRotate}; tryInvert=${options.tryInvert}; tryDownscale=${options.tryDownscale}; tryDenoise=${options.tryDenoise}; binarizer=${options.binarizer}; returnErrors=${options.returnErrors}`,
       `Interpretation: ${$('interpretation')?.textContent || '-'}`
@@ -1190,6 +1460,9 @@
     $('stopLiveBtn')?.addEventListener('click', stopLiveScan);
     $('clearLiveBtn')?.addEventListener('click', clearLiveResults);
     $('showDecodedText')?.addEventListener('change', renderDecodedText);
+    $$('input[name="testTarget"]').forEach((input) => {
+      input.addEventListener('change', () => clearLiveResults());
+    });
     $('takePhotoBtn')?.addEventListener('click', () => $('barcodePhotoInput')?.click());
     $('takeAnotherPhotoBtn')?.addEventListener('click', () => {
       clearPhotoResult();
@@ -1217,6 +1490,7 @@
     clearParsed('live');
     clearParsed('photo');
     clearDecoderInputPreview();
+    clearCropMappingDiagnostics();
     updateInterpretation();
   }
 

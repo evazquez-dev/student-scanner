@@ -24,7 +24,7 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-2'/, 'Scanner Lab should expose Build 2');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-3'/, 'Scanner Lab should expose Build 3');
 }
 
 {
@@ -72,6 +72,18 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(labJs, /startRearCamera\(\$\(\'liveVideo\'\)\)/, 'Live scanner should use rear-camera video');
   assert.match(labJs, /LIVE_SCAN_INTERVAL_MS\s*=\s*240/, 'Live scanner should throttle decode cadence');
   assert.match(labJs, /decodeBusy/, 'Live scanner should prevent overlapping decode operations');
+  assert.match(labHtml, /name="testTarget" value="selftest" checked/, 'Scanner Lab should have explicit self-test target mode');
+  assert.match(labHtml, /name="testTarget" value="state_id"/, 'Scanner Lab should have explicit State ID target mode');
+  assert.match(labHtml, /PDF417 BARCODE DETECTED/, 'PDF417 success should be displayed separately from AAMVA success');
+  assert.match(labHtml, /LIVE IPAD PDF417 SCANNING WORKS/, 'Self-test live PDF417 reads should prove iPad scanning works');
+  assert.match(labHtml, /Barcode is not an AAMVA State ID/, 'Non-AAMVA PDF417 should be explained instead of treated as decoder failure');
+  assert.match(labJs, /selectedTestTarget/, 'Live scan behavior should know whether it is testing self-test or State ID target');
+  assert.match(labJs, /pdf417Successes/, 'PDF417 success counter should be independent');
+  assert.match(labJs, /aamvaSuccesses/, 'AAMVA success counter should be independent');
+  assert.match(labJs, /matchingPdf417Reads/, 'Matching PDF417 counter should exist');
+  assert.match(labJs, /matchingAamvaReads/, 'Matching AAMVA counter should exist');
+  assert.match(labJs, /payload === SELFTEST_TEXT/, 'Lab should recognize its own self-test PDF417 payload in live camera mode');
+  assert.match(labJs, /Live iPad PDF417 scanning works/, 'Self-test PDF417 live success should not require AAMVA');
   assert.match(labJs, /selectedRegionMode/, 'Live scanner should support full-frame vs guide-only regions');
   assert.match(labHtml, /name="regionMode" value="full" checked/, 'Full-frame mode should be available by default');
   assert.match(labHtml, /name="regionMode" value="guide"/, 'Guide-only mode should be available');
@@ -108,10 +120,26 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(labHtml, /Full Image/, 'Full Image crop preset should exist');
   assert.match(labJs, /pointerdown/, 'Manual crop should support touch/pointer interaction');
   assert.match(labJs, /cropCanvasFromRect/, 'Manual crop should create a real crop canvas');
-  assert.match(labHtml, /Decoder Input/, 'Exact decoder input preview should exist');
+  assert.match(labJs, /getRenderedImageRect/, 'Crop mapping should calculate the actual rendered image rectangle');
+  assert.match(labJs, /getComputedStyle\(img\)\.objectFit/, 'Crop mapping should account for object-fit');
+  assert.match(labJs, /displayCropToNaturalPixels/, 'Crop mapping should convert displayed crop to natural/source pixels');
+  assert.match(labJs, /naturalWidth/, 'Crop mapping should use natural image dimensions');
+  assert.match(labJs, /naturalHeight/, 'Crop mapping should use natural image dimensions');
+  assert.match(labJs, /ev\.clientX/, 'Pointer mapping should use client coordinates');
+  assert.match(labJs, /ev\.clientY/, 'Pointer mapping should use client coordinates');
+  assert.doesNotMatch(labJs, /ev\.pageX|ev\.pageY|ev\.offsetX|ev\.offsetY/, 'Crop pointer mapping should not mix page/offset coordinates');
+  assert.match(labHtml, /Crop Mapping Check/, 'Crop mapping preview should exist');
+  assert.match(labHtml, /id="cropMappingCanvas"/, 'Crop mapping check should draw a round-trip source preview');
+  assert.match(labHtml, /Mapped natural crop/, 'Crop debug should show mapped natural crop coordinates');
+  assert.match(labHtml, /Exact Source Crop Sent To ZXing/, 'Exact decoder input preview should exist');
   assert.match(labHtml, /id="decoderInputCanvas"/, 'Decoder input preview should use a canvas, not Base64 data URLs');
   assert.match(labJs, /drawDecoderInputPreview/, 'Scanner Lab should draw exact canvas sent to ZXing');
+  assert.match(labJs, /drawCropMappingCheck/, 'Scanner Lab should draw the mapped crop back onto the source image');
   assert.match(labJs, /qualityMetrics/, 'Photo/crop quality diagnostics should exist');
+  assert.match(labHtml, /Photographing a barcode displayed on another screen may introduce moire/, 'Photo test should explain screen moire risk');
+  assert.match(labJs, /directPhotoResult/, 'Direct photo result state should be separate');
+  assert.match(labJs, /allFormatsResult/, 'All-formats result state should be separate');
+  assert.match(labJs, /manualCropResult/, 'Manual crop result state should be separate');
 }
 
 {
@@ -122,9 +150,18 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(reportSection, /safePageUrl\(\)/, 'Diagnostic report should avoid copying URL query/hash content');
   assert.match(reportSection, /Last active camera dimensions/, 'Diagnostic report should preserve last active camera dimensions');
   assert.match(reportSection, /Self-test success/, 'Diagnostic report should include self-test status');
-  assert.match(reportSection, /Direct original File PDF417 success/, 'Diagnostic report should include direct File status');
-  assert.match(reportSection, /All-formats success/, 'Diagnostic report should include all-formats status');
-  assert.match(reportSection, /Manual crop PDF417 success/, 'Diagnostic report should include manual crop status');
+  assert.match(reportSection, /Live PDF417 total successes/, 'Diagnostic report should include live PDF417 total successes');
+  assert.match(reportSection, /Live matching PDF417 reads/, 'Diagnostic report should include live matching PDF417 reads');
+  assert.match(reportSection, /Live AAMVA successes/, 'Diagnostic report should include live AAMVA successes');
+  assert.match(reportSection, /Live matching AAMVA reads/, 'Diagnostic report should include live matching AAMVA reads');
+  assert.match(reportSection, /Test Target/, 'Diagnostic report should include selected test target');
+  assert.match(reportSection, /Manual crop mapping valid/, 'Diagnostic report should include crop mapping validity');
+  assert.match(reportSection, /Natural image dimensions/, 'Diagnostic report should include natural image dimensions');
+  assert.match(reportSection, /Rendered image dimensions/, 'Diagnostic report should include rendered image dimensions');
+  assert.match(reportSection, /Mapped crop dimensions/, 'Diagnostic report should include mapped crop dimensions');
+  assert.match(reportSection, /Direct photo result/, 'Diagnostic report should include direct File status');
+  assert.match(reportSection, /All-formats result/, 'Diagnostic report should include all-formats status');
+  assert.match(reportSection, /Manual crop result/, 'Diagnostic report should include manual crop status');
   [
     /lastRaw/,
     /decodedText/,

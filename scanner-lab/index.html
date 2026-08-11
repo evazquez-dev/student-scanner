@@ -102,17 +102,24 @@
         </div>
 
         <div class="stack">
-          <div class="validBanner" id="liveValidBanner" hidden>&#10003; VALID STATE ID READ</div>
+          <div class="validBanner" id="livePdf417Banner" hidden>&#10003; PDF417 BARCODE DETECTED</div>
+          <div class="validBanner" id="liveSelfTestBanner" hidden>&#10003; LIVE IPAD PDF417 SCANNING WORKS</div>
+          <div class="validBanner" id="liveValidBanner" hidden>&#10003; VALID AAMVA STATE ID</div>
+          <div class="infoBanner" id="liveNonAamvaNote" hidden>Barcode is not an AAMVA State ID. This is expected for the Scanner Lab self-test barcode.</div>
           <dl class="metricGrid compact">
             <div><dt>Camera</dt><dd id="liveCameraState">OFF</dd></div>
             <div><dt>Frame</dt><dd id="liveFrameSize">0 x 0</dd></div>
+            <div><dt>Test Target</dt><dd id="liveTarget">Scanner Self-Test</dd></div>
             <div><dt>Scan attempts</dt><dd id="liveAttempts">0</dd></div>
-            <div><dt>Successful decodes</dt><dd id="liveSuccesses">0</dd></div>
+            <div><dt>PDF417 Reads</dt><dd id="livePdf417Successes">0</dd></div>
+            <div><dt>Last PDF417 detected</dt><dd id="livePdf417Detected">NO</dd></div>
+            <div><dt>Consecutive matching PDF417 reads</dt><dd id="livePdf417Matches">0 / 2</dd></div>
             <div><dt>Current scan rate</dt><dd id="liveScanRate">0.0/sec</dd></div>
             <div><dt>Last decode duration</dt><dd id="liveDecodeMs">-</dd></div>
             <div><dt>Last format</dt><dd id="liveFormat">none</dd></div>
             <div><dt>AAMVA-looking payload</dt><dd id="liveAamva">NO</dd></div>
-            <div><dt>Consecutive matching reads</dt><dd id="liveMatches">0 / 2</dd></div>
+            <div><dt>AAMVA reads</dt><dd id="liveAamvaSuccesses">0</dd></div>
+            <div><dt>Consecutive valid AAMVA reads</dt><dd id="liveAamvaMatches">0 / 2</dd></div>
             <div><dt>Successful variant</dt><dd id="liveVariant">none</dd></div>
             <div><dt>Status</dt><dd id="liveStatus">Idle</dd></div>
           </dl>
@@ -120,6 +127,12 @@
       </div>
 
       <div class="controlGrid">
+        <fieldset>
+          <legend>Test Target</legend>
+          <label><input type="radio" name="testTarget" value="selftest" checked> Scanner Self-Test</label>
+          <label><input type="radio" name="testTarget" value="state_id"> State ID / Driver License</label>
+        </fieldset>
+
         <fieldset>
           <legend>Decode region</legend>
           <label><input type="radio" name="regionMode" value="full" checked> Full Frame</label>
@@ -205,6 +218,8 @@
         </dl>
       </div>
 
+      <p class="labNote">For realistic results, test a physical printed barcode or physical ID. Photographing a barcode displayed on another screen may introduce moire and reduce decode reliability.</p>
+
       <section class="resultPanel">
         <h3>Photo Quality Diagnostics</h3>
         <dl class="fieldList">
@@ -239,7 +254,23 @@
       </section>
 
       <section class="resultPanel">
-        <h3>Decoder Input</h3>
+        <h3>Crop Mapping Check</h3>
+        <p class="helper">The rectangle below is drawn back onto the full source image from the mapped natural-pixel crop.</p>
+        <div class="mappingCheckWrap">
+          <canvas id="cropMappingCanvas"></canvas>
+        </div>
+        <dl class="fieldList">
+          <div><dt>Displayed image element</dt><dd id="cropElementSize">-</dd></div>
+          <div><dt>Natural image</dt><dd id="cropNaturalSize">-</dd></div>
+          <div><dt>Actual rendered image inside element</dt><dd id="cropRenderedRect">-</dd></div>
+          <div><dt>User selection in displayed coordinates</dt><dd id="cropDisplaySelection">-</dd></div>
+          <div><dt>Mapped natural crop</dt><dd id="cropNaturalSelection">-</dd></div>
+          <div><dt>Manual crop mapping valid</dt><dd id="cropMappingValid">NO</dd></div>
+        </dl>
+      </section>
+
+      <section class="resultPanel">
+        <h3>Exact Source Crop Sent To ZXing</h3>
         <p class="helper">This is the exact canvas/ImageData sent to ZXing for the latest processed attempt.</p>
         <div class="decoderInputWrap">
           <canvas id="decoderInputCanvas"></canvas>
