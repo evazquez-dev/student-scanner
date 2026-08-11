@@ -17,6 +17,7 @@
     student_scans: 'Student Scans',
     student_view: 'Student View',
     hallway: 'Hallway Monitor',
+    visitor_desk: 'Visitor Desk',
     early_dismissal: 'Early Dismissal',
     after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
@@ -39,6 +40,7 @@
     'attendance_status_admin_session_v1',
     'senior_lunch_audit_admin_session_v1',
     'after_school_monitor_admin_session_v1',
+    'visitor_desk_admin_session_v1',
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
     'student_scans_admin_session_v1',
@@ -161,6 +163,7 @@
           hallway: isAdminLike,
           after_school_monitor: isAdminLike,
           staff_pull: isAdminLike,
+          visitor_desk: isAdminLike,
           early_dismissal: true,
           teacher_attendance: true,
           attendance_status: isAdminLike,
@@ -256,11 +259,17 @@
         ]
       },
       {
+        title: 'Front Desk',
+        items: [
+          { key:'visitor_desk',       label: MODULES.visitor_desk || 'Visitor Desk',              href:'./visitor_desk.html',      badge:'visitor log' },
+          { key:'early_dismissal',     label: MODULES.early_dismissal || 'Early Dismissal',       href:'./early_dismissal.html',    badge:'dismissal' },
+          { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', badge:'dismissal' },
+        ]
+      },
+      {
         title: 'Passes',
         items: [
           { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'hall monitor' },
-          { key:'early_dismissal',     label: MODULES.early_dismissal || 'Early Dismissal',       href:'./early_dismissal.html',    badge:'dismissal' },
-          { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', badge:'dismissal' },
           { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'staff request' },
           { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phone locker' },
         ]

@@ -19,9 +19,12 @@
   const superAdminOut = document.getElementById('superAdminOut');
   const hallwayOut = document.getElementById('hallwayOut');
   const phonePassOut = document.getElementById('phonePassOut');
+  const visitorDeskBox = document.getElementById('visitorDeskBox');
+  const visitorDeskOut = document.getElementById('visitorDeskOut');
   const staffPullOut = document.getElementById('staffPullOut');
   const refreshBtn = document.getElementById('refreshBtn');
   const saveBtn = document.getElementById('saveBtn');
+  const saveVisitorDeskBtn = document.getElementById('saveVisitorDeskBtn');
   const logoutBtn = document.getElementById('logoutBtn');
 
   function getStoredAdminSessionSid() {
@@ -115,6 +118,9 @@
     superAdminOut.textContent = (Array.isArray(j.super_admins) && j.super_admins.length) ? j.super_admins.join('\n') : 'None';
     hallwayOut.textContent = (Array.isArray(j.hallway_monitors) && j.hallway_monitors.length) ? j.hallway_monitors.join('\n') : 'None';
     phonePassOut.textContent = (Array.isArray(j.phone_pass_grant) && j.phone_pass_grant.length) ? j.phone_pass_grant.join('\n') : 'None';
+    const visitorDesk = Array.isArray(j.visitor_desk) ? j.visitor_desk : [];
+    visitorDeskBox.value = visitorDesk.join('\n');
+    visitorDeskOut.textContent = visitorDesk.length ? visitorDesk.join('\n') : 'None';
     const staffRows = Array.isArray(j.staff_pull_roles) ? j.staff_pull_roles : [];
     staffPullOut.textContent = staffRows.length
       ? staffRows.map((row) => `${row.title} — ${row.email}`).join('\n')
@@ -134,6 +140,21 @@
     if (!r.ok || !j?.ok) throw new Error(j?.error || `admin_role_allowlist HTTP ${r.status}`);
     emailBox.value = emails.join('\n');
     statusOut.textContent = `Saved ${emails.length} admin email${emails.length === 1 ? '' : 's'}.`;
+  }
+
+  async function saveVisitorDeskList() {
+    const emails = normalizeEmails(visitorDeskBox.value);
+    statusOut.textContent = 'Saving Visitor Desk list…';
+    const r = await adminFetch('/admin/visitor_desk_allowlist', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ emails })
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `visitor_desk_allowlist HTTP ${r.status}`);
+    visitorDeskBox.value = emails.join('\n');
+    visitorDeskOut.textContent = emails.length ? emails.join('\n') : 'None';
+    statusOut.textContent = `Saved ${emails.length} Visitor Desk email${emails.length === 1 ? '' : 's'}.`;
   }
 
   async function onGoogleCredential(resp) {
@@ -174,6 +195,7 @@
 
   refreshBtn?.addEventListener('click', () => loadRoleList().catch((e) => { statusOut.textContent = `Refresh failed: ${e?.message || e}`; }));
   saveBtn?.addEventListener('click', () => saveRoleList().catch((e) => { statusOut.textContent = `Save failed: ${e?.message || e}`; }));
+  saveVisitorDeskBtn?.addEventListener('click', () => saveVisitorDeskList().catch((e) => { statusOut.textContent = `Visitor Desk save failed: ${e?.message || e}`; }));
   logoutBtn?.addEventListener('click', async () => {
     try { await adminFetch('/admin/session/logout', { method: 'POST' }); } catch {}
     clearStoredAdminSessionSid();

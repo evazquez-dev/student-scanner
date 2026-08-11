@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST Visitor Kiosk</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./visitor.css">
+  <script src="./visitor_shared.js" defer></script>
+  <script src="./visitor.js" defer></script>
+</head>
+<body>
+  <main class="kioskShell">
+    <section id="setupScreen" class="screen" hidden>
+      <div class="brand">EagleNEST</div>
+      <h1>Visitor Kiosk Setup</h1>
+      <p class="lead">Enter the pairing code from the Visitor Desk.</p>
+      <form id="pairForm" class="setupForm" autocomplete="off">
+        <label for="pairCode">Pairing code</label>
+        <input id="pairCode" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000">
+        <label for="kioskLabel">Kiosk name</label>
+        <input id="kioskLabel" maxlength="80" value="Front Desk iPad">
+        <button class="primary" type="submit">Pair Kiosk</button>
+      </form>
+      <div id="setupStatus" class="status" aria-live="polite"></div>
+    </section>
+
+    <section id="languageScreen" class="screen languageScreen">
+      <div class="brand">EagleNEST</div>
+      <h1>Visitor Check-In</h1>
+      <div class="languageGrid" aria-label="Choose language">
+        <button type="button" class="languageBtn" data-lang="en">English</button>
+        <button type="button" class="languageBtn" data-lang="es">Español</button>
+      </div>
+    </section>
+
+    <section id="formScreen" class="screen" hidden>
+      <div class="topBar">
+        <button id="backBtn" type="button" class="secondary">Back</button>
+        <div class="brand small">EagleNEST</div>
+      </div>
+      <h1 id="formTitle"></h1>
+      <p id="formIntro" class="lead"></p>
+
+      <form id="visitorForm" class="visitorForm" autocomplete="off">
+        <div class="grid two">
+          <label><span data-i18n="firstName"></span><input name="visitor_first_name" maxlength="80" required></label>
+          <label><span data-i18n="lastName"></span><input name="visitor_last_name" maxlength="100" required></label>
+        </div>
+        <label><span data-i18n="middleName"></span><input name="visitor_middle_name" maxlength="80"></label>
+        <label><span data-i18n="organization"></span><input name="organization" maxlength="140"></label>
+
+        <fieldset>
+          <legend data-i18n="visitorType"></legend>
+          <div id="typeChoices" class="choiceGrid"></div>
+        </fieldset>
+
+        <fieldset>
+          <legend data-i18n="purpose"></legend>
+          <div id="purposeChoices" class="choiceGrid"></div>
+        </fieldset>
+
+        <label><span data-i18n="destination"></span><input name="destination" maxlength="160"></label>
+        <label id="studentNameWrap" hidden><span data-i18n="studentName"></span><input name="student_name" maxlength="140"></label>
+        <label><span data-i18n="details"></span><textarea name="notes" maxlength="400" rows="3"></textarea></label>
+
+        <div class="privacy" id="privacyNotice"></div>
+        <div id="formStatus" class="status" aria-live="polite"></div>
+        <button id="submitBtn" class="primary submitBtn" type="submit"></button>
+      </form>
+    </section>
+
+    <section id="thanksScreen" class="screen thanksScreen" hidden>
+      <div class="brand">EagleNEST</div>
+      <h1 id="thanksTitle"></h1>
+      <p id="thanksMessage" class="lead"></p>
+    </section>
+  </main>
+</body>
+</html>

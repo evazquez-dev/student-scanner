@@ -42,6 +42,15 @@
           <button id="logoutBtn" class="btn secondary" type="button">Log Out</button>
         </div>
 
+        <hr style="margin:18px 0;">
+
+        <label for="visitorDeskBox"><strong>Visitor Desk Emails</strong></label>
+        <p class="muted">Emails in this list can use Visitor Desk without being made full admins.</p>
+        <textarea id="visitorDeskBox" rows="8" style="width:100%;margin-top:8px;" spellcheck="false" placeholder="security.staff@theamericandreamschool.org"></textarea>
+        <div class="row" style="margin-top:12px;gap:10px;flex-wrap:wrap;">
+          <button id="saveVisitorDeskBtn" class="btn" type="button">Save Visitor Desk List</button>
+        </div>
+
         <div id="statusOut" class="muted" style="margin-top:12px;"></div>
 
         <hr style="margin:18px 0;">
@@ -61,6 +70,10 @@
           <section>
             <strong>Phone Pass Grant List</strong>
             <pre id="phonePassOut" class="pane">—</pre>
+          </section>
+          <section>
+            <strong>Visitor Desk</strong>
+            <pre id="visitorDeskOut" class="pane">—</pre>
           </section>
           <section>
             <strong>Staff Pull Roles</strong>

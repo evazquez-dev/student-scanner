@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v19.0.0-2026-05-27'; // bump on each deploy
+const VERSION = 'v20.0.0-2026-08-10'; // bump on each deploy
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [
@@ -30,8 +30,8 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // ✅ Bypass any admin route anywhere in the path (your site uses /student-scanner/admin/...)
-  if (url.pathname.includes('/admin/')) {
+  // Bypass admin and visitor routes so live records/forms are never cached.
+  if (url.pathname.includes('/admin/') || url.pathname.includes('/visitor/')) {
     event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <title>EagleNEST - Visitor Desk</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./visitor_desk.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="../visitor/visitor_shared.js" defer></script>
+  <script src="./visitor_desk.js" defer></script>
+  <script>
+    (function(){
+      try {
+        var key = 'ss_theme_v1';
+        var t = localStorage.getItem(key);
+        if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+      } catch(e) {}
+    })();
+  </script>
+</head>
+<body data-module="visitor_desk">
+  <div class="wrap">
+    <header class="topCard">
+      <div>
+        <h1 data-brand-title>EagleNEST - Visitor Desk</h1>
+        <div id="viewerMeta" class="muted">Checking session...</div>
+      </div>
+      <button id="themeToggle" type="button">Theme</button>
+    </header>
+
+    <section id="loginCard" class="card" hidden>
+      <h2>Sign in</h2>
+      <p class="muted">Use your EagleNEST Google account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="status"></pre>
+    </section>
+
+    <main id="appShell" hidden>
+      <section class="card">
+        <div class="toolbar">
+          <button id="newVisitorBtn" class="primary" type="button">+ Check In Visitor</button>
+          <button id="scanBadgeBtn" type="button">Scan Badge Checkout</button>
+          <button id="emergencyBtn" type="button">Who Is In The Building?</button>
+          <button id="pairBtn" type="button">Pair Visitor Kiosk</button>
+          <button id="refreshBtn" type="button">Refresh</button>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><span>Waiting for Approval</span><strong id="waitingCount">0</strong></div>
+          <div class="kpi"><span>Currently in Building</span><strong id="activeCount">0</strong></div>
+          <div class="kpi"><span>Checked In Today</span><strong id="checkedInTodayCount">0</strong></div>
+          <div class="kpi"><span>Checked Out Today</span><strong id="checkedOutTodayCount">0</strong></div>
+        </div>
+        <div id="statusBox" class="status" aria-live="polite"></div>
+        <div id="syncStatus" class="syncStatus ok" aria-live="polite">Visitor log synchronized</div>
+      </section>
+
+      <section class="grid twoCols">
+        <div class="card">
+          <div class="sectionHead">
+            <h2>Waiting Queue</h2>
+            <span id="waitingUpdated" class="muted"></span>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Visitor</th>
+                  <th>Visit</th>
+                  <th>Submitted</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="waitingBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="sectionHead">
+            <h2>Currently in Building</h2>
+            <span id="activeUpdated" class="muted"></span>
+          </div>
+          <div class="tableWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Visitor</th>
+                  <th>Visit</th>
+                  <th>Checked In</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="activeBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="sectionHead">
+          <h2>Visitor History</h2>
+          <button id="historyBtn" type="button">Search</button>
+        </div>
+        <div class="filters">
+          <input id="historyName" placeholder="Visitor name">
+          <input id="historyStart" type="date">
+          <input id="historyEnd" type="date">
+          <select id="historyType"><option value="">Any type</option></select>
+          <select id="historyPurpose"><option value="">Any purpose</option></select>
+          <select id="historyStatus">
+            <option value="">Any status</option>
+            <option value="waiting">Waiting</option>
+            <option value="checked_in">Checked In</option>
+            <option value="checked_out">Checked Out</option>
+            <option value="cancelled">Cancelled</option>
+            <option value="denied">Denied</option>
+          </select>
+        </div>
+        <div class="tableWrap history">
+          <table>
+            <thead>
+              <tr>
+                <th>Visitor</th>
+                <th>Visit</th>
+                <th>Status</th>
+                <th>Staff</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"><tr><td colspan="4" class="muted">Run a search to load history.</td></tr></tbody>
+          </table>
+        </div>
+        <div class="historyPager">
+          <button id="historyPrevBtn" type="button" disabled>Previous</button>
+          <span id="historyPageInfo" class="muted">No history loaded.</span>
+          <button id="historyNextBtn" type="button" disabled>Next</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="visitorDialog">
+    <form id="visitorForm" method="dialog">
+      <h2 id="visitorDialogTitle">Check In Visitor</h2>
+      <input type="hidden" name="visit_id">
+      <div class="formGrid">
+        <label>First Name<input name="visitor_first_name" maxlength="80" required></label>
+        <label>Middle<input name="visitor_middle_name" maxlength="80"></label>
+        <label>Last Name<input name="visitor_last_name" maxlength="100" required></label>
+        <label>Visitor Type<select name="visitor_type" required></select></label>
+        <label>Purpose<select name="purpose" required></select></label>
+        <label>Organization<input name="organization" maxlength="140"></label>
+        <label>Destination / Person<input name="destination" maxlength="160"></label>
+        <label>Host Email<input name="host_email" maxlength="180"></label>
+        <label>Typed Student Name<input name="student_name" maxlength="140"></label>
+        <label class="wide">Notes<textarea name="notes" rows="3" maxlength="400"></textarea></label>
+      </div>
+      <label class="check"><input name="direct_admit" type="checkbox"> Admit immediately after saving</label>
+      <div class="dialogActions">
+        <button value="cancel" type="button" data-close-dialog>Cancel</button>
+        <button id="saveVisitorBtn" class="primary" value="default" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="idDialog">
+    <form id="idForm" method="dialog">
+      <h2>Scan / Verify ID</h2>
+      <p class="muted">Use ID scan mode only while this window is open. Raw barcode data is discarded after parsing.</p>
+      <div id="scanTarget" class="scanTarget" tabindex="0">Scanner input active. Scan the PDF417 barcode now.</div>
+      <div id="idParseStatus" class="status"></div>
+      <div class="formGrid">
+        <label>Document Type<input name="id_document_type" maxlength="80" value="Driver License / State ID"></label>
+        <label>Issuing State/Jurisdiction<input name="id_issuing_jurisdiction" maxlength="40"></label>
+        <label class="check"><input name="id_expired" type="checkbox"> ID appears expired</label>
+        <label class="check"><input name="apply_name" type="checkbox" checked> Apply parsed name to visit</label>
+      </div>
+      <pre id="idParsedPreview" class="pane"></pre>
+      <div class="dialogActions">
+        <button type="button" data-close-dialog>Cancel</button>
+        <button id="manualVerifyBtn" type="button">Manual Verification</button>
+        <button id="saveIdBtn" class="primary" type="submit">Save Verification</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="studentDialog">
+    <form method="dialog">
+      <h2>Link Student</h2>
+      <input id="studentSearch" placeholder="Search student name or OSIS" autocomplete="off">
+      <div id="studentResults" class="resultList"></div>
+      <div class="dialogActions">
+        <button type="button" data-close-dialog>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="pairDialog">
+    <form method="dialog">
+      <h2>Pair Visitor Kiosk</h2>
+      <p class="muted">Enter this code on the iPad visitor kiosk. It expires shortly.</p>
+      <div id="pairCodeOut" class="pairCode">------</div>
+      <div id="kioskList" class="resultList"></div>
+      <div class="dialogActions">
+        <button type="button" data-close-dialog>Close</button>
+        <button id="newPairCodeBtn" class="primary" type="button">Generate Code</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="checkoutDialog">
+    <form method="dialog">
+      <h2>Scan Badge Checkout</h2>
+      <div id="checkoutScanTarget" class="scanTarget" tabindex="0">Scanner input active. Scan a visitor badge QR code.</div>
+      <div id="checkoutStatus" class="status"></div>
+      <div class="dialogActions">
+        <button type="button" data-close-dialog>Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="emergencyDialog">
+    <form method="dialog">
+      <div class="sectionHead">
+        <h2>Emergency Visitor Roster</h2>
+        <button id="printEmergencyBtn" type="button">Print</button>
+      </div>
+      <div id="emergencyPrintArea">
+        <div class="printTitle">Emergency Visitor Roster</div>
+        <div id="emergencyGenerated" class="muted"></div>
+        <table class="emergencyTable">
+          <thead><tr><th>Visitor</th><th>Visit</th><th>Badge</th><th>Checked In</th></tr></thead>
+          <tbody id="emergencyBody"></tbody>
+        </table>
+      </div>
+      <div class="dialogActions noPrint">
+        <button type="button" data-close-dialog>Close</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
