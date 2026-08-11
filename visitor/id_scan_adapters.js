@@ -225,8 +225,27 @@
     return zxingReadyPromise;
   }
 
+  function copyByteArray(value) {
+    if (!value) return null;
+    if (value instanceof Uint8Array) return new Uint8Array(value);
+    if (ArrayBuffer.isView(value) && value.buffer) {
+      return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+    }
+    if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
+    if (Array.isArray(value)) return new Uint8Array(value.filter((byte) => Number.isFinite(byte)).map((byte) => byte & 0xff));
+    return null;
+  }
+
+  function latin1FromBytes(bytes) {
+    const data = copyByteArray(bytes);
+    if (!data) return '';
+    let out = '';
+    for (let i = 0; i < data.length; i += 1) out += String.fromCharCode(data[i]);
+    return out;
+  }
+
   function decodedText(result) {
-    return String(result?.text || result?.bytes || result?.rawBytes || '').trim();
+    return String(result?.text || latin1FromBytes(result?.bytes || result?.rawBytes) || '').trim();
   }
 
   function resultPosition(result) {
@@ -240,8 +259,11 @@
   }
 
   function normalizeReadResult(result) {
+    const bytes = copyByteArray(result?.bytes || result?.rawBytes || null);
     return {
       text: decodedText(result),
+      bytes,
+      bytesECI: result?.bytesECI == null ? null : result.bytesECI,
       format: String(result?.format || '').trim(),
       symbology: String(result?.symbology || '').trim(),
       error: String(result?.error || result?.ecLevel || '').trim(),

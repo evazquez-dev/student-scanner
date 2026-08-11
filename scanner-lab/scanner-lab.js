@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-11-5';
+  const LAB_BUILD = '2026-08-11-6';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -863,6 +863,14 @@
     setText(`${prefix}StructJurisdictionVersion`, '-');
     setText(`${prefix}StructTextAvailable`, 'NO');
     setText(`${prefix}StructRawBytesAvailable`, 'NO');
+    setText(`${prefix}StructParserSource`, 'NONE');
+    setText(`${prefix}StructRawAvailable`, 'NO');
+    setText(`${prefix}StructRawLength`, '0');
+    setText(`${prefix}StructRawAt`, 'NO');
+    setText(`${prefix}StructRawLf`, 'NO');
+    setText(`${prefix}StructRawRs`, 'NO');
+    setText(`${prefix}StructRawCr`, 'NO');
+    setText(`${prefix}StructRawAnsi`, 'NO');
     setText(`${prefix}StructCodeUnits`, '0');
     setText(`${prefix}StructByteLength`, '0');
     setText(`${prefix}StructAsciiControl`, 'NO');
@@ -923,6 +931,14 @@
     setText(`${prefix}StructJurisdictionVersion`, d.jurisdictionVersion || '-');
     setText(`${prefix}StructTextAvailable`, yesNo(d.zxing?.textAvailable));
     setText(`${prefix}StructRawBytesAvailable`, yesNo(d.zxing?.rawBytesAvailable));
+    setText(`${prefix}StructParserSource`, d.parserSource || 'NONE');
+    setText(`${prefix}StructRawAvailable`, yesNo(d.rawBytesAvailable));
+    setText(`${prefix}StructRawLength`, d.rawByteLength || 0);
+    setText(`${prefix}StructRawAt`, yesNo(d.rawHeaderAt));
+    setText(`${prefix}StructRawLf`, yesNo(d.rawHeaderLf));
+    setText(`${prefix}StructRawRs`, yesNo(d.rawHeaderRs));
+    setText(`${prefix}StructRawCr`, yesNo(d.rawHeaderCr));
+    setText(`${prefix}StructRawAnsi`, yesNo(d.rawHeaderAnsi));
     setText(`${prefix}StructCodeUnits`, d.zxing?.decodedTextCodeUnitLength || d.decodedTextLength || 0);
     setText(`${prefix}StructByteLength`, d.zxing?.decodedByteLength || 0);
     setText(`${prefix}StructAsciiControl`, yesNo(d.zxing?.containsAsciiControlChars));
@@ -1133,7 +1149,7 @@
       const diagnostic = renderDecodedResult('live', resultState);
       const isAamva = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
       const isSelfTest = payload === SELFTEST_TEXT;
-      const fingerprint = AamvaDiag?.fingerprintPayload?.(payload) || `${payload.length}:${payload.slice(0, 12)}`;
+      const fingerprint = diagnostic?.fingerprint || AamvaDiag?.fingerprintPayload?.(payload) || `${payload.length}:${payload.slice(0, 12)}`;
       live.pdf417Successes += 1;
       live.lastFormat = resultFormat(hit.candidate);
       live.lastVariant = hit.variant;
@@ -2123,8 +2139,16 @@
       `DAD tag present: ${yesNo(diagnostic.dadTag).toLowerCase()}`,
       `DBB tag present: ${yesNo(diagnostic.dbbTag).toLowerCase()}`,
       `Decoded text length: ${diagnostic.decodedTextLength || 0}`,
-      `ZXing text available: ${yesNo(diagnostic.zxing?.textAvailable).toLowerCase()}`,
+      `ZXing HRI text available: ${yesNo(diagnostic.zxing?.hriTextAvailable || diagnostic.zxing?.textAvailable).toLowerCase()}`,
+      'ZXing HRI text is not used for AAMVA structural parsing.',
       `ZXing raw bytes available: ${yesNo(diagnostic.zxing?.rawBytesAvailable).toLowerCase()}`,
+      `Raw byte length: ${diagnostic.rawByteLength || 0}`,
+      `Raw header @: ${yesNo(diagnostic.rawHeaderAt).toLowerCase()}`,
+      `Raw header LF: ${yesNo(diagnostic.rawHeaderLf).toLowerCase()}`,
+      `Raw header RS: ${yesNo(diagnostic.rawHeaderRs).toLowerCase()}`,
+      `Raw header CR: ${yesNo(diagnostic.rawHeaderCr).toLowerCase()}`,
+      `Raw header ANSI: ${yesNo(diagnostic.rawHeaderAnsi).toLowerCase()}`,
+      `Parser source: ${diagnostic.parserSource || 'NONE'}`,
       `Decoded text code-unit length: ${diagnostic.zxing?.decodedTextCodeUnitLength || 0}`,
       `Decoded byte length: ${diagnostic.zxing?.decodedByteLength || 0}`,
       `Contains ASCII control chars: ${yesNo(diagnostic.zxing?.containsAsciiControlChars).toLowerCase()}`,

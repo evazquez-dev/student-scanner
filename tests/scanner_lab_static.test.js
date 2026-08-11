@@ -26,32 +26,37 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-5'/, 'Scanner Lab should expose Build 5');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-6'/, 'Scanner Lab should expose Build 6');
 }
 
-function syntheticAamva(subfile, fields, header) {
-  if (!header) return syntheticDescriptorAamva(subfile || 'DL', fields, { version: '08', jurisdiction: '01' });
-  return [
-    '@',
-    '\x1e',
-    '\r',
-    header || `ANSI 636000080102${subfile || 'DL'}00410288`,
-    ...fields
-  ].join('\n');
+function asciiBytes(text) {
+  return Uint8Array.from(Buffer.from(text, 'latin1'));
 }
 
-function syntheticDescriptorAamva(subfile, fields, options) {
+function syntheticAamvaBytes(subfile, fields, options) {
   const opts = options || {};
-  const body = `${subfile || 'DL'}${fields.join('\n')}`;
-  const offset = opts.offset || 40;
+  const type = subfile || 'DL';
+  const body = `${type}${fields.join('\n')}\r`;
+  const offset = 21 + 10;
   const length = body.length;
-  let header = `@\x1e\r\nANSI 636000${opts.version || '10'}${opts.jurisdiction || '04'}01${subfile || 'DL'}${String(offset).padStart(4, '0')}${String(length).padStart(4, '0')}`;
-  while (header.length < offset) header += ' ';
-  return header + body;
+  const header = `@\n\x1e\rANSI 636000${opts.version || '10'}${opts.jurisdiction || '04'}01${type}${String(offset).padStart(4, '0')}${String(length).padStart(4, '0')}`;
+  assert.equal(header.length, offset, 'synthetic AAMVA descriptor offset should be exact');
+  return asciiBytes(header + body);
+}
+
+function syntheticAamvaResult(subfile, fields, options) {
+  const bytes = syntheticAamvaBytes(subfile, fields, options);
+  const hriText = '@ANSI 636000100401; HRI text intentionally lacks control separators and fields';
+  return {
+    text: hriText,
+    bytes,
+    format: 'PDF417',
+    valid: true
+  };
 }
 
 {
-  const raw = syntheticAamva('DL', [
+  const result = syntheticAamvaResult('DL', [
     'DCSDOE',
     'DACJANE',
     'DADQ',
@@ -59,12 +64,28 @@ function syntheticDescriptorAamva(subfile, fields, options) {
     'DAQDO-NOT-COPY',
     'DAJNY'
   ]);
-  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
+  assert.equal(diag.parserSource, 'RAW BYTES');
+  assert.equal(diag.rawBytesAvailable, true);
+  assert.equal(diag.rawByteLength, result.bytes.length);
+  assert.equal(diag.rawHeaderAt, true);
+  assert.equal(diag.rawHeaderLf, true);
+  assert.equal(diag.rawHeaderRs, true);
+  assert.equal(diag.rawHeaderCr, true);
+  assert.equal(diag.rawHeaderAnsi, true);
   assert.equal(diag.complianceIndicator, true);
   assert.equal(diag.ansiHeader, true);
   assert.equal(diag.iinPresent, true);
-  assert.equal(diag.aamvaVersion, '8');
-  assert.equal(diag.jurisdictionVersion, '1');
+  assert.equal(diag.aamvaVersion, '10');
+  assert.equal(diag.jurisdictionVersion, '4');
+  assert.equal(diag.subfileCount, 1);
+  assert.equal(diag.descriptorTableParseable, true);
+  assert.equal(diag.descriptors[0].type, 'DL');
+  assert.equal(diag.descriptors[0].offset, 31);
+  assert.equal(diag.descriptors[0].length, result.bytes.length - 31);
+  assert.equal(diag.descriptors[0].offsetWithinBounds, true);
+  assert.equal(diag.descriptors[0].lengthWithinBounds, true);
+  assert.equal(diag.descriptors[0].prefixMatches, true);
   assert.equal(diag.dlSubfile, true);
   assert.equal(diag.idSubfile, false);
   assert.equal(diag.dcsTag, true);
@@ -84,27 +105,33 @@ function syntheticDescriptorAamva(subfile, fields, options) {
 }
 
 {
-  const raw = syntheticAamva('ID', [
+  const result = syntheticAamvaResult('ID', [
     'DCSROE',
     'DACRICHARD',
     'DBB19800102'
   ]);
-  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
   assert.equal(diag.idSubfile, true);
   assert.equal(diag.dlSubfile, false);
+  assert.equal(diag.descriptors[0].type, 'ID');
+  assert.equal(diag.descriptors[0].offset, 31);
+  assert.equal(diag.descriptors[0].prefixMatches, true);
+  assert.equal(diag.strictParserPass, true);
   assert.equal(diag.fieldRecoveryPass, true);
   assert.equal(diag.recoveredData.date_of_birth, '1980-01-02');
 }
 
 {
-  const raw = syntheticAamva('DL', [
+  const result = syntheticAamvaResult('DL', [
     'DCSALT',
     'DCTMORGAN LEE',
     'DBB02031981'
-  ], 'ANSI 636000010702DL00410288');
-  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  ], { version: '01', jurisdiction: '07' });
+  const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
+  assert.equal(diag.parserSource, 'RAW BYTES');
   assert.equal(diag.aamvaVersion, '1');
   assert.equal(diag.jurisdictionVersion, '7');
+  assert.equal(diag.strictParserPass, true);
   assert.equal(diag.fieldRecoveryPass, true);
   assert.equal(diag.recoveredData.visitor_first_name, 'MORGAN');
   assert.equal(diag.recoveredData.visitor_middle_name, 'LEE');
@@ -112,15 +139,18 @@ function syntheticDescriptorAamva(subfile, fields, options) {
 }
 
 {
-  const raw = syntheticAamva('DL', [
+  const result = syntheticAamvaResult('DL', [
     'DCSRECOVER',
     'DACCASEY',
     'DBB01021980'
-  ], 'ANSI 636000DL00410288');
-  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  ]);
+  result.bytes = result.bytes.slice(0, result.bytes.length - 2);
+  const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
+  assert.equal(diag.rawBytesAvailable, true);
   assert.equal(diag.ansiHeader, true);
+  assert.equal(diag.descriptorTableParseable, false);
   assert.equal(diag.strictParserPass, false);
-  assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.fieldRecoveryPass, false);
 }
 
 {
@@ -131,27 +161,27 @@ function syntheticDescriptorAamva(subfile, fields, options) {
 }
 
 {
-  const raw = syntheticDescriptorAamva('DL', [
+  const raw = [
+    '@',
+    '\x1e',
+    '\r',
+    'ANSI 636000080102DL00410288',
     'DCSDOE',
     'DACJANE',
     'DADQ',
     'DBB01021980',
     'DAQDO-NOT-COPY'
-  ]);
+  ].join('\n');
   const diag = AamvaDiag.analyzeAamvaPayload(raw);
-  assert.equal(diag.aamvaVersion, '10');
-  assert.equal(diag.jurisdictionVersion, '4');
-  assert.equal(diag.subfileCount, 1);
-  assert.equal(diag.descriptorTableParseable, true);
-  assert.equal(diag.descriptors[0].type, 'DL');
-  assert.equal(diag.descriptors[0].offsetWithinBounds, true);
-  assert.equal(diag.descriptors[0].lengthWithinBounds, true);
-  assert.equal(diag.descriptors[0].prefixMatches, true);
-  assert.equal(diag.dlSubfile, true);
+  assert.equal(diag.parserSource, 'PLAIN TEXT FALLBACK');
+  assert.equal(diag.aamvaVersion, '8');
+  assert.equal(diag.jurisdictionVersion, '1');
+  assert.equal(diag.dlSubfile, false);
   assert.equal(diag.dcsTag, true);
   assert.equal(diag.dacTag, true);
   assert.equal(diag.dadTag, true);
   assert.equal(diag.dbbTag, true);
+  assert.equal(diag.fieldRecoveryPass, true);
   assert.equal(diag.recoveredData.visitor_first_name, 'JANE');
   assert.equal(diag.recoveredData.visitor_middle_name, 'Q');
   assert.equal(diag.recoveredData.visitor_last_name, 'DOE');
@@ -159,38 +189,47 @@ function syntheticDescriptorAamva(subfile, fields, options) {
 }
 
 {
-  const raw = syntheticDescriptorAamva('ID', [
-    'DCSPUBLIC',
-    'DACPAT',
-    'DBB19800102'
-  ], { version: '10', jurisdiction: '04' });
-  const diag = AamvaDiag.analyzeAamvaPayload(raw);
-  assert.equal(diag.idSubfile, true);
-  assert.equal(diag.descriptors[0].type, 'ID');
-  assert.equal(diag.descriptors[0].prefixMatches, true);
-  assert.equal(diag.fieldRecoveryPass, true);
-  assert.equal(diag.recoveredData.date_of_birth, '1980-01-02');
-}
-
-{
-  const raw = syntheticDescriptorAamva('DL', [
+  const result = syntheticAamvaResult('DL', [
     'DCSDOE',
     'DACJANE',
     'DBB01021980'
-  ]).replace(/\n/g, '\x1e').replace('DBB01021980', 'DBB01021980\r');
-  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  ]);
+  const hriOnlyDiag = AamvaDiag.analyzeAamvaPayload(result.text, { text: result.text, format: 'PDF417', valid: true });
+  assert.equal(hriOnlyDiag.rawBytesAvailable, false);
+  assert.equal(hriOnlyDiag.parserSource, 'NONE');
+  assert.equal(hriOnlyDiag.strictParserPass, false);
+  assert.equal(hriOnlyDiag.fieldRecoveryPass, false);
+  assert.equal(hriOnlyDiag.parserFailureReason, 'Raw bytes unavailable; HRI text not used for AAMVA structural parsing');
+}
+
+{
+  const result = syntheticAamvaResult('DL', [
+    'DCSDOE',
+    'DACJANE',
+    'DBB01021980'
+  ]);
+  const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
   assert.equal(diag.controlCounts.rs > 0, true);
   assert.equal(diag.controlCounts.cr > 0, true);
+  assert.equal(diag.controlCounts.lf > 0, true);
   assert.equal(diag.recordSeparator, true);
   assert.equal(diag.segmentTerminator, true);
 }
 
 {
-  const raw = '@\nANSI 636000100401DL00409999DLDCSDOE\nDACJANE\nDBB01021980';
-  const diag = AamvaDiag.analyzeAamvaPayload(raw);
-  assert.equal(diag.descriptorTableParseable, true);
+  const result = syntheticAamvaResult('DL', [
+    'DCSDOE',
+    'DACJANE',
+    'DBB01021980'
+  ]);
+  result.bytes[27] = 0x39;
+  result.bytes[28] = 0x39;
+  result.bytes[29] = 0x39;
+  result.bytes[30] = 0x39;
+  const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
+  assert.equal(diag.descriptorTableParseable, false);
   assert.equal(diag.descriptors[0].lengthWithinBounds, false);
-  assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.fieldRecoveryPass, false);
 }
 
 {
@@ -227,6 +266,9 @@ function syntheticDescriptorAamva(subfile, fields, options) {
   assert.match(adapter, /binarizer:\s*'LocalAverage'/, 'Diagnostic reader options should expose LocalAverage binarizer');
   assert.match(adapter, /function\s+readBarcodeResults/, 'Lab should have raw diagnostic result access');
   assert.match(adapter, /function\s+readPdf417Candidates/, 'Lab should have diagnostic access to PDF417 candidates');
+  assert.match(adapter, /function\s+copyByteArray/, 'Adapter should safely copy ZXing raw bytes');
+  assert.match(adapter, /const bytes = copyByteArray\(result\?\.bytes \|\| result\?\.rawBytes \|\| null\)/, 'Adapter should preserve ReadResult.bytes');
+  assert.match(adapter, /\bbytes,\n\s*bytesECI:/, 'Normalized decode result should carry bytes in memory for Scanner Lab diagnostics');
   assert.match(adapter, /function\s+fetchZxingWasmInfo/, 'Lab should be able to verify local WASM fetch metadata');
   assert.match(adapter, /ZXING_WASM_VERSION|ZXING_CPP_COMMIT|ZXING_WASM_SHA256/, 'Adapter should expose ZXing version/hash metadata where available');
   assert.match(adapter, /facingMode:\s*\{\s*ideal:\s*'environment'\s*\}/, 'Rear camera should be requested for scanner tests');
@@ -366,8 +408,16 @@ function syntheticDescriptorAamva(subfile, fields, options) {
   assert.match(labHtml, /ANSI header/, 'ANSI header presence should be shown safely');
   assert.match(labHtml, /IIN present/, 'IIN presence should be shown safely');
   assert.match(labHtml, /AAMVA version/, 'AAMVA version should be shown safely');
-  assert.match(labHtml, /ZXing text available/, 'ZXing text availability should be shown safely');
+  assert.match(labHtml, /ZXing HRI text available/, 'ZXing HRI text availability should be shown safely');
+  assert.match(labHtml, /not used for AAMVA structural parsing/, 'Scanner Lab should warn that HRI text is not canonical AAMVA input');
   assert.match(labHtml, /ZXing raw bytes available/, 'ZXing raw byte availability should be shown safely');
+  assert.match(labHtml, /AAMVA parser input/, 'AAMVA parser input source should be displayed');
+  assert.match(labHtml, /Raw byte length/, 'Raw byte length should be shown safely');
+  assert.match(labHtml, /Byte 0 is @/, 'Raw byte header @ should be shown safely');
+  assert.match(labHtml, /Byte 1 is LF/, 'Raw byte header LF should be shown safely');
+  assert.match(labHtml, /Byte 2 is RS/, 'Raw byte header RS should be shown safely');
+  assert.match(labHtml, /Byte 3 is CR/, 'Raw byte header CR should be shown safely');
+  assert.match(labHtml, /Bytes 4-8 equal "ANSI "/, 'Raw ANSI byte header check should be shown safely');
   assert.match(labHtml, /ASCII 0x1C count/, 'Control-character counts should be shown safely');
   assert.match(labHtml, /Literal \\x1e count/, 'Escaped control sequence counts should be shown safely');
   assert.match(labHtml, /Subfile descriptor table parseable/, 'Descriptor table parseability should be shown safely');
@@ -383,6 +433,15 @@ function syntheticDescriptorAamva(subfile, fields, options) {
   assert.match(labHtml, /Strict parser/, 'Strict parser result should be shown');
   assert.match(labHtml, /Permitted-field recovery/, 'Field recovery result should be shown');
   assert.match(labAamvaDiagJs, /analyzeAamvaPayload/, 'AAMVA structural analyzer should exist');
+  assert.match(labAamvaDiagJs, /function\s+resultBytes/, 'AAMVA analyzer should inspect ReadResult.bytes');
+  assert.match(labAamvaDiagJs, /function\s+parseHeaderBytes/, 'AAMVA analyzer should parse raw-byte fixed headers');
+  assert.match(labAamvaDiagJs, /const HEADER_LENGTH = 21/, 'AAMVA byte parser should use the 21-byte fixed header');
+  assert.match(labAamvaDiagJs, /const DESCRIPTOR_LENGTH = 10/, 'AAMVA byte parser should use 10-byte descriptors');
+  assert.match(labAamvaDiagJs, /parseDescriptorBytes/, 'AAMVA analyzer should parse raw-byte subfile descriptors');
+  assert.match(labAamvaDiagJs, /asciiFromBytes\(bytes,\s*4,\s*5\) === 'ANSI '/, 'AAMVA analyzer should verify ANSI by byte offset');
+  assert.match(labAamvaDiagJs, /bytes\.subarray|descriptor\.offset/, 'AAMVA analyzer should apply descriptor offsets to bytes, not strings');
+  assert.match(labAamvaDiagJs, /parserSource: 'RAW BYTES'/, 'AAMVA analyzer should mark raw bytes as canonical parser input');
+  assert.match(labAamvaDiagJs, /HRI text not used for AAMVA structural parsing/, 'AAMVA analyzer should reject HRI-only ZXing diagnostics');
   assert.match(labAamvaDiagJs, /strictParserPass/, 'AAMVA analyzer should expose strict parser result');
   assert.match(labAamvaDiagJs, /fieldRecoveryPass/, 'AAMVA analyzer should expose field recovery result');
   assert.match(labAamvaDiagJs, /controlCounts/, 'AAMVA analyzer should expose safe control-character counts');
@@ -390,11 +449,11 @@ function syntheticDescriptorAamva(subfile, fields, options) {
   assert.match(labAamvaDiagJs, /zxingShape/, 'AAMVA analyzer should report text/raw-byte availability safely');
   assert.match(labAamvaDiagJs, /parseDescriptor/, 'AAMVA analyzer should parse subfile descriptors');
   assert.match(labAamvaDiagJs, /prefixMatches/, 'AAMVA analyzer should validate descriptor offset prefixes');
-  assert.match(labAamvaDiagJs, /recordSeparator:\s*\/\\x1e\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check record separators');
-  assert.match(labAamvaDiagJs, /segmentTerminator:\s*\/\\r\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check segment terminators');
-  assert.match(labAamvaDiagJs, /lineFeedSeparators:\s*\/\\n\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check line-feed separators');
+  assert.match(labAamvaDiagJs, /recordSeparator:\s*header\.rawHeaderRs/, 'AAMVA analyzer should preserve/check byte record separators');
+  assert.match(labAamvaDiagJs, /segmentTerminator:\s*header\.rawHeaderCr/, 'AAMVA analyzer should preserve/check byte segment terminators');
+  assert.match(labAamvaDiagJs, /lineFeedSeparators:\s*header\.rawHeaderLf/, 'AAMVA analyzer should preserve/check byte line-feed separators');
   assert.match(labAamvaDiagJs, /normalizeDob/, 'AAMVA analyzer should normalize DBB dates');
-  assert.match(labAamvaDiagJs, /Required field tags found but parser rejected separators/, 'AAMVA analyzer should provide safe parser failure reasons');
+  assert.match(labAamvaDiagJs, /Subfile descriptor table invalid/, 'AAMVA analyzer should provide safe parser failure reasons');
 }
 
 {
@@ -439,8 +498,16 @@ function syntheticDescriptorAamva(subfile, fields, options) {
   assert.match(reportSection, /DAC tag present/, 'Diagnostic report should include DAC tag status');
   assert.match(reportSection, /DAD tag present/, 'Diagnostic report should include DAD tag status');
   assert.match(reportSection, /DBB tag present/, 'Diagnostic report should include DBB tag status');
-  assert.match(reportSection, /ZXing text available/, 'Diagnostic report should include text availability only');
+  assert.match(reportSection, /ZXing HRI text available/, 'Diagnostic report should include HRI text availability only');
+  assert.match(reportSection, /HRI text is not used for AAMVA structural parsing/, 'Diagnostic report should identify HRI as non-canonical');
   assert.match(reportSection, /ZXing raw bytes available/, 'Diagnostic report should include raw byte availability only');
+  assert.match(reportSection, /Raw byte length/, 'Diagnostic report should include safe raw byte length');
+  assert.match(reportSection, /Raw header @/, 'Diagnostic report should include safe raw @ check');
+  assert.match(reportSection, /Raw header LF/, 'Diagnostic report should include safe raw LF check');
+  assert.match(reportSection, /Raw header RS/, 'Diagnostic report should include safe raw RS check');
+  assert.match(reportSection, /Raw header CR/, 'Diagnostic report should include safe raw CR check');
+  assert.match(reportSection, /Raw header ANSI/, 'Diagnostic report should include safe raw ANSI check');
+  assert.match(reportSection, /Parser source/, 'Diagnostic report should include canonical parser source');
   assert.match(reportSection, /ASCII 0x1C count/, 'Diagnostic report should include safe control-character counts');
   assert.match(reportSection, /ASCII 0x1D count/, 'Diagnostic report should include safe control-character counts');
   assert.match(reportSection, /ASCII 0x1E count/, 'Diagnostic report should include safe control-character counts');
@@ -471,7 +538,9 @@ function syntheticDescriptorAamva(subfile, fields, options) {
     /\bDOB\b/,
     /date_of_birth/,
     /visitor_first_name/,
-    /visitor_last_name/
+    /visitor_last_name/,
+    /result\.bytes/,
+    /JSON\.stringify\(diagnostic\)/
   ].forEach((pattern) => assert.doesNotMatch(reportSection, pattern, `Diagnostic report must not include PII/raw data: ${pattern}`));
 }
 
