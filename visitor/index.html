@@ -47,15 +47,15 @@
       <p id="formIntro" class="lead"></p>
 
       <form id="visitorForm" class="visitorForm" autocomplete="off">
-        <section class="idPrefillPanel" aria-labelledby="idPrefillTitle">
-          <h2 id="idPrefillTitle" data-i18n="idPrefillTitle"></h2>
+        <section class="idPrefillPanel" aria-labelledby="idPrefillToggleBtn">
           <p data-i18n="idPrefillIntro"></p>
-          <div class="idPrefillActions">
+          <button id="idPrefillToggleBtn" type="button" class="secondary idPrefillToggle" data-i18n="idPrefillTitle" aria-expanded="false" aria-controls="idPrefillActions stateIdScanPanel"></button>
+          <div id="idPrefillActions" class="idPrefillActions" hidden>
             <button id="stateIdPrefillBtn" type="button" class="secondary" data-i18n="stateIdPrefill"></button>
             <button id="idnycPrefillBtn" type="button" class="secondary" data-i18n="idnycPrefill"></button>
             <button id="manualEntryBtn" type="button" data-i18n="manualEntry"></button>
           </div>
-          <div id="stateIdScanPanel" class="idScanPanel" hidden aria-live="polite">
+          <div id="stateIdScanPanel" class="idScanPanel" data-id-entry-mode="manual" hidden aria-live="polite">
             <div class="idScanTop">
               <div>
                 <h3 id="idScanTitle"></h3>

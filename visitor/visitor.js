@@ -184,6 +184,8 @@
   const nativePhotoInput = $('visitorPhotoInput');
   const idnycCaptureInput = $('idnycCaptureInput');
   const stateIdPhotoInput = $('stateIdPhotoInput');
+  const idPrefillToggleBtn = $('idPrefillToggleBtn');
+  const idPrefillActions = $('idPrefillActions');
   const stateIdScanPanel = $('stateIdScanPanel');
   const idScanVideo = $('idScanVideo');
   const idScanGuide = $('idScanGuide');
@@ -204,6 +206,7 @@
   let photoObjectUrl = '';
   let formSubmitAttempted = false;
   let idScanActive = false;
+  let idEntryMode = 'manual';
   let idScanMode = '';
   let idScanSession = null;
   const touchedFields = new Set();
@@ -619,6 +622,34 @@
     if (idScanVideo) idScanVideo.srcObject = null;
   }
 
+  function clearIdScanTransientState() {
+    setIdScanFallbacks(false);
+    if (idScanStatus) {
+      idScanStatus.textContent = '';
+      idScanStatus.classList.remove('ok');
+    }
+  }
+
+  function setIdEntryMode(mode) {
+    const nextMode = ['id_choice', 'state_id', 'idnyc'].includes(mode) ? mode : 'manual';
+    idEntryMode = nextMode;
+    const scanVisible = nextMode === 'state_id' || nextMode === 'idnyc';
+    if (idPrefillActions) idPrefillActions.hidden = nextMode !== 'id_choice';
+    if (idPrefillToggleBtn) idPrefillToggleBtn.setAttribute('aria-expanded', nextMode === 'id_choice' ? 'true' : 'false');
+    if (stateIdScanPanel) {
+      stateIdScanPanel.hidden = !scanVisible;
+      stateIdScanPanel.setAttribute('data-id-entry-mode', scanVisible ? nextMode : 'manual');
+    }
+    if (!scanVisible) clearIdScanTransientState();
+  }
+
+  function showIdChoice() {
+    stopIdScanSession();
+    idScanMode = '';
+    setStatus(formStatus, '');
+    setIdEntryMode('id_choice');
+  }
+
   function setIdScanFallbacks(show) {
     if (idScanFallbackActions) idScanFallbackActions.hidden = !show;
   }
@@ -656,8 +687,8 @@
     idScanMode = mode;
     idScanActive = true;
     setStatus(formStatus, '');
+    setIdEntryMode(mode);
     setIdScanFallbacks(false);
-    if (stateIdScanPanel) stateIdScanPanel.hidden = false;
     if (idScanTitle) idScanTitle.textContent = mode === 'idnyc' ? T[lang].idnycScanTitle : T[lang].stateIdScanTitle;
     if (idScanInstructions) idScanInstructions.textContent = mode === 'idnyc' ? T[lang].idnycPrompt : T[lang].stateIdScanPrompt;
     if (idScanGuide) {
@@ -671,17 +702,12 @@
   function closeStateIdScan() {
     stopIdScanSession();
     idScanMode = '';
-    if (stateIdScanPanel) stateIdScanPanel.hidden = true;
-    setIdScanFallbacks(false);
-    if (idScanStatus) {
-      idScanStatus.textContent = '';
-      idScanStatus.classList.remove('ok');
-    }
+    setIdEntryMode('manual');
   }
 
   function showIdScanFallbacks(message) {
     stopIdScanSession();
-    if (stateIdScanPanel) stateIdScanPanel.hidden = false;
+    setIdEntryMode(idScanMode === 'idnyc' ? 'idnyc' : 'state_id');
     setIdScanFallbacks(true);
     if (idScanStatus) {
       idScanStatus.textContent = message || (idScanMode === 'idnyc' ? T[lang].idnycUnreadable : T[lang].stateIdUnreadable);
@@ -944,6 +970,7 @@
     $('retakePhotoBtn').addEventListener('click', retakePhoto);
     $('usePhotoBtn').addEventListener('click', usePhoto);
     nativePhotoInput?.addEventListener('change', handleNativePhotoSelected);
+    idPrefillToggleBtn?.addEventListener('click', showIdChoice);
     $('stateIdPrefillBtn')?.addEventListener('click', startStateIdPrefill);
     $('cancelStateIdScanBtn')?.addEventListener('click', closeStateIdScan);
     $('manualEntryBtn')?.addEventListener('click', () => {
@@ -997,6 +1024,7 @@
       closeStateIdScan();
     });
     setLang('en');
+    setIdEntryMode('manual');
     show(credential() ? languageScreen : setupScreen);
   }
 
