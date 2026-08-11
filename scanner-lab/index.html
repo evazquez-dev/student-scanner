@@ -21,6 +21,48 @@
       <strong>Testing only.</strong> Nothing scanned on this page is saved or uploaded.
       <br>
       For testing, use a test/sample ID where possible. Scanned information remains only on this device and is cleared when you leave or refresh this page.
+      <div class="noticeActions">
+        <button type="button" id="clearAllResultsBtn" class="secondary">Clear All Test Results</button>
+      </div>
+    </section>
+
+    <section class="sessionGrid" aria-label="Scanner Lab session results">
+      <div class="resultPanel">
+        <h2>Last Successful PDF417</h2>
+        <dl class="fieldList">
+          <div><dt>Source</dt><dd id="lastSuccessSource">-</dd></div>
+          <div><dt>Timestamp</dt><dd id="lastSuccessTimestamp">-</dd></div>
+          <div><dt>Processing</dt><dd id="lastSuccessProcessing">-</dd></div>
+          <div><dt>Dimensions</dt><dd id="lastSuccessDimensions">-</dd></div>
+          <div><dt>Decoded</dt><dd id="lastSuccessDecoded">NO</dd></div>
+          <div><dt>AAMVA indicators</dt><dd id="lastSuccessAamva">NO</dd></div>
+          <div><dt>Strict parser</dt><dd id="lastSuccessStrict">-</dd></div>
+          <div><dt>Field recovery</dt><dd id="lastSuccessRecovery">-</dd></div>
+          <div><dt>Safe failure reason</dt><dd id="lastSuccessFailure">-</dd></div>
+        </dl>
+      </div>
+
+      <div class="resultPanel">
+        <h2>Session Result Table</h2>
+        <table class="resultTable">
+          <thead>
+            <tr>
+              <th scope="col">Source</th>
+              <th scope="col">PDF417</th>
+              <th scope="col">AAMVA Indicators</th>
+              <th scope="col">Strict</th>
+              <th scope="col">Recovery</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Live</th><td id="resultLivePdf417">NO</td><td id="resultLiveAamva">-</td><td id="resultLiveStrict">-</td><td id="resultLiveRecovery">-</td></tr>
+            <tr><th scope="row">Direct Photo</th><td id="resultDirectPdf417">NO</td><td id="resultDirectAamva">-</td><td id="resultDirectStrict">-</td><td id="resultDirectRecovery">-</td></tr>
+            <tr><th scope="row">All Formats</th><td id="resultAllFormatsPdf417">NO</td><td id="resultAllFormatsAamva">-</td><td id="resultAllFormatsStrict">-</td><td id="resultAllFormatsRecovery">-</td></tr>
+            <tr><th scope="row">Auto Crop</th><td id="resultAutoCropPdf417">NO</td><td id="resultAutoCropAamva">-</td><td id="resultAutoCropStrict">-</td><td id="resultAutoCropRecovery">-</td></tr>
+            <tr><th scope="row">Manual Crop</th><td id="resultManualCropPdf417">NO</td><td id="resultManualCropAamva">-</td><td id="resultManualCropStrict">-</td><td id="resultManualCropRecovery">-</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <nav class="tabs" aria-label="Scanner Lab sections">
@@ -190,13 +232,51 @@
         </section>
 
         <section class="resultPanel">
-          <h3>Live AAMVA Structure</h3>
+          <h3>AAMVA Structure &mdash; <span id="liveStructSourceLabel">Live Guide</span></h3>
           <dl class="fieldList">
+            <div><dt>Result timestamp</dt><dd id="liveStructTimestamp">-</dd></div>
+            <div><dt>Source</dt><dd id="liveStructSource">-</dd></div>
+            <div><dt>Processing variant</dt><dd id="liveStructProcessing">-</dd></div>
             <div><dt>Compliance indicator @</dt><dd id="liveStructCompliance">NO</dd></div>
             <div><dt>ANSI header</dt><dd id="liveStructAnsi">NO</dd></div>
             <div><dt>IIN present</dt><dd id="liveStructIin">NO</dd></div>
             <div><dt>AAMVA version</dt><dd id="liveStructAamvaVersion">-</dd></div>
             <div><dt>Jurisdiction version</dt><dd id="liveStructJurisdictionVersion">-</dd></div>
+            <div><dt>ZXing text available</dt><dd id="liveStructTextAvailable">NO</dd></div>
+            <div><dt>ZXing raw bytes available</dt><dd id="liveStructRawBytesAvailable">NO</dd></div>
+            <div><dt>Decoded text code-unit length</dt><dd id="liveStructCodeUnits">0</dd></div>
+            <div><dt>Decoded byte length</dt><dd id="liveStructByteLength">0</dd></div>
+            <div><dt>Contains ASCII control chars</dt><dd id="liveStructAsciiControl">NO</dd></div>
+            <div><dt>ASCII 0x1C count</dt><dd id="liveStructFs">0</dd></div>
+            <div><dt>ASCII 0x1D count</dt><dd id="liveStructGs">0</dd></div>
+            <div><dt>ASCII 0x1E count</dt><dd id="liveStructRs">0</dd></div>
+            <div><dt>CR 0x0D count</dt><dd id="liveStructCr">0</dd></div>
+            <div><dt>LF 0x0A count</dt><dd id="liveStructLf">0</dd></div>
+            <div><dt>NUL count</dt><dd id="liveStructNul">0</dd></div>
+            <div><dt>Printable-character count</dt><dd id="liveStructPrintable">0</dd></div>
+            <div><dt>Non-printable-character count</dt><dd id="liveStructNonPrintable">0</dd></div>
+            <div><dt>Literal \r count</dt><dd id="liveStructEscapedCr">0</dd></div>
+            <div><dt>Literal \n count</dt><dd id="liveStructEscapedLf">0</dd></div>
+            <div><dt>Literal \x1e count</dt><dd id="liveStructEscapedRsHex">0</dd></div>
+            <div><dt>Literal \u001e count</dt><dd id="liveStructEscapedRsUnicode">0</dd></div>
+            <div><dt>Starts with @</dt><dd id="liveStructStartsAt">NO</dd></div>
+            <div><dt>Contains ANSI marker</dt><dd id="liveStructContainsAnsi">NO</dd></div>
+            <div><dt>ANSI position</dt><dd id="liveStructAnsiPosition">-</dd></div>
+            <div><dt>Header length parseable</dt><dd id="liveStructHeaderLength">NO</dd></div>
+            <div><dt>Subfile count from header</dt><dd id="liveStructSubfileCount">-</dd></div>
+            <div><dt>Subfile descriptor table parseable</dt><dd id="liveStructDescriptorTable">NO</dd></div>
+            <div><dt>Descriptor 1 type</dt><dd id="liveStructDescriptor1Type">-</dd></div>
+            <div><dt>Descriptor 1 offset</dt><dd id="liveStructDescriptor1Offset">-</dd></div>
+            <div><dt>Descriptor 1 length</dt><dd id="liveStructDescriptor1Length">-</dd></div>
+            <div><dt>Descriptor 1 offset in bounds</dt><dd id="liveStructDescriptor1OffsetBounds">NO</dd></div>
+            <div><dt>Descriptor 1 length in bounds</dt><dd id="liveStructDescriptor1LengthBounds">NO</dd></div>
+            <div><dt>Descriptor 1 prefix matches</dt><dd id="liveStructDescriptor1Prefix">NO</dd></div>
+            <div><dt>Descriptor 2 type</dt><dd id="liveStructDescriptor2Type">-</dd></div>
+            <div><dt>Descriptor 2 offset</dt><dd id="liveStructDescriptor2Offset">-</dd></div>
+            <div><dt>Descriptor 2 length</dt><dd id="liveStructDescriptor2Length">-</dd></div>
+            <div><dt>Descriptor 2 offset in bounds</dt><dd id="liveStructDescriptor2OffsetBounds">NO</dd></div>
+            <div><dt>Descriptor 2 length in bounds</dt><dd id="liveStructDescriptor2LengthBounds">NO</dd></div>
+            <div><dt>Descriptor 2 prefix matches</dt><dd id="liveStructDescriptor2Prefix">NO</dd></div>
             <div><dt>DL subfile found</dt><dd id="liveStructDl">NO</dd></div>
             <div><dt>ID subfile found</dt><dd id="liveStructId">NO</dd></div>
             <div><dt>DCS field tag present</dt><dd id="liveStructDcs">NO</dd></div>
@@ -366,13 +446,51 @@
       </section>
 
       <section class="resultPanel">
-        <h3>Photo AAMVA Structure</h3>
+        <h3>AAMVA Structure &mdash; <span id="photoStructSourceLabel">No Source</span></h3>
         <dl class="fieldList">
+          <div><dt>Result timestamp</dt><dd id="photoStructTimestamp">-</dd></div>
+          <div><dt>Source</dt><dd id="photoStructSource">-</dd></div>
+          <div><dt>Processing variant</dt><dd id="photoStructProcessing">-</dd></div>
           <div><dt>Compliance indicator @</dt><dd id="photoStructCompliance">NO</dd></div>
           <div><dt>ANSI header</dt><dd id="photoStructAnsi">NO</dd></div>
           <div><dt>IIN present</dt><dd id="photoStructIin">NO</dd></div>
           <div><dt>AAMVA version</dt><dd id="photoStructAamvaVersion">-</dd></div>
           <div><dt>Jurisdiction version</dt><dd id="photoStructJurisdictionVersion">-</dd></div>
+          <div><dt>ZXing text available</dt><dd id="photoStructTextAvailable">NO</dd></div>
+          <div><dt>ZXing raw bytes available</dt><dd id="photoStructRawBytesAvailable">NO</dd></div>
+          <div><dt>Decoded text code-unit length</dt><dd id="photoStructCodeUnits">0</dd></div>
+          <div><dt>Decoded byte length</dt><dd id="photoStructByteLength">0</dd></div>
+          <div><dt>Contains ASCII control chars</dt><dd id="photoStructAsciiControl">NO</dd></div>
+          <div><dt>ASCII 0x1C count</dt><dd id="photoStructFs">0</dd></div>
+          <div><dt>ASCII 0x1D count</dt><dd id="photoStructGs">0</dd></div>
+          <div><dt>ASCII 0x1E count</dt><dd id="photoStructRs">0</dd></div>
+          <div><dt>CR 0x0D count</dt><dd id="photoStructCr">0</dd></div>
+          <div><dt>LF 0x0A count</dt><dd id="photoStructLf">0</dd></div>
+          <div><dt>NUL count</dt><dd id="photoStructNul">0</dd></div>
+          <div><dt>Printable-character count</dt><dd id="photoStructPrintable">0</dd></div>
+          <div><dt>Non-printable-character count</dt><dd id="photoStructNonPrintable">0</dd></div>
+          <div><dt>Literal \r count</dt><dd id="photoStructEscapedCr">0</dd></div>
+          <div><dt>Literal \n count</dt><dd id="photoStructEscapedLf">0</dd></div>
+          <div><dt>Literal \x1e count</dt><dd id="photoStructEscapedRsHex">0</dd></div>
+          <div><dt>Literal \u001e count</dt><dd id="photoStructEscapedRsUnicode">0</dd></div>
+          <div><dt>Starts with @</dt><dd id="photoStructStartsAt">NO</dd></div>
+          <div><dt>Contains ANSI marker</dt><dd id="photoStructContainsAnsi">NO</dd></div>
+          <div><dt>ANSI position</dt><dd id="photoStructAnsiPosition">-</dd></div>
+          <div><dt>Header length parseable</dt><dd id="photoStructHeaderLength">NO</dd></div>
+          <div><dt>Subfile count from header</dt><dd id="photoStructSubfileCount">-</dd></div>
+          <div><dt>Subfile descriptor table parseable</dt><dd id="photoStructDescriptorTable">NO</dd></div>
+          <div><dt>Descriptor 1 type</dt><dd id="photoStructDescriptor1Type">-</dd></div>
+          <div><dt>Descriptor 1 offset</dt><dd id="photoStructDescriptor1Offset">-</dd></div>
+          <div><dt>Descriptor 1 length</dt><dd id="photoStructDescriptor1Length">-</dd></div>
+          <div><dt>Descriptor 1 offset in bounds</dt><dd id="photoStructDescriptor1OffsetBounds">NO</dd></div>
+          <div><dt>Descriptor 1 length in bounds</dt><dd id="photoStructDescriptor1LengthBounds">NO</dd></div>
+          <div><dt>Descriptor 1 prefix matches</dt><dd id="photoStructDescriptor1Prefix">NO</dd></div>
+          <div><dt>Descriptor 2 type</dt><dd id="photoStructDescriptor2Type">-</dd></div>
+          <div><dt>Descriptor 2 offset</dt><dd id="photoStructDescriptor2Offset">-</dd></div>
+          <div><dt>Descriptor 2 length</dt><dd id="photoStructDescriptor2Length">-</dd></div>
+          <div><dt>Descriptor 2 offset in bounds</dt><dd id="photoStructDescriptor2OffsetBounds">NO</dd></div>
+          <div><dt>Descriptor 2 length in bounds</dt><dd id="photoStructDescriptor2LengthBounds">NO</dd></div>
+          <div><dt>Descriptor 2 prefix matches</dt><dd id="photoStructDescriptor2Prefix">NO</dd></div>
           <div><dt>DL subfile found</dt><dd id="photoStructDl">NO</dd></div>
           <div><dt>ID subfile found</dt><dd id="photoStructId">NO</dd></div>
           <div><dt>DCS field tag present</dt><dd id="photoStructDcs">NO</dd></div>

@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-11-4';
+  const LAB_BUILD = '2026-08-11-5';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -57,14 +57,55 @@
   function emptyDecodeState() {
     return {
       success: false,
+      decodedSuccessfully: false,
+      source: '-',
+      timestamp: '',
       ms: 0,
+      decodeMs: 0,
       count: 0,
+      resultCount: 0,
       format: '-',
+      isPdf417: false,
       candidateInfo: '-',
+      candidateStatus: '-',
       dimensions: '-',
-      variant: 'none'
+      variant: 'none',
+      processingVariant: 'none',
+      testTarget: '',
+      aamva: null
     };
   }
+
+  function emptySourceResult(source) {
+    return {
+      ...emptyDecodeState(),
+      source,
+      candidateInfo: 'Candidate found: NO',
+      candidateStatus: 'Candidate found: NO'
+    };
+  }
+
+  const SOURCE_KEYS = {
+    liveResult: 'Live Guide',
+    directPhotoResult: 'Direct Photo',
+    allFormatsResult: 'All Formats',
+    autoCropResult: 'Auto Crop',
+    manualCropResult: 'Manual Crop'
+  };
+
+  const sessionResults = {
+    liveResult: emptySourceResult(SOURCE_KEYS.liveResult),
+    directPhotoResult: emptySourceResult(SOURCE_KEYS.directPhotoResult),
+    allFormatsResult: emptySourceResult(SOURCE_KEYS.allFormatsResult),
+    autoCropResult: emptySourceResult(SOURCE_KEYS.autoCropResult),
+    manualCropResult: emptySourceResult(SOURCE_KEYS.manualCropResult),
+    lastSuccessfulPdf417: null
+  };
+
+  const displayedAamvaResults = {
+    live: null,
+    photo: null
+  };
 
   const photo = {
     file: null,
@@ -88,10 +129,10 @@
     decodeMs: 0,
     variant: 'none',
     lastError: '',
-    directPhotoResult: emptyDecodeState(),
-    allFormatsResult: emptyDecodeState(),
-    manualCropResult: emptyDecodeState(),
-    autoCropResult: emptyDecodeState(),
+    directPhotoResult: sessionResults.directPhotoResult,
+    allFormatsResult: sessionResults.allFormatsResult,
+    manualCropResult: sessionResults.manualCropResult,
+    autoCropResult: sessionResults.autoCropResult,
     lastAamvaDiagnostic: null
   };
 
@@ -224,6 +265,122 @@
       `valid ${yesNo(result.valid)}`,
       `error ${result.error || 'none'}${position}`
     ].join('; ');
+  }
+
+  function resultKeyPrefix(key) {
+    if (key === 'liveResult') return 'resultLive';
+    if (key === 'directPhotoResult') return 'resultDirect';
+    if (key === 'allFormatsResult') return 'resultAllFormats';
+    if (key === 'autoCropResult') return 'resultAutoCrop';
+    if (key === 'manualCropResult') return 'resultManualCrop';
+    return '';
+  }
+
+  function isResultSuccess(result) {
+    return !!(result?.decodedSuccessfully || result?.success);
+  }
+
+  function isResultAamva(result) {
+    const d = result?.aamva || {};
+    return !!(d.aamvaIndicators && (d.strictParserPass || d.fieldRecoveryPass));
+  }
+
+  function makeSourceResult(key, read, decoded, details) {
+    const source = SOURCE_KEYS[key] || details?.source || '-';
+    const result = decoded || null;
+    const payload = result ? String(result.text || '') : '';
+    const success = !!(result && hasDecodedText(result));
+    const aamva = success ? AamvaDiag?.analyzeAamvaPayload?.(payload, result) || null : null;
+    const candidate = result || read?.first || details?.lastResult || null;
+    const now = success ? new Date().toISOString() : '';
+    return {
+      ...emptySourceResult(source),
+      success,
+      decodedSuccessfully: success,
+      source,
+      timestamp: now,
+      ms: read?.ms || details?.ms || 0,
+      decodeMs: read?.ms || details?.ms || 0,
+      count: read?.results?.length ?? details?.resultCount ?? 0,
+      resultCount: read?.results?.length ?? details?.resultCount ?? 0,
+      format: resultFormat(candidate),
+      isPdf417: success && isPdf417(result),
+      candidateInfo: resultDiagnosticSummary(candidate),
+      candidateStatus: resultDiagnosticSummary(candidate),
+      dimensions: details?.dimensions || '-',
+      variant: details?.variant || 'none',
+      processingVariant: details?.processingVariant || details?.variant || 'none',
+      testTarget: details?.testTarget || '',
+      aamva
+    };
+  }
+
+  function syncLegacyResult(key, result) {
+    if (key === 'directPhotoResult') photo.directPhotoResult = result;
+    if (key === 'allFormatsResult') photo.allFormatsResult = result;
+    if (key === 'autoCropResult') photo.autoCropResult = result;
+    if (key === 'manualCropResult') photo.manualCropResult = result;
+  }
+
+  function setSourceResult(key, result) {
+    sessionResults[key] = result;
+    syncLegacyResult(key, result);
+    if (result?.decodedSuccessfully && result?.isPdf417) {
+      sessionResults.lastSuccessfulPdf417 = result;
+    }
+    renderSessionResults();
+    renderLastSuccessfulPdf417();
+    return result;
+  }
+
+  function sourceResultStatus(result) {
+    if (!result || !result.decodedSuccessfully) return 'NO';
+    return result.isPdf417 ? 'YES' : 'OTHER';
+  }
+
+  function aamvaIndicatorStatus(result) {
+    if (!result?.aamva) return '-';
+    return yesNo(result.aamva.aamvaIndicators);
+  }
+
+  function passFail(value) {
+    if (value == null) return '-';
+    return value ? 'PASS' : 'FAIL';
+  }
+
+  function renderSessionResults() {
+    Object.keys(SOURCE_KEYS).forEach((key) => {
+      const prefix = resultKeyPrefix(key);
+      if (!prefix) return;
+      const result = sessionResults[key] || emptySourceResult(SOURCE_KEYS[key]);
+      setText(`${prefix}Pdf417`, sourceResultStatus(result));
+      setText(`${prefix}Aamva`, aamvaIndicatorStatus(result));
+      setText(`${prefix}Strict`, result.aamva ? passFail(result.aamva.strictParserPass) : '-');
+      setText(`${prefix}Recovery`, result.aamva ? passFail(result.aamva.fieldRecoveryPass) : '-');
+    });
+  }
+
+  function formatTimestamp(value) {
+    if (!value) return '-';
+    try {
+      return new Date(value).toLocaleTimeString();
+    } catch {
+      return value;
+    }
+  }
+
+  function renderLastSuccessfulPdf417() {
+    const result = sessionResults.lastSuccessfulPdf417;
+    const d = result?.aamva || {};
+    setText('lastSuccessSource', result?.source || '-');
+    setText('lastSuccessTimestamp', formatTimestamp(result?.timestamp));
+    setText('lastSuccessProcessing', result?.processingVariant || result?.variant || '-');
+    setText('lastSuccessDimensions', result?.dimensions || '-');
+    setText('lastSuccessDecoded', yesNo(!!result?.decodedSuccessfully));
+    setText('lastSuccessAamva', yesNo(d.aamvaIndicators));
+    setText('lastSuccessStrict', result?.aamva ? passFail(d.strictParserPass) : '-');
+    setText('lastSuccessRecovery', result?.aamva ? passFail(d.fieldRecoveryPass) : '-');
+    setText('lastSuccessFailure', d.parserFailureReason || '-');
   }
 
   async function runBarcodeRead(input, options) {
@@ -676,11 +833,9 @@
     const pre = $('decodedText');
     const show = $('showDecodedText')?.checked;
     if (!pre) return;
-    if (!show) {
-      live.lastRaw = '';
-      if (live.lastAamvaDiagnostic) renderParsed('live', '', live.lastAamvaDiagnostic);
-      if (photo.lastAamvaDiagnostic) renderParsed('photo', '', photo.lastAamvaDiagnostic);
-    }
+    if (!show) live.lastRaw = '';
+    if (displayedAamvaResults.live) renderParsed('live', '', displayedAamvaResults.live.aamva);
+    if (displayedAamvaResults.photo) renderParsed('photo', '', displayedAamvaResults.photo.aamva);
     pre.hidden = !show || !live.lastRaw;
     pre.textContent = show && live.lastRaw ? live.lastRaw : '';
   }
@@ -695,12 +850,48 @@
   }
 
   function clearAamvaStructure(prefix) {
+    displayedAamvaResults[prefix] = null;
+    setText(`${prefix}StructSourceLabel`, prefix === 'live' ? 'Live Guide' : 'No Source');
+    setText(`${prefix}StructSource`, '-');
+    setText(`${prefix}StructTimestamp`, '-');
+    setText(`${prefix}StructProcessing`, '-');
     [
       'Compliance', 'Ansi', 'Iin', 'Dl', 'Id', 'Dcs', 'Dac', 'Dad', 'Dbb', 'Daq',
       'RecordSeparator', 'SegmentTerminator', 'LineFeed'
     ].forEach((suffix) => setText(`${prefix}Struct${suffix}`, 'NO'));
     setText(`${prefix}StructAamvaVersion`, '-');
     setText(`${prefix}StructJurisdictionVersion`, '-');
+    setText(`${prefix}StructTextAvailable`, 'NO');
+    setText(`${prefix}StructRawBytesAvailable`, 'NO');
+    setText(`${prefix}StructCodeUnits`, '0');
+    setText(`${prefix}StructByteLength`, '0');
+    setText(`${prefix}StructAsciiControl`, 'NO');
+    setText(`${prefix}StructFs`, '0');
+    setText(`${prefix}StructGs`, '0');
+    setText(`${prefix}StructRs`, '0');
+    setText(`${prefix}StructCr`, '0');
+    setText(`${prefix}StructLf`, '0');
+    setText(`${prefix}StructNul`, '0');
+    setText(`${prefix}StructPrintable`, '0');
+    setText(`${prefix}StructNonPrintable`, '0');
+    setText(`${prefix}StructEscapedCr`, '0');
+    setText(`${prefix}StructEscapedLf`, '0');
+    setText(`${prefix}StructEscapedRsHex`, '0');
+    setText(`${prefix}StructEscapedRsUnicode`, '0');
+    setText(`${prefix}StructStartsAt`, 'NO');
+    setText(`${prefix}StructContainsAnsi`, 'NO');
+    setText(`${prefix}StructAnsiPosition`, '-');
+    setText(`${prefix}StructHeaderLength`, 'NO');
+    setText(`${prefix}StructSubfileCount`, '-');
+    setText(`${prefix}StructDescriptorTable`, 'NO');
+    for (let i = 1; i <= 2; i += 1) {
+      setText(`${prefix}StructDescriptor${i}Type`, '-');
+      setText(`${prefix}StructDescriptor${i}Offset`, '-');
+      setText(`${prefix}StructDescriptor${i}Length`, '-');
+      setText(`${prefix}StructDescriptor${i}OffsetBounds`, 'NO');
+      setText(`${prefix}StructDescriptor${i}LengthBounds`, 'NO');
+      setText(`${prefix}StructDescriptor${i}Prefix`, 'NO');
+    }
     setText(`${prefix}StructLength`, '0');
     setText(`${prefix}StructParserResult`, 'INVALID');
     setText(`${prefix}StrictParser`, 'FAIL');
@@ -708,13 +899,51 @@
     setText(`${prefix}StructFailure`, '-');
   }
 
-  function renderAamvaStructure(prefix, diagnostic) {
+  function renderDescriptor(prefix, diagnostic, index) {
+    const descriptor = diagnostic?.descriptors?.[index - 1] || {};
+    setText(`${prefix}StructDescriptor${index}Type`, descriptor.type || '-');
+    setText(`${prefix}StructDescriptor${index}Offset`, descriptor.offset === 0 || descriptor.offset ? descriptor.offset : '-');
+    setText(`${prefix}StructDescriptor${index}Length`, descriptor.length === 0 || descriptor.length ? descriptor.length : '-');
+    setText(`${prefix}StructDescriptor${index}OffsetBounds`, yesNo(descriptor.offsetWithinBounds));
+    setText(`${prefix}StructDescriptor${index}LengthBounds`, yesNo(descriptor.lengthWithinBounds));
+    setText(`${prefix}StructDescriptor${index}Prefix`, yesNo(descriptor.prefixMatches));
+  }
+
+  function renderAamvaStructure(prefix, diagnostic, result) {
     const d = diagnostic || {};
+    displayedAamvaResults[prefix] = result || null;
+    setText(`${prefix}StructSourceLabel`, result?.source || (prefix === 'live' ? 'Live Guide' : 'No Source'));
+    setText(`${prefix}StructSource`, result?.source || '-');
+    setText(`${prefix}StructTimestamp`, formatTimestamp(result?.timestamp));
+    setText(`${prefix}StructProcessing`, result?.processingVariant || result?.variant || '-');
     setText(`${prefix}StructCompliance`, yesNo(d.complianceIndicator));
     setText(`${prefix}StructAnsi`, yesNo(d.ansiHeader));
     setText(`${prefix}StructIin`, yesNo(d.iinPresent));
     setText(`${prefix}StructAamvaVersion`, d.aamvaVersion || '-');
     setText(`${prefix}StructJurisdictionVersion`, d.jurisdictionVersion || '-');
+    setText(`${prefix}StructTextAvailable`, yesNo(d.zxing?.textAvailable));
+    setText(`${prefix}StructRawBytesAvailable`, yesNo(d.zxing?.rawBytesAvailable));
+    setText(`${prefix}StructCodeUnits`, d.zxing?.decodedTextCodeUnitLength || d.decodedTextLength || 0);
+    setText(`${prefix}StructByteLength`, d.zxing?.decodedByteLength || 0);
+    setText(`${prefix}StructAsciiControl`, yesNo(d.zxing?.containsAsciiControlChars));
+    setText(`${prefix}StructFs`, d.controlCounts?.fs || 0);
+    setText(`${prefix}StructGs`, d.controlCounts?.gs || 0);
+    setText(`${prefix}StructRs`, d.controlCounts?.rs || 0);
+    setText(`${prefix}StructCr`, d.controlCounts?.cr || 0);
+    setText(`${prefix}StructLf`, d.controlCounts?.lf || 0);
+    setText(`${prefix}StructNul`, d.controlCounts?.nul || 0);
+    setText(`${prefix}StructPrintable`, d.controlCounts?.printable || 0);
+    setText(`${prefix}StructNonPrintable`, d.controlCounts?.nonPrintable || 0);
+    setText(`${prefix}StructEscapedCr`, d.escapedControlCounts?.cr || 0);
+    setText(`${prefix}StructEscapedLf`, d.escapedControlCounts?.lf || 0);
+    setText(`${prefix}StructEscapedRsHex`, d.escapedControlCounts?.rsHex || 0);
+    setText(`${prefix}StructEscapedRsUnicode`, d.escapedControlCounts?.rsUnicode || 0);
+    setText(`${prefix}StructStartsAt`, yesNo(d.startsWithAt));
+    setText(`${prefix}StructContainsAnsi`, yesNo(d.containsAnsi));
+    setText(`${prefix}StructAnsiPosition`, d.ansiPosition === 0 || d.ansiPosition ? d.ansiPosition : '-');
+    setText(`${prefix}StructHeaderLength`, yesNo(d.headerLengthParseable));
+    setText(`${prefix}StructSubfileCount`, d.subfileCount == null ? '-' : d.subfileCount);
+    setText(`${prefix}StructDescriptorTable`, yesNo(d.descriptorTableParseable));
     setText(`${prefix}StructDl`, yesNo(d.dlSubfile));
     setText(`${prefix}StructId`, yesNo(d.idSubfile));
     setText(`${prefix}StructDcs`, yesNo(d.dcsTag));
@@ -730,6 +959,8 @@
     setText(`${prefix}StrictParser`, d.strictParserPass ? 'PASS' : 'FAIL');
     setText(`${prefix}FieldRecovery`, d.fieldRecoveryPass ? 'PASS' : 'FAIL');
     setText(`${prefix}StructFailure`, d.parserFailureReason || '-');
+    renderDescriptor(prefix, d, 1);
+    renderDescriptor(prefix, d, 2);
   }
 
   function renderParsed(prefix, decodedText, diagnostic) {
@@ -754,10 +985,10 @@
     return valid;
   }
 
-  function analyzeDecodedPayload(prefix, payload) {
-    const diagnostic = AamvaDiag?.analyzeAamvaPayload?.(payload) || null;
-    if (diagnostic) renderAamvaStructure(prefix, diagnostic);
-    renderParsed(prefix, payload, diagnostic);
+  function renderDecodedResult(prefix, result) {
+    const diagnostic = result?.aamva || null;
+    if (diagnostic) renderAamvaStructure(prefix, diagnostic, result);
+    renderParsed(prefix, '', diagnostic);
     if (prefix === 'live') live.lastAamvaDiagnostic = diagnostic;
     if (prefix === 'photo') photo.lastAamvaDiagnostic = diagnostic;
     return diagnostic;
@@ -792,6 +1023,7 @@
     $('liveValidBanner').hidden = true;
     clearParsed('live');
     clearAamvaStructure('live');
+    setSourceResult('liveResult', emptySourceResult(SOURCE_KEYS.liveResult));
     renderLiveGuideDiagnostics(null, null);
     renderDecodedText();
     updateLiveMetrics('Idle');
@@ -875,12 +1107,30 @@
       if (!hit.candidate) {
         live.lastFormat = resultFormat(hit.lastResult);
         live.aamvaDetected = false;
+        setSourceResult('liveResult', makeSourceResult('liveResult', null, null, {
+          ms: hit.ms || 0,
+          resultCount: hit.resultCount || 0,
+          lastResult: hit.lastResult,
+          dimensions: `${source.width} x ${source.height}`,
+          variant: hit.variant || 'live attempt',
+          processingVariant: live.successfulProcessing || hit.variant || 'none',
+          testTarget: selectedTestTarget() === 'state_id' ? 'State ID / Driver License' : 'Scanner Self-Test'
+        }));
         updateLiveMetrics(hit.lastResult ? 'Candidate rejected' : 'Searching...');
         return;
       }
 
       const payload = String(hit.candidate.text || '');
-      const diagnostic = analyzeDecodedPayload('live', payload);
+      const resultState = setSourceResult('liveResult', makeSourceResult('liveResult', null, hit.candidate, {
+        ms: hit.ms || 0,
+        resultCount: hit.resultCount || 0,
+        lastResult: hit.lastResult,
+        dimensions: `${source.width} x ${source.height}`,
+        variant: hit.variant,
+        processingVariant: live.successfulProcessing !== 'none' ? live.successfulProcessing : hit.variant,
+        testTarget: selectedTestTarget() === 'state_id' ? 'State ID / Driver License' : 'Scanner Self-Test'
+      }));
+      const diagnostic = renderDecodedResult('live', resultState);
       const isAamva = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
       const isSelfTest = payload === SELFTEST_TEXT;
       const fingerprint = AamvaDiag?.fingerprintPayload?.(payload) || `${payload.length}:${payload.slice(0, 12)}`;
@@ -1047,6 +1297,27 @@
     updateInterpretation();
   }
 
+  function clearAllTestResults() {
+    stopAll({ keepPhoto: false });
+    Object.keys(SOURCE_KEYS).forEach((key) => {
+      sessionResults[key] = emptySourceResult(SOURCE_KEYS[key]);
+      syncLegacyResult(key, sessionResults[key]);
+    });
+    sessionResults.lastSuccessfulPdf417 = null;
+    live.lastAamvaDiagnostic = null;
+    photo.lastAamvaDiagnostic = null;
+    displayedAamvaResults.live = null;
+    displayedAamvaResults.photo = null;
+    clearParsed('live');
+    clearParsed('photo');
+    clearAamvaStructure('live');
+    clearAamvaStructure('photo');
+    renderSessionResults();
+    renderLastSuccessfulPdf417();
+    updateInterpretation();
+    setText('diagnosticReport', '');
+  }
+
   function clearDecoderInputPreview() {
     const canvas = $('decoderInputCanvas');
     if (canvas) {
@@ -1123,16 +1394,10 @@
     setText('directResultCount', 'running');
     const read = await runBarcodeRead(file, diagnosticPdf417Options());
     const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
-    const resultState = {
-      ...emptyDecodeState(),
-      success: !!decoded,
-      ms: read.ms,
-      count: read.results.length,
-      format: resultFormat(decoded || read.first),
-      candidateInfo: resultDiagnosticSummary(decoded || read.first),
-      variant: 'direct original File'
-    };
-    photo.directPhotoResult = resultState;
+    const resultState = setSourceResult('directPhotoResult', makeSourceResult('directPhotoResult', read, decoded, {
+      variant: 'direct original File',
+      processingVariant: 'direct original File'
+    }));
     photo.directCount = read.results.length;
     photo.directMs = read.ms;
     photo.directSuccess = !!decoded;
@@ -1159,8 +1424,7 @@
 
       const directDecoded = await decodeDirectOriginalFile(file);
       if (directDecoded) {
-        const payload = String(directDecoded.text || '');
-        const diagnostic = analyzeDecodedPayload('photo', payload);
+        const diagnostic = renderDecodedResult('photo', sessionResults.directPhotoResult);
         photo.detected = true;
         photo.variant = 'direct original File';
         photo.aamvaDetected = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
@@ -1185,8 +1449,15 @@
       photo.decodeMs = hit.ms || 0;
       setText('photoDecodeMs', photo.decodeMs ? `${photo.decodeMs} ms` : '-');
       if (hit.candidate) {
-        const payload = String(hit.candidate.text || '');
-        const diagnostic = analyzeDecodedPayload('photo', payload);
+        const resultState = setSourceResult('directPhotoResult', makeSourceResult('directPhotoResult', null, hit.candidate, {
+          ms: hit.ms || 0,
+          resultCount: hit.resultCount || 0,
+          lastResult: hit.lastResult,
+          dimensions: photo.dimensions,
+          variant: hit.variant,
+          processingVariant: hit.variant
+        }));
+        const diagnostic = renderDecodedResult('photo', resultState);
         photo.detected = true;
         photo.variant = hit.variant;
         photo.aamvaDetected = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
@@ -1216,19 +1487,14 @@
       setText('allFormatsDetected', 'running');
       const read = await runBarcodeRead(photo.file, allFormatsOptions());
       const decoded = read.results.find(hasDecodedText);
-      const resultState = {
-        ...emptyDecodeState(),
-        success: !!decoded,
-        ms: read.ms,
-        count: read.results.length,
-        format: resultFormat(decoded || read.first),
-        candidateInfo: resultDiagnosticSummary(decoded || read.first),
-        variant: 'all formats original File'
-      };
-      photo.allFormatsResult = resultState;
+      const resultState = setSourceResult('allFormatsResult', makeSourceResult('allFormatsResult', read, decoded, {
+        variant: 'all formats original File',
+        processingVariant: 'all formats original File'
+      }));
       photo.allFormatsSuccess = resultState.success;
       photo.allFormatsFormat = resultState.format;
       photo.allFormatsMs = resultState.ms;
+      if (resultState.isPdf417) renderDecodedResult('photo', resultState);
       setText('allFormatsDetected', yesNo(resultState.success));
       setText('allFormatsFormat', `${resultState.format}; ${resultState.ms} ms; ${resultState.candidateInfo}`);
       setText('photoStatus', resultState.success ? 'All-formats barcode detected' : 'All-formats found no barcode');
@@ -1289,30 +1555,23 @@
           const read = await runBarcodeRead(ctx.getImageData(0, 0, canvas.width, canvas.height), diagnosticPdf417Options());
           const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
           if (decoded) {
-            const payload = String(decoded.text || '');
-            const diagnostic = analyzeDecodedPayload('photo', payload);
-            presetHit = {
-              ...emptyDecodeState(),
-              success: true,
-              ms: read.ms,
-              count: read.results.length,
-              format: resultFormat(decoded),
-              candidateInfo: resultDiagnosticSummary(decoded),
+            presetHit = makeSourceResult('autoCropResult', read, decoded, {
               dimensions: `${canvas.width} x ${canvas.height}`,
               variant: `${preset.name}, ${mode}`,
-              diagnostic
-            };
+              processingVariant: mode
+            });
             if (!best) best = presetHit;
             break;
           }
         }
         lines.push(`${preset.name}: PDF417 ${presetHit ? 'YES' : 'NO'}${presetHit ? `; processing ${presetHit.variant.split(', ')[1]}; ${presetHit.ms} ms; ${presetHit.dimensions}` : ''}`);
       }
-      photo.autoCropResult = best || emptyDecodeState();
+      setSourceResult('autoCropResult', best || emptySourceResult(SOURCE_KEYS.autoCropResult));
       if (best) {
+        renderDecodedResult('photo', best);
         photo.detected = true;
         photo.variant = `auto crop, ${best.variant}`;
-        photo.aamvaDetected = !!(best.diagnostic?.aamvaIndicators && (best.diagnostic.strictParserPass || best.diagnostic.fieldRecoveryPass));
+        photo.aamvaDetected = !!(best.aamva?.aamvaIndicators && (best.aamva.strictParserPass || best.aamva.fieldRecoveryPass));
         setText('photoDetected', 'YES');
         setText('photoVariant', photo.variant);
         setText('photoAamva', yesNo(photo.aamvaDetected));
@@ -1546,24 +1805,20 @@
         lastResult = read.first || lastResult;
         const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
         if (decoded) {
-          const resultState = {
-            ...emptyDecodeState(),
-            success: true,
+          const resultState = setSourceResult('manualCropResult', makeSourceResult('manualCropResult', read, decoded, {
             ms: Math.round(performance.now() - started),
-            count: read.results.length,
-            format: resultFormat(decoded),
-            candidateInfo: resultDiagnosticSummary(decoded),
             dimensions: photo.manualCropDimensions,
-            variant
-          };
-          photo.manualCropResult = resultState;
+            variant,
+            processingVariant: variant
+          }));
+          resultState.ms = Math.round(performance.now() - started);
+          resultState.decodeMs = resultState.ms;
           photo.manualCropSuccess = true;
           photo.manualCropMs = resultState.ms;
           photo.manualCropVariant = variant;
           photo.detected = true;
           photo.variant = `manual crop, ${variant}`;
-          const payload = String(decoded.text || '');
-          const diagnostic = analyzeDecodedPayload('photo', payload);
+          const diagnostic = renderDecodedResult('photo', resultState);
           photo.aamvaDetected = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
           setText('manualCropDetected', 'YES');
           setText('manualCropMs', `${photo.manualCropMs} ms`);
@@ -1578,15 +1833,17 @@
       }
       photo.manualCropSuccess = false;
       photo.manualCropMs = Math.round(performance.now() - started);
-      photo.manualCropResult = {
-        ...emptyDecodeState(),
-        success: false,
+      setSourceResult('manualCropResult', {
+        ...emptySourceResult(SOURCE_KEYS.manualCropResult),
         ms: photo.manualCropMs,
+        decodeMs: photo.manualCropMs,
         dimensions: photo.manualCropDimensions,
         variant: 'manual crop',
+        processingVariant: 'manual crop',
         candidateInfo: resultDiagnosticSummary(lastResult),
+        candidateStatus: resultDiagnosticSummary(lastResult),
         format: resultFormat(lastResult)
-      };
+      });
       setText('manualCropDetected', 'NO');
       setText('manualCropMs', `${photo.manualCropMs} ms`);
       setText('manualCropVariant', resultDiagnosticSummary(lastResult));
@@ -1730,15 +1987,17 @@
 
   function updateInterpretation() {
     let text = 'Run the decoder self-test and photo tests.';
-    const directSuccess = photo.directPhotoResult.success;
-    const allFormatsSuccess = photo.allFormatsResult.success;
-    const manualCropSuccess = photo.manualCropResult.success;
+    const directSuccess = isResultSuccess(sessionResults.directPhotoResult);
+    const allFormatsSuccess = isResultSuccess(sessionResults.allFormatsResult);
+    const manualCropSuccess = isResultSuccess(sessionResults.manualCropResult);
+    const last = sessionResults.lastSuccessfulPdf417;
+    const lastAamva = last?.aamva || null;
     if (selfTest.hasRun && !selfTest.success) {
       text = 'CASE A: Self-test FAILS -> ZXing integration/WASM problem. Do not spend time tuning the iPad camera until the decoder pipeline is fixed.';
     } else if (selfTest.success && live.selfTestDetected && live.matchingPdf417Reads >= REQUIRED_MATCHES && !live.aamvaDetected) {
       text = 'LIVE SELF-TEST: iPad rear camera and local PDF417 decoding are working. This barcode is intentionally not an AAMVA State ID.';
-    } else if (selfTest.success && manualCropSuccess && photo.lastAamvaDiagnostic && !photo.aamvaDetected) {
-      text = `PHYSICAL PDF417: Barcode decoding works from a tight crop. AAMVA parser diagnostics: ${photo.lastAamvaDiagnostic.parserFailureReason || 'strict parser did not validate'}.`;
+    } else if (selfTest.success && manualCropSuccess && lastAamva && !isResultAamva(last)) {
+      text = `PHYSICAL PDF417: Barcode decoding works from a tight crop. AAMVA parser diagnostics: ${lastAamva.parserFailureReason || 'strict parser did not validate'}.`;
     } else if (selfTest.success && !directSuccess && manualCropSuccess) {
       text = 'CASE B: Self-test PASSES, direct original photo FAILS, manual tight crop PASSES -> image framing/crop problem.';
     } else if (selfTest.success && directSuccess) {
@@ -1784,29 +2043,15 @@
 
   function buildDiagnosticReport() {
     const options = diagnosticPdf417Options();
-    const diagnostic = live.lastAamvaDiagnostic || photo.lastAamvaDiagnostic || {};
-    const physicalPdf417Decoded = (selectedTestTarget() === 'state_id' && live.pdf417Successes > 0)
-      || photo.directPhotoResult.success
-      || photo.manualCropResult.success
-      || photo.autoCropResult.success;
-    const successfulSource = live.aamvaDetected
-      ? 'live guide'
-      : photo.manualCropResult.success
-        ? 'manual crop'
-        : photo.autoCropResult.success
-          ? 'photo crop'
-          : photo.directPhotoResult.success
-            ? 'direct photo'
-            : '-';
-    const successfulProcessing = live.successfulProcessing !== 'none'
-      ? live.successfulProcessing
-      : photo.manualCropResult.success
-        ? photo.manualCropResult.variant
-        : photo.autoCropResult.success
-          ? photo.autoCropResult.variant
-          : photo.directPhotoResult.success
-            ? photo.directPhotoResult.variant
-            : '-';
+    const last = sessionResults.lastSuccessfulPdf417;
+    const diagnostic = last?.aamva || {};
+    const physicalPdf417Decoded = !!(last && (last.source !== SOURCE_KEYS.liveResult || last.testTarget === 'State ID / Driver License'));
+    const descriptor = diagnostic.descriptors?.[0] || {};
+    const descriptor2 = diagnostic.descriptors?.[1] || {};
+    const resultLine = (label, result) => {
+      const item = result || emptySourceResult(label);
+      return `${label}: pdf417=${sourceResultStatus(item).toLowerCase()}; count=${item.count || item.resultCount || 0}; format=${item.format || '-'}; ms=${item.ms || item.decodeMs || '-'}; variant=${item.variant || '-'}; candidate=${item.candidateStatus || item.candidateInfo || '-'}`;
+    };
     return [
       'EagleNEST Scanner Lab',
       `Build: ${LAB_BUILD}`,
@@ -1830,39 +2075,89 @@
       `WASM byte size: ${wasmInfo?.byteSize || '-'}`,
       `Self-test success: ${yesNo(selfTest.success).toLowerCase()}`,
       `Self-test decode ms: ${selfTest.ms || '-'}`,
+      '',
+      'CURRENT LIVE STATE',
       `Test Target: ${selectedTestTarget() === 'state_id' ? 'State ID / Driver License' : 'Scanner Self-Test'}`,
-      `Physical PDF417 decoded: ${yesNo(physicalPdf417Decoded).toLowerCase()}`,
-      `Successful source: ${successfulSource}`,
-      `Successful processing: ${successfulProcessing}`,
-      `Direct photo result: success=${yesNo(photo.directPhotoResult.success).toLowerCase()}; count=${photo.directPhotoResult.count}; format=${photo.directPhotoResult.format}; ms=${photo.directPhotoResult.ms || '-'}; candidate=${photo.directPhotoResult.candidateInfo}`,
-      `All-formats result: success=${yesNo(photo.allFormatsResult.success).toLowerCase()}; count=${photo.allFormatsResult.count}; format=${photo.allFormatsResult.format}; ms=${photo.allFormatsResult.ms || '-'}; candidate=${photo.allFormatsResult.candidateInfo}`,
-      `Manual crop result: success=${yesNo(photo.manualCropResult.success).toLowerCase()}; dimensions=${photo.manualCropResult.dimensions || photo.manualCropDimensions}; variant=${photo.manualCropResult.variant}; ms=${photo.manualCropResult.ms || '-'}; candidate=${photo.manualCropResult.candidateInfo}`,
-      `Auto-crop result: success=${yesNo(photo.autoCropResult.success).toLowerCase()}; dimensions=${photo.autoCropResult.dimensions}; variant=${photo.autoCropResult.variant}; ms=${photo.autoCropResult.ms || '-'}; candidate=${photo.autoCropResult.candidateInfo}`,
-      `Manual crop mapping valid: ${yesNo(!!crop.lastMapping?.valid).toLowerCase()}`,
-      `Natural image dimensions: ${crop.lastMapping ? `${crop.lastMapping.sourceWidth} x ${crop.lastMapping.sourceHeight}` : photo.dimensions}`,
-      `Rendered image dimensions: ${crop.lastMapping?.rendered ? `${Math.round(crop.lastMapping.rendered.width)} x ${Math.round(crop.lastMapping.rendered.height)}` : '-'}`,
-      `Mapped crop dimensions: ${crop.lastMapping ? `${crop.lastMapping.sw} x ${crop.lastMapping.sh}` : '-'}`,
-      `AAMVA header indicator: ${yesNo(diagnostic.aamvaIndicators).toLowerCase()}`,
-      `ANSI header: ${yesNo(diagnostic.ansiHeader).toLowerCase()}`,
-      `AAMVA version: ${diagnostic.aamvaVersion || '-'}`,
-      `DL subfile: ${yesNo(diagnostic.dlSubfile).toLowerCase()}`,
-      `ID subfile: ${yesNo(diagnostic.idSubfile).toLowerCase()}`,
-      `DCS tag: ${yesNo(diagnostic.dcsTag).toLowerCase()}`,
-      `DAC tag: ${yesNo(diagnostic.dacTag).toLowerCase()}`,
-      `DAD tag: ${yesNo(diagnostic.dadTag).toLowerCase()}`,
-      `DBB tag: ${yesNo(diagnostic.dbbTag).toLowerCase()}`,
-      `Strict parser: ${diagnostic.strictParserPass ? 'PASS' : 'FAIL'}`,
-      `Field recovery: ${diagnostic.fieldRecoveryPass ? 'PASS' : 'FAIL'}`,
-      `Safe parser failure reason: ${diagnostic.parserFailureReason || '-'}`,
-      `Requested camera resolution: ${live.requestedResolution || cameraResolutionLabel(selectedCameraResolution())}`,
-      `Actual camera resolution: ${live.actualResolution || '-'}`,
-      `Guide decoder dimensions: ${live.lastGuideMapping ? `${live.lastGuideMapping.sw} x ${live.lastGuideMapping.sh}` : '-'}`,
       `Live attempts: ${live.attempts}`,
       `Live PDF417 total successes: ${live.pdf417Successes}`,
       `Live matching PDF417 reads: ${live.matchingPdf417Reads} / ${REQUIRED_MATCHES}`,
       `Live AAMVA successes: ${live.aamvaSuccesses}`,
       `Live matching AAMVA reads: ${live.matchingAamvaReads} / ${REQUIRED_MATCHES}`,
       `Live candidate/error: ${live.lastCandidateInfo}`,
+      `Requested camera resolution: ${live.requestedResolution || cameraResolutionLabel(selectedCameraResolution())}`,
+      `Actual camera resolution: ${live.actualResolution || '-'}`,
+      `Guide decoder dimensions: ${live.lastGuideMapping ? `${live.lastGuideMapping.sw} x ${live.lastGuideMapping.sh}` : '-'}`,
+      '',
+      'SOURCE RESULT TABLE',
+      resultLine('Live', sessionResults.liveResult),
+      resultLine('Direct Photo', sessionResults.directPhotoResult),
+      resultLine('All Formats', sessionResults.allFormatsResult),
+      resultLine('Auto Crop', sessionResults.autoCropResult),
+      resultLine('Manual Crop', sessionResults.manualCropResult),
+      `Direct photo result: ${resultLine('direct', sessionResults.directPhotoResult)}`,
+      `All-formats result: ${resultLine('all-formats', sessionResults.allFormatsResult)}`,
+      `Manual crop result: ${resultLine('manual crop', sessionResults.manualCropResult)}`,
+      `Auto-crop result: ${resultLine('auto-crop', sessionResults.autoCropResult)}`,
+      `Manual crop mapping valid: ${yesNo(!!crop.lastMapping?.valid).toLowerCase()}`,
+      `Natural image dimensions: ${crop.lastMapping ? `${crop.lastMapping.sourceWidth} x ${crop.lastMapping.sourceHeight}` : photo.dimensions}`,
+      `Rendered image dimensions: ${crop.lastMapping?.rendered ? `${Math.round(crop.lastMapping.rendered.width)} x ${Math.round(crop.lastMapping.rendered.height)}` : '-'}`,
+      `Mapped crop dimensions: ${crop.lastMapping ? `${crop.lastMapping.sw} x ${crop.lastMapping.sh}` : '-'}`,
+      '',
+      'LAST SUCCESSFUL PDF417 RESULT',
+      `Source: ${last?.source || '-'}`,
+      `Timestamp: ${last?.timestamp || '-'}`,
+      `PDF417 decoded: ${yesNo(!!last?.decodedSuccessfully).toLowerCase()}`,
+      `Physical PDF417 decoded: ${yesNo(physicalPdf417Decoded).toLowerCase()}`,
+      `Processing: ${last?.processingVariant || last?.variant || '-'}`,
+      `Dimensions: ${last?.dimensions || '-'}`,
+      `AAMVA header indicator: ${yesNo(diagnostic.aamvaIndicators).toLowerCase()}`,
+      `AAMVA compliance indicator: ${yesNo(diagnostic.complianceIndicator).toLowerCase()}`,
+      `ANSI header: ${yesNo(diagnostic.ansiHeader).toLowerCase()}`,
+      `IIN present: ${yesNo(diagnostic.iinPresent).toLowerCase()}`,
+      `AAMVA version: ${diagnostic.aamvaVersion || '-'}`,
+      `Jurisdiction version: ${diagnostic.jurisdictionVersion || '-'}`,
+      `DL subfile found: ${yesNo(diagnostic.dlSubfile).toLowerCase()}`,
+      `ID subfile found: ${yesNo(diagnostic.idSubfile).toLowerCase()}`,
+      `DCS tag present: ${yesNo(diagnostic.dcsTag).toLowerCase()}`,
+      `DAC tag present: ${yesNo(diagnostic.dacTag).toLowerCase()}`,
+      `DAD tag present: ${yesNo(diagnostic.dadTag).toLowerCase()}`,
+      `DBB tag present: ${yesNo(diagnostic.dbbTag).toLowerCase()}`,
+      `Decoded text length: ${diagnostic.decodedTextLength || 0}`,
+      `ZXing text available: ${yesNo(diagnostic.zxing?.textAvailable).toLowerCase()}`,
+      `ZXing raw bytes available: ${yesNo(diagnostic.zxing?.rawBytesAvailable).toLowerCase()}`,
+      `Decoded text code-unit length: ${diagnostic.zxing?.decodedTextCodeUnitLength || 0}`,
+      `Decoded byte length: ${diagnostic.zxing?.decodedByteLength || 0}`,
+      `Contains ASCII control chars: ${yesNo(diagnostic.zxing?.containsAsciiControlChars).toLowerCase()}`,
+      `ASCII 0x1C count: ${diagnostic.controlCounts?.fs || 0}`,
+      `ASCII 0x1D count: ${diagnostic.controlCounts?.gs || 0}`,
+      `ASCII 0x1E count: ${diagnostic.controlCounts?.rs || 0}`,
+      `CR 0x0D count: ${diagnostic.controlCounts?.cr || 0}`,
+      `LF 0x0A count: ${diagnostic.controlCounts?.lf || 0}`,
+      `NUL count: ${diagnostic.controlCounts?.nul || 0}`,
+      `Printable-character count: ${diagnostic.controlCounts?.printable || 0}`,
+      `Non-printable-character count: ${diagnostic.controlCounts?.nonPrintable || 0}`,
+      `Literal escaped CR count: ${diagnostic.escapedControlCounts?.cr || 0}`,
+      `Literal escaped LF count: ${diagnostic.escapedControlCounts?.lf || 0}`,
+      `Literal escaped RS hex count: ${diagnostic.escapedControlCounts?.rsHex || 0}`,
+      `Literal escaped RS unicode count: ${diagnostic.escapedControlCounts?.rsUnicode || 0}`,
+      `Starts with @: ${yesNo(diagnostic.startsWithAt).toLowerCase()}`,
+      `Contains ANSI marker: ${yesNo(diagnostic.containsAnsi).toLowerCase()}`,
+      `ANSI position: ${diagnostic.ansiPosition === 0 || diagnostic.ansiPosition ? diagnostic.ansiPosition : '-'}`,
+      `Header length parseable: ${yesNo(diagnostic.headerLengthParseable).toLowerCase()}`,
+      `Subfile count from header: ${diagnostic.subfileCount == null ? '-' : diagnostic.subfileCount}`,
+      `Subfile descriptor table parseable: ${yesNo(diagnostic.descriptorTableParseable).toLowerCase()}`,
+      `Descriptor 1 type: ${descriptor.type || '-'}`,
+      `Descriptor 1 offset: ${descriptor.offset === 0 || descriptor.offset ? descriptor.offset : '-'}`,
+      `Descriptor 1 length: ${descriptor.length === 0 || descriptor.length ? descriptor.length : '-'}`,
+      `Descriptor 1 offset within bounds: ${yesNo(descriptor.offsetWithinBounds).toLowerCase()}`,
+      `Descriptor 1 length within bounds: ${yesNo(descriptor.lengthWithinBounds).toLowerCase()}`,
+      `Descriptor 1 prefix matches: ${yesNo(descriptor.prefixMatches).toLowerCase()}`,
+      `Descriptor 2 type: ${descriptor2.type || '-'}`,
+      `Descriptor 2 offset: ${descriptor2.offset === 0 || descriptor2.offset ? descriptor2.offset : '-'}`,
+      `Descriptor 2 length: ${descriptor2.length === 0 || descriptor2.length ? descriptor2.length : '-'}`,
+      `Strict parser: ${diagnostic.strictParserPass ? 'PASS' : 'FAIL'}`,
+      `Field recovery: ${diagnostic.fieldRecoveryPass ? 'PASS' : 'FAIL'}`,
+      `Safe parser failure reason: ${diagnostic.parserFailureReason || '-'}`,
       `Decode options: formats=${options.formats.join(',')}; tryHarder=${options.tryHarder}; tryRotate=${options.tryRotate}; tryInvert=${options.tryInvert}; tryDownscale=${options.tryDownscale}; tryDenoise=${options.tryDenoise}; binarizer=${options.binarizer}; returnErrors=${options.returnErrors}`,
       `Interpretation: ${$('interpretation')?.textContent || '-'}`
     ].join('\n');
@@ -1896,6 +2191,7 @@
     });
     $('startCameraBtn')?.addEventListener('click', startCameraTest);
     $('stopCameraBtn')?.addEventListener('click', stopCameraTest);
+    $('clearAllResultsBtn')?.addEventListener('click', clearAllTestResults);
     $('runSelfTestBtn')?.addEventListener('click', runSelfTest);
     $('startLiveBtn')?.addEventListener('click', startLiveScan);
     $('stopLiveBtn')?.addEventListener('click', stopLiveScan);
@@ -1939,6 +2235,8 @@
     clearParsed('photo');
     clearAamvaStructure('live');
     clearAamvaStructure('photo');
+    renderSessionResults();
+    renderLastSuccessfulPdf417();
     clearDecoderInputPreview();
     clearCropMappingDiagnostics();
     updateInterpretation();

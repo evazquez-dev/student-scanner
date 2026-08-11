@@ -89,6 +89,17 @@ main {
   line-height: 1.45;
 }
 
+.noticeActions {
+  margin-top: 12px;
+}
+
+.sessionGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+  margin: 18px 0;
+}
+
 .tabs {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -345,6 +356,25 @@ input[type="radio"] {
   background: #fff;
 }
 
+.resultTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.resultTable th,
+.resultTable td {
+  padding: 10px;
+  border: 1px solid #e0e7f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.resultTable th {
+  background: #f8fafc;
+  color: var(--brand-dark);
+}
+
 .decodedText,
 .errorBox,
 .reportBox {
@@ -510,6 +540,7 @@ input[type="radio"] {
   }
 
   .tabs,
+  .sessionGrid,
   .cameraLayout,
   .liveGrid,
   .photoGrid,

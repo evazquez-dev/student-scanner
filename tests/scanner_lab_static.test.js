@@ -26,10 +26,11 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-4'/, 'Scanner Lab should expose Build 4');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-5'/, 'Scanner Lab should expose Build 5');
 }
 
 function syntheticAamva(subfile, fields, header) {
+  if (!header) return syntheticDescriptorAamva(subfile || 'DL', fields, { version: '08', jurisdiction: '01' });
   return [
     '@',
     '\x1e',
@@ -37,6 +38,16 @@ function syntheticAamva(subfile, fields, header) {
     header || `ANSI 636000080102${subfile || 'DL'}00410288`,
     ...fields
   ].join('\n');
+}
+
+function syntheticDescriptorAamva(subfile, fields, options) {
+  const opts = options || {};
+  const body = `${subfile || 'DL'}${fields.join('\n')}`;
+  const offset = opts.offset || 40;
+  const length = body.length;
+  let header = `@\x1e\r\nANSI 636000${opts.version || '10'}${opts.jurisdiction || '04'}01${subfile || 'DL'}${String(offset).padStart(4, '0')}${String(length).padStart(4, '0')}`;
+  while (header.length < offset) header += ' ';
+  return header + body;
 }
 
 {
@@ -120,8 +131,78 @@ function syntheticAamva(subfile, fields, header) {
 }
 
 {
+  const raw = syntheticDescriptorAamva('DL', [
+    'DCSDOE',
+    'DACJANE',
+    'DADQ',
+    'DBB01021980',
+    'DAQDO-NOT-COPY'
+  ]);
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.aamvaVersion, '10');
+  assert.equal(diag.jurisdictionVersion, '4');
+  assert.equal(diag.subfileCount, 1);
+  assert.equal(diag.descriptorTableParseable, true);
+  assert.equal(diag.descriptors[0].type, 'DL');
+  assert.equal(diag.descriptors[0].offsetWithinBounds, true);
+  assert.equal(diag.descriptors[0].lengthWithinBounds, true);
+  assert.equal(diag.descriptors[0].prefixMatches, true);
+  assert.equal(diag.dlSubfile, true);
+  assert.equal(diag.dcsTag, true);
+  assert.equal(diag.dacTag, true);
+  assert.equal(diag.dadTag, true);
+  assert.equal(diag.dbbTag, true);
+  assert.equal(diag.recoveredData.visitor_first_name, 'JANE');
+  assert.equal(diag.recoveredData.visitor_middle_name, 'Q');
+  assert.equal(diag.recoveredData.visitor_last_name, 'DOE');
+  assert.equal(diag.recoveredData.date_of_birth, '1980-01-02');
+}
+
+{
+  const raw = syntheticDescriptorAamva('ID', [
+    'DCSPUBLIC',
+    'DACPAT',
+    'DBB19800102'
+  ], { version: '10', jurisdiction: '04' });
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.idSubfile, true);
+  assert.equal(diag.descriptors[0].type, 'ID');
+  assert.equal(diag.descriptors[0].prefixMatches, true);
+  assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.recoveredData.date_of_birth, '1980-01-02');
+}
+
+{
+  const raw = syntheticDescriptorAamva('DL', [
+    'DCSDOE',
+    'DACJANE',
+    'DBB01021980'
+  ]).replace(/\n/g, '\x1e').replace('DBB01021980', 'DBB01021980\r');
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.controlCounts.rs > 0, true);
+  assert.equal(diag.controlCounts.cr > 0, true);
+  assert.equal(diag.recordSeparator, true);
+  assert.equal(diag.segmentTerminator, true);
+}
+
+{
+  const raw = '@\nANSI 636000100401DL00409999DLDCSDOE\nDACJANE\nDBB01021980';
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.descriptorTableParseable, true);
+  assert.equal(diag.descriptors[0].lengthWithinBounds, false);
+  assert.equal(diag.fieldRecoveryPass, true);
+}
+
+{
+  const diag = AamvaDiag.analyzeAamvaPayload('EAGLENEST-PDF417-SELFTEST-12345');
+  assert.equal(diag.aamvaIndicators, false);
+  assert.equal(diag.parserResult, 'INVALID');
+  assert.equal(diag.parserFailureReason, 'Compliance indicator missing');
+}
+
+{
   assert.doesNotMatch(labSource, /XMLHttpRequest|sendBeacon|analytics|gtag|dataLayer/i, 'Scanner Lab must not make backend or analytics calls');
-  assert.doesNotMatch(labSource, /workers\.dev|script\.google\.com|\/admin\/|\/visitor\/kiosk|VisitorDeskDO|VISITOR_PHOTOS|R2|GAS_URL|GAS/i, 'Scanner Lab must not call EagleNEST backend systems');
+  assert.doesNotMatch(labSource, /workers\.dev|script\.google\.com|\/admin\/|\/visitor\/kiosk|VisitorDeskDO|VISITOR_PHOTOS|R2Bucket|GAS_URL|GAS_ENDPOINT/i, 'Scanner Lab must not call EagleNEST backend systems');
   assert.doesNotMatch(labSource, /localStorage|sessionStorage|indexedDB|caches\.open/i, 'Scanner Lab must not persist scan data locally');
   assert.doesNotMatch(labSource, /console\.log|console\.debug|console\.info/i, 'Scanner Lab must not log decoded payloads');
   assert.match(labJs, /fetch\(SELFTEST_FIXTURE,\s*\{\s*cache:\s*'no-store'\s*\}\)/, 'Scanner Lab may fetch only its static self-test fixture');
@@ -257,6 +338,13 @@ function syntheticAamva(subfile, fields, header) {
   assert.match(labJs, /directPhotoResult/, 'Direct photo result state should be separate');
   assert.match(labJs, /allFormatsResult/, 'All-formats result state should be separate');
   assert.match(labJs, /manualCropResult/, 'Manual crop result state should be separate');
+  assert.match(labJs, /liveResult/, 'Live result state should be separate');
+  assert.match(labJs, /autoCropResult/, 'Auto-crop result state should be separate');
+  assert.match(labJs, /sessionResults/, 'Scanner Lab should keep a session result model');
+  assert.match(labJs, /lastSuccessfulPdf417/, 'Scanner Lab should preserve the last successful PDF417 result');
+  assert.match(labJs, /setSourceResult/, 'Scanner Lab should update result state by source');
+  assert.match(labJs, /makeSourceResult/, 'Scanner Lab should create source-owned result objects');
+  assert.match(labJs, /\baamva\b[\s\n]*\}/, 'AAMVA diagnostics should belong to the decode result object');
   assert.match(labHtml, /Auto-Crop Experiment/, 'Photo test should include bounded auto-crop experiment');
   assert.match(labJs, /Bottom 45%/, 'Auto-crop experiment should include bottom 45 percent preset');
   assert.match(labJs, /Center-lower wide/, 'Auto-crop experiment should include center-lower wide preset');
@@ -265,12 +353,26 @@ function syntheticAamva(subfile, fields, header) {
 }
 
 {
-  assert.match(labHtml, /Live AAMVA Structure/, 'Live safe AAMVA structure diagnostics should exist');
-  assert.match(labHtml, /Photo AAMVA Structure/, 'Photo safe AAMVA structure diagnostics should exist');
+  assert.match(labHtml, /AAMVA Structure &mdash; <span id="liveStructSourceLabel"/, 'Live safe AAMVA structure diagnostics should be source-labeled');
+  assert.match(labHtml, /AAMVA Structure &mdash; <span id="photoStructSourceLabel"/, 'Photo safe AAMVA structure diagnostics should be source-labeled');
+  assert.match(labHtml, /Last Successful PDF417/, 'Scanner Lab should summarize the last successful PDF417 result');
+  assert.match(labHtml, /Session Result Table/, 'Scanner Lab should include a per-source result table');
+  assert.match(labHtml, /id="clearAllResultsBtn"/, 'Scanner Lab should provide an explicit Clear All Test Results button');
+  assert.match(labJs, /function\s+clearAllTestResults/, 'Clear All should be implemented explicitly');
+  assert.match(labJs, /sessionResults\.lastSuccessfulPdf417\s*=\s*null/, 'Clear All should reset the last successful PDF417 result');
+  assert.match(labJs, /renderSessionResults/, 'Session result table should be rendered from source result state');
+  assert.match(labJs, /renderLastSuccessfulPdf417/, 'Last successful PDF417 summary should be rendered from source result state');
   assert.match(labHtml, /Compliance indicator @/, 'Compliance indicator should be shown safely');
   assert.match(labHtml, /ANSI header/, 'ANSI header presence should be shown safely');
   assert.match(labHtml, /IIN present/, 'IIN presence should be shown safely');
   assert.match(labHtml, /AAMVA version/, 'AAMVA version should be shown safely');
+  assert.match(labHtml, /ZXing text available/, 'ZXing text availability should be shown safely');
+  assert.match(labHtml, /ZXing raw bytes available/, 'ZXing raw byte availability should be shown safely');
+  assert.match(labHtml, /ASCII 0x1C count/, 'Control-character counts should be shown safely');
+  assert.match(labHtml, /Literal \\x1e count/, 'Escaped control sequence counts should be shown safely');
+  assert.match(labHtml, /Subfile descriptor table parseable/, 'Descriptor table parseability should be shown safely');
+  assert.match(labHtml, /Descriptor 1 offset/, 'Descriptor offsets should be shown safely');
+  assert.match(labHtml, /Descriptor 1 prefix matches/, 'Descriptor prefix checks should be shown safely');
   assert.match(labHtml, /DL subfile found/, 'DL subfile presence should be shown safely');
   assert.match(labHtml, /ID subfile found/, 'ID subfile presence should be shown safely');
   assert.match(labHtml, /DCS field tag present/, 'DCS tag presence should be shown safely');
@@ -283,6 +385,11 @@ function syntheticAamva(subfile, fields, header) {
   assert.match(labAamvaDiagJs, /analyzeAamvaPayload/, 'AAMVA structural analyzer should exist');
   assert.match(labAamvaDiagJs, /strictParserPass/, 'AAMVA analyzer should expose strict parser result');
   assert.match(labAamvaDiagJs, /fieldRecoveryPass/, 'AAMVA analyzer should expose field recovery result');
+  assert.match(labAamvaDiagJs, /controlCounts/, 'AAMVA analyzer should expose safe control-character counts');
+  assert.match(labAamvaDiagJs, /escapedControlCounts/, 'AAMVA analyzer should detect escaped control sequences safely');
+  assert.match(labAamvaDiagJs, /zxingShape/, 'AAMVA analyzer should report text/raw-byte availability safely');
+  assert.match(labAamvaDiagJs, /parseDescriptor/, 'AAMVA analyzer should parse subfile descriptors');
+  assert.match(labAamvaDiagJs, /prefixMatches/, 'AAMVA analyzer should validate descriptor offset prefixes');
   assert.match(labAamvaDiagJs, /recordSeparator:\s*\/\\x1e\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check record separators');
   assert.match(labAamvaDiagJs, /segmentTerminator:\s*\/\\r\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check segment terminators');
   assert.match(labAamvaDiagJs, /lineFeedSeparators:\s*\/\\n\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check line-feed separators');
@@ -295,6 +402,12 @@ function syntheticAamva(subfile, fields, header) {
   assert.doesNotMatch(labHtml, /id="showDecodedText"[^>]+checked/, 'Decoded text checkbox should default OFF');
   assert.match(labJs, /live\.lastRaw\s*=\s*''/, 'Raw decoded text should be clearable from memory');
   const reportSection = sectionBetween(labJs, 'function buildDiagnosticReport()', 'async function copyDiagnosticReport()');
+  assert.match(reportSection, /const last = sessionResults\.lastSuccessfulPdf417/, 'Copied report should read from lastSuccessfulPdf417');
+  assert.match(reportSection, /const diagnostic = last\?\.aamva \|\| \{\}/, 'Copied report should use the same result-owned AAMVA object');
+  assert.doesNotMatch(reportSection, /live\.lastAamvaDiagnostic \|\| photo\.lastAamvaDiagnostic/, 'Copied report must not use stale shared/global AAMVA diagnostics');
+  assert.match(reportSection, /CURRENT LIVE STATE/, 'Diagnostic report should include a current live state section');
+  assert.match(reportSection, /LAST SUCCESSFUL PDF417 RESULT/, 'Diagnostic report should include a last successful PDF417 section');
+  assert.match(reportSection, /SOURCE RESULT TABLE/, 'Diagnostic report should include per-source result status');
   assert.match(reportSection, /safePageUrl\(\)/, 'Diagnostic report should avoid copying URL query/hash content');
   assert.match(reportSection, /Last active camera dimensions/, 'Diagnostic report should preserve last active camera dimensions');
   assert.match(reportSection, /Self-test success/, 'Diagnostic report should include self-test status');
@@ -312,17 +425,36 @@ function syntheticAamva(subfile, fields, header) {
   assert.match(reportSection, /Manual crop result/, 'Diagnostic report should include manual crop status');
   assert.match(reportSection, /Auto-crop result/, 'Diagnostic report should include auto-crop status');
   assert.match(reportSection, /Physical PDF417 decoded/, 'Diagnostic report should include physical PDF417 status');
-  assert.match(reportSection, /Successful source/, 'Diagnostic report should include successful source');
-  assert.match(reportSection, /Successful processing/, 'Diagnostic report should include successful processing');
+  assert.match(reportSection, /Source:/, 'Diagnostic report should include successful source');
+  assert.match(reportSection, /Processing:/, 'Diagnostic report should include successful processing');
   assert.match(reportSection, /AAMVA header indicator/, 'Diagnostic report should include safe AAMVA header indicator');
+  assert.match(reportSection, /AAMVA compliance indicator/, 'Diagnostic report should include safe compliance indicator');
   assert.match(reportSection, /ANSI header/, 'Diagnostic report should include safe ANSI header status');
+  assert.match(reportSection, /IIN present/, 'Diagnostic report should include safe IIN status');
   assert.match(reportSection, /AAMVA version/, 'Diagnostic report should include AAMVA version only');
-  assert.match(reportSection, /DL subfile/, 'Diagnostic report should include DL subfile status');
-  assert.match(reportSection, /ID subfile/, 'Diagnostic report should include ID subfile status');
-  assert.match(reportSection, /DCS tag/, 'Diagnostic report should include DCS tag status');
-  assert.match(reportSection, /DAC tag/, 'Diagnostic report should include DAC tag status');
-  assert.match(reportSection, /DAD tag/, 'Diagnostic report should include DAD tag status');
-  assert.match(reportSection, /DBB tag/, 'Diagnostic report should include DBB tag status');
+  assert.match(reportSection, /Jurisdiction version/, 'Diagnostic report should include jurisdiction version only');
+  assert.match(reportSection, /DL subfile found/, 'Diagnostic report should include DL subfile status');
+  assert.match(reportSection, /ID subfile found/, 'Diagnostic report should include ID subfile status');
+  assert.match(reportSection, /DCS tag present/, 'Diagnostic report should include DCS tag status');
+  assert.match(reportSection, /DAC tag present/, 'Diagnostic report should include DAC tag status');
+  assert.match(reportSection, /DAD tag present/, 'Diagnostic report should include DAD tag status');
+  assert.match(reportSection, /DBB tag present/, 'Diagnostic report should include DBB tag status');
+  assert.match(reportSection, /ZXing text available/, 'Diagnostic report should include text availability only');
+  assert.match(reportSection, /ZXing raw bytes available/, 'Diagnostic report should include raw byte availability only');
+  assert.match(reportSection, /ASCII 0x1C count/, 'Diagnostic report should include safe control-character counts');
+  assert.match(reportSection, /ASCII 0x1D count/, 'Diagnostic report should include safe control-character counts');
+  assert.match(reportSection, /ASCII 0x1E count/, 'Diagnostic report should include safe control-character counts');
+  assert.match(reportSection, /CR 0x0D count/, 'Diagnostic report should include CR count');
+  assert.match(reportSection, /LF 0x0A count/, 'Diagnostic report should include LF count');
+  assert.match(reportSection, /Literal escaped RS hex count/, 'Diagnostic report should include escaped-control counts');
+  assert.match(reportSection, /Starts with @/, 'Diagnostic report should include safe prefix structure');
+  assert.match(reportSection, /Contains ANSI marker/, 'Diagnostic report should include safe ANSI position context');
+  assert.match(reportSection, /Subfile count from header/, 'Diagnostic report should include subfile count');
+  assert.match(reportSection, /Subfile descriptor table parseable/, 'Diagnostic report should include descriptor table status');
+  assert.match(reportSection, /Descriptor 1 type/, 'Diagnostic report should include safe descriptor type');
+  assert.match(reportSection, /Descriptor 1 offset/, 'Diagnostic report should include safe descriptor offset');
+  assert.match(reportSection, /Descriptor 1 length/, 'Diagnostic report should include safe descriptor length');
+  assert.match(reportSection, /Descriptor 1 prefix matches/, 'Diagnostic report should include safe descriptor prefix status');
   assert.match(reportSection, /Strict parser/, 'Diagnostic report should include strict parser status');
   assert.match(reportSection, /Field recovery/, 'Diagnostic report should include field recovery status');
   assert.match(reportSection, /Safe parser failure reason/, 'Diagnostic report should include safe parser failure reason');
@@ -331,7 +463,7 @@ function syntheticAamva(subfile, fields, header) {
   assert.match(reportSection, /Guide decoder dimensions/, 'Diagnostic report should include guide decoder dimensions');
   [
     /lastRaw/,
-    /decodedText/,
+    /decodedText[`'"]/,
     /SELFTEST_TEXT/,
     /First Name/,
     /Last Name/,
@@ -355,6 +487,29 @@ function syntheticAamva(subfile, fields, header) {
 {
   assert.doesNotMatch(labSource, /IDNYC|Tesseract|tesseract|recognizeIdnycImage|TextDetector OCR/i, 'Scanner Lab should not add IDNYC/Tesseract OCR in this pass');
   assert.match(visitorJs, /IdScan\.createStateIdAutoScanner/, 'Production Visitor state ID scanner should remain intact');
+}
+
+{
+  const sourceModelSection = sectionBetween(labJs, 'const SOURCE_KEYS = {', 'const photo = {');
+  assert.match(sourceModelSection, /liveResult/, 'Live source result should be declared independently');
+  assert.match(sourceModelSection, /directPhotoResult/, 'Direct-photo source result should be declared independently');
+  assert.match(sourceModelSection, /allFormatsResult/, 'All-formats source result should be declared independently');
+  assert.match(sourceModelSection, /autoCropResult/, 'Auto-crop source result should be declared independently');
+  assert.match(sourceModelSection, /manualCropResult/, 'Manual-crop source result should be declared independently');
+  assert.match(sourceModelSection, /lastSuccessfulPdf417:\s*null/, 'Last successful PDF417 state should start empty');
+  const setterSection = sectionBetween(labJs, 'function setSourceResult', 'function sourceResultStatus');
+  assert.match(setterSection, /sessionResults\[key\]\s*=\s*result/, 'Source setter should update only the addressed source result');
+  assert.match(setterSection, /lastSuccessfulPdf417\s*=\s*result/, 'Successful PDF417 should update lastSuccessfulPdf417');
+  assert.match(setterSection, /result\?\.decodedSuccessfully && result\?\.isPdf417/, 'Failed attempts should not replace lastSuccessfulPdf417');
+  const liveFailureSection = sectionBetween(labJs, 'if (!hit.candidate) {', 'const payload = String(hit.candidate.text || \'\');');
+  assert.match(liveFailureSection, /setSourceResult\('liveResult'/, 'Failed live attempts should update only liveResult');
+  assert.doesNotMatch(liveFailureSection, /lastSuccessfulPdf417\s*=/, 'Failed live attempts must not overwrite a successful manual result');
+  const manualSection = sectionBetween(labJs, 'async function decodeManualCrop', 'function applyCropPreset');
+  assert.match(manualSection, /setSourceResult\('manualCropResult'/, 'Manual crop should store its own result');
+  assert.match(manualSection, /renderDecodedResult\('photo', resultState\)/, 'Manual crop panel should render from the manual result object');
+  const clearAllSection = sectionBetween(labJs, 'function clearAllTestResults', 'async function imageFileToCanvas');
+  assert.match(clearAllSection, /Object\.keys\(SOURCE_KEYS\)/, 'Clear All should reset each source result');
+  assert.match(clearAllSection, /lastSuccessfulPdf417\s*=\s*null/, 'Clear All should reset lastSuccessfulPdf417');
 }
 
 console.log('scanner_lab_static tests passed');

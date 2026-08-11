@@ -44,16 +44,159 @@
     ].join('-');
   }
 
-  function headerInfo(raw) {
-    const normalized = String(raw || '').replace(/[\r\n\x1e]+/g, ' ');
-    const match = normalized.match(/ANSI\s*(\d{6})(\d{2})?(\d{2})?/i);
+  function countLiteral(raw, literal) {
+    const text = String(raw || '');
+    if (!literal) return 0;
+    let count = 0;
+    let index = text.indexOf(literal);
+    while (index !== -1) {
+      count += 1;
+      index = text.indexOf(literal, index + literal.length);
+    }
+    return count;
+  }
+
+  function controlCounts(raw) {
+    const text = String(raw || '');
+    const counts = {
+      fs: 0,
+      gs: 0,
+      rs: 0,
+      cr: 0,
+      lf: 0,
+      nul: 0,
+      printable: 0,
+      nonPrintable: 0
+    };
+    for (let i = 0; i < text.length; i += 1) {
+      const code = text.charCodeAt(i);
+      if (code === 0x1c) counts.fs += 1;
+      if (code === 0x1d) counts.gs += 1;
+      if (code === 0x1e) counts.rs += 1;
+      if (code === 0x0d) counts.cr += 1;
+      if (code === 0x0a) counts.lf += 1;
+      if (code === 0x00) counts.nul += 1;
+      if (code >= 0x20 && code <= 0x7e) counts.printable += 1;
+      else counts.nonPrintable += 1;
+    }
+    return counts;
+  }
+
+  function escapedControlCounts(raw) {
+    return {
+      cr: countLiteral(raw, '\\r'),
+      lf: countLiteral(raw, '\\n'),
+      rsHex: countLiteral(String(raw || '').toLowerCase(), '\\x1e'),
+      rsUnicode: countLiteral(String(raw || '').toLowerCase(), '\\u001e')
+    };
+  }
+
+  function byteLength(value) {
+    if (!value) return 0;
+    if (typeof value === 'string') return value.length;
+    if (typeof value.byteLength === 'number') return value.byteLength;
+    if (typeof value.length === 'number') return value.length;
+    return 0;
+  }
+
+  function zxingShape(raw, zxingResult) {
+    const result = zxingResult || {};
+    const byteSource = result.rawBytes || result.bytes || result.contentBytes || result.byteSegments || null;
+    return {
+      textAvailable: typeof result.text === 'string' ? result.text.length > 0 : String(raw || '').length > 0,
+      rawBytesAvailable: !!byteSource,
+      decodedTextCodeUnitLength: String(raw || '').length,
+      decodedByteLength: byteLength(byteSource),
+      containsAsciiControlChars: /[\x00-\x1f]/.test(String(raw || ''))
+    };
+  }
+
+  function parseDescriptor(raw, cursor, index) {
+    const chunk = String(raw || '').slice(cursor, cursor + 10);
+    const match = chunk.match(/^(DL|ID)(\d{4})(\d{4})/i);
+    if (!match) {
+      return {
+        index,
+        type: 'unknown',
+        offset: '',
+        length: '',
+        parseable: false,
+        offsetWithinBounds: false,
+        lengthWithinBounds: false,
+        prefixMatches: false
+      };
+    }
+    const type = match[1].toUpperCase();
+    const offset = Number(match[2]);
+    const length = Number(match[3]);
+    const offsetWithinBounds = offset >= 0 && offset < raw.length;
+    const lengthWithinBounds = offsetWithinBounds && length >= 0 && offset + length <= raw.length;
+    return {
+      index,
+      type,
+      offset,
+      length,
+      parseable: true,
+      offsetWithinBounds,
+      lengthWithinBounds,
+      prefixMatches: offsetWithinBounds && raw.slice(offset, offset + 2).toUpperCase() === type
+    };
+  }
+
+  function headerInfo(rawInput) {
+    const raw = String(rawInput || '');
+    const ansiPosition = raw.search(/ANSI ?\d{6}/i);
+    const normalized = raw.replace(/[\r\n\x1e]+/g, ' ');
+    const normalizedMatch = normalized.match(/ANSI\s*(\d{6})(\d{2})?(\d{2})?(\d{2})?/i);
+    const directMatch = ansiPosition >= 0
+      ? raw.slice(ansiPosition).match(/^ANSI ?(\d{6})(\d{2})?(\d{2})?(\d{2})?/i)
+      : null;
+    const match = directMatch || normalizedMatch;
+    const descriptorStart = match && directMatch ? ansiPosition + match[0].length : -1;
+    const subfileCount = match && match[4] ? Number(match[4]) : null;
+    const descriptors = [];
+    let descriptorTableParseable = false;
+    if (descriptorStart >= 0 && Number.isFinite(subfileCount) && subfileCount > 0 && subfileCount <= 10) {
+      for (let i = 0; i < subfileCount; i += 1) {
+        descriptors.push(parseDescriptor(raw, descriptorStart + (i * 10), i + 1));
+      }
+      descriptorTableParseable = descriptors.length === subfileCount && descriptors.every((descriptor) => descriptor.parseable);
+    }
+    if (!descriptors.length) {
+      const fallback = raw.match(/(DL|ID)(\d{4})(\d{4})/ig) || [];
+      fallback.slice(0, 6).forEach((text, index) => {
+        const cursor = raw.indexOf(text);
+        descriptors.push(parseDescriptor(raw, cursor, index + 1));
+      });
+      descriptorTableParseable = descriptors.length > 0 && descriptors.every((descriptor) => descriptor.parseable);
+    }
+    const validDescriptors = descriptors.filter((descriptor) => (
+      descriptor.parseable
+      && descriptor.offsetWithinBounds
+      && descriptor.lengthWithinBounds
+      && descriptor.prefixMatches
+    ));
+    const dlDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'DL');
+    const idDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'ID');
+    const fallbackDl = /(?:^|[^A-Z0-9])DL\d{8}/i.test(normalized) || /ANSI[\s\S]*DL\d{8}/i.test(normalized);
+    const fallbackId = /(?:^|[^A-Z0-9])ID\d{8}/i.test(normalized) || /ANSI[\s\S]*ID\d{8}/i.test(normalized);
+    const useLegacySubfileFallback = !descriptors.length;
+
     return {
       ansiHeader: !!match,
+      containsAnsi: /ANSI/i.test(raw),
+      ansiPosition,
+      headerLengthParseable: !!(match && match[1] && match[2] && match[3]),
       iinPresent: !!(match && match[1]),
       aamvaVersion: match && match[2] ? String(Number(match[2])) : '',
       jurisdictionVersion: match && match[3] ? String(Number(match[3])) : '',
-      dlSubfile: /(?:^|[^A-Z0-9])DL\d{8}/i.test(normalized) || /ANSI[\s\S]*DL\d{8}/i.test(normalized),
-      idSubfile: /(?:^|[^A-Z0-9])ID\d{8}/i.test(normalized) || /ANSI[\s\S]*ID\d{8}/i.test(normalized)
+      subfileCount: Number.isFinite(subfileCount) ? subfileCount : null,
+      descriptorTableParseable,
+      descriptors,
+      dlSubfile: !!dlDescriptor || (useLegacySubfileFallback && fallbackDl),
+      idSubfile: !!idDescriptor || (useLegacySubfileFallback && fallbackId),
+      dlDescriptor,
+      idDescriptor
     };
   }
 
@@ -80,13 +223,32 @@
     };
   }
 
-  function recoverPermittedFields(raw) {
-    const dct = splitDct(findField(raw, 'DCT'));
-    const first = clean(findField(raw, 'DAC') || dct.first, 80);
-    const middle = clean(findField(raw, 'DAD') || dct.middle, 80);
-    const last = clean(findField(raw, 'DCS'), 100);
-    const dob = normalizeDob(findField(raw, 'DBB'));
-    const jurisdiction = clean(findField(raw, 'DAJ'), 40);
+  function descriptorSubfiles(raw, header) {
+    const ranges = [];
+    (header.descriptors || []).forEach((descriptor) => {
+      if (!descriptor.parseable || !descriptor.offsetWithinBounds || !descriptor.lengthWithinBounds || !descriptor.prefixMatches) return;
+      ranges.push({
+        type: descriptor.type,
+        text: raw.slice(descriptor.offset, descriptor.offset + descriptor.length)
+      });
+    });
+    return ranges;
+  }
+
+  function boundedFieldSource(raw, header) {
+    const subfiles = descriptorSubfiles(raw, header);
+    if (subfiles.length) return subfiles.map((subfile) => subfile.text).join('\n');
+    return String(raw || '');
+  }
+
+  function recoverPermittedFields(raw, header) {
+    const source = boundedFieldSource(raw, header || headerInfo(raw));
+    const dct = splitDct(findField(source, 'DCT'));
+    const first = clean(findField(source, 'DAC') || dct.first, 80);
+    const middle = clean(findField(source, 'DAD') || dct.middle, 80);
+    const last = clean(findField(source, 'DCS'), 100);
+    const dob = normalizeDob(findField(source, 'DBB'));
+    const jurisdiction = clean(findField(source, 'DAJ'), 40);
     return {
       visitor_first_name: first,
       visitor_middle_name: middle,
@@ -110,17 +272,21 @@
     return `${text.length}:${(hash >>> 0).toString(16)}`;
   }
 
-  function analyzeAamvaPayload(rawInput) {
+  function analyzeAamvaPayload(rawInput, zxingResult) {
     const raw = String(rawInput == null ? '' : rawInput);
     const header = headerInfo(raw);
-    const dcsTag = tagPresent(raw, 'DCS');
-    const dacTag = tagPresent(raw, 'DAC');
-    const dctTag = tagPresent(raw, 'DCT');
-    const dadTag = tagPresent(raw, 'DAD');
-    const dbbTag = tagPresent(raw, 'DBB');
-    const daqTag = tagPresent(raw, 'DAQ');
-    const standardTagCount = countStandardTags(raw);
-    const recoveredData = recoverPermittedFields(raw);
+    const boundedSource = boundedFieldSource(raw, header);
+    const hasDescriptorSubfile = descriptorSubfiles(raw, header).length > 0;
+    const rawHeaderEvidence = header.ansiHeader && header.iinPresent;
+    const tagSource = hasDescriptorSubfile || rawHeaderEvidence ? boundedSource : '';
+    const dcsTag = tagPresent(tagSource, 'DCS');
+    const dacTag = tagPresent(tagSource, 'DAC');
+    const dctTag = tagPresent(tagSource, 'DCT');
+    const dadTag = tagPresent(tagSource, 'DAD');
+    const dbbTag = tagPresent(tagSource, 'DBB');
+    const daqTag = tagPresent(tagSource, 'DAQ');
+    const standardTagCount = countStandardTags(tagSource);
+    const recoveredData = recoverPermittedFields(raw, header);
     const dobTagFoundButInvalid = dbbTag && !recoveredData.date_of_birth;
     const hasSubfile = header.dlSubfile || header.idSubfile;
     const hasRequiredTags = dcsTag && (dacTag || dctTag) && dbbTag;
@@ -161,9 +327,16 @@
     return {
       complianceIndicator: raw.trim().startsWith('@'),
       ansiHeader: header.ansiHeader,
+      startsWithAt: raw.trim().startsWith('@'),
+      containsAnsi: header.containsAnsi,
+      ansiPosition: header.ansiPosition,
+      headerLengthParseable: header.headerLengthParseable,
       iinPresent: header.iinPresent,
       aamvaVersion: header.aamvaVersion,
       jurisdictionVersion: header.jurisdictionVersion,
+      subfileCount: header.subfileCount,
+      descriptorTableParseable: header.descriptorTableParseable,
+      descriptors: header.descriptors,
       dlSubfile: header.dlSubfile,
       idSubfile: header.idSubfile,
       dcsTag,
@@ -174,6 +347,9 @@
       recordSeparator: /\x1e/.test(raw),
       segmentTerminator: /\r/.test(raw),
       lineFeedSeparators: /\n/.test(raw),
+      controlCounts: controlCounts(raw),
+      escapedControlCounts: escapedControlCounts(raw),
+      zxing: zxingShape(raw, zxingResult),
       decodedTextLength: raw.length,
       aamvaIndicators: hasAamvaEvidence,
       strictParserPass,
