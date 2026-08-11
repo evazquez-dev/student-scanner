@@ -32,6 +32,13 @@
     textMode: 'HRI'
   };
 
+  const DIAGNOSTIC_PDF417_OPTIONS = {
+    ...PDF417_READER_OPTIONS,
+    tryDenoise: true,
+    binarizer: 'LocalAverage',
+    returnErrors: true
+  };
+
   const STATE_ID_REQUIRED_MATCHES = 2;
   const STATE_ID_SCAN_INTERVAL_MS = 240;
   const STATE_ID_TIMEOUT_MS = 14000;
@@ -45,6 +52,14 @@
 
   function assetUrl(path) {
     return new URL(path, SCRIPT_BASE).toString();
+  }
+
+  function zxingReaderJsUrl() {
+    return assetUrl(`vendor/zxing-wasm/${VERSIONS.zxingWasm}/reader/index.js`);
+  }
+
+  function zxingReaderWasmUrl() {
+    return assetUrl(`vendor/zxing-wasm/${VERSIONS.zxingWasm}/reader/zxing_reader.wasm`);
   }
 
   function loadScriptOnce(src, globalName) {
@@ -195,8 +210,8 @@
   async function prepareZxing() {
     if (zxingReadyPromise) return zxingReadyPromise;
     zxingReadyPromise = (async () => {
-      const wasmPath = assetUrl(`vendor/zxing-wasm/${VERSIONS.zxingWasm}/reader/zxing_reader.wasm`);
-      await loadScriptOnce(assetUrl(`vendor/zxing-wasm/${VERSIONS.zxingWasm}/reader/index.js`), 'ZXingWASM');
+      const wasmPath = zxingReaderWasmUrl();
+      await loadScriptOnce(zxingReaderJsUrl(), 'ZXingWASM');
       const zxing = root.ZXingWASM;
       if (!zxing?.readBarcodes) throw new Error('pdf417_decoder_unavailable');
       const overrides = {
@@ -214,19 +229,78 @@
     return String(result?.text || result?.bytes || result?.rawBytes || '').trim();
   }
 
-  async function readPdf417Candidates(input, options) {
+  function resultPosition(result) {
+    const pos = result?.position || result?.positionInImage || result?.boundingBox || null;
+    if (!pos) return null;
+    try {
+      return JSON.parse(JSON.stringify(pos));
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeReadResult(result) {
+    return {
+      text: decodedText(result),
+      format: String(result?.format || '').trim(),
+      symbology: String(result?.symbology || '').trim(),
+      error: String(result?.error || result?.ecLevel || '').trim(),
+      valid: result?.valid == null ? !!decodedText(result) : !!result.valid,
+      position: resultPosition(result)
+    };
+  }
+
+  async function readBarcodeResults(input, options) {
     const zxing = await prepareZxing();
+    const readerOptions = {
+      ...PDF417_READER_OPTIONS,
+      ...(options || {})
+    };
+    if (!Array.isArray(readerOptions.formats)) readerOptions.formats = ['PDF417'];
+    const results = await zxing.readBarcodes(input, readerOptions);
+    return (results || []).map(normalizeReadResult);
+  }
+
+  async function readPdf417Candidates(input, options) {
     const readerOptions = {
       ...PDF417_READER_OPTIONS,
       ...(options || {}),
       formats: ['PDF417']
     };
-    const results = await zxing.readBarcodes(input, readerOptions);
-    return (results || []).map((result) => ({
-      text: decodedText(result),
-      format: String(result?.format || '').trim(),
-      symbology: String(result?.symbology || '').trim()
-    })).filter((result) => result.text);
+    const results = await readBarcodeResults(input, readerOptions);
+    return results.filter((result) => result.text);
+  }
+
+  async function fetchZxingWasmInfo() {
+    const url = zxingReaderWasmUrl();
+    const res = await fetch(url, { cache: 'no-store' });
+    const bytes = await res.arrayBuffer();
+    let sha256 = '';
+    try {
+      const digest = await root.crypto?.subtle?.digest?.('SHA-256', bytes);
+      if (digest) sha256 = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {}
+    return {
+      ok: res.ok,
+      url,
+      expectedPath: `visitor/vendor/zxing-wasm/${VERSIONS.zxingWasm}/reader/zxing_reader.wasm`,
+      contentType: res.headers.get('content-type') || '',
+      byteSize: bytes.byteLength,
+      sha256
+    };
+  }
+
+  function zxingMetadata() {
+    const zxing = root.ZXingWASM || {};
+    return {
+      jsVersion: VERSIONS.zxingWasm,
+      wasmVersion: zxing.ZXING_WASM_VERSION || '',
+      cppCommit: zxing.ZXING_CPP_COMMIT || '',
+      wasmSha256: zxing.ZXING_WASM_SHA256 || '',
+      readerJsUrl: zxingReaderJsUrl(),
+      readerWasmUrl: zxingReaderWasmUrl(),
+      expectedWasmPath: `visitor/vendor/zxing-wasm/${VERSIONS.zxingWasm}/reader/zxing_reader.wasm`
+    };
   }
 
   function looksLikeAamvaPdf417(text) {
@@ -606,6 +680,7 @@
   return {
     VERSIONS,
     PDF417_READER_OPTIONS,
+    DIAGNOSTIC_PDF417_OPTIONS,
     STATE_ID_REQUIRED_MATCHES,
     STATE_ID_SCAN_INTERVAL_MS,
     STATE_ID_TIMEOUT_MS,
@@ -613,11 +688,16 @@
     IDNYC_STABLE_FRAMES,
     IDNYC_STABLE_MS,
     assetUrl,
+    zxingReaderJsUrl,
+    zxingReaderWasmUrl,
+    zxingMetadata,
+    fetchZxingWasmInfo,
     startRearCamera,
     stopStream,
     drawVideoGuideCanvas,
     canvasLooksEmptyBlack,
     looksLikeAamvaPdf417,
+    readBarcodeResults,
     readPdf417Candidates,
     decodePdf417ImageData,
     decodePdf417Blob,

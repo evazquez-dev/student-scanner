@@ -1,10 +1,12 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-11-1';
+  const LAB_BUILD = '2026-08-11-2';
+  const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
+  const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
   const REQUIRED_MATCHES = 2;
-  const MAX_CANVAS_WIDTH = 1280;
+  const MAX_LIVE_CANVAS_WIDTH = 1280;
   const Shared = window.EagleNestVisitor;
   const IdScan = window.EagleNestVisitorIdScan;
 
@@ -13,7 +15,9 @@
 
   const camera = {
     stream: null,
-    updateTimer: 0
+    updateTimer: 0,
+    lastActiveWidth: 0,
+    lastActiveHeight: 0
   };
 
   const live = {
@@ -31,23 +35,57 @@
     lastRaw: '',
     lastError: '',
     lastPayload: '',
+    lastCandidateInfo: '-',
     matchingReads: 0,
     aamvaDetected: false
   };
 
   const photo = {
+    file: null,
     objectUrl: '',
+    sourceCanvas: null,
     dimensions: '-',
     detected: false,
     aamvaDetected: false,
+    directSuccess: false,
+    directMs: 0,
+    directCount: 0,
+    directFormat: '-',
+    directCandidateInfo: '-',
+    allFormatsSuccess: false,
+    allFormatsFormat: '-',
+    allFormatsMs: 0,
+    manualCropSuccess: false,
+    manualCropMs: 0,
+    manualCropDimensions: '-',
+    manualCropVariant: 'none',
     decodeMs: 0,
     variant: 'none',
     lastError: ''
   };
 
-  function yesNo(value) {
-    return value ? 'YES' : 'NO';
-  }
+  const selfTest = {
+    success: false,
+    hasRun: false,
+    ms: 0,
+    count: 0,
+    format: '-',
+    lastError: ''
+  };
+
+  const crop = {
+    rect: { x: 0.1, y: 0.55, w: 0.8, h: 0.3 },
+    dragging: false,
+    mode: '',
+    startX: 0,
+    startY: 0,
+    startRect: null
+  };
+
+  let wasmInfo = null;
+  let wasmInfoPromise = null;
+
+  const yesNo = (value) => (value ? 'YES' : 'NO');
 
   function setText(id, value) {
     const el = $(id);
@@ -77,6 +115,78 @@
     return document.querySelector('input[name="regionMode"]:checked')?.value || 'full';
   }
 
+  function diagnosticPdf417Options(extra) {
+    return {
+      ...(IdScan?.DIAGNOSTIC_PDF417_OPTIONS || {}),
+      formats: ['PDF417'],
+      tryHarder: true,
+      tryRotate: true,
+      tryInvert: true,
+      tryDownscale: true,
+      tryDenoise: true,
+      binarizer: 'LocalAverage',
+      maxNumberOfSymbols: 1,
+      returnErrors: true,
+      ...(extra || {})
+    };
+  }
+
+  function allFormatsOptions() {
+    return {
+      ...diagnosticPdf417Options(),
+      formats: []
+    };
+  }
+
+  function renderDecodeOptions() {
+    const opts = diagnosticPdf417Options();
+    setText('decodeOptions', [
+      `Formats: ${opts.formats.join(', ') || 'all readable formats'}`,
+      `Try harder: ${opts.tryHarder}`,
+      `Try rotate: ${opts.tryRotate}`,
+      `Try invert: ${opts.tryInvert}`,
+      `Try downscale: ${opts.tryDownscale}`,
+      `Try denoise: ${opts.tryDenoise}`,
+      `Binarizer: ${opts.binarizer}`,
+      `Max symbols: ${opts.maxNumberOfSymbols}`,
+      `Return errors: ${opts.returnErrors}`
+    ].join('\n'));
+  }
+
+  function resultFormat(result) {
+    return String(result?.format || result?.symbology || 'none') || 'none';
+  }
+
+  function resultDiagnosticSummary(result) {
+    if (!result) return 'Candidate found: NO';
+    const position = result.position ? `; position ${JSON.stringify(result.position).slice(0, 180)}` : '';
+    return [
+      'Candidate found: YES',
+      `format ${resultFormat(result)}`,
+      `valid ${yesNo(result.valid)}`,
+      `error ${result.error || 'none'}${position}`
+    ].join('; ');
+  }
+
+  async function runBarcodeRead(input, options) {
+    if (!IdScan?.readBarcodeResults) throw new Error('PDF417 decoder unavailable');
+    const started = performance.now();
+    const results = await IdScan.readBarcodeResults(input, options);
+    return {
+      results,
+      ms: Math.round(performance.now() - started),
+      first: results[0] || null
+    };
+  }
+
+  function isPdf417(result) {
+    return /PDF417/i.test(`${result?.format || ''} ${result?.symbology || ''}`);
+  }
+
+  function hasDecodedText(result) {
+    return !!String(result?.text || '').trim();
+  }
+
   function stopStream(stream, video) {
     try { IdScan?.stopStream?.(stream, video); } catch {
       try {
@@ -91,6 +201,15 @@
     return IdScan.startRearCamera(video);
   }
 
+  function rememberActiveDimensions(video) {
+    const width = Number(video?.videoWidth || 0);
+    const height = Number(video?.videoHeight || 0);
+    if (width > 0 && height > 0) {
+      camera.lastActiveWidth = width;
+      camera.lastActiveHeight = height;
+    }
+  }
+
   function stopCameraTest() {
     if (camera.updateTimer) clearInterval(camera.updateTimer);
     camera.updateTimer = 0;
@@ -103,6 +222,7 @@
     const video = $('cameraVideo');
     const track = camera.stream?.getVideoTracks?.()[0] || null;
     const settings = track?.getSettings?.() || {};
+    rememberActiveDimensions(video);
     setText('cameraActive', yesNo(!!camera.stream));
     setText('cameraWidth', video?.videoWidth || 0);
     setText('cameraHeight', video?.videoHeight || 0);
@@ -128,9 +248,10 @@
 
   function sourceCanvasFromVideo(video, regionMode) {
     if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return null;
+    rememberActiveDimensions(video);
     if (regionMode === 'guide') return IdScan?.drawVideoGuideCanvas?.(video, 'pdf417') || null;
 
-    const scale = Math.min(1, MAX_CANVAS_WIDTH / video.videoWidth);
+    const scale = Math.min(1, MAX_LIVE_CANVAS_WIDTH / video.videoWidth);
     const width = Math.max(1, Math.round(video.videoWidth * scale));
     const height = Math.max(1, Math.round(video.videoHeight * scale));
     const canvas = document.createElement('canvas');
@@ -156,7 +277,24 @@
     return next;
   }
 
+  function downscaleCanvas(source, maxLongEdge) {
+    const longEdge = Math.max(source.width, source.height);
+    if (longEdge <= maxLongEdge) return copyCanvas(source);
+    const scale = maxLongEdge / longEdge;
+    const next = document.createElement('canvas');
+    next.width = Math.max(1, Math.round(source.width * scale));
+    next.height = Math.max(1, Math.round(source.height * scale));
+    const ctx = next.getContext('2d', { alpha: false, willReadFrequently: true });
+    ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, next.width, next.height);
+    ctx.drawImage(source, 0, 0, next.width, next.height);
+    return next;
+  }
+
   function processedCanvas(source, mode) {
+    if (mode === 'downscale2000') return downscaleCanvas(source, 2000);
+    if (mode === 'downscale1400') return downscaleCanvas(source, 1400);
     if (mode === 'resize2x') {
       const next = document.createElement('canvas');
       next.width = Math.min(2400, source.width * 2);
@@ -204,28 +342,97 @@
     return next;
   }
 
-  async function decodeCanvasWithSelections(source) {
-    if (!IdScan?.readPdf417Candidates) throw new Error('PDF417 decoder unavailable');
+  function qualityMetrics(canvas) {
+    const ctx = canvas?.getContext?.('2d', { willReadFrequently: true });
+    if (!ctx || !canvas.width || !canvas.height) return null;
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    const step = Math.max(2, Math.floor(Math.min(canvas.width, canvas.height) / 90));
+    let count = 0;
+    let sum = 0;
+    let min = 255;
+    let max = 0;
+    let edge = 0;
+    for (let y = step; y < canvas.height - step; y += step) {
+      for (let x = step; x < canvas.width - step; x += step) {
+        const idx = (y * canvas.width + x) * 4;
+        const lum = (data[idx] * 0.299) + (data[idx + 1] * 0.587) + (data[idx + 2] * 0.114);
+        const idxRight = (y * canvas.width + Math.min(canvas.width - 1, x + step)) * 4;
+        const idxDown = (Math.min(canvas.height - 1, y + step) * canvas.width + x) * 4;
+        const lumRight = (data[idxRight] * 0.299) + (data[idxRight + 1] * 0.587) + (data[idxRight + 2] * 0.114);
+        const lumDown = (data[idxDown] * 0.299) + (data[idxDown + 1] * 0.587) + (data[idxDown + 2] * 0.114);
+        count += 1;
+        sum += lum;
+        min = Math.min(min, lum);
+        max = Math.max(max, lum);
+        edge += Math.abs(lum - lumRight) + Math.abs(lum - lumDown);
+      }
+    }
+    return {
+      brightness: count ? sum / count : 0,
+      sharpness: count ? edge / (count * 2) : 0,
+      contrast: max - min
+    };
+  }
+
+  function renderQuality(prefix, canvas) {
+    const metrics = qualityMetrics(canvas);
+    if (!metrics) return;
+    setText(`${prefix}Brightness`, metrics.brightness.toFixed(1));
+    setText(`${prefix}Sharpness`, metrics.sharpness.toFixed(1));
+    setText(`${prefix}Contrast`, metrics.contrast.toFixed(1));
+  }
+
+  function drawDecoderInputPreview(canvas, meta) {
+    const preview = $('decoderInputCanvas');
+    if (!preview || !canvas) return;
+    const max = 420;
+    const scale = Math.min(1, max / Math.max(canvas.width, canvas.height));
+    preview.width = Math.max(1, Math.round(canvas.width * scale));
+    preview.height = Math.max(1, Math.round(canvas.height * scale));
+    const ctx = preview.getContext('2d', { alpha: false });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, preview.width, preview.height);
+    ctx.drawImage(canvas, 0, 0, preview.width, preview.height);
+    setText('decoderInputWidth', canvas.width);
+    setText('decoderInputHeight', canvas.height);
+    setText('decoderInputCrop', meta?.crop || '-');
+    setText('decoderInputRotation', meta?.rotation || '0');
+    setText('decoderInputProcessing', meta?.processing || 'original');
+    setText('decoderInputBarcodePixels', meta?.barcodePixels || `${canvas.width} x ${canvas.height}`);
+  }
+
+  async function decodeCanvasWithSelections(source, metaBase) {
     const processingModes = selectedValues('processing');
     const rotations = selectedValues('rotation');
+    let lastResult = null;
 
     for (const mode of processingModes) {
       const processed = processedCanvas(source, mode);
       for (const rotation of rotations) {
         const rotated = rotatedCanvas(processed, Number(rotation));
-        if (!rotated.width || !rotated.height || IdScan.canvasLooksEmptyBlack?.(rotated)) continue;
+        if (!rotated.width || !rotated.height || IdScan?.canvasLooksEmptyBlack?.(rotated)) continue;
+        drawDecoderInputPreview(rotated, {
+          ...(metaBase || {}),
+          rotation: `${rotation} deg`,
+          processing: mode
+        });
         const ctx = rotated.getContext('2d', { willReadFrequently: true });
         const imageData = ctx.getImageData(0, 0, rotated.width, rotated.height);
-        const candidates = await IdScan.readPdf417Candidates(imageData, { tryRotate: false });
-        if (candidates.length) {
+        const read = await runBarcodeRead(imageData, diagnosticPdf417Options({ tryRotate: false }));
+        lastResult = read.first || lastResult;
+        const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
+        if (decoded) {
           return {
-            candidate: candidates[0],
-            variant: `${mode}, ${rotation} deg`
+            candidate: decoded,
+            variant: `${mode}, ${rotation} deg`,
+            ms: read.ms,
+            resultCount: read.results.length,
+            lastResult: read.first || decoded
           };
         }
       }
     }
-    return null;
+    return { candidate: null, variant: 'none', ms: 0, resultCount: 0, lastResult };
   }
 
   function renderDecodedText() {
@@ -266,6 +473,7 @@
     live.lastRaw = '';
     live.lastError = '';
     live.lastPayload = '';
+    live.lastCandidateInfo = '-';
     live.matchingReads = 0;
     live.aamvaDetected = false;
     $('liveValidBanner').hidden = true;
@@ -273,10 +481,12 @@
     renderDecodedText();
     updateLiveMetrics('Idle');
     setError('liveError', '');
+    updateInterpretation();
   }
 
   function updateLiveMetrics(status) {
     const video = $('liveVideo');
+    rememberActiveDimensions(video);
     const elapsedSec = live.startedAt ? Math.max(0.001, (performance.now() - live.startedAt) / 1000) : 0;
     const rate = elapsedSec ? live.attempts / elapsedSec : 0;
     setText('liveCameraState', live.running ? 'ACTIVE' : 'OFF');
@@ -322,23 +532,25 @@
 
     live.decodeBusy = true;
     live.attempts += 1;
-    const started = performance.now();
     try {
-      const hit = await decodeCanvasWithSelections(source);
-      live.lastDecodeMs = Math.round(performance.now() - started);
-      if (!hit) {
-        live.lastFormat = 'none';
+      const hit = await decodeCanvasWithSelections(source, {
+        crop: selectedRegionMode(),
+        barcodePixels: selectedRegionMode() === 'guide' ? `${source.width} x ${source.height}` : '-'
+      });
+      live.lastDecodeMs = hit.ms || 0;
+      live.lastCandidateInfo = resultDiagnosticSummary(hit.lastResult);
+      if (!hit.candidate) {
+        live.lastFormat = resultFormat(hit.lastResult);
         live.aamvaDetected = false;
         live.matchingReads = 0;
-        updateLiveMetrics('Searching...');
+        updateLiveMetrics(hit.lastResult ? 'Candidate rejected' : 'Searching...');
         return;
       }
 
-      const format = String(hit.candidate.format || hit.candidate.symbology || 'PDF417');
       const payload = String(hit.candidate.text || '');
       const isAamva = !!IdScan?.looksLikeAamvaPdf417?.(payload);
       live.successes += 1;
-      live.lastFormat = format || 'PDF417';
+      live.lastFormat = resultFormat(hit.candidate);
       live.lastVariant = hit.variant;
       live.aamvaDetected = isAamva;
       live.lastRaw = payload;
@@ -418,20 +630,66 @@
     }
     if (input) input.value = '';
     $('photoPlaceholder').hidden = false;
+    photo.file = null;
+    photo.sourceCanvas = null;
     photo.dimensions = '-';
     photo.detected = false;
     photo.aamvaDetected = false;
+    photo.directSuccess = false;
+    photo.directMs = 0;
+    photo.directCount = 0;
+    photo.directFormat = '-';
+    photo.directCandidateInfo = '-';
+    photo.allFormatsSuccess = false;
+    photo.allFormatsFormat = '-';
+    photo.allFormatsMs = 0;
+    photo.manualCropSuccess = false;
+    photo.manualCropMs = 0;
+    photo.manualCropDimensions = '-';
+    photo.manualCropVariant = 'none';
     photo.decodeMs = 0;
     photo.variant = 'none';
     photo.lastError = '';
     setText('photoDimensions', '-');
+    setText('directResultCount', '-');
+    setText('directFormat', '-');
+    setText('directError', '-');
+    setText('directDecodeMs', '-');
     setText('photoDetected', 'NO');
     setText('photoAamva', 'NO');
     setText('photoDecodeMs', '-');
     setText('photoVariant', 'none');
+    setText('allFormatsDetected', 'NO');
+    setText('allFormatsFormat', '-');
     setText('photoStatus', 'Idle');
+    setText('photoBrightness', '-');
+    setText('photoSharpness', '-');
+    setText('photoContrast', '-');
+    setText('manualCropDimensions', '-');
+    setText('manualCropDetected', 'NO');
+    setText('manualCropMs', '-');
+    setText('manualCropVariant', 'none');
     clearParsed('photo');
     setError('photoError', '');
+    setCropToolVisible(false);
+    clearDecoderInputPreview();
+    updateInterpretation();
+  }
+
+  function clearDecoderInputPreview() {
+    const canvas = $('decoderInputCanvas');
+    if (canvas) {
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 1, 1);
+    }
+    setText('decoderInputWidth', '-');
+    setText('decoderInputHeight', '-');
+    setText('decoderInputCrop', '-');
+    setText('decoderInputRotation', '-');
+    setText('decoderInputProcessing', '-');
+    setText('decoderInputBarcodePixels', '-');
   }
 
   async function imageFileToCanvas(file) {
@@ -473,48 +731,351 @@
     }
   }
 
+  async function decodeDirectOriginalFile(file) {
+    setText('directResultCount', 'running');
+    const read = await runBarcodeRead(file, diagnosticPdf417Options());
+    photo.directCount = read.results.length;
+    photo.directMs = read.ms;
+    const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
+    photo.directSuccess = !!decoded;
+    photo.directFormat = resultFormat(decoded || read.first);
+    photo.directCandidateInfo = resultDiagnosticSummary(decoded || read.first);
+    setText('directResultCount', read.results.length);
+    setText('directFormat', photo.directFormat);
+    setText('directError', photo.directCandidateInfo);
+    setText('directDecodeMs', `${read.ms} ms`);
+    return decoded || null;
+  }
+
   async function handlePhotoSelected(ev) {
     const file = ev?.target?.files?.[0] || null;
     if (!file) return;
     clearPhotoResult();
+    photo.file = file;
     try {
       photo.objectUrl = URL.createObjectURL(file);
       $('photoPreview').src = photo.objectUrl;
       $('photoPreview').hidden = false;
       $('photoPlaceholder').hidden = true;
-      setText('photoStatus', 'Decoding...');
+      setText('photoStatus', 'Direct original File decode...');
 
+      const directDecoded = await decodeDirectOriginalFile(file);
+      if (directDecoded) {
+        const payload = String(directDecoded.text || '');
+        photo.detected = true;
+        photo.variant = 'direct original File';
+        photo.aamvaDetected = !!IdScan?.looksLikeAamvaPdf417?.(payload);
+        setText('photoDetected', 'YES');
+        setText('photoVariant', photo.variant);
+        setText('photoAamva', yesNo(photo.aamvaDetected));
+        if (photo.aamvaDetected) renderParsed('photo', payload);
+      }
+
+      setText('photoStatus', 'Preparing canvas diagnostics...');
       const source = await imageFileToCanvas(file);
+      photo.sourceCanvas = source;
       photo.dimensions = `${source.width} x ${source.height}`;
       setText('photoDimensions', photo.dimensions);
       if (!source.width || !source.height || IdScan?.canvasLooksEmptyBlack?.(source)) throw new Error('Image decode failed or frame is blank');
+      renderQuality('photo', source);
+      setCropRect({ x: 0.1, y: 0.55, w: 0.8, h: 0.3 });
 
-      const started = performance.now();
-      const hit = await decodeCanvasWithSelections(source);
-      photo.decodeMs = Math.round(performance.now() - started);
-      setText('photoDecodeMs', `${photo.decodeMs} ms`);
-
-      if (!hit) {
-        setText('photoStatus', 'PDF417 decode returned no result');
-        return;
+      const hit = await decodeCanvasWithSelections(source, {
+        crop: 'full image canvas',
+        barcodePixels: '-'
+      });
+      photo.decodeMs = hit.ms || 0;
+      setText('photoDecodeMs', photo.decodeMs ? `${photo.decodeMs} ms` : '-');
+      if (hit.candidate) {
+        const payload = String(hit.candidate.text || '');
+        photo.detected = true;
+        photo.variant = hit.variant;
+        photo.aamvaDetected = !!IdScan?.looksLikeAamvaPdf417?.(payload);
+        setText('photoDetected', 'YES');
+        setText('photoVariant', photo.variant);
+        setText('photoAamva', yesNo(photo.aamvaDetected));
+        if (photo.aamvaDetected) renderParsed('photo', payload);
+        setText('photoStatus', photo.aamvaDetected ? 'Valid AAMVA' : 'PDF417 detected');
+      } else {
+        setText('photoStatus', directDecoded ? 'Direct original File decoded; canvas variants did not' : 'PDF417 decode returned no result');
       }
-
-      const payload = String(hit.candidate.text || '');
-      photo.detected = true;
-      photo.variant = hit.variant;
-      photo.aamvaDetected = !!IdScan?.looksLikeAamvaPdf417?.(payload);
-      setText('photoDetected', 'YES');
-      setText('photoVariant', photo.variant);
-      setText('photoAamva', yesNo(photo.aamvaDetected));
-      if (photo.aamvaDetected) renderParsed('photo', payload);
-      setText('photoStatus', photo.aamvaDetected ? 'Valid AAMVA' : 'PDF417 detected');
     } catch (err) {
       photo.lastError = errorText(err);
       setText('photoStatus', 'Error');
       setError('photoError', err);
     } finally {
       updateDiagnostics();
+      updateInterpretation();
     }
+  }
+
+  async function tryAllFormats() {
+    if (!photo.file) {
+      setError('photoError', new Error('Take a barcode photo first'));
+      return;
+    }
+    try {
+      setText('allFormatsDetected', 'running');
+      const read = await runBarcodeRead(photo.file, allFormatsOptions());
+      const decoded = read.results.find(hasDecodedText);
+      photo.allFormatsSuccess = !!decoded;
+      photo.allFormatsFormat = resultFormat(decoded || read.first);
+      photo.allFormatsMs = read.ms;
+      setText('allFormatsDetected', yesNo(photo.allFormatsSuccess));
+      setText('allFormatsFormat', `${photo.allFormatsFormat}; ${read.ms} ms; ${resultDiagnosticSummary(decoded || read.first)}`);
+      setText('photoStatus', photo.allFormatsSuccess ? 'All-formats barcode detected' : 'All-formats found no barcode');
+    } catch (err) {
+      photo.lastError = errorText(err);
+      setError('photoError', err);
+    } finally {
+      updateInterpretation();
+    }
+  }
+
+  function setCropToolVisible(show) {
+    const stage = $('cropStage');
+    if (!stage) return;
+    stage.hidden = !show || !photo.objectUrl;
+    if (!stage.hidden && $('cropImage')?.src !== photo.objectUrl) {
+      $('cropImage').src = photo.objectUrl;
+    }
+    renderCropBox();
+  }
+
+  function setCropRect(next) {
+    const x = Math.max(0, Math.min(0.98, Number(next.x)));
+    const y = Math.max(0, Math.min(0.98, Number(next.y)));
+    const w = Math.max(0.04, Math.min(1 - x, Number(next.w)));
+    const h = Math.max(0.04, Math.min(1 - y, Number(next.h)));
+    crop.rect = { x, y, w, h };
+    renderCropBox();
+  }
+
+  function renderCropBox() {
+    const box = $('cropBox');
+    if (!box) return;
+    box.style.left = `${crop.rect.x * 100}%`;
+    box.style.top = `${crop.rect.y * 100}%`;
+    box.style.width = `${crop.rect.w * 100}%`;
+    box.style.height = `${crop.rect.h * 100}%`;
+  }
+
+  function cropCanvasFromRect() {
+    if (!photo.sourceCanvas) throw new Error('Take a barcode photo first');
+    const margin = 0.025;
+    const x = Math.max(0, crop.rect.x - margin);
+    const y = Math.max(0, crop.rect.y - margin);
+    const right = Math.min(1, crop.rect.x + crop.rect.w + margin);
+    const bottom = Math.min(1, crop.rect.y + crop.rect.h + margin);
+    const sx = Math.round(x * photo.sourceCanvas.width);
+    const sy = Math.round(y * photo.sourceCanvas.height);
+    const sw = Math.max(1, Math.round((right - x) * photo.sourceCanvas.width));
+    const sh = Math.max(1, Math.round((bottom - y) * photo.sourceCanvas.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, sw, sh);
+    ctx.drawImage(photo.sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    return { canvas, coords: `x=${sx}, y=${sy}, w=${sw}, h=${sh}` };
+  }
+
+  async function decodeManualCrop() {
+    try {
+      const cropped = cropCanvasFromRect();
+      photo.manualCropDimensions = `${cropped.canvas.width} x ${cropped.canvas.height}`;
+      setText('manualCropDimensions', photo.manualCropDimensions);
+      renderQuality('photo', cropped.canvas);
+      const variants = ['original', 'grayscale', 'contrast'];
+      let lastResult = null;
+      const started = performance.now();
+      for (const variant of variants) {
+        const canvas = processedCanvas(cropped.canvas, variant);
+        drawDecoderInputPreview(canvas, {
+          crop: cropped.coords,
+          rotation: 'library native',
+          processing: variant,
+          barcodePixels: `${canvas.width} x ${canvas.height}`
+        });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const read = await runBarcodeRead(ctx.getImageData(0, 0, canvas.width, canvas.height), diagnosticPdf417Options());
+        lastResult = read.first || lastResult;
+        const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
+        if (decoded) {
+          photo.manualCropSuccess = true;
+          photo.manualCropMs = Math.round(performance.now() - started);
+          photo.manualCropVariant = variant;
+          photo.detected = true;
+          photo.variant = `manual crop, ${variant}`;
+          const payload = String(decoded.text || '');
+          photo.aamvaDetected = !!IdScan?.looksLikeAamvaPdf417?.(payload);
+          setText('manualCropDetected', 'YES');
+          setText('manualCropMs', `${photo.manualCropMs} ms`);
+          setText('manualCropVariant', variant);
+          setText('photoDetected', 'YES');
+          setText('photoVariant', photo.variant);
+          setText('photoAamva', yesNo(photo.aamvaDetected));
+          if (photo.aamvaDetected) renderParsed('photo', payload);
+          setText('photoStatus', photo.aamvaDetected ? 'Manual crop valid AAMVA' : 'Manual crop PDF417 detected');
+          updateInterpretation();
+          return;
+        }
+      }
+      photo.manualCropSuccess = false;
+      photo.manualCropMs = Math.round(performance.now() - started);
+      setText('manualCropDetected', 'NO');
+      setText('manualCropMs', `${photo.manualCropMs} ms`);
+      setText('manualCropVariant', resultDiagnosticSummary(lastResult));
+      setText('photoStatus', 'Manual crop did not decode');
+    } catch (err) {
+      photo.lastError = errorText(err);
+      setError('photoError', err);
+    } finally {
+      updateInterpretation();
+    }
+  }
+
+  function applyCropPreset(name) {
+    if (!photo.objectUrl) {
+      setError('photoError', new Error('Take a barcode photo first'));
+      return;
+    }
+    setCropToolVisible(true);
+    if (name === 'bottom50') setCropRect({ x: 0, y: 0.5, w: 1, h: 0.5 });
+    else if (name === 'bottom35') setCropRect({ x: 0, y: 0.65, w: 1, h: 0.35 });
+    else if (name === 'center50') setCropRect({ x: 0.1, y: 0.25, w: 0.8, h: 0.5 });
+    else setCropRect({ x: 0, y: 0, w: 1, h: 1 });
+  }
+
+  function pointerToCropPoint(ev) {
+    const rect = $('cropStage').getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (ev.clientY - rect.top) / rect.height))
+    };
+  }
+
+  function cropPointerDown(ev) {
+    if (!photo.objectUrl) return;
+    ev.preventDefault();
+    const p = pointerToCropPoint(ev);
+    const r = crop.rect;
+    const nearHandle = Math.abs(p.x - (r.x + r.w)) < 0.08 && Math.abs(p.y - (r.y + r.h)) < 0.08;
+    const inside = p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
+    crop.dragging = true;
+    crop.mode = nearHandle ? 'resize' : inside ? 'move' : 'draw';
+    crop.startX = p.x;
+    crop.startY = p.y;
+    crop.startRect = { ...crop.rect };
+    if (crop.mode === 'draw') setCropRect({ x: p.x, y: p.y, w: 0.08, h: 0.08 });
+    $('cropStage').setPointerCapture?.(ev.pointerId);
+  }
+
+  function cropPointerMove(ev) {
+    if (!crop.dragging) return;
+    ev.preventDefault();
+    const p = pointerToCropPoint(ev);
+    const r = crop.startRect;
+    if (crop.mode === 'move') {
+      setCropRect({
+        x: r.x + (p.x - crop.startX),
+        y: r.y + (p.y - crop.startY),
+        w: r.w,
+        h: r.h
+      });
+    } else if (crop.mode === 'resize') {
+      setCropRect({
+        x: r.x,
+        y: r.y,
+        w: p.x - r.x,
+        h: p.y - r.y
+      });
+    } else {
+      setCropRect({
+        x: Math.min(crop.startX, p.x),
+        y: Math.min(crop.startY, p.y),
+        w: Math.abs(p.x - crop.startX),
+        h: Math.abs(p.y - crop.startY)
+      });
+    }
+  }
+
+  function cropPointerUp(ev) {
+    crop.dragging = false;
+    crop.mode = '';
+    try { $('cropStage').releasePointerCapture?.(ev.pointerId); } catch {}
+  }
+
+  async function runSelfTest() {
+    setError('selfTestError', '');
+    $('selfTestPass').hidden = true;
+    $('selfTestFail').hidden = true;
+    setText('selfTestStatus', 'Running...');
+    try {
+      const res = await fetch(SELFTEST_FIXTURE, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`Self-test fixture fetch failed: HTTP ${res.status}`);
+      const blob = await res.blob();
+      const read = await runBarcodeRead(blob, diagnosticPdf417Options());
+      const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
+      selfTest.hasRun = true;
+      selfTest.success = !!decoded && String(decoded.text || '') === SELFTEST_TEXT;
+      selfTest.ms = read.ms;
+      selfTest.count = read.results.length;
+      selfTest.format = resultFormat(decoded || read.first);
+      setText('selfTestCount', read.results.length);
+      setText('selfTestFormat', selfTest.format);
+      setText('selfTestMatches', yesNo(selfTest.success));
+      setText('selfTestMs', `${read.ms} ms`);
+      setText('selfTestStatus', selfTest.success ? 'PDF417 decoder working' : 'DECODER PIPELINE FAILURE');
+      $('selfTestPass').hidden = !selfTest.success;
+      $('selfTestFail').hidden = selfTest.success;
+    } catch (err) {
+      selfTest.hasRun = true;
+      selfTest.success = false;
+      selfTest.lastError = errorText(err);
+      $('selfTestFail').hidden = false;
+      setText('selfTestStatus', 'DECODER PIPELINE FAILURE');
+      setError('selfTestError', err);
+    } finally {
+      await refreshWasmDiagnostics();
+      updateInterpretation();
+    }
+  }
+
+  async function refreshWasmDiagnostics() {
+    const meta = IdScan?.zxingMetadata?.() || {};
+    setText('diagZxingVersion', meta.jsVersion || '3.1.2');
+    setText('diagZxingWasmVersion', meta.wasmVersion || '-');
+    setText('diagZxingCppCommit', meta.cppCommit || '-');
+    setText('diagZxingSha', meta.wasmSha256 || '-');
+    setText('diagWasmUrl', meta.readerWasmUrl || '-');
+    setText('diagWasmPath', meta.expectedWasmPath || '-');
+    if (!IdScan?.fetchZxingWasmInfo) return;
+    try {
+      wasmInfoPromise = wasmInfoPromise || IdScan.fetchZxingWasmInfo();
+      wasmInfo = await wasmInfoPromise;
+      setText('diagWasmFetch', yesNo(wasmInfo.ok));
+      setText('diagWasmContentType', wasmInfo.contentType || '-');
+      setText('diagWasmBytes', wasmInfo.byteSize || '-');
+      if (!meta.wasmSha256 && wasmInfo.sha256) setText('diagZxingSha', wasmInfo.sha256);
+    } catch (err) {
+      setText('diagWasmFetch', `NO: ${errorText(err)}`);
+    }
+  }
+
+  function updateInterpretation() {
+    let text = 'Run the decoder self-test and photo tests.';
+    if (selfTest.hasRun && !selfTest.success) {
+      text = 'CASE A: Self-test FAILS -> ZXing integration/WASM problem. Do not spend time tuning the iPad camera until the decoder pipeline is fixed.';
+    } else if (selfTest.success && !photo.directSuccess && photo.manualCropSuccess) {
+      text = 'CASE B: Self-test PASSES, direct original photo FAILS, manual tight crop PASSES -> image framing/crop problem.';
+    } else if (selfTest.success && photo.directSuccess) {
+      text = 'CASE C: Self-test PASSES and direct original photo PASSES -> custom preprocessing/live path is the likely problem.';
+    } else if (selfTest.success && photo.file && !photo.directSuccess && !photo.manualCropSuccess && !photo.allFormatsSuccess) {
+      text = 'CASE D: Self-test PASSES, direct original photo FAILS, manual crop FAILS, all-formats FAILS -> investigate real barcode image quality or alternate decoder.';
+    }
+    setText('interpretation', text);
   }
 
   function stopAll(options) {
@@ -525,7 +1086,7 @@
   }
 
   function selectTab(name) {
-    stopAll({ keepPhoto: false });
+    stopAll({ keepPhoto: name === 'photo' });
     $$('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === name));
     $$('.panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === name));
     updateDiagnostics();
@@ -546,11 +1107,12 @@
     setText('diagDpr', window.devicePixelRatio || 1);
     setText('diagPageUrl', safePageUrl());
     setText('diagZxingLoaded', yesNo(!!window.ZXingWASM));
-    setText('diagZxingVersion', window.ZXingWASM?.ZXING_WASM_VERSION || IdScan?.VERSIONS?.zxingWasm || '3.1.2');
-    setText('diagPdf417Support', yesNo(!!IdScan?.PDF417_READER_OPTIONS?.formats?.includes('PDF417')));
+    setText('diagPdf417Support', yesNo(!!IdScan?.DIAGNOSTIC_PDF417_OPTIONS?.formats?.includes('PDF417')));
+    refreshWasmDiagnostics();
   }
 
   function buildDiagnosticReport() {
+    const options = diagnosticPdf417Options();
     return [
       'EagleNEST Scanner Lab',
       `Build: ${LAB_BUILD}`,
@@ -562,23 +1124,36 @@
       `requestVideoFrameCallback: ${yesNo(!!$('liveVideo')?.requestVideoFrameCallback).toLowerCase()}`,
       `createImageBitmap: ${yesNo(!!window.createImageBitmap).toLowerCase()}`,
       `WebAssembly: ${yesNo(!!window.WebAssembly).toLowerCase()}`,
-      `Camera dimensions: ${$('liveVideo')?.videoWidth || $('cameraVideo')?.videoWidth || 0} x ${$('liveVideo')?.videoHeight || $('cameraVideo')?.videoHeight || 0}`,
-      `ZXing loaded: ${yesNo(!!window.ZXingWASM).toLowerCase()}`,
-      `ZXing version: ${window.ZXingWASM?.ZXING_WASM_VERSION || IdScan?.VERSIONS?.zxingWasm || '3.1.2'}`,
-      `PDF417 support: ${yesNo(!!IdScan?.PDF417_READER_OPTIONS?.formats?.includes('PDF417')).toLowerCase()}`,
-      `Decode region: ${selectedRegionMode()}`,
-      `Processing: ${selectedValues('processing').join(', ')}`,
-      `Rotations: ${selectedValues('rotation').join(', ')}`,
+      `Last active camera dimensions: ${camera.lastActiveWidth} x ${camera.lastActiveHeight}`,
+      `ZXing JS version: ${IdScan?.zxingMetadata?.().jsVersion || '3.1.2'}`,
+      `ZXING_WASM_VERSION: ${IdScan?.zxingMetadata?.().wasmVersion || '-'}`,
+      `ZXING_CPP_COMMIT: ${IdScan?.zxingMetadata?.().cppCommit || '-'}`,
+      `ZXING_WASM_SHA256: ${IdScan?.zxingMetadata?.().wasmSha256 || wasmInfo?.sha256 || '-'}`,
+      `WASM URL: ${IdScan?.zxingReaderWasmUrl?.() || '-'}`,
+      `WASM expected path: ${IdScan?.zxingMetadata?.().expectedWasmPath || '-'}`,
+      `WASM loaded: ${wasmInfo ? yesNo(wasmInfo.ok).toLowerCase() : 'not checked'}`,
+      `WASM content type: ${wasmInfo?.contentType || '-'}`,
+      `WASM byte size: ${wasmInfo?.byteSize || '-'}`,
+      `Self-test success: ${yesNo(selfTest.success).toLowerCase()}`,
+      `Self-test decode ms: ${selfTest.ms || '-'}`,
+      `Direct original File PDF417 success: ${yesNo(photo.directSuccess).toLowerCase()}`,
+      `Direct original File result count: ${photo.directCount}`,
+      `Direct original File format: ${photo.directFormat}`,
+      `Direct original File candidate/error: ${photo.directCandidateInfo}`,
+      `Direct original File decode ms: ${photo.directMs || '-'}`,
+      `All-formats success: ${yesNo(photo.allFormatsSuccess).toLowerCase()}`,
+      `All-formats format: ${photo.allFormatsFormat}`,
+      `All-formats decode ms: ${photo.allFormatsMs || '-'}`,
+      `Manual crop PDF417 success: ${yesNo(photo.manualCropSuccess).toLowerCase()}`,
+      `Manual crop dimensions: ${photo.manualCropDimensions}`,
+      `Manual crop variant: ${photo.manualCropVariant}`,
+      `Manual crop decode ms: ${photo.manualCropMs || '-'}`,
       `Live attempts: ${live.attempts}`,
       `Live PDF417 successes: ${live.successes}`,
-      `Live AAMVA detected: ${yesNo(live.aamvaDetected).toLowerCase()}`,
       `Live consecutive matches: ${live.matchingReads} / ${REQUIRED_MATCHES}`,
-      `Photo PDF417 success: ${yesNo(photo.detected).toLowerCase()}`,
-      `Photo AAMVA detected: ${yesNo(photo.aamvaDetected).toLowerCase()}`,
-      `Last decode ms: ${live.lastDecodeMs || photo.decodeMs || '-'}`,
-      `Last format: ${live.lastFormat || 'none'}`,
-      `Last successful variant: ${live.lastVariant !== 'none' ? live.lastVariant : photo.variant}`,
-      `Last error: ${live.lastError || photo.lastError || '-'}`
+      `Live candidate/error: ${live.lastCandidateInfo}`,
+      `Decode options: formats=${options.formats.join(',')}; tryHarder=${options.tryHarder}; tryRotate=${options.tryRotate}; tryInvert=${options.tryInvert}; tryDownscale=${options.tryDownscale}; tryDenoise=${options.tryDenoise}; binarizer=${options.binarizer}; returnErrors=${options.returnErrors}`,
+      `Interpretation: ${$('interpretation')?.textContent || '-'}`
     ].join('\n');
   }
 
@@ -604,11 +1179,13 @@
 
   function bindEvents() {
     setText('buildLabel', `Scanner Lab build: ${LAB_BUILD}`);
+    renderDecodeOptions();
     $$('.tab').forEach((tab) => {
       tab.addEventListener('click', () => selectTab(tab.dataset.tab));
     });
     $('startCameraBtn')?.addEventListener('click', startCameraTest);
     $('stopCameraBtn')?.addEventListener('click', stopCameraTest);
+    $('runSelfTestBtn')?.addEventListener('click', runSelfTest);
     $('startLiveBtn')?.addEventListener('click', startLiveScan);
     $('stopLiveBtn')?.addEventListener('click', stopLiveScan);
     $('clearLiveBtn')?.addEventListener('click', clearLiveResults);
@@ -618,8 +1195,18 @@
       clearPhotoResult();
       $('barcodePhotoInput')?.click();
     });
+    $('tryAllFormatsBtn')?.addEventListener('click', tryAllFormats);
     $('clearPhotoBtn')?.addEventListener('click', clearPhotoResult);
     $('barcodePhotoInput')?.addEventListener('change', handlePhotoSelected);
+    $('showCropToolBtn')?.addEventListener('click', () => setCropToolVisible(true));
+    $('decodeCropBtn')?.addEventListener('click', decodeManualCrop);
+    $$('.cropPreset').forEach((button) => {
+      button.addEventListener('click', () => applyCropPreset(button.dataset.preset));
+    });
+    $('cropStage')?.addEventListener('pointerdown', cropPointerDown);
+    $('cropStage')?.addEventListener('pointermove', cropPointerMove);
+    $('cropStage')?.addEventListener('pointerup', cropPointerUp);
+    $('cropStage')?.addEventListener('pointercancel', cropPointerUp);
     $('refreshDiagnosticsBtn')?.addEventListener('click', updateDiagnostics);
     $('copyDiagnosticsBtn')?.addEventListener('click', copyDiagnosticReport);
     window.addEventListener('pagehide', () => stopAll({ keepPhoto: false }));
@@ -629,6 +1216,8 @@
     updateLiveMetrics('Idle');
     clearParsed('live');
     clearParsed('photo');
+    clearDecoderInputPreview();
+    updateInterpretation();
   }
 
   bindEvents();

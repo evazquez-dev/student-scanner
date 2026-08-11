@@ -25,6 +25,7 @@
 
     <nav class="tabs" aria-label="Scanner Lab sections">
       <button type="button" class="tab active" data-tab="camera">Camera Test</button>
+      <button type="button" class="tab" data-tab="selftest">Decoder Self-Test</button>
       <button type="button" class="tab" data-tab="live">Live PDF417</button>
       <button type="button" class="tab" data-tab="photo">Photo PDF417</button>
       <button type="button" class="tab" data-tab="diagnostics">Diagnostics</button>
@@ -53,6 +54,35 @@
         </dl>
       </div>
       <pre id="cameraError" class="errorBox" aria-live="polite"></pre>
+    </section>
+
+    <section id="panel-selftest" class="panel" data-panel="selftest">
+      <div class="panelHeader">
+        <h2>Decoder Self-Test</h2>
+        <div class="actions">
+          <button type="button" id="runSelfTestBtn">Run Decoder Self-Test</button>
+        </div>
+      </div>
+
+      <div class="testGrid">
+        <div class="fixtureBox">
+          <img id="selfTestImage" src="./fixtures/pdf417-selftest.png" alt="Non-PII PDF417 self-test fixture">
+        </div>
+        <div class="stack">
+          <div class="validBanner" id="selfTestPass" hidden>&#10003; PDF417 decoder working</div>
+          <div class="failureBanner" id="selfTestFail" hidden>DECODER PIPELINE FAILURE</div>
+          <dl class="metricGrid compact">
+            <div><dt>Fixture text</dt><dd>EAGLENEST-PDF417-SELFTEST-12345</dd></div>
+            <div><dt>Result count</dt><dd id="selfTestCount">-</dd></div>
+            <div><dt>Format</dt><dd id="selfTestFormat">-</dd></div>
+            <div><dt>Text matches fixture</dt><dd id="selfTestMatches">-</dd></div>
+            <div><dt>Decode ms</dt><dd id="selfTestMs">-</dd></div>
+            <div><dt>Status</dt><dd id="selfTestStatus">Not run</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <pre id="selfTestError" class="errorBox" aria-live="polite"></pre>
     </section>
 
     <section id="panel-live" class="panel" data-panel="live">
@@ -107,6 +137,8 @@
         <fieldset>
           <legend>Image processing</legend>
           <label><input type="checkbox" name="processing" value="original" checked> Original</label>
+          <label><input type="checkbox" name="processing" value="downscale2000"> Downscale 2000</label>
+          <label><input type="checkbox" name="processing" value="downscale1400"> Downscale 1400</label>
           <label><input type="checkbox" name="processing" value="grayscale"> Grayscale</label>
           <label><input type="checkbox" name="processing" value="contrast"> Contrast enhanced</label>
           <label><input type="checkbox" name="processing" value="resize2x"> 2x resize</label>
@@ -145,6 +177,7 @@
         <div class="actions">
           <button type="button" id="takePhotoBtn">Take Photo of Barcode</button>
           <button type="button" id="takeAnotherPhotoBtn" class="secondary">Take Another Photo</button>
+          <button type="button" id="tryAllFormatsBtn" class="secondary">Try All Barcode Formats</button>
           <button type="button" id="clearPhotoBtn" class="secondary">Clear Photo</button>
         </div>
       </div>
@@ -158,13 +191,73 @@
         </div>
         <dl class="metricGrid compact">
           <div><dt>Original dimensions</dt><dd id="photoDimensions">-</dd></div>
+          <div><dt>Direct original File result count</dt><dd id="directResultCount">-</dd></div>
+          <div><dt>Direct original File format</dt><dd id="directFormat">-</dd></div>
+          <div><dt>Direct original File error/result</dt><dd id="directError">-</dd></div>
+          <div><dt>Direct original File decode ms</dt><dd id="directDecodeMs">-</dd></div>
           <div><dt>PDF417 detected</dt><dd id="photoDetected">NO</dd></div>
           <div><dt>Valid AAMVA</dt><dd id="photoAamva">NO</dd></div>
           <div><dt>Decode time</dt><dd id="photoDecodeMs">-</dd></div>
           <div><dt>Successful variant</dt><dd id="photoVariant">none</dd></div>
+          <div><dt>All-formats detected any barcode</dt><dd id="allFormatsDetected">NO</dd></div>
+          <div><dt>All-formats detected format</dt><dd id="allFormatsFormat">-</dd></div>
           <div><dt>Status</dt><dd id="photoStatus">Idle</dd></div>
         </dl>
       </div>
+
+      <section class="resultPanel">
+        <h3>Photo Quality Diagnostics</h3>
+        <dl class="fieldList">
+          <div><dt>Brightness</dt><dd id="photoBrightness">-</dd></div>
+          <div><dt>Sharpness</dt><dd id="photoSharpness">-</dd></div>
+          <div><dt>Black/white contrast</dt><dd id="photoContrast">-</dd></div>
+          <div><dt>Manual crop dimensions</dt><dd id="manualCropDimensions">-</dd></div>
+          <div><dt>Manual crop PDF417</dt><dd id="manualCropDetected">NO</dd></div>
+          <div><dt>Manual crop decode ms</dt><dd id="manualCropMs">-</dd></div>
+          <div><dt>Manual crop variant</dt><dd id="manualCropVariant">none</dd></div>
+        </dl>
+      </section>
+
+      <section class="resultPanel">
+        <div class="panelHeader compactHeader">
+          <h3>Manual Barcode Crop Tool</h3>
+          <div class="actions">
+            <button type="button" id="showCropToolBtn" class="secondary">Crop Barcode Manually</button>
+            <button type="button" id="decodeCropBtn">Decode This Crop</button>
+          </div>
+        </div>
+        <div class="presetActions">
+          <button type="button" class="secondary cropPreset" data-preset="bottom50">Bottom 50%</button>
+          <button type="button" class="secondary cropPreset" data-preset="bottom35">Bottom 35%</button>
+          <button type="button" class="secondary cropPreset" data-preset="center50">Center 50%</button>
+          <button type="button" class="secondary cropPreset" data-preset="full">Full Image</button>
+        </div>
+        <div id="cropStage" class="cropStage" hidden>
+          <img id="cropImage" alt="Temporary full barcode photo for local crop testing">
+          <div id="cropBox" class="cropBox" aria-hidden="true"><span></span></div>
+        </div>
+      </section>
+
+      <section class="resultPanel">
+        <h3>Decoder Input</h3>
+        <p class="helper">This is the exact canvas/ImageData sent to ZXing for the latest processed attempt.</p>
+        <div class="decoderInputWrap">
+          <canvas id="decoderInputCanvas"></canvas>
+        </div>
+        <dl class="fieldList">
+          <div><dt>Width</dt><dd id="decoderInputWidth">-</dd></div>
+          <div><dt>Height</dt><dd id="decoderInputHeight">-</dd></div>
+          <div><dt>Crop coordinates</dt><dd id="decoderInputCrop">-</dd></div>
+          <div><dt>Rotation</dt><dd id="decoderInputRotation">-</dd></div>
+          <div><dt>Processing mode</dt><dd id="decoderInputProcessing">-</dd></div>
+          <div><dt>Estimated barcode pixels</dt><dd id="decoderInputBarcodePixels">-</dd></div>
+        </dl>
+      </section>
+
+      <section class="resultPanel">
+        <h3>Decode Options</h3>
+        <pre id="decodeOptions" class="reportBox"></pre>
+      </section>
 
       <section class="resultPanel">
         <h3>Photo AAMVA Parsed Fields</h3>
@@ -203,9 +296,22 @@
         <div><dt>Device pixel ratio</dt><dd id="diagDpr">-</dd></div>
         <div><dt>Page URL</dt><dd id="diagPageUrl">-</dd></div>
         <div><dt>ZXing loaded</dt><dd id="diagZxingLoaded">NO</dd></div>
-        <div><dt>ZXing version</dt><dd id="diagZxingVersion">3.1.2</dd></div>
+        <div><dt>ZXing JS version</dt><dd id="diagZxingVersion">3.1.2</dd></div>
+        <div><dt>ZXING_WASM_VERSION</dt><dd id="diagZxingWasmVersion">-</dd></div>
+        <div><dt>ZXING_CPP_COMMIT</dt><dd id="diagZxingCppCommit">-</dd></div>
+        <div><dt>ZXING_WASM_SHA256</dt><dd id="diagZxingSha">-</dd></div>
+        <div><dt>WASM asset URL</dt><dd id="diagWasmUrl">-</dd></div>
+        <div><dt>WASM expected local path</dt><dd id="diagWasmPath">-</dd></div>
+        <div><dt>WASM fetch success</dt><dd id="diagWasmFetch">-</dd></div>
+        <div><dt>WASM content type</dt><dd id="diagWasmContentType">-</dd></div>
+        <div><dt>WASM byte size</dt><dd id="diagWasmBytes">-</dd></div>
         <div><dt>PDF417 support</dt><dd id="diagPdf417Support">YES</dd></div>
       </dl>
+
+      <section class="resultPanel">
+        <h3>Interpretation</h3>
+        <pre id="interpretation" class="reportBox">Run the decoder self-test and photo tests.</pre>
+      </section>
 
       <pre id="diagnosticReport" class="reportBox" aria-live="polite"></pre>
     </section>

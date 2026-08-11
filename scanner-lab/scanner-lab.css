@@ -91,7 +91,7 @@ main {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 10px;
   margin: 18px 0;
 }
@@ -161,6 +161,7 @@ button:disabled {
 .cameraLayout,
 .liveGrid,
 .photoGrid,
+.testGrid,
 .resultGrid {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
@@ -209,6 +210,16 @@ button:disabled {
   background: #e4f6ec;
   border: 2px solid var(--ok);
   color: var(--ok);
+  font-size: 1.35rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.failureBanner {
+  padding: 16px;
+  background: #fdeceb;
+  border: 2px solid var(--bad);
+  color: var(--bad);
   font-size: 1.35rem;
   font-weight: 900;
   text-align: center;
@@ -319,10 +330,93 @@ input[type="radio"] {
   padding: 12px;
 }
 
+.fixtureBox {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+
+.fixtureBox img {
+  max-width: 100%;
+  image-rendering: pixelated;
+}
+
 .photoPreviewBox img {
   max-width: 100%;
   max-height: 520px;
   object-fit: contain;
+}
+
+.compactHeader {
+  margin-bottom: 10px;
+}
+
+.presetActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+
+.cropStage {
+  position: relative;
+  width: 100%;
+  max-height: 720px;
+  overflow: auto;
+  touch-action: none;
+  background: #0c111a;
+  border: 1px solid #0c111a;
+}
+
+.cropStage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.cropBox {
+  position: absolute;
+  border: 4px solid #ffca28;
+  background: rgb(255 202 40 / 0.1);
+  box-shadow: 0 0 0 9999px rgb(0 0 0 / 0.28);
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.cropBox span {
+  position: absolute;
+  right: -13px;
+  bottom: -13px;
+  width: 28px;
+  height: 28px;
+  border: 3px solid #111827;
+  background: #ffca28;
+}
+
+.decoderInputWrap {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  margin: 12px 0;
+  padding: 12px;
+  background: #0c111a;
+  border: 1px solid #0c111a;
+}
+
+#decoderInputCanvas {
+  max-width: 100%;
+  max-height: 360px;
+  background: #fff;
+}
+
+.helper {
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .placeholder {
