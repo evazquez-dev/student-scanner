@@ -22,22 +22,43 @@
       organization: 'Organization / Company',
       visitorType: 'Visitor Type',
       purpose: 'Purpose / Reason for Visit',
+      dateOfBirth: 'Date of Birth',
       destination: 'Person or Department Being Visited',
       details: 'Additional Detail',
       nextPhoto: 'Continue to Visitor Photo',
       back: 'Back',
-      privacy: 'Identification may be reviewed or scanned by security to help verify visitor information. EagleNEST does not store an ID image or identification number. A current visitor photo is securely stored for up to 30 days for building security and then automatically deleted.',
-      required: 'Please complete first name, last name, visitor type, and purpose.',
+      cancel: 'Cancel',
+      privacy: 'Scanning an ID is optional and is used only to help fill in your name and date of birth. EagleNEST does not store the ID image, ID number, or raw barcode data. A current visitor photo is securely stored for up to 30 days for building security and then automatically deleted.',
+      required: 'Please complete the highlighted required fields.',
+      firstNameRequired: 'First name is required.',
+      lastNameRequired: 'Last name is required.',
+      dobRequired: 'Date of birth is required.',
+      dobInvalid: 'Enter a valid date of birth.',
+      dobFuture: 'Date of birth cannot be in the future.',
+      typeRequired: 'Visitor type is required.',
+      purposeRequired: 'Purpose is required.',
+      idPrefillTitle: 'Use ID to Fill Form',
+      idPrefillIntro: 'Optional. You can scan an ID or enter information manually.',
+      stateIdPrefill: 'Scan State ID / Driver License',
+      idnycPrefill: 'Scan IDNYC',
+      manualEntry: 'Enter Information Manually',
+      stateIdScanPrompt: 'Scanner input active. Scan the PDF417 barcode now.',
+      idPrefillSuccess: 'Information filled from ID. Please confirm it is correct.',
+      idPrefillNeedsCompletion: 'We could not fill all required fields. Please complete the highlighted fields.',
+      idnycPrompt: 'Place the FRONT of your IDNYC card inside the frame.',
+      idnycUnreadable: "We couldn't read all of the information. Please complete the highlighted fields.",
       photoTitle: 'Visitor Photo',
       photoIntro: 'Please look at the camera.',
+      nativePhotoPrompt: 'Take a current visitor photo.',
       takePhoto: 'Take Photo',
       retake: 'Retake',
       usePhoto: 'Use Photo',
       cameraStarting: 'Starting camera...',
       cameraFailed: 'The camera is not available. Please ask security for help.',
       photoCaptureFailed: 'Photo could not be captured. Please try again.',
+      photoCaptureBad: 'Photo could not be captured correctly. Please retake the photo.',
       photoTooLarge: 'Please retake the photo.',
-      photoRequired: 'Please take and use a visitor photo before submitting.',
+      photoRequired: 'A visitor photo is required.',
       reviewTitle: 'Review / Submit',
       reviewIntro: 'Confirm your information, then submit your request.',
       submit: 'Submit Check-In Request',
@@ -56,22 +77,43 @@
       organization: 'Organización / Compañía',
       visitorType: 'Tipo de visitante',
       purpose: 'Propósito / Razón de la visita',
+      dateOfBirth: 'Fecha de nacimiento',
       destination: 'Persona o departamento que visita',
       details: 'Detalle adicional',
       nextPhoto: 'Continuar a la foto',
       back: 'Atrás',
-      privacy: 'El personal de seguridad puede revisar o escanear una identificación para ayudar a verificar la información del visitante. EagleNEST no guarda una imagen de la identificación ni el número de identificación. Una foto actual del visitante se guarda de forma segura por hasta 30 días para la seguridad del edificio y luego se elimina automáticamente.',
-      required: 'Complete nombre, apellido, tipo de visitante y propósito.',
+      cancel: 'Cancelar',
+      privacy: 'Escanear una identificación es opcional y solo se usa para ayudar a completar su nombre y fecha de nacimiento. EagleNEST no guarda la imagen de la identificación, el número de identificación ni los datos originales del código de barras. Una foto actual del visitante se guarda de forma segura por hasta 30 días para la seguridad del edificio y luego se elimina automáticamente.',
+      required: 'Complete los campos obligatorios resaltados.',
+      firstNameRequired: 'El nombre es obligatorio.',
+      lastNameRequired: 'El apellido es obligatorio.',
+      dobRequired: 'La fecha de nacimiento es obligatoria.',
+      dobInvalid: 'Ingrese una fecha de nacimiento válida.',
+      dobFuture: 'La fecha de nacimiento no puede ser una fecha futura.',
+      typeRequired: 'El tipo de visitante es obligatorio.',
+      purposeRequired: 'El propósito es obligatorio.',
+      idPrefillTitle: 'Usar identificación para completar',
+      idPrefillIntro: 'Opcional. Puede escanear una identificación o ingresar la información manualmente.',
+      stateIdPrefill: 'Escanear identificación estatal / licencia',
+      idnycPrefill: 'Escanear IDNYC',
+      manualEntry: 'Ingresar información manualmente',
+      stateIdScanPrompt: 'Entrada del escáner activa. Escanee el código PDF417 ahora.',
+      idPrefillSuccess: 'La información se completó desde la identificación. Confirme que sea correcta.',
+      idPrefillNeedsCompletion: 'No pudimos completar todos los campos obligatorios. Complete los campos resaltados.',
+      idnycPrompt: 'Coloque el FRENTE de su tarjeta IDNYC dentro del marco.',
+      idnycUnreadable: 'No pudimos leer toda la información. Complete los campos resaltados.',
       photoTitle: 'Foto del visitante',
       photoIntro: 'Mire a la cámara.',
+      nativePhotoPrompt: 'Tome una foto actual del visitante.',
       takePhoto: 'Tomar foto',
       retake: 'Volver a tomar',
       usePhoto: 'Usar foto',
       cameraStarting: 'Iniciando cámara...',
       cameraFailed: 'La cámara no está disponible. Pida ayuda al personal de seguridad.',
       photoCaptureFailed: 'No se pudo tomar la foto. Inténtelo de nuevo.',
+      photoCaptureBad: 'No se pudo tomar la foto correctamente. Vuelva a tomarla.',
       photoTooLarge: 'Vuelva a tomar la foto.',
-      photoRequired: 'Tome y use una foto del visitante antes de enviar.',
+      photoRequired: 'Se requiere una foto del visitante.',
       reviewTitle: 'Revisar / Enviar',
       reviewIntro: 'Confirme su información y envíe la solicitud.',
       submit: 'Enviar solicitud de registro',
@@ -100,6 +142,10 @@
   const cameraFrame = $('cameraFrame');
   const cameraPreview = $('cameraPreview');
   const photoPreview = $('photoPreview');
+  const nativePhotoInput = $('visitorPhotoInput');
+  const idnycCaptureInput = $('idnycCaptureInput');
+  const stateIdScanPanel = $('stateIdScanPanel');
+  const validationSummary = $('validationSummary');
 
   let lang = 'en';
   let visitorType = '';
@@ -110,6 +156,9 @@
   let cameraStream = null;
   let photoBlob = null;
   let photoObjectUrl = '';
+  let formSubmitAttempted = false;
+  let idScanActive = false;
+  const touchedFields = new Set();
 
   function credential() {
     try { return String(localStorage.getItem(CRED_KEY) || '').trim(); } catch { return ''; }
@@ -167,9 +216,15 @@
     btn.dataset.key = key;
     btn.setAttribute('aria-pressed', String(kind === 'type' ? visitorType === key : purpose === key));
     btn.addEventListener('click', () => {
-      if (kind === 'type') visitorType = key;
-      else purpose = key;
+      if (kind === 'type') {
+        visitorType = key;
+        touchedFields.add('visitor_type');
+      } else {
+        purpose = key;
+        touchedFields.add('purpose');
+      }
       renderChoices();
+      validateForm({ focus: false });
     });
     return btn;
   }
@@ -207,41 +262,12 @@
   function setPhotoCaptureState(state) {
     const mode = state === 'review' ? 'review' : 'live';
     if (cameraFrame) cameraFrame.dataset.photoState = mode;
-    cameraPreview.hidden = mode !== 'live';
+    cameraPreview.hidden = true;
     photoPreview.hidden = mode !== 'review';
+    $('nativePhotoPrompt').hidden = mode !== 'live';
     $('takePhotoBtn').hidden = mode !== 'live';
     $('retakePhotoBtn').hidden = mode !== 'review';
     $('usePhotoBtn').hidden = mode !== 'review';
-  }
-
-  function hasActiveCameraStream() {
-    return !!cameraStream
-      && typeof cameraStream.getTracks === 'function'
-      && cameraStream.getTracks().some((track) => track.readyState === 'live');
-  }
-
-  function hasUsableCameraFrame(video) {
-    return hasActiveCameraStream()
-      && !!video
-      && video.readyState >= 2
-      && video.videoWidth > 0
-      && video.videoHeight > 0;
-  }
-
-  function nextFrame() {
-    return new Promise((resolve) => {
-      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
-      else window.setTimeout(resolve, 16);
-    });
-  }
-
-  async function waitForUsableCameraFrame(video, timeoutMs = 1200) {
-    const started = Date.now();
-    while (Date.now() - started < timeoutMs) {
-      if (hasUsableCameraFrame(video)) return true;
-      await nextFrame();
-    }
-    return hasUsableCameraFrame(video);
   }
 
   async function waitForPhotoPreviewImage(url) {
@@ -267,17 +293,101 @@
     if (!photoPreview.naturalWidth || !photoPreview.naturalHeight) throw new Error('photo_review_load_failed');
   }
 
-  async function restoreLiveCameraAfterCaptureFailure() {
-    setPhotoCaptureState('live');
-    if (!hasActiveCameraStream()) await startCamera();
-    setStatus(photoStatus, T[lang].photoCaptureFailed);
-  }
-
   function clearPhoto() {
     photoBlob = null;
     revokePhotoUrl();
+    if (nativePhotoInput) nativePhotoInput.value = '';
     photoPreview.removeAttribute('src');
     setPhotoCaptureState('live');
+  }
+
+  function fieldWrapper(field) {
+    return visitorForm.querySelector(`[data-field="${field}"]`);
+  }
+
+  function fieldInput(field) {
+    if (field === 'visitor_type') return $('typeChoices');
+    if (field === 'purpose') return $('purposeChoices');
+    return visitorForm.querySelector(`[name="${field}"]`) || $(field);
+  }
+
+  function setFieldError(field, message) {
+    const wrap = fieldWrapper(field);
+    const err = visitorForm.querySelector(`[data-error-for="${field}"]`);
+    const input = fieldInput(field);
+    if (wrap) wrap.classList.toggle('invalidField', !!message);
+    if (err) {
+      err.textContent = message || '';
+      if (!err.id) err.id = `error_${field}`;
+    }
+    if (input) {
+      input.setAttribute('aria-invalid', message ? 'true' : 'false');
+      if (message && err?.id) input.setAttribute('aria-describedby', err.id);
+      else input.removeAttribute('aria-describedby');
+    }
+  }
+
+  function clearValidation() {
+    ['visitor_first_name', 'visitor_last_name', 'date_of_birth', 'visitor_type', 'purpose'].forEach((field) => setFieldError(field, ''));
+    if (validationSummary) validationSummary.textContent = '';
+    if (cameraFrame) cameraFrame.classList.remove('invalidField');
+  }
+
+  function dobError(rawValue) {
+    const raw = String(rawValue || '').trim();
+    if (!raw) return T[lang].dobRequired;
+    const normalized = Shared.normalizeDateOfBirth(raw);
+    if (!normalized) return T[lang].dobInvalid;
+    if (Shared.isFutureDate(normalized)) return T[lang].dobFuture;
+    return '';
+  }
+
+  function validationErrors(visitor) {
+    const errors = {};
+    if (!visitor.visitor_first_name) errors.visitor_first_name = T[lang].firstNameRequired;
+    if (!visitor.visitor_last_name) errors.visitor_last_name = T[lang].lastNameRequired;
+    const dobMsg = dobError(visitorForm.elements.date_of_birth.value || visitor.date_of_birth);
+    if (dobMsg) errors.date_of_birth = dobMsg;
+    if (!visitor.visitor_type) errors.visitor_type = T[lang].typeRequired;
+    if (!visitor.purpose) errors.purpose = T[lang].purposeRequired;
+    return errors;
+  }
+
+  function focusFirstInvalid(errors) {
+    const first = Object.keys(errors || {})[0];
+    if (!first) return;
+    const wrap = fieldWrapper(first);
+    const input = fieldInput(first);
+    try { wrap?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+    window.setTimeout(() => {
+      try { (input || wrap)?.focus?.({ preventScroll: true }); } catch {}
+    }, 180);
+  }
+
+  function validateForm(opts = {}) {
+    const visitor = formPayload();
+    const errors = validationErrors(visitor);
+    const markAll = opts.markAll === true || formSubmitAttempted;
+    ['visitor_first_name', 'visitor_last_name', 'date_of_birth', 'visitor_type', 'purpose'].forEach((field) => {
+      const shouldShow = markAll || touchedFields.has(field);
+      setFieldError(field, shouldShow ? (errors[field] || '') : '');
+    });
+    if (markAll && Object.keys(errors).length) {
+      if (validationSummary) validationSummary.textContent = T[lang].required;
+      setStatus(formStatus, T[lang].required);
+      if (opts.focus !== false) focusFirstInvalid(errors);
+      return false;
+    }
+    if (!Object.keys(errors).length) {
+      if (validationSummary) validationSummary.textContent = '';
+      setStatus(formStatus, '');
+    }
+    return Object.keys(errors).length === 0;
+  }
+
+  function setPhotoRequiredError(showError, message) {
+    if (cameraFrame) cameraFrame.classList.toggle('invalidField', !!showError);
+    setStatus(photoStatus, showError ? (message || T[lang].photoRequired) : '');
   }
 
   function resetForm() {
@@ -287,8 +397,12 @@
     pendingSubmissionId = '';
     pendingVisitorPayload = null;
     busy = false;
+    formSubmitAttempted = false;
+    touchedFields.clear();
     clearPhoto();
     stopCamera();
+    closeStateIdScan();
+    clearValidation();
     setStatus(formStatus, '');
     setStatus(photoStatus, '');
     setStatus(reviewStatus, '');
@@ -302,6 +416,7 @@
       visitor_first_name: Shared.cleanText(fd.get('visitor_first_name'), 80),
       visitor_middle_name: Shared.cleanText(fd.get('visitor_middle_name'), 80),
       visitor_last_name: Shared.cleanText(fd.get('visitor_last_name'), 100),
+      date_of_birth: Shared.normalizeDateOfBirth(fd.get('date_of_birth')),
       visitor_type: visitorType,
       organization: Shared.cleanText(fd.get('organization'), 140),
       purpose,
@@ -311,7 +426,7 @@
   }
 
   function missingRequired(v) {
-    return !v.visitor_first_name || !v.visitor_last_name || !v.visitor_type || !v.purpose;
+    return !v.visitor_first_name || !v.visitor_last_name || !v.date_of_birth || Shared.isFutureDate(v.date_of_birth) || !v.visitor_type || !v.purpose;
   }
 
   function renderReview(visitor) {
@@ -320,7 +435,9 @@
     $('reviewPhoto').alt = T[lang].photoTitle;
     const rows = [
       [T[lang].firstName, visitor.visitor_first_name],
+      [T[lang].middleName, visitor.visitor_middle_name || '-'],
       [T[lang].lastName, visitor.visitor_last_name],
+      [T[lang].dateOfBirth, visitor.date_of_birth],
       [T[lang].visitorType, Shared.visitorTypeLabel(visitor.visitor_type, lang)],
       [T[lang].purpose, Shared.purposeLabel(visitor.purpose, lang)],
       [T[lang].destination, visitor.destination || '-']
@@ -337,91 +454,179 @@
     });
   }
 
-  async function startCamera() {
-    stopCamera();
-    clearPhoto();
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setStatus(photoStatus, T[lang].cameraFailed);
-      return false;
-    }
-    setStatus(photoStatus, T[lang].cameraStarting, true);
-    try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1600 } },
-        audio: false
-      });
-      cameraPreview.srcObject = cameraStream;
-      try { await cameraPreview.play(); } catch {}
-      if (!await waitForUsableCameraFrame(cameraPreview, 1500)) {
-        setStatus(photoStatus, T[lang].photoCaptureFailed);
-        return false;
-      }
-      setPhotoCaptureState('live');
-      setStatus(photoStatus, '');
-      return true;
-    } catch {
-      stopCamera();
-      setStatus(photoStatus, T[lang].cameraFailed);
-      return false;
-    }
-  }
-
   async function openPhotoStep() {
     if (busy) return;
-    const visitor = formPayload();
-    if (missingRequired(visitor)) {
-      setStatus(formStatus, T[lang].required);
+    formSubmitAttempted = true;
+    if (!validateForm({ markAll: true })) {
       return;
     }
+    const visitor = formPayload();
     pendingVisitorPayload = visitor;
     setStatus(formStatus, '');
     show(photoScreen);
-    await startCamera();
+    stopCamera();
+    setPhotoCaptureState(photoBlob ? 'review' : 'live');
   }
 
-  async function takePhoto() {
-    if (!await waitForUsableCameraFrame(cameraPreview, 700)) {
-      await restoreLiveCameraAfterCaptureFailure();
+  function takePhoto() {
+    setPhotoRequiredError(false);
+    if (!nativePhotoInput) {
+      setStatus(photoStatus, T[lang].cameraFailed);
       return;
     }
-    try {
-      const blob = await Shared.capturePortraitPhoto(cameraPreview, { width: 720, height: 900, quality: 0.82 });
-      if (blob.size > PHOTO_MAX_BYTES) {
-        setStatus(photoStatus, T[lang].photoTooLarge);
-        return;
-      }
-      const nextUrl = URL.createObjectURL(blob);
-      try {
-        await waitForPhotoPreviewImage(nextUrl);
-      } catch (err) {
-        try { URL.revokeObjectURL(nextUrl); } catch {}
-        photoPreview.removeAttribute('src');
-        throw err;
-      }
-      revokePhotoUrl();
-      photoBlob = blob;
-      photoObjectUrl = nextUrl;
-      stopCamera();
-      setPhotoCaptureState('review');
-      setStatus(photoStatus, '', true);
-    } catch {
-      await restoreLiveCameraAfterCaptureFailure();
-    }
+    nativePhotoInput.value = '';
+    nativePhotoInput.click();
   }
 
   async function retakePhoto() {
     clearPhoto();
-    if (!cameraStream) await startCamera();
+    takePhoto();
+  }
+
+  async function handleNativePhotoSelected(ev) {
+    const file = ev?.target?.files?.[0] || null;
+    if (!file) return;
+    let nextUrl = '';
+    try {
+      const blob = await Shared.processVisitorPhotoFile(file, {
+        width: 720,
+        height: 900,
+        quality: 0.82,
+        maxBytes: PHOTO_MAX_BYTES
+      });
+      if (!blob || blob.size <= 0) throw new Error('photo_empty');
+      if (blob.size > PHOTO_MAX_BYTES) throw new Error('photo_too_large');
+      nextUrl = URL.createObjectURL(blob);
+      await waitForPhotoPreviewImage(nextUrl);
+      revokePhotoUrl();
+      photoBlob = blob;
+      photoObjectUrl = nextUrl;
+      nextUrl = '';
+      setPhotoCaptureState('review');
+      setPhotoRequiredError(false);
+    } catch (err) {
+      if (nextUrl) {
+        try { URL.revokeObjectURL(nextUrl); } catch {}
+      }
+      photoPreview.removeAttribute('src');
+      photoBlob = null;
+      const msg = String(err?.message || err) === 'photo_black_frame' ? T[lang].photoCaptureBad : T[lang].photoCaptureFailed;
+      setPhotoCaptureState('live');
+      setPhotoRequiredError(true, msg);
+    } finally {
+      if (nativePhotoInput) nativePhotoInput.value = '';
+    }
   }
 
   function usePhoto() {
     if (!photoBlob) {
-      setStatus(photoStatus, T[lang].photoRequired);
+      setPhotoRequiredError(true, T[lang].photoRequired);
       return;
     }
     stopCamera();
     renderReview(pendingVisitorPayload || formPayload());
     show(reviewScreen);
+  }
+
+  function applyIdPrefill(data, okMessage) {
+    const d = data || {};
+    const els = visitorForm.elements;
+    if (d.visitor_first_name) els.visitor_first_name.value = d.visitor_first_name;
+    if (Object.prototype.hasOwnProperty.call(d, 'visitor_middle_name')) els.visitor_middle_name.value = d.visitor_middle_name || '';
+    if (d.visitor_last_name) els.visitor_last_name.value = d.visitor_last_name;
+    if (d.date_of_birth) els.date_of_birth.value = Shared.normalizeDateOfBirth(d.date_of_birth);
+    ['visitor_first_name', 'visitor_last_name', 'date_of_birth'].forEach((field) => touchedFields.add(field));
+    const complete = validateForm({ markAll: true, focus: false });
+    setStatus(formStatus, complete ? okMessage : T[lang].idPrefillNeedsCompletion, complete);
+    if (!complete) focusFirstInvalid(validationErrors(formPayload()));
+  }
+
+  function hasIdPrefillData(data) {
+    return !!(data?.visitor_first_name || data?.visitor_middle_name || data?.visitor_last_name || data?.date_of_birth);
+  }
+
+  function closeStateIdScan() {
+    idScanActive = false;
+    stateIdScanPanel.hidden = true;
+    stateIdScanner.reset();
+  }
+
+  function handleStateIdScan(scan) {
+    let raw = String(scan || '');
+    const parsed = Shared.parseAamva(raw);
+    raw = '';
+    closeStateIdScan();
+    if (!parsed.ok) {
+      setStatus(formStatus, T[lang].idPrefillNeedsCompletion);
+      validateForm({ markAll: true, focus: false });
+      return;
+    }
+    applyIdPrefill(parsed.data || {}, T[lang].idPrefillSuccess);
+  }
+
+  const stateIdScanner = Shared.createScannerBuffer(handleStateIdScan, {
+    multiline: true,
+    settleMs: 120,
+    minLength: 30
+  });
+
+  function startStateIdPrefill() {
+    setStatus(formStatus, '');
+    idScanActive = true;
+    stateIdScanPanel.hidden = false;
+    setTimeout(() => $('stateIdScanTarget')?.focus(), 40);
+  }
+
+  function stateIdKeydown(ev) {
+    if (!idScanActive) return;
+    if (ev.target?.closest?.('input, textarea, select') && ev.target !== $('stateIdScanTarget')) return;
+    stateIdScanner.keydown(ev);
+  }
+
+  async function readIdnycTextLocally(file) {
+    if (!('TextDetector' in window)) return '';
+    let bitmap = null;
+    try {
+      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const detector = new window.TextDetector();
+      const rows = await detector.detect(bitmap);
+      return (rows || []).map((r) => Shared.cleanText(r.rawValue || r.detectedText || '', 180)).filter(Boolean).join('\n');
+    } catch {
+      return '';
+    } finally {
+      try { bitmap?.close?.(); } catch {}
+    }
+  }
+
+  async function startIdnycPrefill() {
+    if (!idnycCaptureInput) {
+      setStatus(formStatus, T[lang].idnycUnreadable);
+      return;
+    }
+    setStatus(formStatus, T[lang].idnycPrompt, true);
+    idnycCaptureInput.value = '';
+    idnycCaptureInput.click();
+  }
+
+  async function handleIdnycCapture(ev) {
+    const file = ev?.target?.files?.[0] || null;
+    if (!file) return;
+    try {
+      if (!String(file.type || '').toLowerCase().startsWith('image/')) throw new Error('idnyc_image_invalid');
+      const text = await readIdnycTextLocally(file);
+      const parsed = Shared.parseIdnycOcrText(text);
+      if (hasIdPrefillData(parsed.data)) applyIdPrefill(parsed.data || {}, T[lang].idPrefillSuccess);
+      if (!parsed.ok) {
+        setStatus(formStatus, T[lang].idnycUnreadable);
+        validateForm({ markAll: true, focus: false });
+        return;
+      }
+    } catch {
+      setStatus(formStatus, T[lang].idnycUnreadable);
+      validateForm({ markAll: true, focus: false });
+    } finally {
+      if (idnycCaptureInput) idnycCaptureInput.value = '';
+    }
   }
 
   function handleKioskAuthFailure(resp, data) {
@@ -465,12 +670,13 @@
     const visitor = pendingVisitorPayload || formPayload();
     if (missingRequired(visitor)) {
       show(formScreen);
-      setStatus(formStatus, T[lang].required);
+      formSubmitAttempted = true;
+      validateForm({ markAll: true });
       return;
     }
     if (!photoBlob) {
       show(photoScreen);
-      setStatus(photoStatus, T[lang].photoRequired);
+      setPhotoRequiredError(true, T[lang].photoRequired);
       return;
     }
     busy = true;
@@ -556,14 +762,36 @@
       stopCamera();
       show(formScreen);
     });
-    $('reviewBackBtn').addEventListener('click', async () => {
+    $('reviewBackBtn').addEventListener('click', () => {
       show(photoScreen);
-      await startCamera();
+      setPhotoCaptureState(photoBlob ? 'review' : 'live');
     });
     nextPhotoBtn.addEventListener('click', openPhotoStep);
     $('takePhotoBtn').addEventListener('click', takePhoto);
     $('retakePhotoBtn').addEventListener('click', retakePhoto);
     $('usePhotoBtn').addEventListener('click', usePhoto);
+    nativePhotoInput?.addEventListener('change', handleNativePhotoSelected);
+    $('stateIdPrefillBtn')?.addEventListener('click', startStateIdPrefill);
+    $('cancelStateIdScanBtn')?.addEventListener('click', closeStateIdScan);
+    $('manualEntryBtn')?.addEventListener('click', () => {
+      closeStateIdScan();
+      setStatus(formStatus, '');
+    });
+    idnycCaptureInput?.addEventListener('change', handleIdnycCapture);
+    $('idnycPrefillBtn')?.addEventListener('click', startIdnycPrefill);
+    document.addEventListener('keydown', stateIdKeydown);
+    visitorForm.querySelectorAll('input, textarea').forEach((el) => {
+      const name = el.name;
+      if (!name) return;
+      el.addEventListener('blur', () => {
+        touchedFields.add(name);
+        validateForm({ focus: false });
+      });
+      el.addEventListener('input', () => {
+        if (name === 'date_of_birth' && el.value) el.value = Shared.normalizeDateOfBirth(el.value) || el.value;
+        if (touchedFields.has(name) || formSubmitAttempted) validateForm({ focus: false });
+      });
+    });
     submitBtn.addEventListener('click', submitVisitor);
     visitorForm.addEventListener('submit', (ev) => {
       ev.preventDefault();

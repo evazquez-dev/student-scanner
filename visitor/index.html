@@ -46,21 +46,41 @@
       <p id="formIntro" class="lead"></p>
 
       <form id="visitorForm" class="visitorForm" autocomplete="off">
+        <section class="idPrefillPanel" aria-labelledby="idPrefillTitle">
+          <h2 id="idPrefillTitle" data-i18n="idPrefillTitle"></h2>
+          <p data-i18n="idPrefillIntro"></p>
+          <div class="idPrefillActions">
+            <button id="stateIdPrefillBtn" type="button" class="secondary" data-i18n="stateIdPrefill"></button>
+            <button id="idnycPrefillBtn" type="button" class="secondary" data-i18n="idnycPrefill"></button>
+            <button id="manualEntryBtn" type="button" data-i18n="manualEntry"></button>
+          </div>
+          <div id="stateIdScanPanel" class="idScanPanel" hidden>
+            <div id="stateIdScanTarget" class="scanTarget" tabindex="0" data-i18n="stateIdScanPrompt"></div>
+            <button id="cancelStateIdScanBtn" type="button" data-i18n="cancel"></button>
+          </div>
+          <input id="idnycCaptureInput" class="visuallyHidden" type="file" accept="image/*" capture="environment">
+        </section>
+
+        <div id="validationSummary" class="validationSummary" aria-live="polite"></div>
+
         <div class="grid two">
-          <label><span data-i18n="firstName"></span><input name="visitor_first_name" maxlength="80" required></label>
-          <label><span data-i18n="lastName"></span><input name="visitor_last_name" maxlength="100" required></label>
+          <label data-field="visitor_first_name"><span data-i18n="firstName"></span><input name="visitor_first_name" maxlength="80" required><span class="fieldError" data-error-for="visitor_first_name"></span></label>
+          <label data-field="visitor_last_name"><span data-i18n="lastName"></span><input name="visitor_last_name" maxlength="100" required><span class="fieldError" data-error-for="visitor_last_name"></span></label>
         </div>
         <label><span data-i18n="middleName"></span><input name="visitor_middle_name" maxlength="80"></label>
+        <label data-field="date_of_birth"><span data-i18n="dateOfBirth"></span><input name="date_of_birth" type="date" required><span class="fieldError" data-error-for="date_of_birth"></span></label>
         <label><span data-i18n="organization"></span><input name="organization" maxlength="140"></label>
 
-        <fieldset>
+        <fieldset data-field="visitor_type">
           <legend data-i18n="visitorType"></legend>
-          <div id="typeChoices" class="choiceGrid"></div>
+          <div id="typeChoices" class="choiceGrid" tabindex="-1"></div>
+          <div class="fieldError" data-error-for="visitor_type"></div>
         </fieldset>
 
-        <fieldset>
+        <fieldset data-field="purpose">
           <legend data-i18n="purpose"></legend>
-          <div id="purposeChoices" class="choiceGrid"></div>
+          <div id="purposeChoices" class="choiceGrid" tabindex="-1"></div>
+          <div class="fieldError" data-error-for="purpose"></div>
         </fieldset>
 
         <label><span data-i18n="destination"></span><input name="destination" maxlength="160"></label>
@@ -81,10 +101,12 @@
       <p id="photoIntro" class="lead"></p>
       <div class="cameraPanel">
         <div id="cameraFrame" class="cameraFrame" data-photo-state="live">
-          <video id="cameraPreview" class="mirrorSelfie" autoplay playsinline muted></video>
-          <img id="photoPreview" class="mirrorSelfie" alt="" hidden>
+          <video id="cameraPreview" class="mirrorSelfie" autoplay playsinline muted hidden></video>
+          <img id="photoPreview" class="photoReview" alt="" hidden>
+          <div id="nativePhotoPrompt" class="nativePhotoPrompt" data-i18n="nativePhotoPrompt"></div>
           <div class="faceGuide" aria-hidden="true"></div>
         </div>
+        <input id="visitorPhotoInput" class="visuallyHidden" type="file" accept="image/*" capture="user">
         <div class="cameraActions">
           <button id="takePhotoBtn" class="primary" type="button"></button>
           <button id="retakePhotoBtn" type="button" hidden></button>

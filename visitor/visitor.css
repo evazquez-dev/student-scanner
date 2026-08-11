@@ -67,6 +67,12 @@ h1 {
   letter-spacing: 0;
 }
 
+h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.7rem);
+  letter-spacing: 0;
+}
+
 .lead {
   margin: 0;
   color: var(--muted);
@@ -138,6 +144,48 @@ button:disabled {
   gap: 18px;
 }
 
+.idPrefillPanel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #f8fafc;
+  display: grid;
+  gap: 12px;
+}
+
+.idPrefillPanel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.idPrefillActions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.scanTarget {
+  border: 2px dashed var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background: #ffffff;
+  font-weight: 900;
+  text-align: center;
+}
+
+.visuallyHidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
 .grid.two {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -162,6 +210,34 @@ input, textarea {
 }
 
 textarea { resize: vertical; }
+
+label.invalidField input,
+label.invalidField textarea,
+fieldset.invalidField .choiceBtn,
+.cameraFrame.invalidField {
+  border-color: var(--danger);
+  background: #fff1f2;
+}
+
+label.invalidField > span:first-child,
+fieldset.invalidField legend {
+  color: var(--danger);
+}
+
+.fieldError,
+.validationSummary {
+  color: var(--danger);
+  font-weight: 850;
+}
+
+.fieldError {
+  min-height: 1.1em;
+  font-size: .95rem;
+}
+
+.validationSummary {
+  min-height: 1.25em;
+}
 
 fieldset {
   border: 0;
@@ -243,6 +319,19 @@ legend {
   transform: scaleX(-1);
 }
 
+.nativePhotoPrompt {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #ffffff;
+  text-align: center;
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+  font-weight: 900;
+  background: linear-gradient(180deg, rgba(17, 24, 39, .96), rgba(31, 41, 55, .96));
+}
+
 .faceGuide {
   position: absolute;
   left: 18%;
@@ -255,7 +344,9 @@ legend {
   pointer-events: none;
 }
 
-.cameraFrame[data-photo-state="review"] .faceGuide {
+.cameraFrame[data-photo-state="review"] .faceGuide,
+.cameraFrame[data-photo-state="review"] .nativePhotoPrompt,
+.cameraFrame[data-photo-state="live"] .faceGuide {
   display: none;
 }
 
@@ -279,7 +370,6 @@ legend {
   border: 2px solid var(--line);
   border-radius: 8px;
   background: #f8fafc;
-  transform: scaleX(-1);
 }
 
 .reviewDetails {
@@ -306,7 +396,7 @@ legend {
   .languageGrid, .grid.two {
     grid-template-columns: 1fr;
   }
-  .cameraActions, .reviewGrid {
+  .cameraActions, .reviewGrid, .idPrefillActions {
     grid-template-columns: 1fr;
   }
   .languageBtn { min-height: 120px; }

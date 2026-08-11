@@ -47,6 +47,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 {
   const config = read('VisitorConfig.gs');
   assert.match(config, /Photo ID/);
+  assert.match(config, /Date of Birth/);
   assert.match(config, /Photo Captured At/);
   assert.match(config, /Photo Source/);
   assert.match(config, /Photo Required Override/);
@@ -63,6 +64,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 {
   const records = read('VisitorRecords.gs');
+  assert.match(records, /'Date of Birth': safeSheetText_\(visit\.date_of_birth/);
   assert.match(records, /'Photo ID': safeSheetText_\(visit\.photo_id/);
   assert.match(records, /'Photo Captured At': visit\.photo_captured_at/);
   assert.doesNotMatch(records, /photo_base64|image_base64|image_data|data:image/i, 'Visitor GAS must not write image bytes/Base64');
@@ -71,8 +73,14 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 {
   const security = read('VisitorSecurity.gs');
+  assert.match(security, /date_of_birth: visitorCleanStr_\(v\.date_of_birth/);
   assert.match(security, /photo_id: visitorCleanStr_\(v\.photo_id/);
   assert.doesNotMatch(security, /photo_base64|image_base64|image_data|data:image/i, 'Visitor GAS sanitizer must not accept image bytes/Base64');
+}
+
+{
+  const history = read('VisitorHistory.gs');
+  assert.match(history, /date_of_birth: visitorDateOnlyString_\(out\.date_of_birth\)/);
 }
 
 console.log('visitor_gas_static tests passed');

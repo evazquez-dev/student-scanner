@@ -31,7 +31,7 @@
   const FORBIDDEN_KEYS = [
     'DAQ', 'DBB', 'DAG', 'DAI', 'DAK', 'DBC', 'DAU', 'DAW', 'DAY',
     'document_number', 'driver_license_number', 'license_number', 'id_number',
-    'date_of_birth', 'dob', 'address', 'home_address', 'zip', 'postal_code',
+    'dob', 'address', 'home_address', 'zip', 'postal_code',
     'sex', 'gender', 'height', 'weight', 'eye_color', 'raw', 'raw_scan',
     'raw_pdf417', 'raw_aamva', 'barcode', 'barcode_raw', 'passport_number'
   ];
@@ -73,7 +73,48 @@
       y = Number(s.slice(4, 8));
     }
     if (!y || m < 1 || m > 12 || d < 1 || d > 31) return null;
-    return new Date(Date.UTC(y, m - 1, d, 23, 59, 59));
+    const date = new Date(Date.UTC(y, m - 1, d, 23, 59, 59));
+    if (date.getUTCFullYear() !== y || date.getUTCMonth() !== m - 1 || date.getUTCDate() !== d) return null;
+    return date;
+  }
+
+  function validIsoDate(value) {
+    const s = String(value || '').trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return '';
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    if (y < 1900 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31) return '';
+    const dt = new Date(Date.UTC(y, mo - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return '';
+    return s;
+  }
+
+  function aamvaDateToIso(value) {
+    const d = parseAamvaDate(value);
+    return d ? d.toISOString().slice(0, 10) : '';
+  }
+
+  function normalizeDateOfBirth(value) {
+    const s = String(value || '').trim();
+    if (!s) return '';
+    const iso = validIsoDate(s);
+    if (iso) return iso;
+    return aamvaDateToIso(s);
+  }
+
+  function isFutureDate(value, now) {
+    const iso = validIsoDate(value);
+    if (!iso) return false;
+    const today = now ? new Date(now) : new Date();
+    if (!Number.isFinite(today.getTime())) return false;
+    const todayIso = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0')
+    ].join('-');
+    return iso > todayIso;
   }
 
   function parseAamva(rawInput, options) {
@@ -86,7 +127,7 @@
       }
 
       const fields = {};
-      const keep = { DCS: true, DAC: true, DAD: true, DCT: true, DBA: true, DAJ: true, DAB: true };
+      const keep = { DCS: true, DAC: true, DAD: true, DCT: true, DBA: true, DAJ: true, DAB: true, DBB: true };
       raw
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
@@ -106,6 +147,7 @@
       const last = cleanText(fields.DCS || fields.DAB || '', 100);
       const expires = parseAamvaDate(fields.DBA || '');
       const idExpired = expires ? expires.getTime() < now.getTime() : false;
+      const dob = aamvaDateToIso(fields.DBB || '');
 
       raw = '';
       if (!first && !last) return { ok: false, error: 'name_fields_missing', data: {} };
@@ -116,6 +158,7 @@
           visitor_first_name: first,
           visitor_middle_name: middle,
           visitor_last_name: last,
+          date_of_birth: dob,
           id_document_type: 'Driver License / State ID',
           id_issuing_jurisdiction: cleanText(fields.DAJ || '', 40),
           id_expired: !!idExpired,
@@ -137,6 +180,63 @@
       out[key] = obj[key];
     });
     return out;
+  }
+
+  function splitPersonName(value) {
+    const cleaned = cleanText(value, 160).replace(/[0-9]/g, '').replace(/\s+/g, ' ').trim();
+    if (!cleaned) return { first: '', middle: '', last: '' };
+    const comma = cleaned.split(',').map((x) => cleanText(x, 100)).filter(Boolean);
+    if (comma.length >= 2) {
+      const given = comma.slice(1).join(' ').split(/\s+/).filter(Boolean);
+      return { first: given[0] || '', middle: given.slice(1).join(' '), last: comma[0] || '' };
+    }
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    if (parts.length === 1) return { first: parts[0], middle: '', last: '' };
+    return { first: parts[0], middle: parts.slice(1, -1).join(' '), last: parts[parts.length - 1] };
+  }
+
+  function parseIdnycOcrText(text) {
+    const rawText = String(text == null ? '' : text);
+    const lines = rawText
+      .replace(/\r/g, '\n')
+      .split('\n')
+      .map((line) => cleanText(line, 180))
+      .filter(Boolean);
+    const joined = lines.join('\n');
+    const dobMatch = joined.match(/\b(?:DOB|D\.O\.B\.|DATE OF BIRTH|FECHA DE NACIMIENTO)\b[^0-9]*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{8})/i)
+      || joined.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{8})\b/);
+    let dob = '';
+    if (dobMatch) {
+      const rawDob = String(dobMatch[1] || '');
+      const parts = rawDob.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+      dob = parts
+        ? validIsoDate(`${parts[3]}-${String(parts[1]).padStart(2, '0')}-${String(parts[2]).padStart(2, '0')}`)
+        : normalizeDateOfBirth(rawDob);
+    }
+    let nameText = '';
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const named = line.match(/\b(?:NAME|NOMBRE)\b[:\s-]+(.+)$/i);
+      if (named && named[1]) {
+        nameText = named[1];
+        break;
+      }
+      if (/^(IDNYC|NEW YORK|CITY|CARD|IDENTIFICATION|EXPIR|DOB|DATE OF BIRTH|ADDRESS|SEX|GENDER)\b/i.test(line)) continue;
+      if (/\d{2,}/.test(line)) continue;
+      if (/^[A-Z][A-Z' -]{3,}$/.test(line)) {
+        nameText = line;
+        break;
+      }
+    }
+    const name = splitPersonName(nameText);
+    const data = {
+      visitor_first_name: cleanText(name.first, 80),
+      visitor_middle_name: cleanText(name.middle, 80),
+      visitor_last_name: cleanText(name.last, 100),
+      date_of_birth: dob
+    };
+    const ok = !!(data.visitor_first_name && data.visitor_last_name && data.date_of_birth);
+    return { ok, data: ok ? redactForbidden(data) : redactForbidden(data), error: ok ? '' : 'idnyc_fields_missing' };
   }
 
   function parseVisitorBadgeScan(value) {
@@ -240,6 +340,129 @@
         resolve(blob);
       }, 'image/jpeg', quality);
     });
+  }
+
+  function sourceDimensions(source) {
+    return {
+      width: Number(source?.videoWidth || source?.naturalWidth || source?.width || 0),
+      height: Number(source?.videoHeight || source?.naturalHeight || source?.height || 0)
+    };
+  }
+
+  function drawPortraitCanvas(source, options) {
+    const opts = options || {};
+    const width = Number.isFinite(Number(opts.width)) ? Math.max(160, Number(opts.width)) : 720;
+    const height = Number.isFinite(Number(opts.height)) ? Math.max(200, Number(opts.height)) : 900;
+    if (typeof document === 'undefined') throw new Error('canvas_unavailable');
+    const dims = sourceDimensions(source);
+    if (!dims.width || !dims.height) throw new Error('photo_dimensions_unavailable');
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) throw new Error('canvas_unavailable');
+    const sourceRatio = dims.width / dims.height;
+    const targetRatio = width / height;
+    let sx = 0;
+    let sy = 0;
+    let sw = dims.width;
+    let sh = dims.height;
+    if (sourceRatio > targetRatio) {
+      sw = Math.round(dims.height * targetRatio);
+      sx = Math.round((dims.width - sw) / 2);
+    } else {
+      sh = Math.round(dims.width / targetRatio);
+      sy = Math.round((dims.height - sh) / 2);
+    }
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, width, height);
+    return canvas;
+  }
+
+  function canvasLooksEmptyBlack(canvas) {
+    try {
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return false;
+      const w = canvas.width;
+      const h = canvas.height;
+      if (!w || !h) return true;
+      let samples = 0;
+      let black = 0;
+      for (let y = 0; y < 9; y += 1) {
+        for (let x = 0; x < 9; x += 1) {
+          const px = Math.max(0, Math.min(w - 1, Math.round((x + 0.5) * w / 9)));
+          const py = Math.max(0, Math.min(h - 1, Math.round((y + 0.5) * h / 9)));
+          const data = ctx.getImageData(px, py, 1, 1).data;
+          samples += 1;
+          if (data[3] > 240 && data[0] <= 3 && data[1] <= 3 && data[2] <= 3) black += 1;
+        }
+      }
+      return samples > 0 && black / samples > 0.98;
+    } catch {
+      return false;
+    }
+  }
+
+  function canvasToJpegBlob(canvas, quality) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (!blob) reject(new Error('photo_encode_failed'));
+        else resolve(blob);
+      }, 'image/jpeg', quality);
+    });
+  }
+
+  async function decodeImageBlob(blob) {
+    if (typeof createImageBitmap === 'function') {
+      try {
+        const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+        return { image: bitmap, close: function () { try { bitmap.close(); } catch {} } };
+      } catch {
+        // Fall through to HTMLImageElement decode.
+      }
+    }
+    if (typeof Image === 'undefined' || typeof URL === 'undefined') throw new Error('image_decode_unavailable');
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.decoding = 'async';
+    const loaded = new Promise(function (resolve, reject) {
+      img.onload = function () { resolve(); };
+      img.onerror = function () { reject(new Error('image_decode_failed')); };
+    });
+    img.src = url;
+    await loaded;
+    if (typeof img.decode === 'function') {
+      try { await img.decode(); } catch {}
+    }
+    if (!img.naturalWidth || !img.naturalHeight) {
+      URL.revokeObjectURL(url);
+      throw new Error('image_decode_failed');
+    }
+    return { image: img, close: function () { try { URL.revokeObjectURL(url); } catch {} } };
+  }
+
+  async function processVisitorPhotoFile(file, options) {
+    const opts = options || {};
+    if (!file || typeof file !== 'object') throw new Error('photo_file_required');
+    const type = cleanText(file.type || '', 80).toLowerCase();
+    if (!type || !/^image\/(jpeg|jpg|png|heic|heif|webp)$/.test(type)) throw new Error('photo_type_not_allowed');
+    const decoded = await decodeImageBlob(file);
+    try {
+      const qualities = [Number(opts.quality || 0.82), 0.76, 0.7].map((q) => Math.max(0.5, Math.min(0.92, q)));
+      let lastBlob = null;
+      for (const q of qualities) {
+        const canvas = drawPortraitCanvas(decoded.image, opts);
+        if (canvasLooksEmptyBlack(canvas)) throw new Error('photo_black_frame');
+        const blob = await canvasToJpegBlob(canvas, q);
+        lastBlob = blob;
+        if (!opts.maxBytes || blob.size <= Number(opts.maxBytes)) return blob;
+      }
+      if (lastBlob && (!opts.maxBytes || lastBlob.size <= Number(opts.maxBytes))) return lastBlob;
+      throw new Error('photo_too_large');
+    } finally {
+      decoded.close();
+    }
   }
 
   const QR_VERSION = 4;
@@ -410,10 +633,15 @@
     purposeLabel: function (key, lang) { return label(PURPOSES, key, lang); },
     parseAamva,
     parseAamvaDate,
+    normalizeDateOfBirth,
+    isFutureDate,
+    parseIdnycOcrText,
     redactForbidden,
     parseVisitorBadgeScan,
     createScannerBuffer,
     capturePortraitPhoto,
+    processVisitorPhotoFile,
+    canvasLooksEmptyBlack,
     makeQrMatrix,
     makeQrSvg
   };

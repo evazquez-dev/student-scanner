@@ -191,7 +191,8 @@
     const dest = v.destination || v.host_name || '-';
     const verified = v.id_verified ? `<span class="pill ${v.id_expired ? 'warn' : 'ok'}">${v.id_expired ? 'ID expired' : 'ID verified'}</span>` : '<span class="pill warn">ID not verified</span>';
     const photo = v.photo_id ? '<span class="pill ok">Photo</span>' : v.photo_required_override ? '<span class="pill warn">Photo override</span>' : '<span class="pill warn">No photo</span>';
-    return `<div><strong>${esc(typeLabel(v))}</strong></div><div>${esc(purposeLabel(v))}</div><div class="muted">${esc(dest)}</div><div>${verified} ${photo}</div>`;
+    const dob = v.date_of_birth ? `<div class="muted">DOB ${esc(v.date_of_birth)}</div>` : '';
+    return `<div><strong>${esc(typeLabel(v))}</strong></div><div>${esc(purposeLabel(v))}</div><div class="muted">${esc(dest)}</div>${dob}<div>${verified} ${photo}</div>`;
   }
 
   function waitingRow(v) {
@@ -281,6 +282,7 @@
     els.visitor_first_name.value = v?.visitor_first_name || '';
     els.visitor_middle_name.value = v?.visitor_middle_name || '';
     els.visitor_last_name.value = v?.visitor_last_name || '';
+    els.date_of_birth.value = v?.date_of_birth || '';
     els.visitor_type.value = v?.visitor_type || '';
     els.purpose.value = v?.purpose || '';
     els.organization.value = v?.organization || '';
@@ -299,6 +301,7 @@
       visitor_first_name: Shared.cleanText(fd.get('visitor_first_name'), 80),
       visitor_middle_name: Shared.cleanText(fd.get('visitor_middle_name'), 80),
       visitor_last_name: Shared.cleanText(fd.get('visitor_last_name'), 100),
+      date_of_birth: Shared.normalizeDateOfBirth(fd.get('date_of_birth')),
       visitor_type: Shared.cleanText(fd.get('visitor_type'), 80),
       purpose: Shared.cleanText(fd.get('purpose'), 80),
       organization: Shared.cleanText(fd.get('organization'), 140),
@@ -372,6 +375,7 @@
     $('idParseStatus').textContent = 'ID parsed locally. Raw barcode data was discarded.';
     $('idParsedPreview').textContent = [
       `Name: ${fullName(parsedId)}`,
+      `DOB: ${parsedId.date_of_birth || '-'}`,
       `Document: ${parsedId.id_document_type || '-'}`,
       `State/Jurisdiction: ${parsedId.id_issuing_jurisdiction || '-'}`,
       `Expired: ${parsedId.id_expired ? 'Yes' : 'No'}`
@@ -401,7 +405,8 @@
             patch: {
               visitor_first_name: parsedId.visitor_first_name || selectedVisit.visitor_first_name,
               visitor_middle_name: parsedId.visitor_middle_name || selectedVisit.visitor_middle_name,
-              visitor_last_name: parsedId.visitor_last_name || selectedVisit.visitor_last_name
+              visitor_last_name: parsedId.visitor_last_name || selectedVisit.visitor_last_name,
+              date_of_birth: parsedId.date_of_birth || selectedVisit.date_of_birth
             }
           }
         });
@@ -701,7 +706,7 @@
       const data = await api(`/admin/visitor/history?${params.toString()}`);
       const rows = data.rows || data.visits || [];
       $('historyBody').innerHTML = rows.length ? rows.map((v) => `<tr>
-        <td><div class="visitorCell">${photoSlot(v)}<div><strong>${esc(fullName(v))}</strong><div class="muted">${esc(v.organization || '')}</div></div></div></td>
+        <td><div class="visitorCell">${photoSlot(v)}<div><strong>${esc(fullName(v))}</strong><div class="muted">${esc(v.organization || '')}</div><div class="muted">${v.date_of_birth ? `DOB ${esc(v.date_of_birth)}` : ''}</div></div></div></td>
         <td>${esc(typeLabel(v))}<br>${esc(purposeLabel(v))}<div class="muted">${esc(v.destination || '')}</div></td>
         <td>${esc(v.status || '')}<div class="muted">${esc(fmtDT(v.check_in_at || v.submitted_at || v.created_at))}</div></td>
         <td><div>In: ${esc(v.check_in_by || '-')}</div><div>Out: ${esc(v.check_out_by || '-')}</div></td>

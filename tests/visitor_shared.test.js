@@ -15,9 +15,9 @@ function assertNoForbidden(obj) {
   const blob = JSON.stringify(obj).toLowerCase();
   [
     'synthetic123',
-    'date_of_birth',
     'dob',
     'main street',
+    'dbb',
     'document_number',
     'driver_license_number',
     'license_number',
@@ -49,6 +49,7 @@ function assertNoForbidden(obj) {
     visitor_first_name: 'JANE',
     visitor_middle_name: 'Q',
     visitor_last_name: 'DOE',
+    date_of_birth: '1980-01-01',
     id_document_type: 'Driver License / State ID',
     id_issuing_jurisdiction: 'NY',
     id_expired: false,
@@ -60,6 +61,7 @@ function assertNoForbidden(obj) {
 {
   const raw = syntheticAamva([
     'DAJCA',
+    'DBB01021979',
     'DBA12312030',
     'DCSROE',
     'DCTRICHARD ALLEN',
@@ -72,6 +74,7 @@ function assertNoForbidden(obj) {
   assert.equal(parsed.data.visitor_middle_name, 'ALLEN');
   assert.equal(parsed.data.visitor_last_name, 'ROE');
   assert.equal(parsed.data.id_issuing_jurisdiction, 'CA');
+  assert.equal(parsed.data.date_of_birth, '1979-01-02');
   assert.equal(parsed.data.id_expired, false);
   assertNoForbidden(parsed);
 }
@@ -98,12 +101,13 @@ function assertNoForbidden(obj) {
 {
   const redacted = Shared.redactForbidden({
     visitor_first_name: 'SAFE',
+    date_of_birth: '1980-01-01',
     DAQ: 'DO-NOT-STORE',
     dob: '19800101',
     address: '123 Main Street',
     raw_pdf417: 'raw'
   });
-  assert.deepEqual(redacted, { visitor_first_name: 'SAFE' });
+  assert.deepEqual(redacted, { visitor_first_name: 'SAFE', date_of_birth: '1980-01-01' });
 }
 
 {
@@ -149,6 +153,7 @@ function assertNoForbidden(obj) {
     'DCSDOE',
     'DACJANE',
     'DADQ',
+    'DBB19800101',
     'DBA12312030',
     'DAJNY'
   ]);
@@ -163,7 +168,39 @@ function assertNoForbidden(obj) {
   assert.equal(parsed.data.visitor_first_name, 'JANE');
   assert.equal(parsed.data.visitor_middle_name, 'Q');
   assert.equal(parsed.data.visitor_last_name, 'DOE');
+  assert.equal(parsed.data.date_of_birth, '1980-01-01');
   assert.equal(parsed.data.id_issuing_jurisdiction, 'NY');
+}
+
+{
+  assert.equal(Shared.normalizeDateOfBirth('01/02/1980'), '1980-01-02');
+  assert.equal(Shared.normalizeDateOfBirth('1980-02-31'), '');
+  assert.equal(Shared.isFutureDate('2030-01-01', '2026-08-10T12:00:00'), true);
+  assert.equal(Shared.isFutureDate('1980-01-01', '2026-08-10T12:00:00'), false);
+}
+
+{
+  const parsed = Shared.parseIdnycOcrText([
+    'IDNYC',
+    'NAME: ERICK M VAZQUEZ',
+    'DATE OF BIRTH 08/11/1980',
+    'ID NUMBER 999999999',
+    '123 HOME STREET'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.data, {
+    visitor_first_name: 'ERICK',
+    visitor_middle_name: 'M',
+    visitor_last_name: 'VAZQUEZ',
+    date_of_birth: '1980-08-11'
+  });
+  assertNoForbidden(parsed);
+}
+
+{
+  const parsed = Shared.parseIdnycOcrText('IDNYC\nunclear text only');
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.data.date_of_birth || '', '');
 }
 
 console.log('visitor_shared tests passed');

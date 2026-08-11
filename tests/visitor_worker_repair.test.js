@@ -116,6 +116,7 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
   const payload = {
     visitor_first_name: 'Retry',
     visitor_last_name: 'Guest',
+    date_of_birth: '1980-01-01',
     visitor_type: 'school_guest',
     purpose: 'meeting',
     ...visitor
@@ -152,11 +153,46 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     const clear = mod.sanitizeVisitorPatch_({ destination: null });
     assert.deepEqual(clear, { destination: '' });
 
+    const dob = mod.sanitizeVisitorPatch_({ date_of_birth: '1980-01-02' });
+    assert.deepEqual(dob, { date_of_birth: '1980-01-02' });
+
+    const badDob = mod.sanitizeVisitorPatch_({ date_of_birth: '1980-02-31' });
+    assert.deepEqual(badDob, { date_of_birth: '' });
+
     const verification = mod.sanitizeVisitorVerification_({ id_verified: false }, 'security@example.org');
     assert.equal(verification.id_verified, false);
     assert.equal(verification.id_verified_at, '');
     assert.equal(verification.id_verified_by, '');
     assert.equal(verification.id_document_type, '');
+  }
+
+  {
+    const instance = new mod.VisitorDeskDO(new FakeState(), {});
+    await instance.ready;
+    const missingDob = await doJson(instance, '/staff_create', {
+      actor_email: 'security@example.org',
+      visitor: {
+        visitor_first_name: 'Missing',
+        visitor_last_name: 'DOB',
+        visitor_type: 'school_guest',
+        purpose: 'meeting'
+      }
+    });
+    assert.equal(missingDob.resp.status, 400);
+    assert.equal(missingDob.data.missing.includes('date_of_birth'), true);
+
+    const futureDob = await doJson(instance, '/staff_create', {
+      actor_email: 'security@example.org',
+      visitor: {
+        visitor_first_name: 'Future',
+        visitor_last_name: 'DOB',
+        date_of_birth: '2099-01-01',
+        visitor_type: 'school_guest',
+        purpose: 'meeting'
+      }
+    });
+    assert.equal(futureDob.resp.status, 400);
+    assert.equal(futureDob.data.missing.includes('date_of_birth_future'), true);
   }
 
   {
@@ -185,9 +221,10 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
       photo_base64: 'data:image/jpeg;base64,abc',
       image_data: 'raw-bytes',
       image_base64: 'abc',
+      date_of_birth: '1980-01-01',
       badge_checkout_token: 'secret'
     });
-    assert.deepEqual(payload, { visit_id: 'vis_1', photo_id: 'photo_safe' });
+    assert.deepEqual(payload, { visit_id: 'vis_1', photo_id: 'photo_safe', date_of_birth: '1980-01-01' });
   }
 
   {
@@ -216,6 +253,7 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
       visitor: {
         visitor_first_name: 'John',
         visitor_last_name: 'Smith',
+        date_of_birth: '1980-01-01',
         visitor_type: 'vendor_contractor',
         purpose: 'meeting',
         photo_required_override: true
@@ -259,6 +297,7 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
       visitor: {
         visitor_first_name: 'Network',
         visitor_last_name: 'Failure',
+        date_of_birth: '1980-01-01',
         visitor_type: 'school_guest',
         purpose: 'meeting'
       }
@@ -482,6 +521,7 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
       visitor: {
         visitor_first_name: 'No',
         visitor_last_name: 'Photo',
+        date_of_birth: '1980-01-01',
         visitor_type: 'school_guest',
         purpose: 'meeting'
       }
@@ -495,6 +535,7 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
       visitor: {
         visitor_first_name: 'Override',
         visitor_last_name: 'Guest',
+        date_of_birth: '1980-01-01',
         visitor_type: 'school_guest',
         purpose: 'meeting',
         photo_required_override: true
@@ -515,6 +556,7 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     const visitor = {
       visitor_first_name: 'Retry',
       visitor_last_name: 'Guest',
+      date_of_birth: '1980-01-01',
       visitor_type: 'school_guest',
       purpose: 'meeting'
     };
