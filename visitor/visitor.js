@@ -2,6 +2,7 @@
   'use strict';
 
   const Shared = window.EagleNestVisitor;
+  const IdScan = window.EagleNestVisitorIdScan;
   const API_BASE = (() => {
     const raw = (document.querySelector('meta[name="api-base"]')?.content || location.origin).trim();
     try { return new URL(raw).toString().replace(/\/+$/, '/') || `${location.origin}/`; }
@@ -42,11 +43,30 @@
       stateIdPrefill: 'Scan State ID / Driver License',
       idnycPrefill: 'Scan IDNYC',
       manualEntry: 'Enter Information Manually',
-      stateIdScanPrompt: 'Scanner input active. Scan the PDF417 barcode now.',
+      stateIdScanTitle: 'Scan State ID',
+      stateIdScanPrompt: 'Turn your ID over and place the barcode on the BACK inside the box.',
+      stateIdPlaceBarcode: 'Place barcode inside the box',
+      stateIdMoveCloser: 'Move closer',
+      stateIdHoldSteady: 'Hold steady',
+      stateIdReading: 'Reading ID...',
+      stateIdReadSuccess: 'ID read successfully',
+      stateIdUnreadable: "We couldn't read the barcode. Try again or enter your information manually.",
+      tryAgain: 'Try Again',
+      takePhotoInstead: 'Take Photo Instead',
       idPrefillSuccess: 'Information filled from ID. Please confirm it is correct.',
       idPrefillNeedsCompletion: 'We could not fill all required fields. Please complete the highlighted fields.',
+      idnycScanTitle: 'Scan IDNYC',
       idnycPrompt: 'Place the FRONT of your IDNYC card inside the frame.',
+      idnycMoveCloser: 'Move closer',
+      idnycMoveFarther: 'Move farther away',
+      idnycCenterCard: 'Center the card',
+      idnycHoldSteady: 'Hold steady...',
+      idnycTooMuchGlare: 'Too much glare',
+      idnycReading: 'Reading ID...',
+      idnycCaptured: 'Captured',
+      idnycFound: 'We found the following information. Please confirm it is correct.',
       idnycUnreadable: "We couldn't read all of the information. Please complete the highlighted fields.",
+      cameraUnavailableManual: 'Camera is unavailable. You can still enter your information manually.',
       photoTitle: 'Visitor Photo',
       photoIntro: 'Please look at the camera.',
       nativePhotoPrompt: 'Take a current visitor photo.',
@@ -97,11 +117,30 @@
       stateIdPrefill: 'Escanear identificación estatal / licencia',
       idnycPrefill: 'Escanear IDNYC',
       manualEntry: 'Ingresar información manualmente',
-      stateIdScanPrompt: 'Entrada del escáner activa. Escanee el código PDF417 ahora.',
+      stateIdScanTitle: 'Escanear identificación estatal',
+      stateIdScanPrompt: 'Voltee su identificación y coloque el código de barras del REVERSO dentro del cuadro.',
+      stateIdPlaceBarcode: 'Coloque el código dentro del cuadro',
+      stateIdMoveCloser: 'Acérquelo',
+      stateIdHoldSteady: 'Manténgalo firme',
+      stateIdReading: 'Leyendo identificación...',
+      stateIdReadSuccess: 'Identificación leída correctamente',
+      stateIdUnreadable: 'No pudimos leer el código de barras. Inténtelo de nuevo o ingrese la información manualmente.',
+      tryAgain: 'Intentar de nuevo',
+      takePhotoInstead: 'Tomar foto',
       idPrefillSuccess: 'La información se completó desde la identificación. Confirme que sea correcta.',
       idPrefillNeedsCompletion: 'No pudimos completar todos los campos obligatorios. Complete los campos resaltados.',
+      idnycScanTitle: 'Escanear IDNYC',
       idnycPrompt: 'Coloque el FRENTE de su tarjeta IDNYC dentro del marco.',
+      idnycMoveCloser: 'Acérquelo',
+      idnycMoveFarther: 'Aléjelo',
+      idnycCenterCard: 'Centre la tarjeta',
+      idnycHoldSteady: 'Manténgala firme...',
+      idnycTooMuchGlare: 'Hay demasiado reflejo',
+      idnycReading: 'Leyendo identificación...',
+      idnycCaptured: 'Capturada',
+      idnycFound: 'Encontramos la siguiente información. Confirme que sea correcta.',
       idnycUnreadable: 'No pudimos leer toda la información. Complete los campos resaltados.',
+      cameraUnavailableManual: 'La cámara no está disponible. Aun puede ingresar la información manualmente.',
       photoTitle: 'Foto del visitante',
       photoIntro: 'Mire a la cámara.',
       nativePhotoPrompt: 'Tome una foto actual del visitante.',
@@ -144,7 +183,14 @@
   const photoPreview = $('photoPreview');
   const nativePhotoInput = $('visitorPhotoInput');
   const idnycCaptureInput = $('idnycCaptureInput');
+  const stateIdPhotoInput = $('stateIdPhotoInput');
   const stateIdScanPanel = $('stateIdScanPanel');
+  const idScanVideo = $('idScanVideo');
+  const idScanGuide = $('idScanGuide');
+  const idScanTitle = $('idScanTitle');
+  const idScanInstructions = $('idScanInstructions');
+  const idScanStatus = $('idScanStatus');
+  const idScanFallbackActions = $('idScanFallbackActions');
   const validationSummary = $('validationSummary');
 
   let lang = 'en';
@@ -158,6 +204,8 @@
   let photoObjectUrl = '';
   let formSubmitAttempted = false;
   let idScanActive = false;
+  let idScanMode = '';
+  let idScanSession = null;
   const touchedFields = new Set();
 
   function credential() {
@@ -174,6 +222,7 @@
   function show(screen) {
     [setupScreen, languageScreen, formScreen, photoScreen, reviewScreen, thanksScreen].forEach((el) => { if (el) el.hidden = el !== screen; });
     if (screen !== photoScreen) stopCamera();
+    if (screen !== formScreen) closeStateIdScan();
   }
 
   function setStatus(el, text, ok) {
@@ -199,6 +248,9 @@
     $('takePhotoBtn').textContent = strings.takePhoto;
     $('retakePhotoBtn').textContent = strings.retake;
     $('usePhotoBtn').textContent = strings.usePhoto;
+    $('tryAgainIdScanBtn').textContent = strings.tryAgain;
+    $('idScanPhotoFallbackBtn').textContent = strings.takePhotoInstead;
+    $('enterManualIdScanBtn').textContent = strings.manualEntry;
     nextPhotoBtn.textContent = strings.nextPhoto;
     submitBtn.textContent = strings.submit;
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -536,27 +588,113 @@
     if (d.visitor_last_name) els.visitor_last_name.value = d.visitor_last_name;
     if (d.date_of_birth) els.date_of_birth.value = Shared.normalizeDateOfBirth(d.date_of_birth);
     ['visitor_first_name', 'visitor_last_name', 'date_of_birth'].forEach((field) => touchedFields.add(field));
-    const complete = validateForm({ markAll: true, focus: false });
-    setStatus(formStatus, complete ? okMessage : T[lang].idPrefillNeedsCompletion, complete);
-    if (!complete) focusFirstInvalid(validationErrors(formPayload()));
+    const errors = validationErrors(formPayload());
+    const identityErrors = {};
+    ['visitor_first_name', 'visitor_last_name', 'date_of_birth'].forEach((field) => {
+      identityErrors[field] = errors[field] || '';
+      setFieldError(field, identityErrors[field]);
+    });
+    if (formSubmitAttempted) validateForm({ markAll: true, focus: false });
+    const missingIdentity = Object.fromEntries(Object.entries(identityErrors).filter(([, msg]) => !!msg));
+    if (Object.keys(missingIdentity).length) {
+      if (validationSummary) validationSummary.textContent = T[lang].required;
+      setStatus(formStatus, T[lang].idPrefillNeedsCompletion);
+      focusFirstInvalid(missingIdentity);
+      return;
+    }
+    if (!formSubmitAttempted) {
+      if (validationSummary) validationSummary.textContent = '';
+      setStatus(formStatus, okMessage, true);
+    }
   }
 
   function hasIdPrefillData(data) {
     return !!(data?.visitor_first_name || data?.visitor_middle_name || data?.visitor_last_name || data?.date_of_birth);
   }
 
-  function closeStateIdScan() {
+  function stopIdScanSession() {
+    try { idScanSession?.stop?.(); } catch {}
+    idScanSession = null;
     idScanActive = false;
-    stateIdScanPanel.hidden = true;
-    stateIdScanner.reset();
+    if (idScanVideo) idScanVideo.srcObject = null;
   }
 
-  function handleStateIdScan(scan) {
-    let raw = String(scan || '');
+  function setIdScanFallbacks(show) {
+    if (idScanFallbackActions) idScanFallbackActions.hidden = !show;
+  }
+
+  function idScanStatusMessage(mode, state, detail) {
+    const strings = T[lang];
+    const hint = detail?.hint || '';
+    if (mode === 'state_id') {
+      if (state === 'camera_starting') return strings.cameraStarting;
+      if (state === 'confirming_candidate') return strings.stateIdReading;
+      if (state === 'success') return strings.stateIdReadSuccess;
+      if (hint === 'moveCloser') return strings.stateIdMoveCloser;
+      if (hint === 'holdSteady') return strings.stateIdHoldSteady;
+      if (state === 'failed') return detail?.reason === 'camera_unavailable' ? strings.cameraUnavailableManual : strings.stateIdUnreadable;
+      return strings.stateIdPlaceBarcode;
+    }
+    if (state === 'camera_starting') return strings.cameraStarting;
+    if (state === 'capturing') return strings.idnycCaptured;
+    if (state === 'ocr_loading' || state === 'ocr_processing') return strings.idnycReading;
+    if (state === 'failed') return detail?.reason === 'camera_unavailable' ? strings.cameraUnavailableManual : strings.idnycUnreadable;
+    if (hint === 'moveCloser') return strings.idnycMoveCloser;
+    if (hint === 'moveFarther') return strings.idnycMoveFarther;
+    if (hint === 'tooMuchGlare') return strings.idnycTooMuchGlare;
+    if (hint === 'holdSteady') return strings.idnycHoldSteady;
+    return strings.idnycCenterCard;
+  }
+
+  function updateIdScanStatus(state, detail) {
+    if (!idScanStatus) return;
+    idScanStatus.textContent = idScanStatusMessage(idScanMode, state, detail);
+    idScanStatus.classList.toggle('ok', state === 'success' || state === 'capturing');
+  }
+
+  function configureIdScanPanel(mode) {
+    idScanMode = mode;
+    idScanActive = true;
+    setStatus(formStatus, '');
+    setIdScanFallbacks(false);
+    if (stateIdScanPanel) stateIdScanPanel.hidden = false;
+    if (idScanTitle) idScanTitle.textContent = mode === 'idnyc' ? T[lang].idnycScanTitle : T[lang].stateIdScanTitle;
+    if (idScanInstructions) idScanInstructions.textContent = mode === 'idnyc' ? T[lang].idnycPrompt : T[lang].stateIdScanPrompt;
+    if (idScanGuide) {
+      idScanGuide.classList.toggle('barcodeGuide', mode !== 'idnyc');
+      idScanGuide.classList.toggle('cardGuide', mode === 'idnyc');
+    }
+    idScanVideo?.parentElement?.setAttribute('data-scan-mode', mode === 'idnyc' ? 'idnyc' : 'state');
+    updateIdScanStatus('camera_starting');
+  }
+
+  function closeStateIdScan() {
+    stopIdScanSession();
+    idScanMode = '';
+    if (stateIdScanPanel) stateIdScanPanel.hidden = true;
+    setIdScanFallbacks(false);
+    if (idScanStatus) {
+      idScanStatus.textContent = '';
+      idScanStatus.classList.remove('ok');
+    }
+  }
+
+  function showIdScanFallbacks(message) {
+    stopIdScanSession();
+    if (stateIdScanPanel) stateIdScanPanel.hidden = false;
+    setIdScanFallbacks(true);
+    if (idScanStatus) {
+      idScanStatus.textContent = message || (idScanMode === 'idnyc' ? T[lang].idnycUnreadable : T[lang].stateIdUnreadable);
+      idScanStatus.classList.remove('ok');
+    }
+  }
+
+  function applyStateIdPayload(payload) {
+    let raw = String(payload || '');
     const parsed = Shared.parseAamva(raw);
     raw = '';
     closeStateIdScan();
-    if (!parsed.ok) {
+    if (!parsed.ok || !hasIdPrefillData(parsed.data)) {
       setStatus(formStatus, T[lang].idPrefillNeedsCompletion);
       validateForm({ markAll: true, focus: false });
       return;
@@ -564,48 +702,86 @@
     applyIdPrefill(parsed.data || {}, T[lang].idPrefillSuccess);
   }
 
-  const stateIdScanner = Shared.createScannerBuffer(handleStateIdScan, {
-    multiline: true,
-    settleMs: 120,
-    minLength: 30
-  });
-
-  function startStateIdPrefill() {
-    setStatus(formStatus, '');
-    idScanActive = true;
-    stateIdScanPanel.hidden = false;
-    setTimeout(() => $('stateIdScanTarget')?.focus(), 40);
+  async function startStateIdPrefill() {
+    closeStateIdScan();
+    configureIdScanPanel('state_id');
+    if (!IdScan?.createStateIdAutoScanner) {
+      showIdScanFallbacks(T[lang].cameraUnavailableManual);
+      return;
+    }
+    idScanSession = IdScan.createStateIdAutoScanner({
+      video: idScanVideo,
+      requiredMatches: IdScan.STATE_ID_REQUIRED_MATCHES || 2,
+      timeoutMs: IdScan.STATE_ID_TIMEOUT_MS || 14000,
+      onState: updateIdScanStatus,
+      onSuccess: applyStateIdPayload,
+      onTimeout: () => showIdScanFallbacks(T[lang].stateIdUnreadable),
+      onFailure: () => showIdScanFallbacks(T[lang].cameraUnavailableManual)
+    });
+    await idScanSession.start();
   }
 
-  function stateIdKeydown(ev) {
-    if (!idScanActive) return;
-    if (ev.target?.closest?.('input, textarea, select') && ev.target !== $('stateIdScanTarget')) return;
-    stateIdScanner.keydown(ev);
-  }
-
-  async function readIdnycTextLocally(file) {
-    if (!('TextDetector' in window)) return '';
-    let bitmap = null;
+  async function handleStateIdPhotoFallback(ev) {
+    const file = ev?.target?.files?.[0] || null;
+    if (!file) return;
     try {
-      bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-      const detector = new window.TextDetector();
-      const rows = await detector.detect(bitmap);
-      return (rows || []).map((r) => Shared.cleanText(r.rawValue || r.detectedText || '', 180)).filter(Boolean).join('\n');
+      if (!IdScan?.decodePdf417Blob) throw new Error('pdf417_decoder_unavailable');
+      updateIdScanStatus('confirming_candidate');
+      let raw = await IdScan.decodePdf417Blob(file);
+      const payload = raw;
+      raw = '';
+      if (!payload) throw new Error('state_id_unreadable');
+      applyStateIdPayload(payload);
     } catch {
-      return '';
+      showIdScanFallbacks(T[lang].stateIdUnreadable);
+      validateForm({ markAll: true, focus: false });
     } finally {
-      try { bitmap?.close?.(); } catch {}
+      if (stateIdPhotoInput) stateIdPhotoInput.value = '';
+    }
+  }
+
+  function applyIdnycOcrText(text) {
+    let rawText = String(text || '');
+    const parsed = Shared.parseIdnycOcrText(rawText);
+    rawText = '';
+    closeStateIdScan();
+    if (hasIdPrefillData(parsed.data)) {
+      applyIdPrefill(parsed.data || {}, parsed.ok ? T[lang].idnycFound : T[lang].idnycUnreadable);
+    }
+    if (!parsed.ok) {
+      setStatus(formStatus, T[lang].idnycUnreadable);
+      validateForm({ markAll: true, focus: false });
+    }
+  }
+
+  async function runIdnycOcr(blob) {
+    try {
+      if (!IdScan?.recognizeIdnycImage) throw new Error('ocr_unavailable');
+      updateIdScanStatus('ocr_processing');
+      let text = await IdScan.recognizeIdnycImage(blob);
+      applyIdnycOcrText(text);
+      text = '';
+    } catch {
+      closeStateIdScan();
+      setStatus(formStatus, T[lang].idnycUnreadable);
+      validateForm({ markAll: true, focus: false });
     }
   }
 
   async function startIdnycPrefill() {
-    if (!idnycCaptureInput) {
-      setStatus(formStatus, T[lang].idnycUnreadable);
+    closeStateIdScan();
+    configureIdScanPanel('idnyc');
+    if (!IdScan?.createIdnycAutoCapture) {
+      showIdScanFallbacks(T[lang].cameraUnavailableManual);
       return;
     }
-    setStatus(formStatus, T[lang].idnycPrompt, true);
-    idnycCaptureInput.value = '';
-    idnycCaptureInput.click();
+    idScanSession = IdScan.createIdnycAutoCapture({
+      video: idScanVideo,
+      onState: updateIdScanStatus,
+      onCapture: runIdnycOcr,
+      onFailure: () => showIdScanFallbacks(T[lang].cameraUnavailableManual)
+    });
+    await idScanSession.start();
   }
 
   async function handleIdnycCapture(ev) {
@@ -613,16 +789,12 @@
     if (!file) return;
     try {
       if (!String(file.type || '').toLowerCase().startsWith('image/')) throw new Error('idnyc_image_invalid');
-      const text = await readIdnycTextLocally(file);
-      const parsed = Shared.parseIdnycOcrText(text);
-      if (hasIdPrefillData(parsed.data)) applyIdPrefill(parsed.data || {}, T[lang].idPrefillSuccess);
-      if (!parsed.ok) {
-        setStatus(formStatus, T[lang].idnycUnreadable);
-        validateForm({ markAll: true, focus: false });
-        return;
-      }
+      updateIdScanStatus('ocr_processing');
+      let text = await IdScan.recognizeIdnycImage(file);
+      applyIdnycOcrText(text);
+      text = '';
     } catch {
-      setStatus(formStatus, T[lang].idnycUnreadable);
+      showIdScanFallbacks(T[lang].idnycUnreadable);
       validateForm({ markAll: true, focus: false });
     } finally {
       if (idnycCaptureInput) idnycCaptureInput.value = '';
@@ -777,9 +949,30 @@
       closeStateIdScan();
       setStatus(formStatus, '');
     });
+    $('tryAgainIdScanBtn')?.addEventListener('click', () => {
+      const mode = idScanMode || 'state_id';
+      if (mode === 'idnyc') startIdnycPrefill();
+      else startStateIdPrefill();
+    });
+    $('idScanPhotoFallbackBtn')?.addEventListener('click', () => {
+      stopIdScanSession();
+      if (idScanMode === 'idnyc') {
+        if (idnycCaptureInput) {
+          idnycCaptureInput.value = '';
+          idnycCaptureInput.click();
+        }
+      } else if (stateIdPhotoInput) {
+        stateIdPhotoInput.value = '';
+        stateIdPhotoInput.click();
+      }
+    });
+    $('enterManualIdScanBtn')?.addEventListener('click', () => {
+      closeStateIdScan();
+      setStatus(formStatus, '');
+    });
     idnycCaptureInput?.addEventListener('change', handleIdnycCapture);
+    stateIdPhotoInput?.addEventListener('change', handleStateIdPhotoFallback);
     $('idnycPrefillBtn')?.addEventListener('click', startIdnycPrefill);
-    document.addEventListener('keydown', stateIdKeydown);
     visitorForm.querySelectorAll('input, textarea').forEach((el) => {
       const name = el.name;
       if (!name) return;
@@ -798,7 +991,10 @@
       openPhotoStep();
     });
     $('pairForm').addEventListener('submit', pairKiosk);
-    window.addEventListener('pagehide', stopCamera);
+    window.addEventListener('pagehide', () => {
+      stopCamera();
+      closeStateIdScan();
+    });
     setLang('en');
     show(credential() ? languageScreen : setupScreen);
   }

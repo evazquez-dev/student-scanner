@@ -9,6 +9,7 @@ const kiosk = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor.js'), 
 const kioskHtml = fs.readFileSync(path.resolve(__dirname, '../visitor/index.html'), 'utf8');
 const kioskCss = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor.css'), 'utf8');
 const shared = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor_shared.js'), 'utf8');
+const idScan = fs.readFileSync(path.resolve(__dirname, '../visitor/id_scan_adapters.js'), 'utf8');
 
 function sectionBetween(src, startNeedle, endNeedle) {
   const start = src.indexOf(startNeedle);
@@ -19,7 +20,7 @@ function sectionBetween(src, startNeedle, endNeedle) {
 }
 
 {
-  const visitorUi = [desk, deskHtml, kiosk, kioskHtml, shared].join('\n');
+  const visitorUi = [desk, deskHtml, kiosk, kioskHtml, shared, idScan].join('\n');
   [
     /student_pickup/,
     /Student Pickup/,
@@ -83,7 +84,12 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kioskHtml, /name="date_of_birth"[^>]+type="date"[^>]+required/, 'Kiosk should require date of birth');
   assert.match(kioskHtml, /id="stateIdPrefillBtn"/, 'Kiosk should offer state ID prefill');
   assert.match(kioskHtml, /id="idnycPrefillBtn"/, 'Kiosk should offer IDNYC prefill');
+  assert.match(kioskHtml, /id="idScanVideo"[^>]+autoplay[^>]+playsinline[^>]+muted/, 'ID prefill should use a live rear-camera video scanner');
+  assert.match(kioskHtml, /id="idScanGuide"/, 'ID prefill should show a scanner guide');
+  assert.match(kioskHtml, /id="idScanPhotoFallbackBtn"/, 'ID prefill should offer native camera photo fallback');
   assert.match(kioskHtml, /id="idnycCaptureInput"[^>]+capture="environment"/, 'IDNYC capture should use environment camera');
+  assert.match(kioskHtml, /id="stateIdPhotoInput"[^>]+capture="environment"/, 'State ID fallback capture should use environment camera');
+  assert.match(kioskHtml, /id_scan_adapters\.js/, 'Kiosk should load the local ID scan adapter');
   assert.match(kioskHtml, /id="visitorPhotoInput"[^>]+type="file"[^>]+accept="image\/\*"[^>]+capture="user"/, 'Kiosk visitor photo should use native front-camera file capture');
   assert.match(kioskHtml, /id="cameraFrame"[^>]+data-photo-state="live"/, 'Kiosk camera frame should expose live/review photo state');
   assert.match(kioskHtml, /id="cameraPreview"[^>]+class="mirrorSelfie"/, 'Optional live camera preview should remain mirrored if used');
@@ -125,12 +131,39 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kiosk, /dobFuture/, 'Kiosk should reject future DOB');
   assert.match(kiosk, /aria-invalid/, 'Kiosk should mark invalid fields accessibly');
   assert.match(kiosk, /scrollIntoView\(\{ behavior:\s*'smooth'/, 'Kiosk should scroll to first invalid field');
-  assert.match(kiosk, /stateIdScanner\s*=\s*Shared\.createScannerBuffer/, 'State ID prefill should use shared scanner buffering');
+  assert.doesNotMatch(kiosk, /stateIdScanner\s*=\s*Shared\.createScannerBuffer|stateIdKeydown|stateIdScanTarget|Scanner input active/, 'Public kiosk State ID prefill must not assume an external keyboard-wedge scanner');
+  assert.match(kiosk, /IdScan\.createStateIdAutoScanner/, 'State ID prefill should use automatic rear-camera PDF417 scanning');
+  assert.match(kiosk, /IdScan\.decodePdf417Blob\(file\)/, 'State ID prefill should keep native rear-camera photo fallback');
   assert.match(kiosk, /Shared\.parseAamva\(raw\)/, 'State ID prefill should use local AAMVA parser');
-  assert.match(kiosk, /TextDetector/, 'IDNYC path should use local browser text detection when available');
+  assert.match(kiosk, /IdScan\.createIdnycAutoCapture/, 'IDNYC prefill should use automatic rear-camera document capture');
+  assert.match(kiosk, /IdScan\.recognizeIdnycImage/, 'IDNYC prefill should call the local OCR adapter');
   assert.match(kiosk, /Shared\.parseIdnycOcrText/, 'IDNYC path should parse local OCR text only');
-  const idnycSection = sectionBetween(kiosk, 'async function readIdnycTextLocally', 'async function startIdnycPrefill');
-  assert.doesNotMatch(idnycSection, /fetch\s*\(/, 'IDNYC OCR must not call an external OCR service');
+  assert.match(idScan, /facingMode:\s*\{\s*ideal:\s*'environment'\s*\}/, 'ID scanners should request the rear-facing camera');
+  assert.match(idScan, /formats:\s*\[\s*'PDF417'\s*\]/, 'PDF417 must be explicitly enabled');
+  assert.match(idScan, /STATE_ID_REQUIRED_MATCHES\s*=\s*2/, 'State ID auto scan should require repeated matching reads');
+  assert.match(idScan, /matchingDecodes/, 'State ID scanner should track matching decode confidence');
+  assert.match(idScan, /decodeBusy/, 'State ID scanner should prevent concurrent barcode decodes');
+  assert.match(idScan, /drawVideoGuideCanvas\(video,\s*'pdf417'\)/, 'State ID scanner should crop/analyze the barcode guide area');
+  assert.match(idScan, /canvasLooksEmptyBlack\(canvas\)/, 'Scanner should ignore empty black frames');
+  assert.match(idScan, /onTimeout/, 'State ID scanner should expose timeout/failure fallback');
+  assert.match(idScan, /zxing-wasm\/\$\{VERSIONS\.zxingWasm\}\/reader\/index\.js/, 'ZXing reader should be loaded from local vendor assets');
+  assert.match(idScan, /zxing-wasm\/\$\{VERSIONS\.zxingWasm\}\/reader\/zxing_reader\.wasm/, 'ZXing WASM should be loaded locally');
+  assert.doesNotMatch(idScan, /cdn\.jsdelivr|fastly\.jsdelivr|api\.qrserver|barcodeapi/i, 'ID scan adapter must not use runtime barcode CDNs/APIs');
+  assert.match(idScan, /IDNYC_STABLE_FRAMES\s*=\s*4/, 'IDNYC capture should require several good frames');
+  assert.match(idScan, /IDNYC_STABLE_MS\s*=\s*650/, 'IDNYC capture should require a stable time window');
+  assert.match(idScan, /function\s+frameQuality/, 'IDNYC capture should assess document frame quality');
+  assert.match(idScan, /metricsStable/, 'IDNYC capture should require stability before OCR');
+  const idnycAutoSection = sectionBetween(idScan, 'function createIdnycAutoCapture', 'async function readTextWithTextDetector');
+  assert.doesNotMatch(idnycAutoSection, /readTextWithTesseract|recognizeIdnycImage/, 'IDNYC OCR must not run continuously on live frames');
+  const tesseractSection = sectionBetween(idScan, 'async function readTextWithTesseract', 'async function recognizeIdnycImage');
+  assert.match(tesseractSection, /workerPath:\s*assetUrl\(`vendor\/tesseract\.js\/\$\{VERSIONS\.tesseract\}\/worker\.min\.js`\)/, 'Tesseract worker should be loaded locally');
+  assert.match(tesseractSection, /corePath:\s*assetUrl\(`vendor\/tesseract\.js-core\/\$\{VERSIONS\.tesseractCore\}\/tesseract-core-lstm\.wasm\.js`\)/, 'Tesseract core should be loaded locally');
+  assert.match(tesseractSection, /langPath:\s*assetUrl\(`vendor\/tesseract\.js-data\/eng\/\$\{VERSIONS\.tesseractEngData\}`\)/, 'Tesseract language data should be loaded locally');
+  assert.match(tesseractSection, /cacheMethod:\s*'none'/, 'OCR should not store ID-specific OCR data in browser caches');
+  assert.doesNotMatch(tesseractSection, /https?:\/\//, 'OCR adapter must not point to external OCR assets');
+  assert.match(idScan, /TextDetector/, 'IDNYC path may use local browser text detection as a fast first pass');
+  assert.match(idScan, /looksLikeUsableIdnycText/, 'TextDetector fast pass should require usable IDNYC text before skipping OCR fallback');
+  assert.match(idScan, /readTextWithTesseract/, 'IDNYC path must include bundled local OCR fallback');
   assert.match(kiosk, /Shared\.processVisitorPhotoFile/, 'Kiosk should use shared local image crop/compression');
   assert.match(kiosk, /URL\.revokeObjectURL/, 'Kiosk retake/reset should revoke temporary photo URLs');
   assert.match(kiosk, /\/visitor\/kiosk\/photo/, 'Kiosk should upload photo through limited kiosk endpoint');

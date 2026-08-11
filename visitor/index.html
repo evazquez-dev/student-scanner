@@ -10,6 +10,7 @@
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
   <link rel="stylesheet" href="./visitor.css">
   <script src="./visitor_shared.js" defer></script>
+  <script src="./id_scan_adapters.js" defer></script>
   <script src="./visitor.js" defer></script>
 </head>
 <body>
@@ -54,11 +55,27 @@
             <button id="idnycPrefillBtn" type="button" class="secondary" data-i18n="idnycPrefill"></button>
             <button id="manualEntryBtn" type="button" data-i18n="manualEntry"></button>
           </div>
-          <div id="stateIdScanPanel" class="idScanPanel" hidden>
-            <div id="stateIdScanTarget" class="scanTarget" tabindex="0" data-i18n="stateIdScanPrompt"></div>
-            <button id="cancelStateIdScanBtn" type="button" data-i18n="cancel"></button>
+          <div id="stateIdScanPanel" class="idScanPanel" hidden aria-live="polite">
+            <div class="idScanTop">
+              <div>
+                <h3 id="idScanTitle"></h3>
+                <p id="idScanInstructions"></p>
+              </div>
+              <button id="cancelStateIdScanBtn" type="button" data-i18n="cancel"></button>
+            </div>
+            <div class="idVideoFrame" data-scan-mode="state">
+              <video id="idScanVideo" autoplay playsinline muted></video>
+              <div id="idScanGuide" class="idScanGuide barcodeGuide" aria-hidden="true"></div>
+            </div>
+            <div id="idScanStatus" class="scanStatus"></div>
+            <div id="idScanFallbackActions" class="idScanFallbackActions" hidden>
+              <button id="tryAgainIdScanBtn" type="button" class="secondary"></button>
+              <button id="idScanPhotoFallbackBtn" type="button" class="secondary"></button>
+              <button id="enterManualIdScanBtn" type="button"></button>
+            </div>
           </div>
           <input id="idnycCaptureInput" class="visuallyHidden" type="file" accept="image/*" capture="environment">
+          <input id="stateIdPhotoInput" class="visuallyHidden" type="file" accept="image/*" capture="environment">
         </section>
 
         <div id="validationSummary" class="validationSummary" aria-live="polite"></div>

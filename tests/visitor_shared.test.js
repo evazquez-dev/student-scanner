@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const Shared = require('../visitor/visitor_shared.js');
+const IdScan = require('../visitor/id_scan_adapters.js');
 
 (async () => {
 
@@ -96,6 +97,22 @@ function assertNoForbidden(obj) {
   const parsed = Shared.parseAamva('ordinary keyboard text');
   assert.equal(parsed.ok, false);
   assert.deepEqual(parsed.data, {});
+}
+
+{
+  const raw = syntheticAamva([
+    'DCSDOE',
+    'DACJANE',
+    'DBB19800101',
+    'DBA12312030',
+    'DAJNY'
+  ]);
+  assert.equal(IdScan.looksLikeAamvaPdf417(raw), true);
+  assert.equal(IdScan.looksLikeAamvaPdf417('PDF417 payload from a shipping label'), false);
+  assert.equal(IdScan.PDF417_READER_OPTIONS.formats.includes('PDF417'), true);
+  assert.equal(IdScan.STATE_ID_REQUIRED_MATCHES, 2);
+  assert.equal(IdScan.looksLikeUsableIdnycText('DOB 01/02/1990'), false);
+  assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nDOB 01/02/1990'), true);
 }
 
 {
