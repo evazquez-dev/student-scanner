@@ -35,6 +35,13 @@
     'sex', 'gender', 'height', 'weight', 'eye_color', 'raw', 'raw_scan',
     'raw_pdf417', 'raw_aamva', 'barcode', 'barcode_raw', 'passport_number'
   ];
+  const AAMVA_PRIMARY_SUBFILES = ['DL', 'EN', 'ID'];
+  const AAMVA_HEADER_LENGTH = 21;
+  const AAMVA_DESCRIPTOR_LENGTH = 10;
+  const ASCII_AT = 0x40;
+  const ASCII_LF = 0x0a;
+  const ASCII_RS = 0x1e;
+  const ASCII_CR = 0x0d;
 
   function cleanText(value, maxLen) {
     const n = Number.isFinite(Number(maxLen)) ? Math.max(1, Number(maxLen)) : 160;
@@ -117,13 +124,221 @@
     return iso > todayIso;
   }
 
+  function copyByteArray(value) {
+    if (!value) return null;
+    if (value instanceof Uint8Array) return new Uint8Array(value);
+    if (ArrayBuffer.isView(value) && value.buffer) {
+      return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength));
+    }
+    if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
+    if (Array.isArray(value)) return new Uint8Array(value.filter((byte) => Number.isFinite(byte)).map((byte) => byte & 0xff));
+    return null;
+  }
+
+  function aamvaBytesFromInput(input) {
+    const direct = copyByteArray(input);
+    if (direct) return direct;
+    if (input && typeof input === 'object') {
+      return copyByteArray(input.bytes || input.rawBytes || input.contentBytes || input.byteSegments || null);
+    }
+    return null;
+  }
+
+  function asciiFromBytes(bytes, start, length) {
+    if (!bytes || start < 0 || length <= 0 || start + length > bytes.length) return '';
+    let out = '';
+    for (let i = start; i < start + length; i += 1) out += String.fromCharCode(bytes[i]);
+    return out;
+  }
+
+  function parseAamvaDescriptor(bytes, cursor, index) {
+    const type = asciiFromBytes(bytes, cursor, 2).toUpperCase();
+    const offsetText = asciiFromBytes(bytes, cursor + 2, 4);
+    const lengthText = asciiFromBytes(bytes, cursor + 6, 4);
+    const parseable = /^[A-Z0-9]{2}$/.test(type) && /^\d{4}$/.test(offsetText) && /^\d{4}$/.test(lengthText);
+    const offset = parseable ? Number(offsetText) : -1;
+    const length = parseable ? Number(lengthText) : -1;
+    const offsetWithinBounds = parseable && offset >= 0 && offset < bytes.length;
+    const lengthWithinBounds = offsetWithinBounds && length > 0 && offset + length <= bytes.length;
+    const prefixMatches = lengthWithinBounds && asciiFromBytes(bytes, offset, 2).toUpperCase() === type;
+    return { index, type, offset, length, parseable, offsetWithinBounds, lengthWithinBounds, prefixMatches };
+  }
+
+  function parseAamvaByteHeader(bytes) {
+    const rawByteLength = bytes ? bytes.length : 0;
+    const rawHeaderAt = !!(bytes && bytes[0] === ASCII_AT);
+    const rawHeaderLf = !!(bytes && bytes[1] === ASCII_LF);
+    const rawHeaderRs = !!(bytes && bytes[2] === ASCII_RS);
+    const rawHeaderCr = !!(bytes && bytes[3] === ASCII_CR);
+    const rawHeaderAnsi = asciiFromBytes(bytes, 4, 5) === 'ANSI ';
+    const iin = asciiFromBytes(bytes, 9, 6);
+    const aamvaVersionText = asciiFromBytes(bytes, 15, 2);
+    const jurisdictionVersionText = asciiFromBytes(bytes, 17, 2);
+    const entryCountText = asciiFromBytes(bytes, 19, 2);
+    const iinPresent = /^\d{6}$/.test(iin);
+    const aamvaVersion = /^\d{2}$/.test(aamvaVersionText) ? String(Number(aamvaVersionText)) : '';
+    const jurisdictionVersion = /^\d{2}$/.test(jurisdictionVersionText) ? String(Number(jurisdictionVersionText)) : '';
+    const subfileCount = /^\d{2}$/.test(entryCountText) ? Number(entryCountText) : 0;
+    const descriptors = [];
+
+    if (
+      rawByteLength >= AAMVA_HEADER_LENGTH
+      && rawHeaderAt
+      && rawHeaderLf
+      && rawHeaderRs
+      && rawHeaderCr
+      && rawHeaderAnsi
+      && iinPresent
+      && aamvaVersion
+      && jurisdictionVersion
+      && subfileCount > 0
+      && subfileCount <= 10
+    ) {
+      for (let i = 0; i < subfileCount; i += 1) {
+        descriptors.push(parseAamvaDescriptor(bytes, AAMVA_HEADER_LENGTH + (i * AAMVA_DESCRIPTOR_LENGTH), i + 1));
+      }
+    }
+
+    const descriptorTableParseable = descriptors.length === subfileCount
+      && descriptors.every((descriptor) => descriptor.parseable && descriptor.offsetWithinBounds && descriptor.lengthWithinBounds);
+    const validDescriptors = descriptors.filter((descriptor) => (
+      descriptor.parseable
+      && descriptor.offsetWithinBounds
+      && descriptor.lengthWithinBounds
+      && descriptor.prefixMatches
+    ));
+    const primaryDescriptor = validDescriptors.find((descriptor) => AAMVA_PRIMARY_SUBFILES.includes(descriptor.type)) || null;
+
+    return {
+      rawHeaderAt,
+      rawHeaderLf,
+      rawHeaderRs,
+      rawHeaderCr,
+      rawHeaderAnsi,
+      iinPresent,
+      aamvaVersion,
+      jurisdictionVersion,
+      subfileCount,
+      descriptorTableParseable,
+      descriptors,
+      primaryDescriptor,
+      dataElementSeparator: bytes ? bytes[1] : null,
+      recordSeparatorByte: bytes ? bytes[2] : null,
+      segmentTerminatorByte: bytes ? bytes[3] : null
+    };
+  }
+
+  function isAamvaSeparatorByte(byte, header) {
+    return byte === header.dataElementSeparator
+      || byte === header.recordSeparatorByte
+      || byte === header.segmentTerminatorByte
+      || byte === ASCII_LF
+      || byte === ASCII_RS
+      || byte === ASCII_CR
+      || byte === 0x00;
+  }
+
+  function tagBytes(tag) {
+    return [tag.charCodeAt(0), tag.charCodeAt(1), tag.charCodeAt(2)];
+  }
+
+  function hasTagAt(bytes, index, tag) {
+    const codes = tagBytes(tag);
+    return bytes[index] === codes[0] && bytes[index + 1] === codes[1] && bytes[index + 2] === codes[2];
+  }
+
+  function hasTagBoundary(bytes, index, subfileStart, header) {
+    if (index === subfileStart + 2) return true;
+    if (index <= subfileStart) return false;
+    return isAamvaSeparatorByte(bytes[index - 1], header);
+  }
+
+  function findAamvaFieldBytes(bytes, header, tag) {
+    const descriptor = header.primaryDescriptor;
+    if (!descriptor) return '';
+    const subfileStart = descriptor.offset;
+    const subfileEnd = descriptor.offset + descriptor.length;
+    if (asciiFromBytes(bytes, subfileStart, 2).toUpperCase() !== descriptor.type) return '';
+    for (let i = subfileStart + 2; i <= subfileEnd - 3; i += 1) {
+      if (!hasTagAt(bytes, i, tag) || !hasTagBoundary(bytes, i, subfileStart, header)) continue;
+      let end = i + 3;
+      while (end < subfileEnd && !isAamvaSeparatorByte(bytes[end], header)) end += 1;
+      return cleanText(asciiFromBytes(bytes, i + 3, end - (i + 3)), 180);
+    }
+    return '';
+  }
+
+  function splitDct(value) {
+    const parts = cleanText(value, 160).split(/[,\s]+/).filter(Boolean);
+    return { first: parts[0] || '', middle: parts.slice(1).join(' ') };
+  }
+
+  function aamvaDataFromFields(fields, now) {
+    const firstFromDct = splitDct(fields.DCT || '');
+    const first = cleanText(fields.DAC || firstFromDct.first || '', 80);
+    const middle = cleanText(fields.DAD || firstFromDct.middle || '', 80);
+    const last = cleanText(fields.DCS || fields.DAB || '', 100);
+    const expires = parseAamvaDate(fields.DBA || '');
+    const idExpired = expires ? expires.getTime() < now.getTime() : false;
+    const dob = aamvaDateToIso(fields.DBB || '');
+    return redactForbidden({
+      visitor_first_name: first,
+      visitor_middle_name: middle,
+      visitor_last_name: last,
+      date_of_birth: dob,
+      id_document_type: 'Driver License / State ID',
+      id_issuing_jurisdiction: cleanText(fields.DAJ || '', 40),
+      id_expired: !!idExpired,
+      id_verified: true
+    });
+  }
+
+  function parseAamvaFromBytes(bytes, options) {
+    const now = options && options.now ? new Date(options.now) : new Date();
+    const header = parseAamvaByteHeader(bytes);
+    const baseOk = !!(
+      header.rawHeaderAt
+      && header.rawHeaderLf
+      && header.rawHeaderRs
+      && header.rawHeaderCr
+      && header.rawHeaderAnsi
+      && header.iinPresent
+      && header.aamvaVersion
+      && header.jurisdictionVersion
+      && header.descriptorTableParseable
+      && header.primaryDescriptor
+    );
+    if (!baseOk) return { ok: false, complete: false, error: 'unrecognized_id_barcode', data: {} };
+
+    const fields = {
+      DCS: findAamvaFieldBytes(bytes, header, 'DCS'),
+      DAC: findAamvaFieldBytes(bytes, header, 'DAC'),
+      DAD: findAamvaFieldBytes(bytes, header, 'DAD'),
+      DCT: findAamvaFieldBytes(bytes, header, 'DCT'),
+      DBA: findAamvaFieldBytes(bytes, header, 'DBA'),
+      DAJ: findAamvaFieldBytes(bytes, header, 'DAJ'),
+      DAB: findAamvaFieldBytes(bytes, header, 'DAB'),
+      DBB: findAamvaFieldBytes(bytes, header, 'DBB')
+    };
+    const data = aamvaDataFromFields(fields, now);
+    if (!data.visitor_first_name && !data.visitor_last_name) return { ok: false, complete: false, error: 'name_fields_missing', data: {} };
+    return {
+      ok: true,
+      complete: !!(data.visitor_first_name && data.visitor_last_name && data.date_of_birth),
+      error: data.date_of_birth ? '' : 'date_of_birth_missing',
+      data
+    };
+  }
+
   function parseAamva(rawInput, options) {
+    const bytes = aamvaBytesFromInput(rawInput);
+    if (bytes) return parseAamvaFromBytes(bytes, options);
     let raw = String(rawInput == null ? '' : rawInput);
     const now = options && options.now ? new Date(options.now) : new Date();
     try {
       if (!raw || raw.length < 20 || !/(^|[\r\n\x1e])(DCS|DAC|DCT|DBA|DAJ)/.test(raw)) {
         raw = '';
-        return { ok: false, error: 'unrecognized_id_barcode', data: {} };
+        return { ok: false, complete: false, error: 'unrecognized_id_barcode', data: {} };
       }
 
       const fields = {};
@@ -141,33 +356,20 @@
           fields[code] = cleanText(s.slice(3), 160);
         });
 
-      const firstFromDct = cleanText(fields.DCT || '', 100).split(/[,\s]+/).filter(Boolean);
-      const first = cleanText(fields.DAC || firstFromDct[0] || '', 80);
-      const middle = cleanText(fields.DAD || firstFromDct.slice(1).join(' '), 80);
-      const last = cleanText(fields.DCS || fields.DAB || '', 100);
-      const expires = parseAamvaDate(fields.DBA || '');
-      const idExpired = expires ? expires.getTime() < now.getTime() : false;
-      const dob = aamvaDateToIso(fields.DBB || '');
+      const data = aamvaDataFromFields(fields, now);
 
       raw = '';
-      if (!first && !last) return { ok: false, error: 'name_fields_missing', data: {} };
+      if (!data.visitor_first_name && !data.visitor_last_name) return { ok: false, complete: false, error: 'name_fields_missing', data: {} };
 
       return {
         ok: true,
-        data: redactForbidden({
-          visitor_first_name: first,
-          visitor_middle_name: middle,
-          visitor_last_name: last,
-          date_of_birth: dob,
-          id_document_type: 'Driver License / State ID',
-          id_issuing_jurisdiction: cleanText(fields.DAJ || '', 40),
-          id_expired: !!idExpired,
-          id_verified: true
-        })
+        complete: !!(data.visitor_first_name && data.visitor_last_name && data.date_of_birth),
+        error: data.date_of_birth ? '' : 'date_of_birth_missing',
+        data
       };
     } catch (err) {
       raw = '';
-      return { ok: false, error: 'parse_failed', data: {} };
+      return { ok: false, complete: false, error: 'parse_failed', data: {} };
     }
   }
 

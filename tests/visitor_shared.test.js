@@ -12,6 +12,25 @@ function syntheticAamva(fields) {
   ].join('\n');
 }
 
+function asciiBytes(text) {
+  return new Uint8Array(Array.from(String(text || ''), (ch) => ch.charCodeAt(0) & 0xff));
+}
+
+function syntheticAamvaBytes(subfiles, options) {
+  const opts = options || {};
+  const bodies = subfiles.map((item) => `${item.type}${item.fields.join('\n')}\r`);
+  let offset = 21 + (subfiles.length * 10);
+  const descriptors = bodies.map((body, index) => {
+    const type = subfiles[index].type;
+    const descriptor = `${type}${String(offset).padStart(4, '0')}${String(body.length).padStart(4, '0')}`;
+    offset += body.length;
+    return descriptor;
+  });
+  const header = `@\n\x1e\rANSI 636000${opts.version || '10'}${opts.jurisdiction || '04'}${String(subfiles.length).padStart(2, '0')}${descriptors.join('')}`;
+  assert.equal(header.length, 21 + (subfiles.length * 10), 'synthetic raw AAMVA offsets should be exact');
+  return asciiBytes(header + bodies.join(''));
+}
+
 function assertNoForbidden(obj) {
   const blob = JSON.stringify(obj).toLowerCase();
   [
@@ -100,6 +119,90 @@ function assertNoForbidden(obj) {
 }
 
 {
+  const bytes = syntheticAamvaBytes([
+    {
+      type: 'DL',
+      fields: [
+        'DCSDOE',
+        'DACJANE',
+        'DADQ',
+        'DBB01021980',
+        'DBA12312030',
+        'DAJNY',
+        'DAQDO-NOT-STORE',
+        'DAG123 Main Street'
+      ]
+    }
+  ]);
+  const parsed = Shared.parseAamva({ text: '@ANSI HRI TEXT WITHOUT DATA ELEMENTS', bytes, format: 'PDF417' }, { now: '2026-08-10T12:00:00Z' });
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.data.visitor_first_name, 'JANE');
+  assert.equal(parsed.data.visitor_middle_name, 'Q');
+  assert.equal(parsed.data.visitor_last_name, 'DOE');
+  assert.equal(parsed.data.date_of_birth, '1980-01-02');
+  assert.equal(parsed.data.id_issuing_jurisdiction, 'NY');
+  assertNoForbidden(parsed);
+}
+
+{
+  const bytes = syntheticAamvaBytes([
+    {
+      type: 'EN',
+      fields: [
+        'DCSENLAST',
+        'DACENFIRST',
+        'DADQ',
+        'DBB01011990',
+        'DAJNY'
+      ]
+    },
+    {
+      type: 'ZN',
+      fields: [
+        'DCSIGNOREME',
+        'DACWRONG',
+        'DBB12312001',
+        'DAQJURISDICTION-ONLY'
+      ]
+    }
+  ]);
+  const parsed = Shared.parseAamva({ text: '@ANSI HRI TEXT WITHOUT EN FIELDS', bytes, format: 'PDF417' }, { now: '2026-08-10T12:00:00Z' });
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.data.visitor_first_name, 'ENFIRST');
+  assert.equal(parsed.data.visitor_middle_name, 'Q');
+  assert.equal(parsed.data.visitor_last_name, 'ENLAST');
+  assert.equal(parsed.data.date_of_birth, '1990-01-01');
+  assertNoForbidden(parsed);
+  assert.equal(JSON.stringify(parsed).includes('IGNOREME'), false);
+  assert.equal(JSON.stringify(parsed).includes('WRONG'), false);
+}
+
+{
+  const bytes = syntheticAamvaBytes([
+    {
+      type: 'ID',
+      fields: [
+        'DCSROE',
+        'DCTRICHARD ALLEN',
+        'DBB19810203',
+        'DAJCA'
+      ]
+    }
+  ]);
+  const parsed = Shared.parseAamva({ text: '@ANSI HRI TEXT WITHOUT ID FIELDS', bytes, format: 'PDF417' }, { now: '2026-08-10T12:00:00Z' });
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.complete, true);
+  assert.equal(parsed.data.visitor_first_name, 'RICHARD');
+  assert.equal(parsed.data.visitor_middle_name, 'ALLEN');
+  assert.equal(parsed.data.visitor_last_name, 'ROE');
+  assert.equal(parsed.data.date_of_birth, '1981-02-03');
+  assert.equal(parsed.data.id_issuing_jurisdiction, 'CA');
+  assertNoForbidden(parsed);
+}
+
+{
   const raw = syntheticAamva([
     'DCSDOE',
     'DACJANE',
@@ -110,6 +213,9 @@ function assertNoForbidden(obj) {
   assert.equal(IdScan.looksLikeAamvaPdf417(raw), true);
   assert.equal(IdScan.looksLikeAamvaPdf417('PDF417 payload from a shipping label'), false);
   assert.equal(IdScan.PDF417_READER_OPTIONS.formats.includes('PDF417'), true);
+  assert.equal(IdScan.PDF417_READER_OPTIONS.binarizer, 'LocalAverage');
+  assert.equal(IdScan.PDF417_READER_OPTIONS.tryDenoise, true);
+  assert.equal(IdScan.PDF417_READER_OPTIONS.returnErrors, true);
   assert.equal(IdScan.STATE_ID_REQUIRED_MATCHES, 2);
   assert.equal(IdScan.looksLikeUsableIdnycText('DOB 01/02/1990'), false);
   assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nDOB 01/02/1990'), true);

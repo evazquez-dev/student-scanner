@@ -28,7 +28,10 @@
     tryRotate: true,
     tryInvert: true,
     tryDownscale: true,
+    tryDenoise: true,
+    binarizer: 'LocalAverage',
     maxNumberOfSymbols: 1,
+    returnErrors: true,
     textMode: 'HRI'
   };
 
@@ -106,8 +109,8 @@
       audio: false,
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
       }
     });
     video.muted = true;
@@ -136,6 +139,52 @@
       }
       check();
     });
+  }
+
+  function getRenderedVideoRect(video) {
+    if (!video) return null;
+    const elementRect = video.getBoundingClientRect?.() || null;
+    const naturalWidth = Number(video.videoWidth || 0);
+    const naturalHeight = Number(video.videoHeight || 0);
+    if (!elementRect || !elementRect.width || !elementRect.height || !naturalWidth || !naturalHeight) return null;
+    const fit = root.getComputedStyle ? (root.getComputedStyle(video).objectFit || 'fill') : 'fill';
+    if (fit !== 'cover' && fit !== 'contain' && fit !== 'scale-down') {
+      return { left: elementRect.left, top: elementRect.top, width: elementRect.width, height: elementRect.height, elementRect, naturalWidth, naturalHeight };
+    }
+    const scale = fit === 'cover'
+      ? Math.max(elementRect.width / naturalWidth, elementRect.height / naturalHeight)
+      : Math.min(elementRect.width / naturalWidth, elementRect.height / naturalHeight);
+    const renderedWidth = naturalWidth * scale;
+    const renderedHeight = naturalHeight * scale;
+    return {
+      left: elementRect.left + ((elementRect.width - renderedWidth) / 2),
+      top: elementRect.top + ((elementRect.height - renderedHeight) / 2),
+      width: renderedWidth,
+      height: renderedHeight,
+      elementRect,
+      naturalWidth,
+      naturalHeight
+    };
+  }
+
+  function guideToVideoPixels(video, guideEl) {
+    const rendered = getRenderedVideoRect(video);
+    const guideRect = guideEl?.getBoundingClientRect?.() || null;
+    if (!rendered || !guideRect) return null;
+    const left = Math.max(guideRect.left, rendered.left);
+    const top = Math.max(guideRect.top, rendered.top);
+    const right = Math.min(guideRect.right, rendered.left + rendered.width);
+    const bottom = Math.min(guideRect.bottom, rendered.top + rendered.height);
+    if (right <= left || bottom <= top) return null;
+    const normalizedLeft = Math.max(0, Math.min(1, (left - rendered.left) / rendered.width));
+    const normalizedTop = Math.max(0, Math.min(1, (top - rendered.top) / rendered.height));
+    const normalizedRight = Math.max(normalizedLeft, Math.min(1, (right - rendered.left) / rendered.width));
+    const normalizedBottom = Math.max(normalizedTop, Math.min(1, (bottom - rendered.top) / rendered.height));
+    const sx = Math.max(0, Math.min(video.videoWidth - 1, Math.round(normalizedLeft * video.videoWidth)));
+    const sy = Math.max(0, Math.min(video.videoHeight - 1, Math.round(normalizedTop * video.videoHeight)));
+    const sw = Math.max(1, Math.min(video.videoWidth - sx, Math.round((normalizedRight - normalizedLeft) * video.videoWidth)));
+    const sh = Math.max(1, Math.min(video.videoHeight - sy, Math.round((normalizedBottom - normalizedTop) * video.videoHeight)));
+    return { sx, sy, sw, sh, valid: sw > 0 && sh > 0 };
   }
 
   function frameCrop(video, mode) {
@@ -183,17 +232,17 @@
     }
   }
 
-  function drawVideoGuideCanvas(video, mode) {
-    const crop = frameCrop(video, mode);
+  function drawVideoGuideCanvas(video, mode, guideEl) {
+    const crop = mode === 'pdf417' && guideEl ? guideToVideoPixels(video, guideEl) : frameCrop(video, mode);
     if (!crop || typeof document === 'undefined') return null;
     const canvas = document.createElement('canvas');
-    canvas.width = crop.dw;
-    canvas.height = crop.dh;
+    canvas.width = mode === 'pdf417' && guideEl ? crop.sw : crop.dw;
+    canvas.height = mode === 'pdf417' && guideEl ? crop.sh : crop.dh;
     const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     if (!ctx) return null;
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.dw, crop.dh);
+    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
     if (canvasLooksEmptyBlack(canvas)) return null;
     return canvas;
   }
@@ -205,6 +254,99 @@
         else resolve(blob);
       }, type || 'image/jpeg', quality == null ? 0.86 : quality);
     });
+  }
+
+  function copyCanvas(canvas) {
+    const next = document.createElement('canvas');
+    next.width = canvas.width;
+    next.height = canvas.height;
+    const ctx = next.getContext('2d', { alpha: false, willReadFrequently: true });
+    if (!ctx) return next;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, next.width, next.height);
+    ctx.drawImage(canvas, 0, 0);
+    return next;
+  }
+
+  function processedCanvas(source, mode) {
+    const next = copyCanvas(source);
+    if (mode === 'original') return next;
+    const ctx = next.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return next;
+    const image = ctx.getImageData(0, 0, next.width, next.height);
+    const data = image.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const lum = (data[i] * 0.299) + (data[i + 1] * 0.587) + (data[i + 2] * 0.114);
+      const value = mode === 'contrast' ? Math.max(0, Math.min(255, (lum - 128) * 1.45 + 128)) : lum;
+      data[i] = value;
+      data[i + 1] = value;
+      data[i + 2] = value;
+      data[i + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+    return next;
+  }
+
+  async function imageBlobToCanvas(blob) {
+    if (!blob || !String(blob.type || '').toLowerCase().startsWith('image/')) throw new Error('id_image_required');
+    if (typeof document === 'undefined') throw new Error('canvas_unavailable');
+    if (typeof root.createImageBitmap === 'function') {
+      const bitmap = await root.createImageBitmap(blob, { imageOrientation: 'from-image' });
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+        if (!ctx) throw new Error('canvas_unavailable');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bitmap, 0, 0);
+        return canvas;
+      } finally {
+        try { bitmap.close(); } catch {}
+      }
+    }
+    if (typeof root.Image === 'undefined' || typeof root.URL === 'undefined') throw new Error('image_decode_unavailable');
+    const url = root.URL.createObjectURL(blob);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const node = new root.Image();
+        node.onload = () => resolve(node);
+        node.onerror = () => reject(new Error('image_decode_failed'));
+        node.src = url;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      if (!ctx) throw new Error('canvas_unavailable');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      return canvas;
+    } finally {
+      try { root.URL.revokeObjectURL(url); } catch {}
+    }
+  }
+
+  function cropCanvasByNormalized(source, rect) {
+    const x = Math.max(0, Math.min(1, Number(rect.x)));
+    const y = Math.max(0, Math.min(1, Number(rect.y)));
+    const right = Math.max(x, Math.min(1, x + Number(rect.w)));
+    const bottom = Math.max(y, Math.min(1, y + Number(rect.h)));
+    const sx = Math.max(0, Math.min(source.width - 1, Math.round(x * source.width)));
+    const sy = Math.max(0, Math.min(source.height - 1, Math.round(y * source.height)));
+    const sw = Math.max(1, Math.min(source.width - sx, Math.round((right - x) * source.width)));
+    const sh = Math.max(1, Math.min(source.height - sy, Math.round((bottom - y) * source.height)));
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+    if (!ctx) return canvas;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, sw, sh);
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, sw, sh);
+    return canvas;
   }
 
   async function prepareZxing() {
@@ -290,7 +432,7 @@
       formats: ['PDF417']
     };
     const results = await readBarcodeResults(input, readerOptions);
-    return results.filter((result) => result.text);
+    return results.filter((result) => result.text || result.bytes?.length);
   }
 
   async function fetchZxingWasmInfo() {
@@ -333,23 +475,103 @@
       && /(?:^|[\r\n\x1e])DBB\d{8}/i.test(raw);
   }
 
+  function isPdf417Result(result) {
+    const format = String(result?.format || result?.symbology || '').toUpperCase();
+    return format.includes('PDF417');
+  }
+
+  function parseStateIdResult(result) {
+    const parser = root.EagleNestVisitor?.parseAamva;
+    if (typeof parser !== 'function') return { ok: false, complete: false, error: 'aamva_parser_unavailable', data: {} };
+    return parser(result);
+  }
+
+  function isCompleteStateIdParse(parsed) {
+    const data = parsed?.data || {};
+    return !!(parsed?.ok && data.visitor_first_name && data.visitor_last_name && data.date_of_birth);
+  }
+
+  function stateIdFingerprint(result) {
+    const bytes = copyByteArray(result?.bytes || result?.rawBytes || null);
+    let hash = 2166136261;
+    if (bytes) {
+      for (let i = 0; i < bytes.length; i += 1) {
+        hash ^= bytes[i];
+        hash = Math.imul(hash, 16777619);
+      }
+      return `${bytes.length}:${(hash >>> 0).toString(16)}`;
+    }
+    const text = decodedText(result);
+    for (let i = 0; i < text.length; i += 1) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return `${text.length}:${(hash >>> 0).toString(16)}`;
+  }
+
+  function pickStateIdResult(results) {
+    let partial = null;
+    (results || []).forEach((result) => {
+      if (partial?.complete) return;
+      const format = String(result?.format || result?.symbology || '').toUpperCase();
+      if (!format.includes('PDF417')) return;
+      const parsed = parseStateIdResult(result);
+      if (!parsed?.ok) return;
+      const candidate = {
+        result,
+        parsed,
+        complete: isCompleteStateIdParse(parsed),
+        fingerprint: stateIdFingerprint(result)
+      };
+      if (candidate.complete || !partial) partial = candidate;
+    });
+    return partial;
+  }
+
   async function decodePdf417ImageData(imageData) {
     const results = await readPdf417Candidates(imageData);
-    const hit = (results || []).find((result) => {
-      const format = String(result?.format || result?.symbology || '').toUpperCase();
-      return format.includes('PDF417') && looksLikeAamvaPdf417(result.text);
-    });
-    return hit ? hit.text : '';
+    return pickStateIdResult(results);
+  }
+
+  async function decodeStateIdCanvas(canvas) {
+    let bestPartial = null;
+    for (const mode of ['original', 'contrast']) {
+      const processed = processedCanvas(canvas, mode);
+      if (!processed.width || !processed.height || canvasLooksEmptyBlack(processed)) continue;
+      const ctx = processed.getContext('2d', { willReadFrequently: true });
+      if (!ctx) continue;
+      const candidate = await decodePdf417ImageData(ctx.getImageData(0, 0, processed.width, processed.height));
+      if (!candidate) continue;
+      candidate.processingVariant = mode;
+      if (candidate.complete) return candidate;
+      if (!bestPartial) bestPartial = candidate;
+    }
+    return bestPartial;
   }
 
   async function decodePdf417Blob(blob) {
     if (!blob || !String(blob.type || '').toLowerCase().startsWith('image/')) throw new Error('id_image_required');
-    const results = await readPdf417Candidates(blob);
-    const hit = (results || []).find((result) => {
-      const format = String(result?.format || result?.symbology || '').toUpperCase();
-      return format.includes('PDF417') && looksLikeAamvaPdf417(result.text);
-    });
-    return hit ? hit.text : '';
+    let bestPartial = null;
+    const direct = pickStateIdResult(await readPdf417Candidates(blob));
+    if (direct?.complete) return direct;
+    if (direct) bestPartial = direct;
+
+    const source = await imageBlobToCanvas(blob);
+    if (!source.width || !source.height || canvasLooksEmptyBlack(source)) return bestPartial;
+    const presets = [
+      { x: 0, y: 0.55, w: 1, h: 0.45 },
+      { x: 0, y: 0.65, w: 1, h: 0.35 },
+      { x: 0.05, y: 0.48, w: 0.9, h: 0.28 },
+      { x: 0, y: 0, w: 1, h: 1 }
+    ];
+    for (const rect of presets) {
+      const canvas = cropCanvasByNormalized(source, rect);
+      const candidate = await decodeStateIdCanvas(canvas);
+      if (!candidate) continue;
+      if (candidate.complete) return candidate;
+      if (!bestPartial) bestPartial = candidate;
+    }
+    return bestPartial;
   }
 
   function createFrameScheduler(video, callback, intervalMs) {
@@ -396,6 +618,7 @@
   function createStateIdAutoScanner(options) {
     const opts = options || {};
     const video = opts.video;
+    const guide = opts.guide || opts.guideEl || null;
     const requiredMatches = Number(opts.requiredMatches || STATE_ID_REQUIRED_MATCHES);
     const scanIntervalMs = Number(opts.scanIntervalMs || STATE_ID_SCAN_INTERVAL_MS);
     const timeoutMs = Number(opts.timeoutMs || STATE_ID_TIMEOUT_MS);
@@ -426,30 +649,31 @@
 
     async function analyzeFrame() {
       if (!active || decodeBusy) return;
-      const canvas = drawVideoGuideCanvas(video, 'pdf417');
+      const canvas = drawVideoGuideCanvas(video, 'pdf417', guide);
       if (!canvas) {
         state('scanning', { hint: 'moveCloser' });
         return;
       }
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      if (!ctx) return;
       decodeBusy = true;
       try {
-        const payload = await decodePdf417ImageData(ctx.getImageData(0, 0, canvas.width, canvas.height));
-        if (!payload) {
+        const candidate = await decodeStateIdCanvas(canvas);
+        if (!candidate) {
           state('scanning', { hint: 'placeBarcode' });
           return;
         }
-        if (payload === lastPayload) matchingDecodes += 1;
+        if (candidate.fingerprint === lastPayload) matchingDecodes += 1;
         else {
-          lastPayload = payload;
+          lastPayload = candidate.fingerprint;
           matchingDecodes = 1;
         }
-        state(matchingDecodes >= requiredMatches ? 'success' : 'confirming_candidate', { matches: matchingDecodes });
+        const complete = candidate.complete === true;
+        state(matchingDecodes >= requiredMatches ? 'success' : 'confirming_candidate', { matches: matchingDecodes, complete });
         if (matchingDecodes >= requiredMatches) {
-          const accepted = payload;
+          const accepted = candidate.result;
+          const parsed = candidate.parsed;
           stop();
-          opts.onSuccess?.(accepted);
+          if (complete) opts.onSuccess?.(accepted, parsed);
+          else opts.onPartial?.(accepted, parsed);
         }
       } catch {
         state('scanning', { hint: 'placeBarcode' });
@@ -464,7 +688,11 @@
       state('camera_starting');
       try {
         stream = await startRearCamera(video);
-        if (!active) return;
+        if (!active) {
+          stopStream(stream, video);
+          stream = null;
+          return;
+        }
         state('scanning', { hint: 'placeBarcode' });
         timeoutTimer = setTimeout(() => {
           if (!active) return;
@@ -610,7 +838,11 @@
       state('camera_starting');
       try {
         stream = await startRearCamera(video);
-        if (!active) return;
+        if (!active) {
+          stopStream(stream, video);
+          stream = null;
+          return;
+        }
         state('positioning', { hint: 'centerCard' });
         scheduler = createFrameScheduler(video, analyzeFrame, IDNYC_ANALYZE_INTERVAL_MS);
         scheduler.start();
@@ -716,7 +948,10 @@
     fetchZxingWasmInfo,
     startRearCamera,
     stopStream,
+    getRenderedVideoRect,
+    guideToVideoPixels,
     drawVideoGuideCanvas,
+    processedCanvas,
     canvasLooksEmptyBlack,
     looksLikeAamvaPdf417,
     readBarcodeResults,

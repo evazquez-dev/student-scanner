@@ -40,7 +40,7 @@
       purposeRequired: 'Purpose is required.',
       idPrefillTitle: 'Use ID to Fill Form',
       idPrefillIntro: 'Optional. You can scan an ID or enter information manually.',
-      stateIdPrefill: 'Scan State ID / Driver License',
+      stateIdPrefill: 'State Driver License / State ID',
       idnycPrefill: 'Scan IDNYC',
       manualEntry: 'Enter Information Manually',
       stateIdScanTitle: 'Scan State ID',
@@ -114,7 +114,7 @@
       purposeRequired: 'El propósito es obligatorio.',
       idPrefillTitle: 'Usar identificación para completar',
       idPrefillIntro: 'Opcional. Puede escanear una identificación o ingresar la información manualmente.',
-      stateIdPrefill: 'Escanear identificación estatal / licencia',
+      stateIdPrefill: 'Licencia de conducir / identificación estatal',
       idnycPrefill: 'Escanear IDNYC',
       manualEntry: 'Ingresar información manualmente',
       stateIdScanTitle: 'Escanear identificación estatal',
@@ -689,10 +689,10 @@
     }
   }
 
-  function applyStateIdPayload(payload) {
-    let raw = String(payload || '');
-    const parsed = Shared.parseAamva(raw);
-    raw = '';
+  function applyStateIdResult(result, parsedResult) {
+    let scanResult = result || null;
+    const parsed = parsedResult || Shared.parseAamva(scanResult);
+    scanResult = null;
     closeStateIdScan();
     if (!parsed.ok || !hasIdPrefillData(parsed.data)) {
       setStatus(formStatus, T[lang].idPrefillNeedsCompletion);
@@ -711,10 +711,12 @@
     }
     idScanSession = IdScan.createStateIdAutoScanner({
       video: idScanVideo,
+      guide: idScanGuide,
       requiredMatches: IdScan.STATE_ID_REQUIRED_MATCHES || 2,
       timeoutMs: IdScan.STATE_ID_TIMEOUT_MS || 14000,
       onState: updateIdScanStatus,
-      onSuccess: applyStateIdPayload,
+      onSuccess: applyStateIdResult,
+      onPartial: applyStateIdResult,
       onTimeout: () => showIdScanFallbacks(T[lang].stateIdUnreadable),
       onFailure: () => showIdScanFallbacks(T[lang].cameraUnavailableManual)
     });
@@ -727,11 +729,10 @@
     try {
       if (!IdScan?.decodePdf417Blob) throw new Error('pdf417_decoder_unavailable');
       updateIdScanStatus('confirming_candidate');
-      let raw = await IdScan.decodePdf417Blob(file);
-      const payload = raw;
-      raw = '';
-      if (!payload) throw new Error('state_id_unreadable');
-      applyStateIdPayload(payload);
+      let result = await IdScan.decodePdf417Blob(file);
+      if (!result) throw new Error('state_id_unreadable');
+      applyStateIdResult(result.result || result, result.parsed || null);
+      result = null;
     } catch {
       showIdScanFallbacks(T[lang].stateIdUnreadable);
       validateForm({ markAll: true, focus: false });

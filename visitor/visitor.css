@@ -220,10 +220,10 @@ button:disabled {
 }
 
 .barcodeGuide {
-  left: 6%;
-  right: 6%;
-  top: 31%;
-  bottom: 31%;
+  left: 5%;
+  right: 5%;
+  top: 39%;
+  bottom: 39%;
   border-radius: 8px;
 }
 
