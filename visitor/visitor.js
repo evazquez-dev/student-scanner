@@ -35,6 +35,7 @@
       usePhoto: 'Use Photo',
       cameraStarting: 'Starting camera...',
       cameraFailed: 'The camera is not available. Please ask security for help.',
+      photoCaptureFailed: 'Photo could not be captured. Please try again.',
       photoTooLarge: 'Please retake the photo.',
       photoRequired: 'Please take and use a visitor photo before submitting.',
       reviewTitle: 'Review / Submit',
@@ -68,6 +69,7 @@
       usePhoto: 'Usar foto',
       cameraStarting: 'Iniciando cámara...',
       cameraFailed: 'La cámara no está disponible. Pida ayuda al personal de seguridad.',
+      photoCaptureFailed: 'No se pudo tomar la foto. Inténtelo de nuevo.',
       photoTooLarge: 'Vuelva a tomar la foto.',
       photoRequired: 'Tome y use una foto del visitante antes de enviar.',
       reviewTitle: 'Revisar / Enviar',
@@ -212,6 +214,65 @@
     $('usePhotoBtn').hidden = mode !== 'review';
   }
 
+  function hasActiveCameraStream() {
+    return !!cameraStream
+      && typeof cameraStream.getTracks === 'function'
+      && cameraStream.getTracks().some((track) => track.readyState === 'live');
+  }
+
+  function hasUsableCameraFrame(video) {
+    return hasActiveCameraStream()
+      && !!video
+      && video.readyState >= 2
+      && video.videoWidth > 0
+      && video.videoHeight > 0;
+  }
+
+  function nextFrame() {
+    return new Promise((resolve) => {
+      if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => resolve());
+      else window.setTimeout(resolve, 16);
+    });
+  }
+
+  async function waitForUsableCameraFrame(video, timeoutMs = 1200) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      if (hasUsableCameraFrame(video)) return true;
+      await nextFrame();
+    }
+    return hasUsableCameraFrame(video);
+  }
+
+  async function waitForPhotoPreviewImage(url) {
+    await new Promise((resolve, reject) => {
+      const done = () => {
+        photoPreview.removeEventListener('load', done);
+        photoPreview.removeEventListener('error', fail);
+        resolve();
+      };
+      const fail = () => {
+        photoPreview.removeEventListener('load', done);
+        photoPreview.removeEventListener('error', fail);
+        reject(new Error('photo_review_load_failed'));
+      };
+      photoPreview.addEventListener('load', done, { once: true });
+      photoPreview.addEventListener('error', fail, { once: true });
+      photoPreview.src = url;
+      if (photoPreview.complete && photoPreview.naturalWidth > 0 && photoPreview.naturalHeight > 0) done();
+    });
+    if (typeof photoPreview.decode === 'function') {
+      await photoPreview.decode();
+    }
+    if (!photoPreview.naturalWidth || !photoPreview.naturalHeight) throw new Error('photo_review_load_failed');
+  }
+
+  async function restoreLiveCameraAfterCaptureFailure() {
+    setPhotoCaptureState('live');
+    if (!hasActiveCameraStream()) await startCamera();
+    setStatus(photoStatus, T[lang].photoCaptureFailed);
+  }
+
   function clearPhoto() {
     photoBlob = null;
     revokePhotoUrl();
@@ -277,6 +338,7 @@
   }
 
   async function startCamera() {
+    stopCamera();
     clearPhoto();
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatus(photoStatus, T[lang].cameraFailed);
@@ -289,6 +351,12 @@
         audio: false
       });
       cameraPreview.srcObject = cameraStream;
+      try { await cameraPreview.play(); } catch {}
+      if (!await waitForUsableCameraFrame(cameraPreview, 1500)) {
+        setStatus(photoStatus, T[lang].photoCaptureFailed);
+        return false;
+      }
+      setPhotoCaptureState('live');
       setStatus(photoStatus, '');
       return true;
     } catch {
@@ -312,21 +380,32 @@
   }
 
   async function takePhoto() {
+    if (!await waitForUsableCameraFrame(cameraPreview, 700)) {
+      await restoreLiveCameraAfterCaptureFailure();
+      return;
+    }
     try {
       const blob = await Shared.capturePortraitPhoto(cameraPreview, { width: 720, height: 900, quality: 0.82 });
       if (blob.size > PHOTO_MAX_BYTES) {
         setStatus(photoStatus, T[lang].photoTooLarge);
         return;
       }
+      const nextUrl = URL.createObjectURL(blob);
+      try {
+        await waitForPhotoPreviewImage(nextUrl);
+      } catch (err) {
+        try { URL.revokeObjectURL(nextUrl); } catch {}
+        photoPreview.removeAttribute('src');
+        throw err;
+      }
       revokePhotoUrl();
       photoBlob = blob;
-      photoObjectUrl = URL.createObjectURL(blob);
-      photoPreview.src = photoObjectUrl;
-      setPhotoCaptureState('review');
+      photoObjectUrl = nextUrl;
       stopCamera();
+      setPhotoCaptureState('review');
       setStatus(photoStatus, '', true);
     } catch {
-      setStatus(photoStatus, T[lang].cameraFailed);
+      await restoreLiveCameraAfterCaptureFailure();
     }
   }
 

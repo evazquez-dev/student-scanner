@@ -86,12 +86,45 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kioskCss, /\.reviewPhoto\s*\{[\s\S]*transform:\s*scaleX\(-1\)/, 'Kiosk submit review photo should match mirrored visitor preview');
   assert.match(kioskCss, /\.cameraFrame\[data-photo-state="review"\]\s+\.faceGuide\s*\{[\s\S]*display:\s*none/, 'Photo guide should hide in captured review state');
   assert.match(kiosk, /function\s+setPhotoCaptureState\s*\(state\)/, 'Kiosk should have a distinct live/review photo state helper');
+  assert.match(kiosk, /photoCaptureFailed:\s*'Photo could not be captured\. Please try again\.'/, 'Kiosk should show a friendly English capture failure');
+  assert.match(kiosk, /photoCaptureFailed:\s*'No se pudo tomar la foto\. Inténtelo de nuevo\.'/, 'Kiosk should show a friendly Spanish capture failure');
+  assert.match(kiosk, /function\s+hasActiveCameraStream\s*\(\)/, 'Kiosk should detect whether the stream is still active');
+  assert.match(kiosk, /function\s+hasUsableCameraFrame\s*\(video\)/, 'Kiosk should validate video frame readiness before capture');
+  assert.match(kiosk, /track\.readyState\s*===\s*'live'/, 'Kiosk should not treat an ended stream as capture-ready');
+  assert.match(kiosk, /video\.readyState\s*>=\s*2/, 'Kiosk should require a current video frame before capture');
+  assert.match(kiosk, /video\.videoWidth\s*>\s*0/, 'Kiosk should reject zero-width video frames');
+  assert.match(kiosk, /video\.videoHeight\s*>\s*0/, 'Kiosk should reject zero-height video frames');
+  assert.match(kiosk, /function\s+waitForPhotoPreviewImage\s*\(url\)/, 'Kiosk should verify the captured review image loads');
+  assert.match(kiosk, /function\s+restoreLiveCameraAfterCaptureFailure\s*\(\)/, 'Kiosk should restore live preview after capture failures when possible');
   const takePhotoSection = sectionBetween(kiosk, 'async function takePhoto', 'async function retakePhoto');
+  const readyIndex = takePhotoSection.indexOf('waitForUsableCameraFrame(cameraPreview');
+  const captureIndex = takePhotoSection.indexOf('Shared.capturePortraitPhoto');
+  const objectUrlIndex = takePhotoSection.indexOf('URL.createObjectURL(blob)');
+  const imageReadyIndex = takePhotoSection.indexOf('waitForPhotoPreviewImage(nextUrl)');
+  const stopIndex = takePhotoSection.indexOf('stopCamera()');
+  const reviewIndex = takePhotoSection.indexOf("setPhotoCaptureState('review')");
+  assert.ok(readyIndex !== -1 && readyIndex < captureIndex, 'Take Photo should validate frame readiness before canvas capture');
+  assert.ok(captureIndex !== -1 && captureIndex < objectUrlIndex, 'Take Photo should create object URL only after capture/blob creation');
+  assert.ok(objectUrlIndex !== -1 && objectUrlIndex < imageReadyIndex, 'Take Photo should load the review image from the Blob/object URL');
+  assert.ok(imageReadyIndex !== -1 && imageReadyIndex < stopIndex, 'Take Photo should not stop the camera before the review image is displayable');
+  assert.ok(stopIndex !== -1 && stopIndex < reviewIndex, 'Take Photo should switch UI to review only after stopping the stream');
   assert.match(takePhotoSection, /setPhotoCaptureState\('review'\)/, 'Taking a photo should switch to captured-photo review state');
   assert.match(takePhotoSection, /stopCamera\(\)/, 'Taking a photo should stop the live camera stream after capture');
+  assert.match(takePhotoSection, /photoPreview\.removeAttribute\('src'\)/, 'Failed review-image load should not advance to a stale or black image');
+  assert.match(takePhotoSection, /restoreLiveCameraAfterCaptureFailure\(\)/, 'Capture failures should keep or restore the live camera UI');
   const retakeSection = sectionBetween(kiosk, 'async function retakePhoto', 'function usePhoto');
   assert.match(retakeSection, /clearPhoto\(\)/, 'Retake should clear the prior captured photo/blob state');
   assert.match(retakeSection, /startCamera\(\)/, 'Retake should return to live camera preview');
+  const clearPhotoSection = sectionBetween(kiosk, 'function clearPhoto()', 'function resetForm()');
+  assert.match(clearPhotoSection, /photoBlob\s*=\s*null/, 'Clearing photo should discard prior captured Blob state');
+  assert.match(clearPhotoSection, /revokePhotoUrl\(\)/, 'Clearing photo should revoke prior object URL');
+  assert.match(clearPhotoSection, /setPhotoCaptureState\('live'\)/, 'Clearing photo should return UI to live preview state');
+  const usePhotoSection = sectionBetween(kiosk, 'function usePhoto()', 'function handleKioskAuthFailure');
+  assert.match(usePhotoSection, /if\s*\(!photoBlob\)/, 'Use Photo should require the existing captured Blob');
+  assert.doesNotMatch(usePhotoSection, /capturePortraitPhoto|getUserMedia|cameraPreview/, 'Use Photo must not recapture from a stopped video stream');
+  const startCameraSection = sectionBetween(kiosk, 'async function startCamera()', 'async function openPhotoStep');
+  assert.match(startCameraSection, /stopCamera\(\)/, 'Starting/restarting camera should stop any prior stream first');
+  assert.match(startCameraSection, /waitForUsableCameraFrame\(cameraPreview,\s*1500\)/, 'Starting/restarting camera should wait for a usable frame');
   assert.match(kiosk, /getUserMedia\(\{[\s\S]*facingMode:\s*'user'/, 'Kiosk should request visitor-facing camera');
   assert.match(kiosk, /Shared\.capturePortraitPhoto/, 'Kiosk should use shared local crop/compression');
   assert.match(kiosk, /URL\.revokeObjectURL/, 'Kiosk retake/reset should revoke temporary photo URLs');
@@ -100,6 +133,12 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kiosk, /A current visitor photo is securely stored for up to 30 days/, 'English kiosk privacy notice must disclose visitor photo retention');
   assert.match(kiosk, /Una foto actual del visitante se guarda de forma segura por hasta 30 días/, 'Spanish kiosk privacy notice must disclose visitor photo retention');
   assert.doesNotMatch(kiosk, /data:image|base64/i, 'Kiosk should not persist/send Base64 photo data');
+}
+
+{
+  const captureSection = sectionBetween(shared, 'function capturePortraitPhoto', 'const QR_VERSION');
+  assert.match(captureSection, /ctx\.drawImage\(video,/, 'Stored photo should be drawn from underlying video pixels');
+  assert.doesNotMatch(captureSection, /scaleX|ctx\.scale|transform/i, 'Stored JPEG should remain non-mirrored; mirroring is CSS-only');
 }
 
 {
