@@ -64,13 +64,49 @@
         </fieldset>
 
         <label><span data-i18n="destination"></span><input name="destination" maxlength="160"></label>
-        <label id="studentNameWrap" hidden><span data-i18n="studentName"></span><input name="student_name" maxlength="140"></label>
         <label><span data-i18n="details"></span><textarea name="notes" maxlength="400" rows="3"></textarea></label>
 
         <div class="privacy" id="privacyNotice"></div>
         <div id="formStatus" class="status" aria-live="polite"></div>
-        <button id="submitBtn" class="primary submitBtn" type="submit"></button>
+        <button id="nextPhotoBtn" class="primary submitBtn" type="button"></button>
       </form>
+    </section>
+
+    <section id="photoScreen" class="screen" hidden>
+      <div class="topBar">
+        <button id="photoBackBtn" type="button" class="secondary"></button>
+        <div class="brand small">EagleNEST</div>
+      </div>
+      <h1 id="photoTitle"></h1>
+      <p id="photoIntro" class="lead"></p>
+      <div class="cameraPanel">
+        <div class="cameraFrame">
+          <video id="cameraPreview" autoplay playsinline muted></video>
+          <img id="photoPreview" alt="" hidden>
+          <div class="faceGuide" aria-hidden="true"></div>
+        </div>
+        <div class="cameraActions">
+          <button id="takePhotoBtn" class="primary" type="button"></button>
+          <button id="retakePhotoBtn" type="button" hidden></button>
+          <button id="usePhotoBtn" class="primary" type="button" hidden></button>
+        </div>
+      </div>
+      <div id="photoStatus" class="status" aria-live="polite"></div>
+    </section>
+
+    <section id="reviewScreen" class="screen" hidden>
+      <div class="topBar">
+        <button id="reviewBackBtn" type="button" class="secondary"></button>
+        <div class="brand small">EagleNEST</div>
+      </div>
+      <h1 id="reviewTitle"></h1>
+      <p id="reviewIntro" class="lead"></p>
+      <div class="reviewGrid">
+        <img id="reviewPhoto" alt="" class="reviewPhoto">
+        <div id="reviewDetails" class="reviewDetails"></div>
+      </div>
+      <div id="reviewStatus" class="status" aria-live="polite"></div>
+      <button id="submitBtn" class="primary submitBtn" type="button"></button>
     </section>
 
     <section id="thanksScreen" class="screen thanksScreen" hidden>

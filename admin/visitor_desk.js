@@ -29,7 +29,7 @@
   const visitorForm = $('visitorForm');
   const idDialog = $('idDialog');
   const idForm = $('idForm');
-  const studentDialog = $('studentDialog');
+  const photoDialog = $('photoDialog');
   const pairDialog = $('pairDialog');
   const checkoutDialog = $('checkoutDialog');
   const emergencyDialog = $('emergencyDialog');
@@ -39,10 +39,15 @@
   let selectedVisit = null;
   let parsedId = null;
   let pollTimer = 0;
-  let studentSearchTimer = 0;
   let historyCursor = '';
   let historyNextCursor = '';
   let historyPrevStack = [];
+  let photoVisit = null;
+  let photoAfterSave = '';
+  let staffCameraStream = null;
+  let staffPhotoBlob = null;
+  let staffPhotoUrl = '';
+  const photoObjectUrls = new Map();
 
   function esc(v) { return Shared.escapeHtml(v); }
   function show(el) { if (el) el.hidden = false; }
@@ -70,6 +75,55 @@
     statusBox.textContent = text || '';
     statusBox.classList.toggle('bad', kind === 'bad');
     statusBox.classList.toggle('ok', kind === 'ok');
+  }
+  function clearPhotoObjectUrls() {
+    for (const url of photoObjectUrls.values()) {
+      try { URL.revokeObjectURL(url); } catch {}
+    }
+    photoObjectUrls.clear();
+  }
+  function photoSlot(v, extraClass = '') {
+    const photoId = Shared.cleanText(v?.photo_id, 180);
+    if (!photoId) return `<span class="photoSlot ${esc(extraClass)}">No photo</span>`;
+    return `<span class="photoSlot ${esc(extraClass)}" data-photo-id="${esc(photoId)}" data-photo-visit="${esc(v?.visit_id || '')}">Photo</span>`;
+  }
+  async function fetchPhotoBlob(ref) {
+    const photoId = Shared.cleanText(ref?.photoId || ref?.photo_id, 180);
+    const visitId = Shared.cleanText(ref?.visitId || ref?.visit_id, 160);
+    const qs = photoId ? `photo_id=${encodeURIComponent(photoId)}` : `visit_id=${encodeURIComponent(visitId)}`;
+    const resp = await adminFetch(`/admin/visitor/photo?${qs}`, { method: 'GET' });
+    if (resp.status === 404) return null;
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.blob();
+  }
+  async function hydratePhotoSlots(root = document) {
+    const slots = Array.from(root.querySelectorAll('[data-photo-visit]'));
+    await Promise.all(slots.map(async (slot) => {
+      const visitId = slot.getAttribute('data-photo-visit');
+      const photoId = slot.getAttribute('data-photo-id');
+      const cacheKey = photoId || visitId;
+      try {
+        const blob = await fetchPhotoBlob({ visitId, photoId });
+        if (!blob) {
+          slot.textContent = 'Photo expired';
+          return;
+        }
+        const old = photoObjectUrls.get(cacheKey);
+        if (old) {
+          try { URL.revokeObjectURL(old); } catch {}
+        }
+        const url = URL.createObjectURL(blob);
+        photoObjectUrls.set(cacheKey, url);
+        const img = new Image();
+        img.alt = 'Visitor photo';
+        img.loading = 'lazy';
+        img.src = url;
+        slot.textContent = '';
+        slot.appendChild(img);
+      } catch {
+        slot.textContent = 'Photo unavailable';
+      }
+    }));
   }
 
   function getStoredAdminSessionSid() {
@@ -134,20 +188,20 @@
 
   function visitSummary(v) {
     const dest = v.destination || v.host_name || '-';
-    const student = v.student_name ? `<div class="muted">Typed student: ${esc(v.student_name)}</div>` : '';
     const verified = v.id_verified ? `<span class="pill ${v.id_expired ? 'warn' : 'ok'}">${v.id_expired ? 'ID expired' : 'ID verified'}</span>` : '<span class="pill warn">ID not verified</span>';
-    return `<div><strong>${esc(typeLabel(v))}</strong></div><div>${esc(purposeLabel(v))}</div><div class="muted">${esc(dest)}</div>${student}<div>${verified}</div>`;
+    const photo = v.photo_id ? '<span class="pill ok">Photo</span>' : v.photo_required_override ? '<span class="pill warn">Photo override</span>' : '<span class="pill warn">No photo</span>';
+    return `<div><strong>${esc(typeLabel(v))}</strong></div><div>${esc(purposeLabel(v))}</div><div class="muted">${esc(dest)}</div><div>${verified} ${photo}</div>`;
   }
 
   function waitingRow(v) {
     return `<tr>
-      <td><strong>${esc(fullName(v))}</strong><div class="muted">${esc(v.organization || '')}</div><div class="muted">${esc(v.language || '')} ${esc(v.source || '')}</div></td>
+      <td><div class="visitorCell">${photoSlot(v)}<div><strong>${esc(fullName(v))}</strong><div class="muted">${esc(v.organization || '')}</div><div class="muted">${esc(v.language || '')} ${esc(v.source || '')}</div></div></div></td>
       <td>${visitSummary(v)}</td>
       <td><div>${esc(fmtDT(v.submitted_at || v.created_at))}</div><div class="muted">${esc(v.kiosk_id || '')}</div></td>
       <td><div class="actions">
         <button data-action="edit" data-id="${esc(v.visit_id)}">Review/Edit</button>
         <button data-action="scan-id" data-id="${esc(v.visit_id)}">Scan / Verify ID</button>
-        <button data-action="link-student" data-id="${esc(v.visit_id)}">Link Student</button>
+        <button data-action="take-photo" data-id="${esc(v.visit_id)}">Take Visitor Photo</button>
         <button class="primary" data-action="admit" data-id="${esc(v.visit_id)}">Admit & Print Badge</button>
         <button data-action="cancel" data-id="${esc(v.visit_id)}">Cancel</button>
         <button class="danger" data-action="deny" data-id="${esc(v.visit_id)}">Deny</button>
@@ -156,19 +210,15 @@
   }
 
   function activeRow(v) {
-    const pickupPending = v.student_pickup_status === 'pending';
-    const pickupRecoverable = pickupPending && v.student_pickup_recoverable === true;
-    const pickup = v.purpose === 'student_pickup' && v.student_osis && !v.student_pickup_completed_at
-      ? `<button data-action="pickup-complete" data-id="${esc(v.visit_id)}" ${pickupPending && !pickupRecoverable ? 'disabled' : ''}>${pickupRecoverable ? 'Retry Student Pickup' : pickupPending ? 'Pickup Pending' : 'Complete Student Pickup'}</button>` : '';
     return `<tr>
-      <td><strong>${esc(fullName(v))}</strong><div class="muted">Badge ${esc(v.badge_code || '-')}</div></td>
+      <td><div class="visitorCell">${photoSlot(v)}<div><strong>${esc(fullName(v))}</strong><div class="muted">Badge ${esc(v.badge_code || '-')}</div></div></div></td>
       <td>${visitSummary(v)}</td>
       <td><div>${esc(fmtDT(v.check_in_at))}</div><div class="muted">${esc(elapsed(v.check_in_at))} in building</div><div class="muted">${esc(v.check_in_by || '')}</div></td>
       <td><div class="actions">
         <button data-action="details" data-id="${esc(v.visit_id)}">View Details</button>
+        <button data-action="take-photo" data-id="${esc(v.visit_id)}">Take Visitor Photo</button>
         <button data-action="reprint" data-id="${esc(v.visit_id)}">Reprint Badge</button>
         <button class="primary" data-action="checkout" data-id="${esc(v.visit_id)}">Check Out</button>
-        ${pickup}
       </div></td>
     </tr>`;
   }
@@ -179,8 +229,10 @@
     $('activeCount').textContent = String(counts.active || 0);
     $('checkedInTodayCount').textContent = String(counts.checked_in_today || 0);
     $('checkedOutTodayCount').textContent = String(counts.checked_out_today || 0);
+    clearPhotoObjectUrls();
     waitingBody.innerHTML = STATE.waiting?.length ? STATE.waiting.map(waitingRow).join('') : '<tr><td colspan="4" class="muted">No visitors waiting.</td></tr>';
     activeBody.innerHTML = STATE.active?.length ? STATE.active.map(activeRow).join('') : '<tr><td colspan="4" class="muted">No visitors currently checked in.</td></tr>';
+    hydratePhotoSlots();
     const updated = `Updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`;
     $('waitingUpdated').textContent = updated;
     $('activeUpdated').textContent = updated;
@@ -220,6 +272,7 @@
   function openVisitorDialog(v) {
     visitorForm.reset();
     $('visitorDialogTitle').textContent = v ? 'Review / Edit Visitor' : 'Check In Visitor';
+    $('visitorReviewPhoto').innerHTML = v ? photoSlot(v, 'large') : '';
     const els = visitorForm.elements;
     els.visit_id.value = v?.visit_id || '';
     els.visitor_first_name.value = v?.visitor_first_name || '';
@@ -230,11 +283,11 @@
     els.organization.value = v?.organization || '';
     els.destination.value = v?.destination || '';
     els.host_email.value = v?.host_email || '';
-    els.student_name.value = v?.student_name || '';
     els.notes.value = v?.notes || '';
     els.direct_admit.checked = false;
     els.direct_admit.disabled = !!v;
     visitorDialog.showModal();
+    if (v) hydratePhotoSlots(visitorDialog);
   }
 
   function visitorFormPayload() {
@@ -248,7 +301,6 @@
       organization: Shared.cleanText(fd.get('organization'), 140),
       destination: Shared.cleanText(fd.get('destination'), 160),
       host_email: Shared.cleanText(fd.get('host_email'), 180),
-      student_name: Shared.cleanText(fd.get('student_name'), 140),
       notes: Shared.cleanText(fd.get('notes'), 400)
     };
   }
@@ -257,7 +309,9 @@
     ev.preventDefault();
     const visitId = visitorForm.elements.visit_id.value;
     const patch = visitorFormPayload();
-    const direct = !visitId && visitorForm.elements.direct_admit.checked;
+    let direct = !visitId && visitorForm.elements.direct_admit.checked;
+    const directPhotoOverride = direct && window.confirm('Direct admission without a visitor photo requires an audited override. Continue without a photo?');
+    if (direct && !directPhotoOverride) direct = false;
     const reservedPrintWindow = direct ? reservePrintWindow() : null;
     let printIssue = false;
     $('saveVisitorBtn').disabled = true;
@@ -265,7 +319,7 @@
       if (visitId) {
         await api('/admin/visitor/edit', { method: 'POST', body: { visit_id: visitId, patch } });
       } else {
-        const data = await api('/admin/visitor/staff_create', { method: 'POST', body: { visitor: patch, direct_admit: direct } });
+        const data = await api('/admin/visitor/staff_create', { method: 'POST', body: { visitor: patch, direct_admit: direct, photo_required_override: directPhotoOverride } });
         if (direct && data.visit?.badge_checkout_token) {
           try {
             await printBadge(data.visit, false, reservedPrintWindow);
@@ -359,60 +413,136 @@
     }
   }
 
-  function openStudentDialog(v) {
-    selectedVisit = v;
-    $('studentSearch').value = v.student_name || '';
-    $('studentResults').textContent = '';
-    studentDialog.showModal();
-    setTimeout(() => {
-      $('studentSearch').focus();
-      searchStudents();
-    }, 50);
+  function resetStaffPhotoCapture() {
+    if (staffPhotoUrl) {
+      try { URL.revokeObjectURL(staffPhotoUrl); } catch {}
+    }
+    staffPhotoUrl = '';
+    staffPhotoBlob = null;
+    $('staffPhotoPreview').hidden = true;
+    $('staffPhotoPreview').removeAttribute('src');
+    $('staffCameraPreview').hidden = false;
+    $('takeStaffPhotoBtn').hidden = false;
+    $('retakeStaffPhotoBtn').hidden = true;
+    $('saveStaffPhotoBtn').hidden = true;
   }
 
-  async function searchStudents() {
-    const q = Shared.cleanText($('studentSearch').value, 80);
-    const wrap = $('studentResults');
-    if (q.length < 2) {
-      wrap.textContent = 'Enter at least 2 characters.';
-      return;
+  function stopStaffCamera() {
+    if (staffCameraStream) {
+      staffCameraStream.getTracks().forEach((track) => {
+        try { track.stop(); } catch {}
+      });
     }
+    staffCameraStream = null;
+    $('staffCameraPreview').srcObject = null;
+  }
+
+  async function startStaffCamera() {
+    resetStaffPhotoCapture();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      $('photoDialogStatus').textContent = 'Camera is not available on this device.';
+      return false;
+    }
+    $('photoDialogStatus').textContent = 'Starting camera...';
     try {
-      const data = await api(`/admin/visitor/student_search?q=${encodeURIComponent(q)}`);
-      wrap.textContent = '';
-      if (!data.results?.length) {
-        wrap.textContent = 'No students found.';
+      staffCameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 1600 } },
+        audio: false
+      });
+      $('staffCameraPreview').srcObject = staffCameraStream;
+      $('photoDialogStatus').textContent = '';
+      return true;
+    } catch {
+      stopStaffCamera();
+      $('photoDialogStatus').textContent = 'Camera is unavailable. You may override only when necessary.';
+      return false;
+    }
+  }
+
+  function openPhotoDialog(v, afterSave = '') {
+    selectedVisit = v;
+    photoVisit = v;
+    photoAfterSave = afterSave;
+    resetStaffPhotoCapture();
+    $('photoDialogStatus').textContent = '';
+    photoDialog.showModal();
+    startStaffCamera();
+  }
+
+  async function takeStaffPhoto() {
+    try {
+      const blob = await Shared.capturePortraitPhoto($('staffCameraPreview'), { width: 720, height: 900, quality: 0.82 });
+      if (blob.size > 512 * 1024) {
+        $('photoDialogStatus').textContent = 'Photo is too large. Please retake.';
         return;
       }
-      data.results.forEach((s) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.textContent = `${s.name} (${s.osis})${s.grade ? ` - Grade ${s.grade}` : ''}`;
-        btn.addEventListener('click', () => linkStudent(s));
-        wrap.appendChild(btn);
-      });
-    } catch (err) {
-      wrap.textContent = `Search failed: ${err?.message || err}`;
+      if (staffPhotoUrl) {
+        try { URL.revokeObjectURL(staffPhotoUrl); } catch {}
+      }
+      staffPhotoBlob = blob;
+      staffPhotoUrl = URL.createObjectURL(blob);
+      $('staffPhotoPreview').src = staffPhotoUrl;
+      $('staffPhotoPreview').hidden = false;
+      $('staffCameraPreview').hidden = true;
+      $('takeStaffPhotoBtn').hidden = true;
+      $('retakeStaffPhotoBtn').hidden = false;
+      $('saveStaffPhotoBtn').hidden = false;
+      $('photoDialogStatus').textContent = '';
+    } catch {
+      $('photoDialogStatus').textContent = 'Unable to capture photo. Please try again.';
     }
   }
 
-  async function linkStudent(student) {
-    if (!selectedVisit) return;
+  async function uploadStaffPhoto() {
+    if (!photoVisit?.visit_id || !staffPhotoBlob) return;
+    $('saveStaffPhotoBtn').disabled = true;
+    $('photoDialogStatus').textContent = 'Saving photo...';
     try {
-      await api('/admin/visitor/link_student', {
+      const resp = await adminFetch(`/admin/visitor/photo?visit_id=${encodeURIComponent(photoVisit.visit_id)}`, {
         method: 'POST',
-        body: { visit_id: selectedVisit.visit_id, student_osis: student.osis, student_name: student.name }
+        headers: { 'content-type': 'image/jpeg' },
+        body: staffPhotoBlob
       });
-      studentDialog.close();
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.ok) throw new Error(data?.error || `HTTP ${resp.status}`);
+      const after = photoAfterSave;
+      const visitId = photoVisit.visit_id;
+      photoDialog.close();
+      stopStaffCamera();
+      resetStaffPhotoCapture();
       await refreshState(true);
-      setStatus('Student linked.', 'ok');
+      setStatus('Visitor photo saved.', 'ok');
+      if (after === 'admit') {
+        const fresh = findVisit(visitId) || data.visit || photoVisit || {};
+        await admitVisit(fresh, { skipConfirm: true });
+      }
     } catch (err) {
-      $('studentResults').textContent = `Link failed: ${err?.message || err}`;
+      $('photoDialogStatus').textContent = `Photo save failed: ${err?.message || err}`;
+    } finally {
+      $('saveStaffPhotoBtn').disabled = false;
     }
   }
 
-  async function admitVisit(v) {
-    if (!window.confirm(`Admit ${fullName(v)} and print a badge?`)) return;
+  async function overrideVisitorPhoto() {
+    if (!photoVisit?.visit_id) return;
+    if (!window.confirm(`Admit ${fullName(photoVisit)} without a visitor photo? This override will be audited.`)) return;
+    try {
+      const after = photoAfterSave;
+      const priorVisit = photoVisit;
+      const data = await api('/admin/visitor/photo_override', { method: 'POST', body: { visit_id: photoVisit.visit_id } });
+      photoDialog.close();
+      stopStaffCamera();
+      resetStaffPhotoCapture();
+      await refreshState(true);
+      setStatus('Photo requirement override recorded.', 'ok');
+      if (after === 'admit') await admitVisit(data.visit || priorVisit, { skipConfirm: true });
+    } catch (err) {
+      $('photoDialogStatus').textContent = `Override failed: ${err?.message || err}`;
+    }
+  }
+
+  async function admitVisit(v, opts = {}) {
+    if (!opts.skipConfirm && !window.confirm(`Admit ${fullName(v)} and print a badge?`)) return;
     const reservedPrintWindow = reservePrintWindow();
     try {
       const data = await api('/admin/visitor/admit', { method: 'POST', body: { visit_id: v.visit_id } });
@@ -425,6 +555,11 @@
       }
     } catch (err) {
       try { reservedPrintWindow?.close(); } catch {}
+      if (String(err?.message || err) === 'photo_required') {
+        setStatus('Visitor photo required before admission. Take a photo or record an override.', 'bad');
+        openPhotoDialog(v, 'admit');
+        return;
+      }
       setStatus(`Admit failed: ${err?.message || err}`, 'bad');
       await refreshState(true);
     }
@@ -441,13 +576,19 @@
   }
 
   function badgeVisitLine(v) {
-    if (v?.purpose === 'student_pickup') return purposeLabel(v) || 'Student Pickup';
     return v?.destination || purposeLabel(v) || 'Visitor';
   }
 
   async function printBadge(v, reprint, reservedWindow) {
     if (!v?.badge_checkout_token) throw new Error('badge_checkout_token_missing');
     const qrSvg = Shared.makeQrSvg(`ENVISIT:${v.badge_checkout_token}`, { border: 2 });
+    let photoUrl = '';
+    if (v.photo_id) {
+      try {
+        const blob = await fetchPhotoBlob({ visitId: v.visit_id, photoId: v.photo_id });
+        if (blob) photoUrl = URL.createObjectURL(blob);
+      } catch {}
+    }
     const name = esc(fullName(v));
     const visitLine = esc(badgeVisitLine(v));
     const code = esc(v.badge_code || '');
@@ -455,28 +596,32 @@
     const win = reservedWindow || reservePrintWindow();
     if (!win) throw new Error('print_window_blocked');
     win.document.write(`<!doctype html><html><head><title>Visitor Badge</title><style>
-      @page{size:2.3in 3.4in;margin:0}
+      @page{size:2.4in 3.9in;margin:0}
       *{box-sizing:border-box}
-      html,body{margin:0;width:2.3in;height:3.4in;font-family:Arial,sans-serif;color:#000;background:#fff}
-      .badge{width:2.3in;height:3.4in;padding:.13in;display:grid;grid-template-rows:auto auto 1fr auto;gap:.06in;border:1px solid #000}
+      html,body{margin:0;width:2.4in;height:3.9in;font-family:Arial,sans-serif;color:#000;background:#fff}
+      .badge{width:2.4in;height:3.9in;padding:.12in;display:grid;grid-template-rows:auto auto 1fr auto;gap:.06in;border:1px solid #000}
       .brand{font-size:8pt;font-weight:800;text-align:center}
-      .visitor{font-size:19pt;font-weight:950;text-align:center;letter-spacing:0}
-      .name{font-size:16pt;font-weight:900;text-align:center;line-height:1.05;word-break:break-word}
-      .visit{font-size:9pt;text-align:center;line-height:1.15;word-break:break-word}
-      .bottom{display:grid;grid-template-columns:.82in 1fr;gap:.08in;align-items:end}
-      .qr svg{display:block;width:.82in;height:.82in}
+      .visitor{font-size:21pt;font-weight:950;text-align:center;letter-spacing:0}
+      .main{display:grid;grid-template-columns:.9in 1fr;gap:.09in;align-items:center}
+      .photo{width:.9in;height:1.125in;border:1px solid #000;display:grid;place-items:center;font-size:8pt;font-weight:900;overflow:hidden}
+      .photo img{width:100%;height:100%;object-fit:cover;filter:grayscale(1) contrast(1.35)}
+      .name{font-size:15pt;font-weight:900;line-height:1.05;word-break:break-word}
+      .visit{font-size:9pt;line-height:1.15;word-break:break-word;margin-top:.05in}
+      .bottom{display:grid;grid-template-columns:.9in 1fr;gap:.08in;align-items:end}
+      .qr svg{display:block;width:.9in;height:.9in}
       .meta{font-size:8pt;line-height:1.25}
       .code{font-size:14pt;font-weight:950}
     </style></head><body><div class="badge">
       <div class="brand">The American Dream School / EagleNEST</div>
       <div class="visitor">VISITOR</div>
-      <div><div class="name">${name}</div><div class="visit">${visitLine}</div></div>
+      <div class="main"><div class="photo">${photoUrl ? `<img src="${photoUrl}" alt="">` : 'PHOTO'}</div><div><div class="name">${name}</div><div class="visit">${visitLine}</div></div></div>
       <div class="bottom"><div class="qr">${qrSvg}</div><div class="meta"><div>${time}</div><div>Badge</div><div class="code">${code}</div></div></div>
     </div></body></html>`);
     win.document.close();
     setTimeout(() => {
       try { win.focus(); win.print(); } catch {}
     }, 250);
+    if (photoUrl) setTimeout(() => { try { URL.revokeObjectURL(photoUrl); } catch {} }, 30000);
     await api('/admin/visitor/badge_printed', { method: 'POST', body: { visit_id: v.visit_id, reprint: !!reprint } }).catch(() => null);
   }
 
@@ -504,31 +649,17 @@
     }
   }
 
-  async function completePickup(v) {
-    if (!v.student_osis || !v.student_name) {
-      setStatus('Link a student before completing pickup.', 'bad');
-      return;
-    }
-    if (!window.confirm(`Complete pickup for linked student ${v.student_name}? This marks the student off campus.`)) return;
-    try {
-      const data = await api('/admin/visitor/student_pickup_complete', { method: 'POST', body: { visit_id: v.visit_id } });
-      await refreshState(true);
-      setStatus(data.already ? 'Student pickup was already completed.' : 'Student pickup completed. The student was marked off campus.', 'ok');
-    } catch (err) {
-      setStatus(`Student pickup failed: ${err?.message || err}`, 'bad');
-    }
-  }
-
   async function loadEmergency() {
     try {
       const data = await api('/admin/visitor/emergency');
       $('emergencyGenerated').textContent = `Generated ${fmtDT(data.generated_at)}`;
       $('emergencyBody').innerHTML = data.rows?.length ? data.rows.map((v) => `<tr>
-        <td>${esc(fullName(v))}</td>
+        <td><div class="visitorCell">${photoSlot(v)}<div>${esc(fullName(v))}</div></div></td>
         <td>${esc(typeLabel(v))}<br>${esc(v.destination || purposeLabel(v) || '')}</td>
         <td>${esc(v.badge_code || '')}</td>
         <td>${esc(fmtDT(v.check_in_at))}</td>
       </tr>`).join('') : '<tr><td colspan="4">No checked-in visitors.</td></tr>';
+      hydratePhotoSlots(emergencyDialog);
       emergencyDialog.showModal();
     } catch (err) {
       setStatus(`Emergency roster failed: ${err?.message || err}`, 'bad');
@@ -567,11 +698,12 @@
       const data = await api(`/admin/visitor/history?${params.toString()}`);
       const rows = data.rows || data.visits || [];
       $('historyBody').innerHTML = rows.length ? rows.map((v) => `<tr>
-        <td><strong>${esc(fullName(v))}</strong><div class="muted">${esc(v.organization || '')}</div></td>
+        <td><div class="visitorCell">${photoSlot(v)}<div><strong>${esc(fullName(v))}</strong><div class="muted">${esc(v.organization || '')}</div></div></div></td>
         <td>${esc(typeLabel(v))}<br>${esc(purposeLabel(v))}<div class="muted">${esc(v.destination || '')}</div></td>
         <td>${esc(v.status || '')}<div class="muted">${esc(fmtDT(v.check_in_at || v.submitted_at || v.created_at))}</div></td>
         <td><div>In: ${esc(v.check_in_by || '-')}</div><div>Out: ${esc(v.check_out_by || '-')}</div></td>
       </tr>`).join('') : '<tr><td colspan="4" class="muted">No history matched.</td></tr>';
+      hydratePhotoSlots($('historyBody'));
       renderHistoryPager(data, rows);
     } catch (err) {
       $('historyBody').innerHTML = `<tr><td colspan="4" class="muted">History unavailable: ${esc(err?.message || err)}</td></tr>`;
@@ -714,7 +846,7 @@
     const action = btn.dataset.action;
     if (action === 'edit' || action === 'details') openVisitorDialog(v);
     else if (action === 'scan-id') openIdDialog(v);
-    else if (action === 'link-student') openStudentDialog(v);
+    else if (action === 'take-photo') openPhotoDialog(v);
     else if (action === 'admit') admitVisit(v);
     else if (action === 'checkout') checkoutVisit(v);
     else if (action === 'reprint') {
@@ -727,7 +859,6 @@
         });
     }
     else if (action === 'cancel' || action === 'deny') cancelOrDeny(v, action);
-    else if (action === 'pickup-complete') completePickup(v);
   }
 
   function initTheme() {
@@ -809,9 +940,16 @@
     $('historyNextBtn').addEventListener('click', nextHistoryPage);
     waitingBody.addEventListener('click', handleAction);
     activeBody.addEventListener('click', handleAction);
-    $('studentSearch').addEventListener('input', () => {
-      clearTimeout(studentSearchTimer);
-      studentSearchTimer = setTimeout(searchStudents, 250);
+    $('startStaffCameraBtn').addEventListener('click', startStaffCamera);
+    $('takeStaffPhotoBtn').addEventListener('click', takeStaffPhoto);
+    $('retakeStaffPhotoBtn').addEventListener('click', startStaffCamera);
+    $('saveStaffPhotoBtn').addEventListener('click', uploadStaffPhoto);
+    $('overridePhotoBtn').addEventListener('click', overrideVisitorPhoto);
+    photoDialog.addEventListener('close', () => {
+      stopStaffCamera();
+      resetStaffPhotoCapture();
+      photoVisit = null;
+      photoAfterSave = '';
     });
     initScannerModalHandlers();
     try {

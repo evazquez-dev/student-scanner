@@ -46,9 +46,33 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 {
   const config = read('VisitorConfig.gs');
+  assert.match(config, /Photo ID/);
+  assert.match(config, /Photo Captured At/);
+  assert.match(config, /Photo Source/);
+  assert.match(config, /Photo Required Override/);
+  assert.match(config, /Deprecated Visitor-side student pickup columns/);
   assert.match(config, /Student Pickup Status/);
   assert.match(config, /Student Pickup Completed At/);
   assert.match(config, /Student Pickup Completed By/);
+}
+
+{
+  const code = read('Code.gs');
+  assert.doesNotMatch(code, /updateVisitorStudentLink/, 'Visitor GAS should not expose student-link actions');
+}
+
+{
+  const records = read('VisitorRecords.gs');
+  assert.match(records, /'Photo ID': safeSheetText_\(visit\.photo_id/);
+  assert.match(records, /'Photo Captured At': visit\.photo_captured_at/);
+  assert.doesNotMatch(records, /photo_base64|image_base64|image_data|data:image/i, 'Visitor GAS must not write image bytes/Base64');
+  assert.doesNotMatch(records, /'Student OSIS': visit\.student_osis/, 'Visitor GAS should not actively populate deprecated student columns');
+}
+
+{
+  const security = read('VisitorSecurity.gs');
+  assert.match(security, /photo_id: visitorCleanStr_\(v\.photo_id/);
+  assert.doesNotMatch(security, /photo_base64|image_base64|image_data|data:image/i, 'Visitor GAS sanitizer must not accept image bytes/Base64');
 }
 
 console.log('visitor_gas_static tests passed');

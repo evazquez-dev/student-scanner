@@ -18,7 +18,6 @@
   };
 
   const PURPOSES = {
-    student_pickup: { en: 'Student Pickup', es: 'Recoger estudiante' },
     meeting: { en: 'Meeting', es: 'Reunión' },
     enrollment_registration: { en: 'Enrollment / Registration', es: 'Inscripción / Registro' },
     student_services: { en: 'Student Services', es: 'Servicios estudiantiles' },
@@ -204,6 +203,45 @@
     return { keydown, acceptChar, reset, flush: finish };
   }
 
+  function capturePortraitPhoto(video, options) {
+    const opts = options || {};
+    const width = Number.isFinite(Number(opts.width)) ? Math.max(160, Number(opts.width)) : 720;
+    const height = Number.isFinite(Number(opts.height)) ? Math.max(200, Number(opts.height)) : 900;
+    const quality = Number.isFinite(Number(opts.quality)) ? Math.max(0.5, Math.min(0.92, Number(opts.quality))) : 0.82;
+    if (!video || !video.videoWidth || !video.videoHeight) return Promise.reject(new Error('camera_frame_unavailable'));
+    if (typeof document === 'undefined') return Promise.reject(new Error('canvas_unavailable'));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) return Promise.reject(new Error('canvas_unavailable'));
+    const sourceRatio = video.videoWidth / video.videoHeight;
+    const targetRatio = width / height;
+    let sx = 0;
+    let sy = 0;
+    let sw = video.videoWidth;
+    let sh = video.videoHeight;
+    if (sourceRatio > targetRatio) {
+      sw = Math.round(video.videoHeight * targetRatio);
+      sx = Math.round((video.videoWidth - sw) / 2);
+    } else {
+      sh = Math.round(video.videoWidth / targetRatio);
+      sy = Math.round((video.videoHeight - sh) / 2);
+    }
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, width, height);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, width, height);
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (!blob) {
+          reject(new Error('photo_encode_failed'));
+          return;
+        }
+        resolve(blob);
+      }, 'image/jpeg', quality);
+    });
+  }
+
   const QR_VERSION = 4;
   const QR_SIZE = 33;
   const QR_DATA_CODEWORDS = 80;
@@ -375,6 +413,7 @@
     redactForbidden,
     parseVisitorBadgeScan,
     createScannerBuffer,
+    capturePortraitPhoto,
     makeQrMatrix,
     makeQrSvg
   };

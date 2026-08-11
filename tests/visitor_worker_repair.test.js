@@ -2,10 +2,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const workerPath = path.resolve(__dirname, '../../cf-redcake/red-cake-77d5/src/worker.js');
+const workerSource = fs.readFileSync(workerPath, 'utf8');
+const wrangler = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../cf-redcake/red-cake-77d5/wrangler.jsonc'), 'utf8'));
+
 async function loadWorker() {
-  const workerPath = path.resolve(__dirname, '../../cf-redcake/red-cake-77d5/src/worker.js');
-  const src = fs.readFileSync(workerPath, 'utf8')
-    .replace('export {\n', 'export {\n  allowedCorsOrigin_,\n  badAdminMutationOrigin_,\n  handleVisitorAdminRoute_,\n  sanitizeVisitorPatch_,\n  sanitizeVisitorVerification_,\n  visitorCanonicalStudentLink_,\n');
+  const src = workerSource
+    .replace('export {\n', 'export {\n  allowedCorsOrigin_,\n  badAdminMutationOrigin_,\n  handleVisitorAdminRoute_,\n  handleVisitorKioskRoute_,\n  newVisitorPhotoId_,\n  readVisitorPhotoUpload_,\n  sanitizeVisitorPatch_,\n  sanitizeVisitorVerification_,\n  visitorGasVisitPayload_,\n  visitorPhotoKey_,\n');
   return import(`data:text/javascript;base64,${Buffer.from(src).toString('base64')}`);
 }
 
@@ -14,9 +17,7 @@ class FakeStorage {
     this.map = new Map();
     this.alarmAt = 0;
   }
-  async get(key) {
-    return this.map.get(key);
-  }
+  async get(key) { return this.map.get(key); }
   async put(key, value) {
     if (key && typeof key === 'object' && !(key instanceof String)) {
       Object.entries(key).forEach(([k, v]) => this.map.set(k, v));
@@ -40,17 +41,31 @@ class FakeStorage {
     }
     return out;
   }
-  async setAlarm(ms) {
-    this.alarmAt = ms;
-  }
+  async setAlarm(ms) { this.alarmAt = ms; }
 }
 
 class FakeState {
-  constructor() {
-    this.storage = new FakeStorage();
+  constructor() { this.storage = new FakeStorage(); }
+  blockConcurrencyWhile(fn) { return fn(); }
+}
+
+class FakeR2 {
+  constructor({ failPut = false } = {}) {
+    this.failPut = failPut;
+    this.map = new Map();
+    this.deleted = [];
   }
-  blockConcurrencyWhile(fn) {
-    return fn();
+  async put(key, body, opts) {
+    if (this.failPut) throw new Error('r2 down');
+    this.map.set(key, { body, opts });
+  }
+  async get(key) {
+    const rec = this.map.get(key);
+    return rec ? { body: new Blob([rec.body]), httpMetadata: { contentType: 'image/jpeg' } } : null;
+  }
+  async delete(key) {
+    this.deleted.push(key);
+    this.map.delete(key);
   }
 }
 
@@ -68,8 +83,66 @@ async function doJson(instance, pathname, body) {
   return { resp, data };
 }
 
+function doStub(instance) {
+  return {
+    idFromName() { return 'visitor-global'; },
+    get() {
+      return {
+        fetch(url, init) {
+          return instance.fetch(new Request(url, init));
+        }
+      };
+    }
+  };
+}
+
+function ctx() {
+  return { waitUntil(p) { if (p && typeof p.catch === 'function') p.catch(() => {}); } };
+}
+
+function fakeJpeg(bytes = 64) {
+  const arr = new Uint8Array(bytes);
+  arr[0] = 0xff;
+  arr[1] = 0xd8;
+  arr[2] = 0xff;
+  arr[3] = 0xe0;
+  return arr;
+}
+
+async function pairedKioskVisit(mod, instance, visitor = {}) {
+  const code = await doJson(instance, '/create_pair_code', { actor_email: 'security@example.org', label: 'iPad' });
+  const pair = await doJson(instance, '/pair', { code: code.data.code, label: 'iPad', ip: '192.0.2.10' });
+  assert.equal(pair.data.ok, true);
+  const payload = {
+    visitor_first_name: 'Retry',
+    visitor_last_name: 'Guest',
+    visitor_type: 'school_guest',
+    purpose: 'meeting',
+    ...visitor
+  };
+  const submit = await doJson(instance, '/submit', { kiosk_credential: pair.data.kiosk_credential, dedupe_key: 'same-submit', visitor: payload });
+  assert.equal(submit.data.ok, true);
+  return { credential: pair.data.kiosk_credential, visit: submit.data.visit, dedupe: 'same-submit' };
+}
+
 (async () => {
   const mod = await loadWorker();
+
+  {
+    assert.equal(fs.existsSync(path.resolve(__dirname, '../../cf-redcake/.env.production')), false, 'local production secret file must not be packaged');
+    const photoBinding = (wrangler.r2_buckets || []).find((b) => b.binding === 'VISITOR_PHOTOS');
+    assert.ok(photoBinding, 'wrangler.jsonc should define VISITOR_PHOTOS R2 binding');
+    assert.equal(photoBinding.bucket_name, 'eaglenest-visitor-photos');
+  }
+
+  {
+    assert.doesNotMatch(workerSource, /student_pickup/, 'Visitor Worker must not expose Visitor Student Pickup behavior');
+    assert.doesNotMatch(workerSource, /\/admin\/visitor\/link_student/, 'Visitor student-link route must be removed');
+    assert.doesNotMatch(workerSource, /\/admin\/visitor\/student_search/, 'Visitor student search route must be removed');
+    assert.doesNotMatch(workerSource, /\/admin\/visitor\/student_pickup_complete/, 'Visitor pickup route must be removed');
+    assert.doesNotMatch(workerSource, /\/pickup_begin|\/pickup_complete|\/pickup_fail/, 'VisitorDeskDO pickup routes must be removed');
+    assert.match(workerSource, /function\s+applyEarlyDismissalEntries_/, 'standalone Early Dismissal helper must remain');
+  }
 
   {
     const patch = mod.sanitizeVisitorPatch_({ visitor_first_name: 'Maria' });
@@ -96,29 +169,36 @@ async function doJson(instance, pathname, body) {
   }
 
   {
-    const instance = new mod.VisitorDeskDO(new FakeState(), {
-      VISITOR_GAS_URL: 'https://visitor-gas.invalid/exec',
-      VISITOR_GAS_SHARED_SECRET: 'test-secret'
+    const photoId = mod.newVisitorPhotoId_();
+    const key = mod.visitorPhotoKey_(photoId);
+    assert.match(photoId, /^photo_[A-Za-z0-9_-]{40,}$/);
+    assert.match(key, /^visitor-photos\/photo_[A-Za-z0-9_-]+\.jpg$/);
+    assert.equal(key.includes('Maria'), false);
+    assert.equal(key.includes('Rodriguez'), false);
+    assert.equal(key.includes('visit_'), false);
+  }
+
+  {
+    const payload = mod.visitorGasVisitPayload_({
+      visit_id: 'vis_1',
+      photo_id: 'photo_safe',
+      photo_base64: 'data:image/jpeg;base64,abc',
+      image_data: 'raw-bytes',
+      image_base64: 'abc',
+      badge_checkout_token: 'secret'
     });
-    await instance.ready;
-    const first = await doJson(instance, '/staff_create', {
-      actor_email: 'security@example.org',
-      visitor: {
-        visitor_first_name: 'Jane',
-        visitor_last_name: 'Doe',
-        visitor_type: 'parent_guardian',
-        purpose: 'student_pickup',
-        student_osis: '123456789',
-        student_name: 'Test Student'
-      }
-    });
-    assert.equal(first.data.ok, true);
-    assert.equal((await instance.state.storage.list({ prefix: 'persist:' })).size, 1);
-    const visitId = first.data.visit.visit_id;
-    const edit = await doJson(instance, '/update', { op: 'edit', visit_id: visitId, patch: { visitor_first_name: 'Maria' } });
-    assert.equal(edit.data.ok, true);
-    assert.equal(edit.data.visit.visitor_first_name, 'Maria');
-    assert.equal(edit.data.visit.student_osis, '123456789');
+    assert.deepEqual(payload, { visit_id: 'vis_1', photo_id: 'photo_safe' });
+  }
+
+  {
+    const okReq = new Request('https://x/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: fakeJpeg() });
+    assert.equal((await mod.readVisitorPhotoUpload_(okReq)).ok, true);
+    const htmlReq = new Request('https://x/upload', { method: 'POST', headers: { 'content-type': 'text/html' }, body: '<h1>x</h1>' });
+    assert.equal((await mod.readVisitorPhotoUpload_(htmlReq)).error, 'photo_type_not_allowed');
+    const svgReq = new Request('https://x/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: '<svg></svg>' });
+    assert.equal((await mod.readVisitorPhotoUpload_(svgReq)).error, 'photo_type_not_allowed');
+    const hugeReq = new Request('https://x/upload', { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: fakeJpeg(513 * 1024) });
+    assert.equal((await mod.readVisitorPhotoUpload_(hugeReq)).error, 'photo_too_large');
   }
 
   {
@@ -137,7 +217,8 @@ async function doJson(instance, pathname, body) {
         visitor_first_name: 'John',
         visitor_last_name: 'Smith',
         visitor_type: 'vendor_contractor',
-        purpose: 'meeting'
+        purpose: 'meeting',
+        photo_required_override: true
       }
     });
     assert.equal(created.data.ok, true);
@@ -172,9 +253,7 @@ async function doJson(instance, pathname, body) {
     });
     await instance.ready;
     const originalFetch = global.fetch;
-    global.fetch = async () => {
-      throw new Error('network detail must not leak');
-    };
+    global.fetch = async () => { throw new Error('network detail must not leak'); };
     const created = await doJson(instance, '/staff_create', {
       actor_email: 'security@example.org',
       visitor: {
@@ -203,130 +282,6 @@ async function doJson(instance, pathname, body) {
   }
 
   {
-    const instance = new mod.VisitorDeskDO(new FakeState(), {});
-    await instance.ready;
-    const wrongPurpose = await doJson(instance, '/staff_create', {
-      actor_email: 'security@example.org',
-      direct_admit: true,
-      visitor: {
-        visitor_first_name: 'Wrong',
-        visitor_last_name: 'Purpose',
-        visitor_type: 'parent_guardian',
-        purpose: 'meeting',
-        student_osis: '123456789',
-        student_name: 'Test Student'
-      }
-    });
-    const rejectWrongPurpose = await doJson(instance, '/pickup_begin', { visit_id: wrongPurpose.data.visit.visit_id, actor_email: 'security@example.org' });
-    assert.equal(rejectWrongPurpose.resp.status, 409);
-    assert.equal(rejectWrongPurpose.data.error, 'visit_not_student_pickup');
-
-    const noStudent = await doJson(instance, '/staff_create', {
-      actor_email: 'security@example.org',
-      direct_admit: true,
-      visitor: {
-        visitor_first_name: 'No',
-        visitor_last_name: 'Student',
-        visitor_type: 'parent_guardian',
-        purpose: 'student_pickup'
-      }
-    });
-    const rejectNoStudent = await doJson(instance, '/pickup_begin', { visit_id: noStudent.data.visit.visit_id, actor_email: 'security@example.org' });
-    assert.equal(rejectNoStudent.resp.status, 400);
-
-    const good = await doJson(instance, '/staff_create', {
-      actor_email: 'security@example.org',
-      direct_admit: true,
-      visitor: {
-        visitor_first_name: 'Pickup',
-        visitor_last_name: 'Parent',
-        visitor_type: 'parent_guardian',
-        purpose: 'student_pickup',
-        student_osis: '123456789',
-        student_name: 'Test Student'
-      }
-    });
-    const begin = await doJson(instance, '/pickup_begin', { visit_id: good.data.visit.visit_id, actor_email: 'security@example.org' });
-    assert.equal(begin.data.ok, true);
-    assert.equal(begin.data.visit.student_pickup_status, 'pending');
-    assert.equal(!!begin.data.pickup_operation_id, true);
-    const doubleBegin = await doJson(instance, '/pickup_begin', { visit_id: good.data.visit.visit_id, actor_email: 'security@example.org' });
-    assert.equal(doubleBegin.resp.status, 409);
-    const visitKey = instance._visitKey(good.data.visit.visit_id);
-    const staleRec = await instance.state.storage.get(visitKey);
-    staleRec.student_pickup_started_at = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-    await instance.state.storage.put(visitKey, staleRec);
-    const recovered = await doJson(instance, '/pickup_begin', { visit_id: good.data.visit.visit_id, actor_email: 'security@example.org' });
-    assert.equal(recovered.data.ok, true);
-    assert.equal(recovered.data.recovered, true);
-    assert.notEqual(recovered.data.pickup_operation_id, begin.data.pickup_operation_id);
-    const complete = await doJson(instance, '/pickup_complete', { visit_id: good.data.visit.visit_id, actor_email: 'security@example.org' });
-    assert.equal(complete.data.ok, true);
-    assert.equal(complete.data.visit.student_pickup_status, 'completed');
-    const completeAgain = await doJson(instance, '/pickup_complete', { visit_id: good.data.visit.visit_id, actor_email: 'security@example.org' });
-    assert.equal(completeAgain.data.ok, true);
-    assert.equal(completeAgain.data.already, true);
-  }
-
-  {
-    const instance = new mod.VisitorDeskDO(new FakeState(), {});
-    await instance.ready;
-    const env = {
-      ADMIN_TOKEN: 'admin-token',
-      ROSTER: {
-        async get(key) {
-          if (key === 'roster_v1') {
-            return JSON.stringify({
-              ts: '2026-08-10T12:00:00Z',
-              rows: [{ o: '123456789', n: 'Canonical Student', g: '9' }]
-            });
-          }
-          return null;
-        }
-      },
-      VISITOR_DESK_DO: {
-        idFromName() { return 'visitor-global'; },
-        get() {
-          return {
-            fetch(url, init) {
-              return instance.fetch(new Request(url, init));
-            }
-          };
-        }
-      }
-    };
-    const created = await doJson(instance, '/staff_create', {
-      actor_email: 'security@example.org',
-      visitor: {
-        visitor_first_name: 'Pickup',
-        visitor_last_name: 'Guardian',
-        visitor_type: 'parent_guardian',
-        purpose: 'student_pickup'
-      }
-    });
-    const request = new Request('https://worker.example/admin/visitor/link_student', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-admin-token': 'admin-token' },
-      body: JSON.stringify({
-        visit_id: created.data.visit.visit_id,
-        student_osis: '123456789',
-        student_name: 'Fake Mismatch'
-      })
-    });
-    const ctx = { waitUntil(p) { if (p && typeof p.catch === 'function') p.catch(() => {}); } };
-    const resp = await mod.handleVisitorAdminRoute_(request, env, ctx, '/admin/visitor/link_student');
-    const data = await resp.json();
-    assert.equal(resp.status, 200);
-    assert.equal(data.ok, true);
-    assert.equal(data.visit.student_osis, '123456789');
-    assert.equal(data.visit.student_name, 'Canonical Student');
-
-    const missing = await mod.visitorCanonicalStudentLink_(env, '999999999');
-    assert.equal(missing.ok, false);
-    assert.equal(missing.error, 'student_not_found');
-  }
-
-  {
     const state = new FakeState();
     const instance = new mod.VisitorDeskDO(state, {});
     await instance.ready;
@@ -348,6 +303,206 @@ async function doJson(instance, pathname, body) {
     assert.equal(await state.storage.get('checkout_used:oldhash'), undefined);
     assert.notEqual(await state.storage.get('checkout:activehash'), undefined);
     assert.equal(await state.storage.get('rate:kiosk'), undefined);
+  }
+
+  {
+    const instance = new mod.VisitorDeskDO(new FakeState(), {});
+    await instance.ready;
+    const { credential, visit, dedupe } = await pairedKioskVisit(mod, instance, {
+      visitor_first_name: 'Maria',
+      visitor_last_name: 'Rodriguez'
+    });
+    const r2 = new FakeR2();
+    const env = { VISITOR_DESK_DO: doStub(instance), VISITOR_PHOTOS: r2 };
+    const uploadReq = new Request('https://worker.example/visitor/kiosk/photo', {
+      method: 'POST',
+      headers: {
+        'content-type': 'image/jpeg',
+        'x-visitor-kiosk': credential,
+        'x-visitor-visit': visit.visit_id,
+        'x-visitor-dedupe': dedupe
+      },
+      body: fakeJpeg()
+    });
+    const resp = await mod.handleVisitorKioskRoute_(uploadReq, env, ctx(), '/visitor/kiosk/photo');
+    const data = await resp.json();
+    assert.equal(resp.status, 200);
+    assert.equal(data.ok, true);
+    assert.equal(data.visit.photo_source, 'kiosk_camera');
+    const keys = [...r2.map.keys()];
+    assert.equal(keys.length, 1);
+    assert.match(keys[0], /^visitor-photos\/photo_[A-Za-z0-9_-]+\.jpg$/);
+    assert.equal(keys[0].includes('Maria'), false);
+    assert.equal(keys[0].includes('Rodriguez'), false);
+    assert.equal(keys[0].includes(visit.visit_id), false);
+
+    const replaceReq = new Request('https://worker.example/visitor/kiosk/photo', {
+      method: 'POST',
+      headers: {
+        'content-type': 'image/jpeg',
+        'x-visitor-kiosk': credential,
+        'x-visitor-visit': visit.visit_id,
+        'x-visitor-dedupe': dedupe
+      },
+      body: fakeJpeg()
+    });
+    const replaced = await mod.handleVisitorKioskRoute_(replaceReq, env, ctx(), '/visitor/kiosk/photo');
+    assert.equal(replaced.status, 200);
+    assert.equal((await instance.state.storage.list({ prefix: 'visit:' })).size, 1);
+    assert.equal(r2.deleted.length, 1);
+  }
+
+  {
+    const instance = new mod.VisitorDeskDO(new FakeState(), {});
+    await instance.ready;
+    const { credential, visit } = await pairedKioskVisit(mod, instance);
+    const r2 = new FakeR2();
+    const env = { VISITOR_DESK_DO: doStub(instance), VISITOR_PHOTOS: r2 };
+    const missingDedupe = new Request('https://worker.example/visitor/kiosk/photo', {
+      method: 'POST',
+      headers: { 'content-type': 'image/jpeg', 'x-visitor-kiosk': credential, 'x-visitor-visit': visit.visit_id },
+      body: fakeJpeg()
+    });
+    const denied = await mod.handleVisitorKioskRoute_(missingDedupe, env, ctx(), '/visitor/kiosk/photo');
+    assert.equal(denied.status, 403);
+    assert.equal(r2.map.size, 0);
+
+    const getDenied = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/photo'), env, ctx(), '/visitor/kiosk/photo');
+    assert.equal(getDenied.status, 405);
+  }
+
+  {
+    const instance = new mod.VisitorDeskDO(new FakeState(), {});
+    await instance.ready;
+    const { credential, visit, dedupe } = await pairedKioskVisit(mod, instance);
+    const r2 = new FakeR2();
+    const env = { VISITOR_DESK_DO: doStub(instance), VISITOR_PHOTOS: r2 };
+    const invalidMime = new Request('https://worker.example/visitor/kiosk/photo', {
+      method: 'POST',
+      headers: {
+        'content-type': 'text/html',
+        'x-visitor-kiosk': credential,
+        'x-visitor-visit': visit.visit_id,
+        'x-visitor-dedupe': dedupe
+      },
+      body: '<h1>not a photo</h1>'
+    });
+    const mimeResp = await mod.handleVisitorKioskRoute_(invalidMime, env, ctx(), '/visitor/kiosk/photo');
+    assert.equal(mimeResp.status, 415);
+    assert.equal(r2.map.size, 0);
+
+    const svgAsJpeg = new Request('https://worker.example/visitor/kiosk/photo', {
+      method: 'POST',
+      headers: {
+        'content-type': 'image/jpeg',
+        'x-visitor-kiosk': credential,
+        'x-visitor-visit': visit.visit_id,
+        'x-visitor-dedupe': dedupe
+      },
+      body: '<svg></svg>'
+    });
+    const svgResp = await mod.handleVisitorKioskRoute_(svgAsJpeg, env, ctx(), '/visitor/kiosk/photo');
+    assert.equal(svgResp.status, 415);
+    assert.equal(r2.map.size, 0);
+  }
+
+  {
+    const instance = new mod.VisitorDeskDO(new FakeState(), {});
+    await instance.ready;
+    const { credential, visit, dedupe } = await pairedKioskVisit(mod, instance);
+    const env = { VISITOR_DESK_DO: doStub(instance), VISITOR_PHOTOS: new FakeR2({ failPut: true }) };
+    const failReq = new Request('https://worker.example/visitor/kiosk/photo', {
+      method: 'POST',
+      headers: {
+        'content-type': 'image/jpeg',
+        'x-visitor-kiosk': credential,
+        'x-visitor-visit': visit.visit_id,
+        'x-visitor-dedupe': dedupe
+      },
+      body: fakeJpeg()
+    });
+    const failed = await mod.handleVisitorKioskRoute_(failReq, env, ctx(), '/visitor/kiosk/photo');
+    const data = await failed.json();
+    assert.equal(failed.status, 503);
+    assert.equal(data.error, 'photo_storage_failed');
+    const current = await doJson(instance, `/visit?visit_id=${encodeURIComponent(visit.visit_id)}`);
+    assert.equal(current.data.visit.photo_id, '');
+  }
+
+  {
+    const instance = new mod.VisitorDeskDO(new FakeState(), {});
+    await instance.ready;
+    const env = {
+      ADMIN_TOKEN: 'admin-token',
+      VISITOR_DESK_DO: doStub(instance),
+      VISITOR_PHOTOS: new FakeR2()
+    };
+    const noAuth = new Request('https://worker.example/admin/visitor/photo?visit_id=vis_1');
+    const denied = await mod.handleVisitorAdminRoute_(noAuth, env, ctx(), '/admin/visitor/photo');
+    assert.notEqual(denied.status, 200, 'photo reads require Visitor Desk auth');
+  }
+
+  {
+    const photoId = mod.newVisitorPhotoId_();
+    const r2 = new FakeR2();
+    const key = mod.visitorPhotoKey_(photoId);
+    await r2.put(key, fakeJpeg(), { httpMetadata: { contentType: 'image/jpeg' } });
+    const env = { ADMIN_TOKEN: 'admin-token', VISITOR_PHOTOS: r2 };
+    const authedHistoryPhoto = new Request(`https://worker.example/admin/visitor/photo?photo_id=${encodeURIComponent(photoId)}`, {
+      headers: { 'x-admin-token': 'admin-token' }
+    });
+    const resp = await mod.handleVisitorAdminRoute_(authedHistoryPhoto, env, ctx(), '/admin/visitor/photo');
+    assert.equal(resp.status, 200);
+    assert.equal(resp.headers.get('content-type'), 'image/jpeg');
+    assert.equal(resp.headers.get('cache-control'), 'private, no-store');
+    assert.equal(resp.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal((await resp.arrayBuffer()).byteLength > 0, true);
+
+    const expired = new Request(`https://worker.example/admin/visitor/photo?photo_id=${encodeURIComponent(mod.newVisitorPhotoId_())}`, {
+      headers: { 'x-admin-token': 'admin-token' }
+    });
+    const expiredResp = await mod.handleVisitorAdminRoute_(expired, env, ctx(), '/admin/visitor/photo');
+    const expiredData = await expiredResp.json();
+    assert.equal(expiredResp.status, 404);
+    assert.equal(expiredData.error, 'photo_expired');
+
+    const invalid = new Request('https://worker.example/admin/visitor/photo?photo_id=../photo_bad', {
+      headers: { 'x-admin-token': 'admin-token' }
+    });
+    const invalidResp = await mod.handleVisitorAdminRoute_(invalid, env, ctx(), '/admin/visitor/photo');
+    assert.equal(invalidResp.status, 400);
+  }
+
+  {
+    const instance = new mod.VisitorDeskDO(new FakeState(), {});
+    await instance.ready;
+    const created = await doJson(instance, '/staff_create', {
+      actor_email: 'security@example.org',
+      direct_admit: true,
+      visitor: {
+        visitor_first_name: 'No',
+        visitor_last_name: 'Photo',
+        visitor_type: 'school_guest',
+        purpose: 'meeting'
+      }
+    });
+    assert.equal(created.resp.status, 409);
+    assert.equal(created.data.error, 'photo_required');
+
+    const overridden = await doJson(instance, '/staff_create', {
+      actor_email: 'security@example.org',
+      direct_admit: true,
+      visitor: {
+        visitor_first_name: 'Override',
+        visitor_last_name: 'Guest',
+        visitor_type: 'school_guest',
+        purpose: 'meeting',
+        photo_required_override: true
+      }
+    });
+    assert.equal(overridden.data.ok, true);
+    assert.equal(overridden.data.visit.status, 'checked_in');
+    assert.equal(overridden.data.visit.photo_required_override, true);
   }
 
   {

@@ -28,6 +28,11 @@ function assertNoForbidden(obj) {
 }
 
 {
+  assert.equal(Object.prototype.hasOwnProperty.call(Shared.PURPOSES, 'student_pickup'), false);
+  assert.equal(Shared.purposeLabel('meeting', 'es'), 'Reunión');
+}
+
+{
   const raw = syntheticAamva([
     'DCSDOE',
     'DACJANE',

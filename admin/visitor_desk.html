@@ -150,6 +150,7 @@
     <form id="visitorForm" method="dialog">
       <h2 id="visitorDialogTitle">Check In Visitor</h2>
       <input type="hidden" name="visit_id">
+      <div id="visitorReviewPhoto" class="visitorReviewPhoto"></div>
       <div class="formGrid">
         <label>First Name<input name="visitor_first_name" maxlength="80" required></label>
         <label>Middle<input name="visitor_middle_name" maxlength="80"></label>
@@ -159,7 +160,6 @@
         <label>Organization<input name="organization" maxlength="140"></label>
         <label>Destination / Person<input name="destination" maxlength="160"></label>
         <label>Host Email<input name="host_email" maxlength="180"></label>
-        <label>Typed Student Name<input name="student_name" maxlength="140"></label>
         <label class="wide">Notes<textarea name="notes" rows="3" maxlength="400"></textarea></label>
       </div>
       <label class="check"><input name="direct_admit" type="checkbox"> Admit immediately after saving</label>
@@ -191,13 +191,25 @@
     </form>
   </dialog>
 
-  <dialog id="studentDialog">
+  <dialog id="photoDialog">
     <form method="dialog">
-      <h2>Link Student</h2>
-      <input id="studentSearch" placeholder="Search student name or OSIS" autocomplete="off">
-      <div id="studentResults" class="resultList"></div>
+      <h2>Take Visitor Photo</h2>
+      <p class="muted">Use a current photo of the visitor standing at the desk.</p>
+      <div class="cameraPanel">
+        <div class="cameraFrame">
+          <video id="staffCameraPreview" autoplay playsinline muted></video>
+          <img id="staffPhotoPreview" alt="Visitor photo preview" hidden>
+          <div class="faceGuide" aria-hidden="true"></div>
+        </div>
+        <div id="photoDialogStatus" class="status" aria-live="polite"></div>
+      </div>
       <div class="dialogActions">
         <button type="button" data-close-dialog>Cancel</button>
+        <button id="startStaffCameraBtn" type="button">Start Camera</button>
+        <button id="takeStaffPhotoBtn" class="primary" type="button">Take Photo</button>
+        <button id="retakeStaffPhotoBtn" type="button" hidden>Retake</button>
+        <button id="saveStaffPhotoBtn" class="primary" type="button" hidden>Save Photo</button>
+        <button id="overridePhotoBtn" class="danger" type="button">Override No Photo</button>
       </div>
     </form>
   </dialog>
