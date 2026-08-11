@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-11-6';
+  const LAB_BUILD = '2026-08-11-7';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -157,6 +157,7 @@
 
   let wasmInfo = null;
   let wasmInfoPromise = null;
+  let parsedFieldsVisible = false;
 
   const yesNo = (value) => (value ? 'YES' : 'NO');
 
@@ -378,6 +379,7 @@
     setText('lastSuccessDimensions', result?.dimensions || '-');
     setText('lastSuccessDecoded', yesNo(!!result?.decodedSuccessfully));
     setText('lastSuccessAamva', yesNo(d.aamvaIndicators));
+    setText('lastSuccessPrimarySubfile', d.primarySubfileType || 'NONE');
     setText('lastSuccessStrict', result?.aamva ? passFail(d.strictParserPass) : '-');
     setText('lastSuccessRecovery', result?.aamva ? passFail(d.fieldRecoveryPass) : '-');
     setText('lastSuccessFailure', d.parserFailureReason || '-');
@@ -856,9 +858,11 @@
     setText(`${prefix}StructTimestamp`, '-');
     setText(`${prefix}StructProcessing`, '-');
     [
-      'Compliance', 'Ansi', 'Iin', 'Dl', 'Id', 'Dcs', 'Dac', 'Dad', 'Dbb', 'Daq',
+      'Compliance', 'Ansi', 'Iin', 'Dl', 'En', 'Id', 'DlDescriptor', 'EnDescriptor', 'IdDescriptor',
+      'JurisdictionSpecific', 'Dcs', 'Dac', 'Dad', 'Dbb', 'Daq', 'DobParsed',
       'RecordSeparator', 'SegmentTerminator', 'LineFeed'
     ].forEach((suffix) => setText(`${prefix}Struct${suffix}`, 'NO'));
+    setText(`${prefix}StructPrimarySubfile`, 'NONE');
     setText(`${prefix}StructAamvaVersion`, '-');
     setText(`${prefix}StructJurisdictionVersion`, '-');
     setText(`${prefix}StructTextAvailable`, 'NO');
@@ -960,13 +964,20 @@
     setText(`${prefix}StructHeaderLength`, yesNo(d.headerLengthParseable));
     setText(`${prefix}StructSubfileCount`, d.subfileCount == null ? '-' : d.subfileCount);
     setText(`${prefix}StructDescriptorTable`, yesNo(d.descriptorTableParseable));
+    setText(`${prefix}StructPrimarySubfile`, d.primarySubfileType || 'NONE');
+    setText(`${prefix}StructDlDescriptor`, yesNo(!!d.dlDescriptor));
+    setText(`${prefix}StructEnDescriptor`, yesNo(!!d.enDescriptor));
+    setText(`${prefix}StructIdDescriptor`, yesNo(!!d.idDescriptor));
+    setText(`${prefix}StructJurisdictionSpecific`, yesNo(d.jurisdictionSpecificSubfile));
     setText(`${prefix}StructDl`, yesNo(d.dlSubfile));
+    setText(`${prefix}StructEn`, yesNo(d.enSubfile));
     setText(`${prefix}StructId`, yesNo(d.idSubfile));
     setText(`${prefix}StructDcs`, yesNo(d.dcsTag));
     setText(`${prefix}StructDac`, yesNo(d.dacTag));
     setText(`${prefix}StructDad`, yesNo(d.dadTag));
     setText(`${prefix}StructDbb`, yesNo(d.dbbTag));
     setText(`${prefix}StructDaq`, yesNo(d.daqTag));
+    setText(`${prefix}StructDobParsed`, yesNo(d.dobParsed));
     setText(`${prefix}StructRecordSeparator`, yesNo(d.recordSeparator));
     setText(`${prefix}StructSegmentTerminator`, yesNo(d.segmentTerminator));
     setText(`${prefix}StructLineFeed`, yesNo(d.lineFeedSeparators));
@@ -985,7 +996,7 @@
     const data = parsed.ok ? parsed.data || {} : recovered;
     const valid = parsed.ok || !!diagnostic?.fieldRecoveryPass;
     if (prefix === 'live') setText('liveValidAamva', yesNo(valid));
-    if (!$('showDecodedText')?.checked) {
+    if (!parsedFieldsVisible) {
       setText(`${prefix}FirstName`, valid ? 'hidden' : '-');
       setText(`${prefix}MiddleName`, valid ? 'hidden' : '-');
       setText(`${prefix}LastName`, valid ? 'hidden' : '-');
@@ -999,6 +1010,12 @@
     setText(`${prefix}Dob`, data.date_of_birth || '-');
     setText(`${prefix}Jurisdiction`, data.id_issuing_jurisdiction || '-');
     return valid;
+  }
+
+  function showParsedFields() {
+    parsedFieldsVisible = true;
+    if (displayedAamvaResults.live) renderParsed('live', '', displayedAamvaResults.live.aamva);
+    if (displayedAamvaResults.photo) renderParsed('photo', '', displayedAamvaResults.photo.aamva);
   }
 
   function renderDecodedResult(prefix, result) {
@@ -1029,6 +1046,7 @@
     live.lastPdf417Fingerprint = '';
     live.lastAamvaFingerprint = '';
     live.lastAamvaDiagnostic = null;
+    parsedFieldsVisible = false;
     live.lastGuideMapping = null;
     live.originalAttemptSuccess = false;
     live.contrastAttemptSuccess = false;
@@ -1283,6 +1301,7 @@
     photo.manualCropResult = emptyDecodeState();
     photo.autoCropResult = emptyDecodeState();
     photo.lastAamvaDiagnostic = null;
+    parsedFieldsVisible = false;
     crop.lastMapping = null;
     setText('photoDimensions', '-');
     setText('directResultCount', '-');
@@ -1320,6 +1339,7 @@
       syncLegacyResult(key, sessionResults[key]);
     });
     sessionResults.lastSuccessfulPdf417 = null;
+    parsedFieldsVisible = false;
     live.lastAamvaDiagnostic = null;
     photo.lastAamvaDiagnostic = null;
     displayedAamvaResults.live = null;
@@ -2132,16 +2152,24 @@
       `IIN present: ${yesNo(diagnostic.iinPresent).toLowerCase()}`,
       `AAMVA version: ${diagnostic.aamvaVersion || '-'}`,
       `Jurisdiction version: ${diagnostic.jurisdictionVersion || '-'}`,
+      `Primary subfile type: ${diagnostic.primarySubfileType || 'NONE'}`,
+      `DL descriptor: ${yesNo(!!diagnostic.dlDescriptor).toLowerCase()}`,
+      `EN descriptor: ${yesNo(!!diagnostic.enDescriptor).toLowerCase()}`,
+      `ID descriptor: ${yesNo(!!diagnostic.idDescriptor).toLowerCase()}`,
+      `Jurisdiction-specific descriptor: ${yesNo(diagnostic.jurisdictionSpecificSubfile).toLowerCase()}`,
       `DL subfile found: ${yesNo(diagnostic.dlSubfile).toLowerCase()}`,
+      `EN subfile found: ${yesNo(diagnostic.enSubfile).toLowerCase()}`,
       `ID subfile found: ${yesNo(diagnostic.idSubfile).toLowerCase()}`,
       `DCS tag present: ${yesNo(diagnostic.dcsTag).toLowerCase()}`,
       `DAC tag present: ${yesNo(diagnostic.dacTag).toLowerCase()}`,
       `DAD tag present: ${yesNo(diagnostic.dadTag).toLowerCase()}`,
       `DBB tag present: ${yesNo(diagnostic.dbbTag).toLowerCase()}`,
+      `DOB parsed successfully: ${yesNo(diagnostic.dobParsed).toLowerCase()}`,
       `Decoded text length: ${diagnostic.decodedTextLength || 0}`,
       `ZXing HRI text available: ${yesNo(diagnostic.zxing?.hriTextAvailable || diagnostic.zxing?.textAvailable).toLowerCase()}`,
       'ZXing HRI text is not used for AAMVA structural parsing.',
       `ZXing raw bytes available: ${yesNo(diagnostic.zxing?.rawBytesAvailable).toLowerCase()}`,
+      `Raw bytes available: ${yesNo(diagnostic.rawBytesAvailable).toLowerCase()}`,
       `Raw byte length: ${diagnostic.rawByteLength || 0}`,
       `Raw header @: ${yesNo(diagnostic.rawHeaderAt).toLowerCase()}`,
       `Raw header LF: ${yesNo(diagnostic.rawHeaderLf).toLowerCase()}`,
@@ -2221,6 +2249,9 @@
     $('stopLiveBtn')?.addEventListener('click', stopLiveScan);
     $('clearLiveBtn')?.addEventListener('click', clearLiveResults);
     $('showDecodedText')?.addEventListener('change', renderDecodedText);
+    $$('.showParsedFieldsBtn').forEach((button) => {
+      button.addEventListener('click', showParsedFields);
+    });
     $$('input[name="testTarget"]').forEach((input) => {
       input.addEventListener('change', () => clearLiveResults());
     });

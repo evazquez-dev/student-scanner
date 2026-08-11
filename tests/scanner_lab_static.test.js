@@ -26,7 +26,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-6'/, 'Scanner Lab should expose Build 6');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-7'/, 'Scanner Lab should expose Build 7');
 }
 
 function asciiBytes(text) {
@@ -52,6 +52,27 @@ function syntheticAamvaResult(subfile, fields, options) {
     bytes,
     format: 'PDF417',
     valid: true
+  };
+}
+
+function syntheticMultiAamvaResult(subfiles, options) {
+  const opts = options || {};
+  const bodies = subfiles.map((item) => `${item.type}${item.fields.join('\n')}\r`);
+  let offset = 21 + (subfiles.length * 10);
+  const descriptors = bodies.map((body, index) => {
+    const type = subfiles[index].type;
+    const descriptor = `${type}${String(offset).padStart(4, '0')}${String(body.length).padStart(4, '0')}`;
+    offset += body.length;
+    return descriptor;
+  });
+  const header = `@\n\x1e\rANSI 636000${opts.version || '10'}${opts.jurisdiction || '04'}${String(subfiles.length).padStart(2, '0')}${descriptors.join('')}`;
+  assert.equal(header.length, 21 + (subfiles.length * 10), 'synthetic multi-subfile descriptor offsets should be exact');
+  return {
+    text: '@ANSI 636000100402; HRI text intentionally lacks control separators and fields',
+    bytes: asciiBytes(header + bodies.join('')),
+    format: 'PDF417',
+    valid: true,
+    bodyLengths: bodies.map((body) => body.length)
   };
 }
 
@@ -86,7 +107,9 @@ function syntheticAamvaResult(subfile, fields, options) {
   assert.equal(diag.descriptors[0].offsetWithinBounds, true);
   assert.equal(diag.descriptors[0].lengthWithinBounds, true);
   assert.equal(diag.descriptors[0].prefixMatches, true);
+  assert.equal(diag.primarySubfileType, 'DL');
   assert.equal(diag.dlSubfile, true);
+  assert.equal(diag.enSubfile, false);
   assert.equal(diag.idSubfile, false);
   assert.equal(diag.dcsTag, true);
   assert.equal(diag.dacTag, true);
@@ -98,6 +121,8 @@ function syntheticAamvaResult(subfile, fields, options) {
   assert.equal(diag.lineFeedSeparators, true);
   assert.equal(diag.strictParserPass, true);
   assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.dobParsed, true);
+  assert.equal(diag.zxing.containsAsciiControlChars, true);
   assert.equal(diag.recoveredData.visitor_first_name, 'JANE');
   assert.equal(diag.recoveredData.visitor_middle_name, 'Q');
   assert.equal(diag.recoveredData.visitor_last_name, 'DOE');
@@ -113,12 +138,68 @@ function syntheticAamvaResult(subfile, fields, options) {
   const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
   assert.equal(diag.idSubfile, true);
   assert.equal(diag.dlSubfile, false);
+  assert.equal(diag.enSubfile, false);
+  assert.equal(diag.primarySubfileType, 'ID');
   assert.equal(diag.descriptors[0].type, 'ID');
   assert.equal(diag.descriptors[0].offset, 31);
   assert.equal(diag.descriptors[0].prefixMatches, true);
   assert.equal(diag.strictParserPass, true);
   assert.equal(diag.fieldRecoveryPass, true);
   assert.equal(diag.recoveredData.date_of_birth, '1980-01-02');
+}
+
+{
+  const result = syntheticMultiAamvaResult([
+    {
+      type: 'EN',
+      fields: [
+        'DCSENLAST',
+        'DACENFIRST',
+        'DADQ',
+        'DBB01011990',
+        'DAJNY'
+      ]
+    },
+    {
+      type: 'ZN',
+      fields: [
+        'DCSIGNOREME',
+        'DACWRONG',
+        'DBB12312001'
+      ]
+    }
+  ]);
+  const diag = AamvaDiag.analyzeAamvaPayload(result.text, result);
+  assert.equal(diag.parserSource, 'RAW BYTES');
+  assert.equal(diag.aamvaVersion, '10');
+  assert.equal(diag.jurisdictionVersion, '4');
+  assert.equal(diag.subfileCount, 2);
+  assert.equal(diag.descriptorTableParseable, true);
+  assert.equal(diag.descriptors[0].type, 'EN');
+  assert.equal(diag.descriptors[0].offset, 41);
+  assert.equal(diag.descriptors[0].length, result.bodyLengths[0]);
+  assert.equal(diag.descriptors[0].prefixMatches, true);
+  assert.equal(diag.descriptors[1].type, 'ZN');
+  assert.equal(diag.descriptors[1].offset, 41 + result.bodyLengths[0]);
+  assert.equal(diag.descriptors[1].length, result.bodyLengths[1]);
+  assert.equal(diag.descriptors[1].prefixMatches, true);
+  assert.equal(diag.primarySubfileType, 'EN');
+  assert.equal(diag.dlSubfile, false);
+  assert.equal(diag.enSubfile, true);
+  assert.equal(diag.idSubfile, false);
+  assert.equal(diag.jurisdictionSpecificSubfile, true);
+  assert.equal(diag.jurisdictionSpecificDescriptor.type, 'ZN');
+  assert.equal(diag.dcsTag, true);
+  assert.equal(diag.dacTag, true);
+  assert.equal(diag.dadTag, true);
+  assert.equal(diag.dbbTag, true);
+  assert.equal(diag.dobParsed, true);
+  assert.equal(diag.strictParserPass, true);
+  assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.recoveredData.visitor_first_name, 'ENFIRST');
+  assert.equal(diag.recoveredData.visitor_middle_name, 'Q');
+  assert.equal(diag.recoveredData.visitor_last_name, 'ENLAST');
+  assert.equal(diag.recoveredData.date_of_birth, '1990-01-01');
 }
 
 {
@@ -421,15 +502,25 @@ function syntheticAamvaResult(subfile, fields, options) {
   assert.match(labHtml, /ASCII 0x1C count/, 'Control-character counts should be shown safely');
   assert.match(labHtml, /Literal \\x1e count/, 'Escaped control sequence counts should be shown safely');
   assert.match(labHtml, /Subfile descriptor table parseable/, 'Descriptor table parseability should be shown safely');
+  assert.match(labHtml, /Primary AAMVA subfile/, 'Primary AAMVA subfile should be shown safely');
+  assert.match(labHtml, /DL descriptor found/, 'DL descriptor status should be shown safely');
+  assert.match(labHtml, /EN descriptor found/, 'EN descriptor status should be shown safely');
+  assert.match(labHtml, /ID descriptor found/, 'ID descriptor status should be shown safely');
+  assert.match(labHtml, /Jurisdiction-specific descriptor/, 'Jurisdiction-specific descriptor status should be shown safely');
   assert.match(labHtml, /Descriptor 1 offset/, 'Descriptor offsets should be shown safely');
   assert.match(labHtml, /Descriptor 1 prefix matches/, 'Descriptor prefix checks should be shown safely');
   assert.match(labHtml, /DL subfile found/, 'DL subfile presence should be shown safely');
+  assert.match(labHtml, /EN subfile found/, 'EN subfile presence should be shown safely');
   assert.match(labHtml, /ID subfile found/, 'ID subfile presence should be shown safely');
   assert.match(labHtml, /DCS field tag present/, 'DCS tag presence should be shown safely');
   assert.match(labHtml, /DAC field tag present/, 'DAC tag presence should be shown safely');
   assert.match(labHtml, /DAD field tag present/, 'DAD tag presence should be shown safely');
   assert.match(labHtml, /DBB field tag present/, 'DBB tag presence should be shown safely');
+  assert.match(labHtml, /DOB parsed successfully/, 'DOB parsed status should be shown safely');
   assert.match(labHtml, /DAQ field tag present/, 'DAQ tag presence should be shown safely');
+  assert.match(labHtml, /Parsed Visitor Fields/, 'Parsed visitor field panel should exist');
+  assert.match(labHtml, /Show Parsed Fields/, 'Parsed fields must require an explicit button tap');
+  assert.match(labHtml, /Field values stay hidden unless this button is explicitly tapped/, 'Parsed fields should be hidden by default');
   assert.match(labHtml, /Strict parser/, 'Strict parser result should be shown');
   assert.match(labHtml, /Permitted-field recovery/, 'Field recovery result should be shown');
   assert.match(labAamvaDiagJs, /analyzeAamvaPayload/, 'AAMVA structural analyzer should exist');
@@ -438,6 +529,10 @@ function syntheticAamvaResult(subfile, fields, options) {
   assert.match(labAamvaDiagJs, /const HEADER_LENGTH = 21/, 'AAMVA byte parser should use the 21-byte fixed header');
   assert.match(labAamvaDiagJs, /const DESCRIPTOR_LENGTH = 10/, 'AAMVA byte parser should use 10-byte descriptors');
   assert.match(labAamvaDiagJs, /parseDescriptorBytes/, 'AAMVA analyzer should parse raw-byte subfile descriptors');
+  assert.match(labAamvaDiagJs, /PRIMARY_SUBFILE_TYPES = \['DL', 'EN', 'ID'\]/, 'AAMVA analyzer should recognize DL, EN, and ID as primary subfiles');
+  assert.match(labAamvaDiagJs, /primarySubfileType/, 'AAMVA analyzer should expose primary subfile type');
+  assert.match(labAamvaDiagJs, /enDescriptor/, 'AAMVA analyzer should expose EN descriptor status');
+  assert.match(labAamvaDiagJs, /jurisdictionSpecificDescriptor/, 'AAMVA analyzer should expose jurisdiction-specific descriptor status');
   assert.match(labAamvaDiagJs, /asciiFromBytes\(bytes,\s*4,\s*5\) === 'ANSI '/, 'AAMVA analyzer should verify ANSI by byte offset');
   assert.match(labAamvaDiagJs, /bytes\.subarray|descriptor\.offset/, 'AAMVA analyzer should apply descriptor offsets to bytes, not strings');
   assert.match(labAamvaDiagJs, /parserSource: 'RAW BYTES'/, 'AAMVA analyzer should mark raw bytes as canonical parser input');
@@ -492,15 +587,23 @@ function syntheticAamvaResult(subfile, fields, options) {
   assert.match(reportSection, /IIN present/, 'Diagnostic report should include safe IIN status');
   assert.match(reportSection, /AAMVA version/, 'Diagnostic report should include AAMVA version only');
   assert.match(reportSection, /Jurisdiction version/, 'Diagnostic report should include jurisdiction version only');
+  assert.match(reportSection, /Primary subfile type/, 'Diagnostic report should include primary subfile type');
+  assert.match(reportSection, /DL descriptor/, 'Diagnostic report should include DL descriptor status');
+  assert.match(reportSection, /EN descriptor/, 'Diagnostic report should include EN descriptor status');
+  assert.match(reportSection, /ID descriptor/, 'Diagnostic report should include ID descriptor status');
+  assert.match(reportSection, /Jurisdiction-specific descriptor/, 'Diagnostic report should include jurisdiction-specific descriptor status');
   assert.match(reportSection, /DL subfile found/, 'Diagnostic report should include DL subfile status');
+  assert.match(reportSection, /EN subfile found/, 'Diagnostic report should include EN subfile status');
   assert.match(reportSection, /ID subfile found/, 'Diagnostic report should include ID subfile status');
   assert.match(reportSection, /DCS tag present/, 'Diagnostic report should include DCS tag status');
   assert.match(reportSection, /DAC tag present/, 'Diagnostic report should include DAC tag status');
   assert.match(reportSection, /DAD tag present/, 'Diagnostic report should include DAD tag status');
   assert.match(reportSection, /DBB tag present/, 'Diagnostic report should include DBB tag status');
+  assert.match(reportSection, /DOB parsed successfully/, 'Diagnostic report should include safe DOB parsed status');
   assert.match(reportSection, /ZXing HRI text available/, 'Diagnostic report should include HRI text availability only');
   assert.match(reportSection, /HRI text is not used for AAMVA structural parsing/, 'Diagnostic report should identify HRI as non-canonical');
   assert.match(reportSection, /ZXing raw bytes available/, 'Diagnostic report should include raw byte availability only');
+  assert.match(reportSection, /Raw bytes available/, 'Diagnostic report should include canonical raw byte availability');
   assert.match(reportSection, /Raw byte length/, 'Diagnostic report should include safe raw byte length');
   assert.match(reportSection, /Raw header @/, 'Diagnostic report should include safe raw @ check');
   assert.match(reportSection, /Raw header LF/, 'Diagnostic report should include safe raw LF check');
@@ -535,13 +638,15 @@ function syntheticAamvaResult(subfile, fields, options) {
     /First Name/,
     /Last Name/,
     /Middle Name/,
-    /\bDOB\b/,
     /date_of_birth/,
     /visitor_first_name/,
     /visitor_last_name/,
     /result\.bytes/,
     /JSON\.stringify\(diagnostic\)/
   ].forEach((pattern) => assert.doesNotMatch(reportSection, pattern, `Diagnostic report must not include PII/raw data: ${pattern}`));
+  const parsedSection = sectionBetween(labJs, 'function renderParsed', 'function showParsedFields');
+  assert.match(parsedSection, /if \(!parsedFieldsVisible\)/, 'Parsed values should stay hidden until explicitly requested');
+  assert.doesNotMatch(reportSection, /parsedFieldsVisible|showParsedFields|photoFirstName|liveFirstName/, 'Copied report must not include parsed visitor field UI state');
 }
 
 {

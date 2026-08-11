@@ -8,6 +8,7 @@
   'use strict';
 
   const EXPECTED_TAGS = ['DCS', 'DAC', 'DAD', 'DCT', 'DBB', 'DAJ', 'DAQ'];
+  const PRIMARY_SUBFILE_TYPES = ['DL', 'EN', 'ID'];
   const HEADER_LENGTH = 21;
   const DESCRIPTOR_LENGTH = 10;
   const ASCII_AT = 0x40;
@@ -148,17 +149,32 @@
     return 0;
   }
 
+  function hasControlCounts(counts) {
+    return !!(
+      counts
+      && (
+        counts.fs > 0
+        || counts.gs > 0
+        || counts.rs > 0
+        || counts.cr > 0
+        || counts.lf > 0
+        || counts.nul > 0
+      )
+    );
+  }
+
   function zxingShape(raw, zxingResult, bytes) {
     const result = zxingResult || {};
     const text = typeof result.text === 'string' ? result.text : String(raw || '');
     const byteSource = bytes || result.bytes || result.rawBytes || result.contentBytes || result.byteSegments || null;
+    const counts = bytes ? controlCountsFromBytes(bytes) : null;
     return {
       textAvailable: text.length > 0,
       hriTextAvailable: text.length > 0,
       rawBytesAvailable: !!bytes,
       decodedTextCodeUnitLength: text.length,
       decodedByteLength: byteLength(byteSource),
-      containsAsciiControlChars: /[\x00-\x1f]/.test(text),
+      containsAsciiControlChars: counts ? hasControlCounts(counts) : /[\x00-\x1f]/.test(text),
       bytesEciAvailable: result.bytesECI != null
     };
   }
@@ -227,7 +243,10 @@
       && descriptor.prefixMatches
     ));
     const dlDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'DL');
+    const enDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'EN');
     const idDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'ID');
+    const primaryDescriptor = validDescriptors.find((descriptor) => PRIMARY_SUBFILE_TYPES.includes(descriptor.type));
+    const jurisdictionSpecificDescriptor = validDescriptors.find((descriptor) => /^Z[A-Z0-9]$/.test(descriptor.type));
 
     return {
       rawBytesAvailable: !!bytes,
@@ -248,9 +267,15 @@
       descriptorTableParseable,
       descriptors,
       dlDescriptor,
+      enDescriptor,
       idDescriptor,
+      primaryDescriptor,
+      jurisdictionSpecificDescriptor,
       dlSubfile: !!dlDescriptor,
+      enSubfile: !!enDescriptor,
       idSubfile: !!idDescriptor,
+      primarySubfileType: primaryDescriptor?.type || 'NONE',
+      jurisdictionSpecificSubfile: !!jurisdictionSpecificDescriptor,
       dataElementSeparator: bytes ? bytes[1] : null,
       recordSeparatorByte: bytes ? bytes[2] : null,
       segmentTerminatorByte: bytes ? bytes[3] : null
@@ -293,7 +318,7 @@
   }
 
   function subfileRange(header) {
-    const descriptor = header.dlDescriptor || header.idDescriptor || null;
+    const descriptor = header.primaryDescriptor || null;
     if (!descriptor) return null;
     return {
       type: descriptor.type,
@@ -419,7 +444,7 @@
         && descriptors.every((descriptor) => descriptor.parseable && descriptor.offsetWithinBounds && descriptor.lengthWithinBounds);
     }
     if (!descriptors.length) {
-      const fallback = raw.match(/(DL|ID)(\d{4})(\d{4})/ig) || [];
+      const fallback = raw.match(/(DL|EN|ID)(\d{4})(\d{4})/ig) || [];
       fallback.slice(0, 6).forEach((text, index) => {
         const cursor = raw.indexOf(text);
         descriptors.push(parseDescriptorText(raw, cursor, index + 1));
@@ -433,8 +458,12 @@
       && descriptor.prefixMatches
     ));
     const dlDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'DL');
+    const enDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'EN');
     const idDescriptor = validDescriptors.find((descriptor) => descriptor.type === 'ID');
+    const primaryDescriptor = validDescriptors.find((descriptor) => PRIMARY_SUBFILE_TYPES.includes(descriptor.type));
+    const jurisdictionSpecificDescriptor = validDescriptors.find((descriptor) => /^Z[A-Z0-9]$/.test(descriptor.type));
     const fallbackDl = /(?:^|[^A-Z0-9])DL\d{8}/i.test(normalized) || /ANSI[\s\S]*DL\d{8}/i.test(normalized);
+    const fallbackEn = /(?:^|[^A-Z0-9])EN\d{8}/i.test(normalized) || /ANSI[\s\S]*EN\d{8}/i.test(normalized);
     const fallbackId = /(?:^|[^A-Z0-9])ID\d{8}/i.test(normalized) || /ANSI[\s\S]*ID\d{8}/i.test(normalized);
     const useLegacySubfileFallback = !descriptors.length;
 
@@ -457,14 +486,20 @@
       descriptorTableParseable,
       descriptors,
       dlSubfile: !!dlDescriptor || (useLegacySubfileFallback && fallbackDl),
+      enSubfile: !!enDescriptor || (useLegacySubfileFallback && fallbackEn),
       idSubfile: !!idDescriptor || (useLegacySubfileFallback && fallbackId),
+      primarySubfileType: primaryDescriptor?.type || (useLegacySubfileFallback && fallbackDl ? 'DL' : useLegacySubfileFallback && fallbackEn ? 'EN' : useLegacySubfileFallback && fallbackId ? 'ID' : 'NONE'),
+      jurisdictionSpecificSubfile: !!jurisdictionSpecificDescriptor,
       dlDescriptor,
+      enDescriptor,
+      primaryDescriptor,
+      jurisdictionSpecificDescriptor,
       idDescriptor
     };
   }
 
   function fieldPattern(tag) {
-    return new RegExp(`(?:^|[\\r\\n\\x1e]|(?:DL|ID))${tag}([^\\r\\n\\x1e]*)`, 'i');
+    return new RegExp(`(?:^|[\\r\\n\\x1e]|(?:DL|EN|ID))${tag}([^\\r\\n\\x1e]*)`, 'i');
   }
 
   function findFieldText(raw, tag) {
@@ -532,14 +567,21 @@
       descriptorTableParseable: false,
       descriptors: [],
       dlSubfile: false,
+      enSubfile: false,
       idSubfile: false,
       dlDescriptor: null,
+      enDescriptor: null,
       idDescriptor: null,
+      primaryDescriptor: null,
+      primarySubfileType: 'NONE',
+      jurisdictionSpecificDescriptor: null,
+      jurisdictionSpecificSubfile: false,
       dcsTag: false,
       dacTag: false,
       dadTag: false,
       dbbTag: false,
       daqTag: false,
+      dobParsed: false,
       recordSeparator: false,
       segmentTerminator: false,
       lineFeedSeparators: false,
@@ -585,7 +627,7 @@
     const standardTagCount = countStandardTagsBytes(bytes, header);
     const recoveredData = recoverPermittedFieldsFromBytes(bytes, header);
     const dobTagFoundButInvalid = dbbTag && !recoveredData.date_of_birth;
-    const hasSubfile = header.dlSubfile || header.idSubfile;
+    const hasSubfile = header.primarySubfileType !== 'NONE';
     const hasRequiredTags = dcsTag && dbbTag && (dacTag || dctTag);
     const hasAamvaEvidence = header.rawHeaderAt
       && header.rawHeaderAnsi
@@ -623,7 +665,7 @@
       else if (!header.iinPresent) parserFailureReason = 'IIN not found in ANSI header';
       else if (!Number.isFinite(header.subfileCount)) parserFailureReason = 'Subfile count not parseable';
       else if (!header.descriptorTableParseable) parserFailureReason = 'Subfile descriptor table invalid';
-      else if (!hasSubfile) parserFailureReason = 'DL/ID subfile not found';
+      else if (!hasSubfile) parserFailureReason = 'Primary DL/EN/ID subfile not found';
       else if (!hasRequiredTags) parserFailureReason = 'Required permitted field tags not found';
       else if (dobTagFoundButInvalid) parserFailureReason = 'DOB tag found but date parser failed';
       else parserFailureReason = 'Unsupported AAMVA structure';
@@ -644,14 +686,21 @@
       descriptorTableParseable: header.descriptorTableParseable,
       descriptors: header.descriptors,
       dlSubfile: header.dlSubfile,
+      enSubfile: header.enSubfile,
       idSubfile: header.idSubfile,
       dlDescriptor: header.dlDescriptor,
+      enDescriptor: header.enDescriptor,
       idDescriptor: header.idDescriptor,
+      primaryDescriptor: header.primaryDescriptor,
+      primarySubfileType: header.primarySubfileType,
+      jurisdictionSpecificDescriptor: header.jurisdictionSpecificDescriptor,
+      jurisdictionSpecificSubfile: header.jurisdictionSpecificSubfile,
       dcsTag,
       dacTag,
       dadTag,
       dbbTag,
       daqTag,
+      dobParsed: !!recoveredData.date_of_birth,
       recordSeparator: header.rawHeaderRs || (controlCountsFromBytes(bytes).rs > 0),
       segmentTerminator: header.rawHeaderCr || (controlCountsFromBytes(bytes).cr > 0),
       lineFeedSeparators: header.rawHeaderLf || (controlCountsFromBytes(bytes).lf > 0),
@@ -709,7 +758,7 @@
     const standardTagCount = countStandardTagsText(tagSource);
     const recoveredData = recoverPermittedFieldsText(raw, header);
     const dobTagFoundButInvalid = dbbTag && !recoveredData.date_of_birth;
-    const hasSubfile = header.dlSubfile || header.idSubfile;
+    const hasSubfile = header.primarySubfileType !== 'NONE';
     const hasRequiredTags = dcsTag && (dacTag || dctTag) && dbbTag;
     const hasAamvaEvidence = (header.ansiHeader && header.iinPresent && standardTagCount >= 3)
       || (hasSubfile && standardTagCount >= 3);
@@ -738,7 +787,7 @@
       if (!raw.trim().startsWith('@')) parserFailureReason = 'Compliance indicator missing';
       else if (!header.ansiHeader) parserFailureReason = 'ANSI header not recognized';
       else if (!header.iinPresent) parserFailureReason = 'IIN not found in ANSI header';
-      else if (!hasSubfile) parserFailureReason = 'DL/ID subfile not found';
+      else if (!hasSubfile) parserFailureReason = 'Primary DL/EN/ID subfile not found';
       else if (!hasRequiredTags) parserFailureReason = 'Required permitted field tags not found';
       else if (dobTagFoundButInvalid) parserFailureReason = 'DOB tag found but date parser failed';
       else if (!sharedParsed.ok) parserFailureReason = 'Required field tags found but parser rejected separators';
@@ -760,14 +809,21 @@
       descriptorTableParseable: header.descriptorTableParseable,
       descriptors: header.descriptors,
       dlSubfile: header.dlSubfile,
+      enSubfile: header.enSubfile,
       idSubfile: header.idSubfile,
       dlDescriptor: header.dlDescriptor,
+      enDescriptor: header.enDescriptor,
       idDescriptor: header.idDescriptor,
+      primaryDescriptor: header.primaryDescriptor,
+      primarySubfileType: header.primarySubfileType,
+      jurisdictionSpecificDescriptor: header.jurisdictionSpecificDescriptor,
+      jurisdictionSpecificSubfile: header.jurisdictionSpecificSubfile,
       dcsTag,
       dacTag,
       dadTag,
       dbbTag,
       daqTag,
+      dobParsed: !!recoveredData.date_of_birth,
       recordSeparator: /\x1e/.test(raw),
       segmentTerminator: /\r/.test(raw),
       lineFeedSeparators: /\n/.test(raw),

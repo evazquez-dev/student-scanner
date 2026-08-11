@@ -36,6 +36,7 @@
           <div><dt>Dimensions</dt><dd id="lastSuccessDimensions">-</dd></div>
           <div><dt>Decoded</dt><dd id="lastSuccessDecoded">NO</dd></div>
           <div><dt>AAMVA indicators</dt><dd id="lastSuccessAamva">NO</dd></div>
+          <div><dt>Primary subfile</dt><dd id="lastSuccessPrimarySubfile">NONE</dd></div>
           <div><dt>Strict parser</dt><dd id="lastSuccessStrict">-</dd></div>
           <div><dt>Field recovery</dt><dd id="lastSuccessRecovery">-</dd></div>
           <div><dt>Safe failure reason</dt><dd id="lastSuccessFailure">-</dd></div>
@@ -273,6 +274,11 @@
             <div><dt>Header length parseable</dt><dd id="liveStructHeaderLength">NO</dd></div>
             <div><dt>Subfile count from header</dt><dd id="liveStructSubfileCount">-</dd></div>
             <div><dt>Subfile descriptor table parseable</dt><dd id="liveStructDescriptorTable">NO</dd></div>
+            <div><dt>Primary AAMVA subfile</dt><dd id="liveStructPrimarySubfile">NONE</dd></div>
+            <div><dt>DL descriptor found</dt><dd id="liveStructDlDescriptor">NO</dd></div>
+            <div><dt>EN descriptor found</dt><dd id="liveStructEnDescriptor">NO</dd></div>
+            <div><dt>ID descriptor found</dt><dd id="liveStructIdDescriptor">NO</dd></div>
+            <div><dt>Jurisdiction-specific descriptor</dt><dd id="liveStructJurisdictionSpecific">NO</dd></div>
             <div><dt>Descriptor 1 type</dt><dd id="liveStructDescriptor1Type">-</dd></div>
             <div><dt>Descriptor 1 offset</dt><dd id="liveStructDescriptor1Offset">-</dd></div>
             <div><dt>Descriptor 1 length</dt><dd id="liveStructDescriptor1Length">-</dd></div>
@@ -286,11 +292,13 @@
             <div><dt>Descriptor 2 length in bounds</dt><dd id="liveStructDescriptor2LengthBounds">NO</dd></div>
             <div><dt>Descriptor 2 prefix matches</dt><dd id="liveStructDescriptor2Prefix">NO</dd></div>
             <div><dt>DL subfile found</dt><dd id="liveStructDl">NO</dd></div>
+            <div><dt>EN subfile found</dt><dd id="liveStructEn">NO</dd></div>
             <div><dt>ID subfile found</dt><dd id="liveStructId">NO</dd></div>
             <div><dt>DCS field tag present</dt><dd id="liveStructDcs">NO</dd></div>
             <div><dt>DAC field tag present</dt><dd id="liveStructDac">NO</dd></div>
             <div><dt>DAD field tag present</dt><dd id="liveStructDad">NO</dd></div>
             <div><dt>DBB field tag present</dt><dd id="liveStructDbb">NO</dd></div>
+            <div><dt>DOB parsed successfully</dt><dd id="liveStructDobParsed">NO</dd></div>
             <div><dt>DAQ field tag present</dt><dd id="liveStructDaq">NO</dd></div>
             <div><dt>Record separator present</dt><dd id="liveStructRecordSeparator">NO</dd></div>
             <div><dt>Segment terminator present</dt><dd id="liveStructSegmentTerminator">NO</dd></div>
@@ -304,8 +312,13 @@
         </section>
 
         <section class="resultPanel">
-          <h3>AAMVA Parsed Fields</h3>
-          <p class="helper">Field values stay hidden unless decoded text / PII display is enabled.</p>
+          <div class="panelHeader compactHeader">
+            <h3>Parsed Visitor Fields</h3>
+            <div class="actions">
+              <button type="button" class="secondary showParsedFieldsBtn">Show Parsed Fields</button>
+            </div>
+          </div>
+          <p class="helper">Field values stay hidden unless this button is explicitly tapped. They are never copied into diagnostics.</p>
           <dl class="fieldList">
             <div><dt>Valid AAMVA</dt><dd id="liveValidAamva">NO</dd></div>
             <div><dt>First Name</dt><dd id="liveFirstName">-</dd></div>
@@ -442,8 +455,13 @@
       </section>
 
       <section class="resultPanel">
-        <h3>Photo AAMVA Parsed Fields</h3>
-        <p class="helper">Field values stay hidden unless decoded text / PII display is enabled.</p>
+        <div class="panelHeader compactHeader">
+          <h3>Photo Parsed Visitor Fields</h3>
+          <div class="actions">
+            <button type="button" class="secondary showParsedFieldsBtn">Show Parsed Fields</button>
+          </div>
+        </div>
+        <p class="helper">Field values stay hidden unless this button is explicitly tapped. They are never copied into diagnostics.</p>
         <dl class="fieldList">
           <div><dt>First Name</dt><dd id="photoFirstName">-</dd></div>
           <div><dt>Middle Name</dt><dd id="photoMiddleName">-</dd></div>
@@ -495,6 +513,11 @@
           <div><dt>Header length parseable</dt><dd id="photoStructHeaderLength">NO</dd></div>
           <div><dt>Subfile count from header</dt><dd id="photoStructSubfileCount">-</dd></div>
           <div><dt>Subfile descriptor table parseable</dt><dd id="photoStructDescriptorTable">NO</dd></div>
+          <div><dt>Primary AAMVA subfile</dt><dd id="photoStructPrimarySubfile">NONE</dd></div>
+          <div><dt>DL descriptor found</dt><dd id="photoStructDlDescriptor">NO</dd></div>
+          <div><dt>EN descriptor found</dt><dd id="photoStructEnDescriptor">NO</dd></div>
+          <div><dt>ID descriptor found</dt><dd id="photoStructIdDescriptor">NO</dd></div>
+          <div><dt>Jurisdiction-specific descriptor</dt><dd id="photoStructJurisdictionSpecific">NO</dd></div>
           <div><dt>Descriptor 1 type</dt><dd id="photoStructDescriptor1Type">-</dd></div>
           <div><dt>Descriptor 1 offset</dt><dd id="photoStructDescriptor1Offset">-</dd></div>
           <div><dt>Descriptor 1 length</dt><dd id="photoStructDescriptor1Length">-</dd></div>
@@ -508,11 +531,13 @@
           <div><dt>Descriptor 2 length in bounds</dt><dd id="photoStructDescriptor2LengthBounds">NO</dd></div>
           <div><dt>Descriptor 2 prefix matches</dt><dd id="photoStructDescriptor2Prefix">NO</dd></div>
           <div><dt>DL subfile found</dt><dd id="photoStructDl">NO</dd></div>
+          <div><dt>EN subfile found</dt><dd id="photoStructEn">NO</dd></div>
           <div><dt>ID subfile found</dt><dd id="photoStructId">NO</dd></div>
           <div><dt>DCS field tag present</dt><dd id="photoStructDcs">NO</dd></div>
           <div><dt>DAC field tag present</dt><dd id="photoStructDac">NO</dd></div>
           <div><dt>DAD field tag present</dt><dd id="photoStructDad">NO</dd></div>
           <div><dt>DBB field tag present</dt><dd id="photoStructDbb">NO</dd></div>
+          <div><dt>DOB parsed successfully</dt><dd id="photoStructDobParsed">NO</dd></div>
           <div><dt>DAQ field tag present</dt><dd id="photoStructDaq">NO</dd></div>
           <div><dt>Record separator present</dt><dd id="photoStructRecordSeparator">NO</dd></div>
           <div><dt>Segment terminator present</dt><dd id="photoStructSegmentTerminator">NO</dd></div>
