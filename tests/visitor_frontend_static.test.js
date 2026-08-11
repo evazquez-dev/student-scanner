@@ -4,8 +4,10 @@ const path = require('node:path');
 
 const desk = fs.readFileSync(path.resolve(__dirname, '../admin/visitor_desk.js'), 'utf8');
 const deskHtml = fs.readFileSync(path.resolve(__dirname, '../admin/visitor_desk.html'), 'utf8');
+const deskCss = fs.readFileSync(path.resolve(__dirname, '../admin/visitor_desk.css'), 'utf8');
 const kiosk = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor.js'), 'utf8');
 const kioskHtml = fs.readFileSync(path.resolve(__dirname, '../visitor/index.html'), 'utf8');
+const kioskCss = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor.css'), 'utf8');
 const shared = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor_shared.js'), 'utf8');
 
 function sectionBetween(src, startNeedle, endNeedle) {
@@ -77,6 +79,19 @@ function sectionBetween(src, startNeedle, endNeedle) {
 {
   assert.match(kioskHtml, /id="photoScreen"/, 'Kiosk should include visitor photo step');
   assert.match(kioskHtml, /id="reviewScreen"/, 'Kiosk should include review step');
+  assert.match(kioskHtml, /id="cameraFrame"[^>]+data-photo-state="live"/, 'Kiosk camera frame should expose live/review photo state');
+  assert.match(kioskHtml, /id="cameraPreview"[^>]+class="mirrorSelfie"/, 'Kiosk live camera preview should be mirrored');
+  assert.match(kioskHtml, /id="photoPreview"[^>]+class="mirrorSelfie"/, 'Kiosk captured-photo review should be mirrored for the visitor');
+  assert.match(kioskCss, /\.mirrorSelfie\s*\{[\s\S]*transform:\s*scaleX\(-1\)/, 'Kiosk mirror class should flip visitor-facing preview/review');
+  assert.match(kioskCss, /\.reviewPhoto\s*\{[\s\S]*transform:\s*scaleX\(-1\)/, 'Kiosk submit review photo should match mirrored visitor preview');
+  assert.match(kioskCss, /\.cameraFrame\[data-photo-state="review"\]\s+\.faceGuide\s*\{[\s\S]*display:\s*none/, 'Photo guide should hide in captured review state');
+  assert.match(kiosk, /function\s+setPhotoCaptureState\s*\(state\)/, 'Kiosk should have a distinct live/review photo state helper');
+  const takePhotoSection = sectionBetween(kiosk, 'async function takePhoto', 'async function retakePhoto');
+  assert.match(takePhotoSection, /setPhotoCaptureState\('review'\)/, 'Taking a photo should switch to captured-photo review state');
+  assert.match(takePhotoSection, /stopCamera\(\)/, 'Taking a photo should stop the live camera stream after capture');
+  const retakeSection = sectionBetween(kiosk, 'async function retakePhoto', 'function usePhoto');
+  assert.match(retakeSection, /clearPhoto\(\)/, 'Retake should clear the prior captured photo/blob state');
+  assert.match(retakeSection, /startCamera\(\)/, 'Retake should return to live camera preview');
   assert.match(kiosk, /getUserMedia\(\{[\s\S]*facingMode:\s*'user'/, 'Kiosk should request visitor-facing camera');
   assert.match(kiosk, /Shared\.capturePortraitPhoto/, 'Kiosk should use shared local crop/compression');
   assert.match(kiosk, /URL\.revokeObjectURL/, 'Kiosk retake/reset should revoke temporary photo URLs');
@@ -85,6 +100,18 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kiosk, /A current visitor photo is securely stored for up to 30 days/, 'English kiosk privacy notice must disclose visitor photo retention');
   assert.match(kiosk, /Una foto actual del visitante se guarda de forma segura por hasta 30 días/, 'Spanish kiosk privacy notice must disclose visitor photo retention');
   assert.doesNotMatch(kiosk, /data:image|base64/i, 'Kiosk should not persist/send Base64 photo data');
+}
+
+{
+  assert.match(deskHtml, /id="waitingSection"/, 'Visitor Desk should identify the Waiting Queue section for collapse');
+  assert.match(deskHtml, /class="visitorSections"/, 'Visitor Desk queue/active sections should use full-width stacked layout');
+  assert.match(deskHtml, /<h2>Currently in Building<\/h2>/, 'Visitor Desk should keep Currently In Building section');
+  assert.match(deskCss, /\.visitorSections\s*\{[\s\S]*grid-template-columns:\s*1fr/, 'Visitor Desk sections should be single-column full-width');
+  assert.doesNotMatch(deskHtml, /class="grid twoCols"/, 'Visitor Desk should not render waiting/active sections side-by-side');
+  const renderStateSection = sectionBetween(desk, 'function renderState()', 'function renderSyncHealth()');
+  assert.match(renderStateSection, /waitingSection\.hidden\s*=\s*waiting\.length\s*===\s*0/, 'Waiting Queue section should hide when empty');
+  assert.match(renderStateSection, /waiting\.length\s*\?\s*waiting\.map\(waitingRow\)\.join\(''\)\s*:\s*''/, 'Waiting Queue table should reappear only when there are waiting visitors');
+  assert.match(renderStateSection, /activeBody\.innerHTML/, 'Currently In Building rendering must remain');
 }
 
 {

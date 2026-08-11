@@ -239,6 +239,10 @@ legend {
   display: block;
 }
 
+.mirrorSelfie {
+  transform: scaleX(-1);
+}
+
 .faceGuide {
   position: absolute;
   left: 18%;
@@ -249,6 +253,10 @@ legend {
   border-radius: 48%;
   box-shadow: 0 0 0 999px rgba(0, 0, 0, .18);
   pointer-events: none;
+}
+
+.cameraFrame[data-photo-state="review"] .faceGuide {
+  display: none;
 }
 
 .cameraActions {
@@ -271,6 +279,7 @@ legend {
   border: 2px solid var(--line);
   border-radius: 8px;
   background: #f8fafc;
+  transform: scaleX(-1);
 }
 
 .reviewDetails {

@@ -89,7 +89,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .kpi { border: 1px solid var(--border); border-radius: 8px; background: var(--soft); padding: 12px; }
 .kpi span { display: block; color: var(--muted); font-size: .76rem; text-transform: uppercase; }
 .kpi strong { display: block; font-size: 1.8rem; margin-top: 4px; }
-.grid.twoCols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.visitorSections {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
 .tableWrap { border: 1px solid var(--border); border-radius: 8px; overflow: auto; background: var(--panel); }
 table { width: 100%; border-collapse: collapse; min-width: 760px; font-size: .9rem; }
 th, td { padding: 9px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
@@ -220,7 +224,7 @@ label.check input { width: auto; }
 .emergencyTable { min-width: 0; }
 
 @media (max-width: 980px) {
-  .grid.twoCols, .kpis, .filters, .formGrid { grid-template-columns: 1fr; }
+  .kpis, .filters, .formGrid { grid-template-columns: 1fr; }
 }
 
 @media print {

@@ -95,6 +95,7 @@
   const setupStatus = $('setupStatus');
   const submitBtn = $('submitBtn');
   const nextPhotoBtn = $('nextPhotoBtn');
+  const cameraFrame = $('cameraFrame');
   const cameraPreview = $('cameraPreview');
   const photoPreview = $('photoPreview');
 
@@ -201,15 +202,21 @@
     if (cameraPreview) cameraPreview.srcObject = null;
   }
 
+  function setPhotoCaptureState(state) {
+    const mode = state === 'review' ? 'review' : 'live';
+    if (cameraFrame) cameraFrame.dataset.photoState = mode;
+    cameraPreview.hidden = mode !== 'live';
+    photoPreview.hidden = mode !== 'review';
+    $('takePhotoBtn').hidden = mode !== 'live';
+    $('retakePhotoBtn').hidden = mode !== 'review';
+    $('usePhotoBtn').hidden = mode !== 'review';
+  }
+
   function clearPhoto() {
     photoBlob = null;
     revokePhotoUrl();
-    photoPreview.hidden = true;
     photoPreview.removeAttribute('src');
-    cameraPreview.hidden = false;
-    $('takePhotoBtn').hidden = false;
-    $('retakePhotoBtn').hidden = true;
-    $('usePhotoBtn').hidden = true;
+    setPhotoCaptureState('live');
   }
 
   function resetForm() {
@@ -315,11 +322,8 @@
       photoBlob = blob;
       photoObjectUrl = URL.createObjectURL(blob);
       photoPreview.src = photoObjectUrl;
-      photoPreview.hidden = false;
-      cameraPreview.hidden = true;
-      $('takePhotoBtn').hidden = true;
-      $('retakePhotoBtn').hidden = false;
-      $('usePhotoBtn').hidden = false;
+      setPhotoCaptureState('review');
+      stopCamera();
       setStatus(photoStatus, '', true);
     } catch {
       setStatus(photoStatus, T[lang].cameraFailed);

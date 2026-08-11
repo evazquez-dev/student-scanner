@@ -80,9 +80,9 @@
       <h1 id="photoTitle"></h1>
       <p id="photoIntro" class="lead"></p>
       <div class="cameraPanel">
-        <div class="cameraFrame">
-          <video id="cameraPreview" autoplay playsinline muted></video>
-          <img id="photoPreview" alt="" hidden>
+        <div id="cameraFrame" class="cameraFrame" data-photo-state="live">
+          <video id="cameraPreview" class="mirrorSelfie" autoplay playsinline muted></video>
+          <img id="photoPreview" class="mirrorSelfie" alt="" hidden>
           <div class="faceGuide" aria-hidden="true"></div>
         </div>
         <div class="cameraActions">

@@ -23,6 +23,7 @@
   const appShell = $('appShell');
   const loginOut = $('loginOut');
   const statusBox = $('statusBox');
+  const waitingSection = $('waitingSection');
   const waitingBody = $('waitingBody');
   const activeBody = $('activeBody');
   const visitorDialog = $('visitorDialog');
@@ -230,7 +231,9 @@
     $('checkedInTodayCount').textContent = String(counts.checked_in_today || 0);
     $('checkedOutTodayCount').textContent = String(counts.checked_out_today || 0);
     clearPhotoObjectUrls();
-    waitingBody.innerHTML = STATE.waiting?.length ? STATE.waiting.map(waitingRow).join('') : '<tr><td colspan="4" class="muted">No visitors waiting.</td></tr>';
+    const waiting = STATE.waiting || [];
+    waitingSection.hidden = waiting.length === 0;
+    waitingBody.innerHTML = waiting.length ? waiting.map(waitingRow).join('') : '';
     activeBody.innerHTML = STATE.active?.length ? STATE.active.map(activeRow).join('') : '<tr><td colspan="4" class="muted">No visitors currently checked in.</td></tr>';
     hydratePhotoSlots();
     const updated = `Updated ${new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`;
