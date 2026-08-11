@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-11-3';
+  const LAB_BUILD = '2026-08-11-4';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -9,6 +9,7 @@
   const MAX_LIVE_CANVAS_WIDTH = 1280;
   const Shared = window.EagleNestVisitor;
   const IdScan = window.EagleNestVisitorIdScan;
+  const AamvaDiag = window.EagleNestScannerLabAamva;
 
   const $ = (id) => document.getElementById(id);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -35,14 +36,22 @@
     lastVariant: 'none',
     lastRaw: '',
     lastError: '',
-    lastPdf417Payload: '',
-    lastAamvaPayload: '',
     lastCandidateInfo: '-',
     matchingPdf417Reads: 0,
     matchingAamvaReads: 0,
     pdf417Detected: false,
     aamvaDetected: false,
-    selfTestDetected: false
+    selfTestDetected: false,
+    lastPdf417Fingerprint: '',
+    lastAamvaFingerprint: '',
+    lastAamvaDiagnostic: null,
+    lastGuideMapping: null,
+    requestedResolution: 'Default',
+    actualResolution: '-',
+    capabilities: '-',
+    originalAttemptSuccess: false,
+    contrastAttemptSuccess: false,
+    successfulProcessing: 'none'
   };
 
   function emptyDecodeState() {
@@ -81,7 +90,9 @@
     lastError: '',
     directPhotoResult: emptyDecodeState(),
     allFormatsResult: emptyDecodeState(),
-    manualCropResult: emptyDecodeState()
+    manualCropResult: emptyDecodeState(),
+    autoCropResult: emptyDecodeState(),
+    lastAamvaDiagnostic: null
   };
 
   const selfTest = {
@@ -138,6 +149,28 @@
 
   function selectedTestTarget() {
     return document.querySelector('input[name="testTarget"]:checked')?.value || 'selftest';
+  }
+
+  function selectedCameraResolution() {
+    return document.querySelector('input[name="cameraResolution"]:checked')?.value || 'default';
+  }
+
+  function cameraResolutionLabel(key) {
+    if (key === 'higher') return 'Higher 1920 x 1080';
+    if (key === 'hd') return 'HD 1280 x 720';
+    return 'Default';
+  }
+
+  function cameraConstraints(key) {
+    const video = { facingMode: { ideal: 'environment' } };
+    if (key === 'hd') {
+      video.width = { ideal: 1280 };
+      video.height = { ideal: 720 };
+    } else if (key === 'higher') {
+      video.width = { ideal: 1920 };
+      video.height = { ideal: 1080 };
+    }
+    return { audio: false, video };
   }
 
   function diagnosticPdf417Options(extra) {
@@ -221,9 +254,37 @@
     }
   }
 
-  async function startRearCamera(video) {
-    if (!IdScan?.startRearCamera) throw new Error('ZXing camera adapter is unavailable');
-    return IdScan.startRearCamera(video);
+  function waitForVideoReady(video) {
+    return new Promise((resolve, reject) => {
+      const deadline = Date.now() + 3500;
+      function check() {
+        if (video?.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+          resolve();
+          return;
+        }
+        if (Date.now() > deadline) {
+          reject(new Error('camera_frame_unavailable'));
+          return;
+        }
+        if (typeof requestAnimationFrame === 'function') requestAnimationFrame(check);
+        else setTimeout(check, 35);
+      }
+      check();
+    });
+  }
+
+  async function startRearCamera(video, resolutionKey) {
+    if (!video || !navigator.mediaDevices?.getUserMedia) throw new Error('camera_unavailable');
+    const key = resolutionKey || 'default';
+    const stream = await navigator.mediaDevices.getUserMedia(cameraConstraints(key));
+    video.muted = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.srcObject = stream;
+    try { await video.play(); } catch {}
+    await waitForVideoReady(video);
+    return stream;
   }
 
   function rememberActiveDimensions(video) {
@@ -262,7 +323,7 @@
     stopAll({ keepPhoto: true });
     setError('cameraError', '');
     try {
-      camera.stream = await startRearCamera($('cameraVideo'));
+      camera.stream = await startRearCamera($('cameraVideo'), selectedCameraResolution());
       updateCameraMetrics();
       camera.updateTimer = setInterval(updateCameraMetrics, 400);
     } catch (err) {
@@ -271,9 +332,124 @@
     }
   }
 
+  function cameraSettingsSummary(stream, video) {
+    const track = stream?.getVideoTracks?.()[0] || null;
+    const settings = track?.getSettings?.() || {};
+    const width = Number(settings.width || video?.videoWidth || 0);
+    const height = Number(settings.height || video?.videoHeight || 0);
+    return width && height ? `${width} x ${height}` : '-';
+  }
+
+  function cameraCapabilitiesSummary(stream) {
+    const track = stream?.getVideoTracks?.()[0] || null;
+    const caps = track?.getCapabilities?.() || {};
+    const width = caps.width ? `${caps.width.min || '?'}-${caps.width.max || '?'}` : '-';
+    const height = caps.height ? `${caps.height.min || '?'}-${caps.height.max || '?'}` : '-';
+    return `width ${width}; height ${height}`;
+  }
+
+  function getRenderedVideoRect(video) {
+    if (!video) return null;
+    const elementRect = video.getBoundingClientRect();
+    const naturalWidth = video.videoWidth || 0;
+    const naturalHeight = video.videoHeight || 0;
+    if (!elementRect.width || !elementRect.height || !naturalWidth || !naturalHeight) return null;
+    const fit = getComputedStyle(video).objectFit || 'fill';
+    if (fit !== 'cover' && fit !== 'contain' && fit !== 'scale-down') {
+      return { left: elementRect.left, top: elementRect.top, width: elementRect.width, height: elementRect.height, elementRect, naturalWidth, naturalHeight };
+    }
+    const scale = fit === 'cover'
+      ? Math.max(elementRect.width / naturalWidth, elementRect.height / naturalHeight)
+      : Math.min(elementRect.width / naturalWidth, elementRect.height / naturalHeight);
+    const renderedWidth = naturalWidth * scale;
+    const renderedHeight = naturalHeight * scale;
+    return {
+      left: elementRect.left + ((elementRect.width - renderedWidth) / 2),
+      top: elementRect.top + ((elementRect.height - renderedHeight) / 2),
+      width: renderedWidth,
+      height: renderedHeight,
+      elementRect,
+      naturalWidth,
+      naturalHeight
+    };
+  }
+
+  function guideToVideoPixels(video, guideEl) {
+    const rendered = getRenderedVideoRect(video);
+    const guideRect = guideEl?.getBoundingClientRect?.() || null;
+    if (!rendered || !guideRect) return null;
+    const left = Math.max(guideRect.left, rendered.left);
+    const top = Math.max(guideRect.top, rendered.top);
+    const right = Math.min(guideRect.right, rendered.left + rendered.width);
+    const bottom = Math.min(guideRect.bottom, rendered.top + rendered.height);
+    const normalizedLeft = Math.max(0, Math.min(1, (left - rendered.left) / rendered.width));
+    const normalizedTop = Math.max(0, Math.min(1, (top - rendered.top) / rendered.height));
+    const normalizedRight = Math.max(normalizedLeft, Math.min(1, (right - rendered.left) / rendered.width));
+    const normalizedBottom = Math.max(normalizedTop, Math.min(1, (bottom - rendered.top) / rendered.height));
+    const sx = Math.max(0, Math.min(video.videoWidth - 1, Math.round(normalizedLeft * video.videoWidth)));
+    const sy = Math.max(0, Math.min(video.videoHeight - 1, Math.round(normalizedTop * video.videoHeight)));
+    const sw = Math.max(1, Math.min(video.videoWidth - sx, Math.round((normalizedRight - normalizedLeft) * video.videoWidth)));
+    const sh = Math.max(1, Math.min(video.videoHeight - sy, Math.round((normalizedBottom - normalizedTop) * video.videoHeight)));
+    return {
+      valid: sw > 0 && sh > 0,
+      naturalWidth: video.videoWidth,
+      naturalHeight: video.videoHeight,
+      guideDisplayed: {
+        left: guideRect.left - rendered.elementRect.left,
+        top: guideRect.top - rendered.elementRect.top,
+        width: guideRect.width,
+        height: guideRect.height
+      },
+      sx,
+      sy,
+      sw,
+      sh,
+      coords: `x=${sx}, y=${sy}, w=${sw}, h=${sh}`
+    };
+  }
+
+  function renderLiveGuideDiagnostics(mapping, canvas) {
+    if (!mapping) {
+      setText('liveVideoNatural', '-');
+      setText('liveGuideDisplayed', '-');
+      setText('liveMappedVideoCrop', '-');
+      setText('liveGuideDecoderInput', '-');
+      return;
+    }
+    setText('liveVideoNatural', `${mapping.naturalWidth} x ${mapping.naturalHeight}`);
+    setText('liveGuideDisplayed', formatRect({
+      left: mapping.guideDisplayed.left,
+      top: mapping.guideDisplayed.top,
+      width: mapping.guideDisplayed.width,
+      height: mapping.guideDisplayed.height
+    }));
+    setText('liveMappedVideoCrop', mapping.coords);
+    setText('liveGuideDecoderInput', canvas ? `${canvas.width} x ${canvas.height}` : '-');
+    live.lastGuideMapping = mapping;
+  }
+
+  function sourceCanvasFromVideoGuide(video) {
+    if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return null;
+    rememberActiveDimensions(video);
+    const mapping = guideToVideoPixels(video, $('liveBarcodeGuide'));
+    if (!mapping?.valid) return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = mapping.sw;
+    canvas.height = mapping.sh;
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, mapping.sx, mapping.sy, mapping.sw, mapping.sh, 0, 0, canvas.width, canvas.height);
+    if (IdScan?.canvasLooksEmptyBlack?.(canvas)) return null;
+    renderLiveGuideDiagnostics(mapping, canvas);
+    return canvas;
+  }
+
   function sourceCanvasFromVideo(video, regionMode) {
     if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) return null;
     rememberActiveDimensions(video);
+    if (selectedTestTarget() === 'state_id') return sourceCanvasFromVideoGuide(video);
     if (regionMode === 'guide') return IdScan?.drawVideoGuideCanvas?.(video, 'pdf417') || null;
 
     const scale = Math.min(1, MAX_LIVE_CANVAS_WIDTH / video.videoWidth);
@@ -288,6 +464,7 @@
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, width, height);
     if (IdScan?.canvasLooksEmptyBlack?.(canvas)) return null;
+    renderLiveGuideDiagnostics(null, null);
     return canvas;
   }
 
@@ -460,10 +637,50 @@
     return { candidate: null, variant: 'none', ms: 0, resultCount: 0, lastResult };
   }
 
+  async function decodeStateIdGuideCanvas(source, metaBase) {
+    const modes = ['original', 'contrast'];
+    let lastResult = null;
+    live.originalAttemptSuccess = false;
+    live.contrastAttemptSuccess = false;
+    live.successfulProcessing = 'none';
+    for (const mode of modes) {
+      const canvas = processedCanvas(source, mode);
+      if (!canvas.width || !canvas.height || IdScan?.canvasLooksEmptyBlack?.(canvas)) continue;
+      drawDecoderInputPreview(canvas, {
+        ...(metaBase || {}),
+        rotation: 'library native',
+        processing: mode,
+        barcodePixels: `${canvas.width} x ${canvas.height}`
+      });
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const read = await runBarcodeRead(ctx.getImageData(0, 0, canvas.width, canvas.height), diagnosticPdf417Options());
+      lastResult = read.first || lastResult;
+      const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
+      if (decoded) {
+        if (mode === 'original') live.originalAttemptSuccess = true;
+        if (mode === 'contrast') live.contrastAttemptSuccess = true;
+        live.successfulProcessing = mode;
+        return {
+          candidate: decoded,
+          variant: `live guide, ${mode}`,
+          ms: read.ms,
+          resultCount: read.results.length,
+          lastResult: read.first || decoded
+        };
+      }
+    }
+    return { candidate: null, variant: 'none', ms: 0, resultCount: 0, lastResult };
+  }
+
   function renderDecodedText() {
     const pre = $('decodedText');
     const show = $('showDecodedText')?.checked;
     if (!pre) return;
+    if (!show) {
+      live.lastRaw = '';
+      if (live.lastAamvaDiagnostic) renderParsed('live', '', live.lastAamvaDiagnostic);
+      if (photo.lastAamvaDiagnostic) renderParsed('photo', '', photo.lastAamvaDiagnostic);
+    }
     pre.hidden = !show || !live.lastRaw;
     pre.textContent = show && live.lastRaw ? live.lastRaw : '';
   }
@@ -477,16 +694,73 @@
     setText(`${prefix}Jurisdiction`, '-');
   }
 
-  function renderParsed(prefix, decodedText) {
+  function clearAamvaStructure(prefix) {
+    [
+      'Compliance', 'Ansi', 'Iin', 'Dl', 'Id', 'Dcs', 'Dac', 'Dad', 'Dbb', 'Daq',
+      'RecordSeparator', 'SegmentTerminator', 'LineFeed'
+    ].forEach((suffix) => setText(`${prefix}Struct${suffix}`, 'NO'));
+    setText(`${prefix}StructAamvaVersion`, '-');
+    setText(`${prefix}StructJurisdictionVersion`, '-');
+    setText(`${prefix}StructLength`, '0');
+    setText(`${prefix}StructParserResult`, 'INVALID');
+    setText(`${prefix}StrictParser`, 'FAIL');
+    setText(`${prefix}FieldRecovery`, 'FAIL');
+    setText(`${prefix}StructFailure`, '-');
+  }
+
+  function renderAamvaStructure(prefix, diagnostic) {
+    const d = diagnostic || {};
+    setText(`${prefix}StructCompliance`, yesNo(d.complianceIndicator));
+    setText(`${prefix}StructAnsi`, yesNo(d.ansiHeader));
+    setText(`${prefix}StructIin`, yesNo(d.iinPresent));
+    setText(`${prefix}StructAamvaVersion`, d.aamvaVersion || '-');
+    setText(`${prefix}StructJurisdictionVersion`, d.jurisdictionVersion || '-');
+    setText(`${prefix}StructDl`, yesNo(d.dlSubfile));
+    setText(`${prefix}StructId`, yesNo(d.idSubfile));
+    setText(`${prefix}StructDcs`, yesNo(d.dcsTag));
+    setText(`${prefix}StructDac`, yesNo(d.dacTag));
+    setText(`${prefix}StructDad`, yesNo(d.dadTag));
+    setText(`${prefix}StructDbb`, yesNo(d.dbbTag));
+    setText(`${prefix}StructDaq`, yesNo(d.daqTag));
+    setText(`${prefix}StructRecordSeparator`, yesNo(d.recordSeparator));
+    setText(`${prefix}StructSegmentTerminator`, yesNo(d.segmentTerminator));
+    setText(`${prefix}StructLineFeed`, yesNo(d.lineFeedSeparators));
+    setText(`${prefix}StructLength`, d.decodedTextLength || 0);
+    setText(`${prefix}StructParserResult`, d.parserResult || 'INVALID');
+    setText(`${prefix}StrictParser`, d.strictParserPass ? 'PASS' : 'FAIL');
+    setText(`${prefix}FieldRecovery`, d.fieldRecoveryPass ? 'PASS' : 'FAIL');
+    setText(`${prefix}StructFailure`, d.parserFailureReason || '-');
+  }
+
+  function renderParsed(prefix, decodedText, diagnostic) {
     const parsed = Shared?.parseAamva?.(decodedText) || { ok: false, data: {} };
-    const data = parsed.data || {};
-    if (prefix === 'live') setText('liveValidAamva', yesNo(parsed.ok));
+    const recovered = diagnostic?.recoveredData || {};
+    const data = parsed.ok ? parsed.data || {} : recovered;
+    const valid = parsed.ok || !!diagnostic?.fieldRecoveryPass;
+    if (prefix === 'live') setText('liveValidAamva', yesNo(valid));
+    if (!$('showDecodedText')?.checked) {
+      setText(`${prefix}FirstName`, valid ? 'hidden' : '-');
+      setText(`${prefix}MiddleName`, valid ? 'hidden' : '-');
+      setText(`${prefix}LastName`, valid ? 'hidden' : '-');
+      setText(`${prefix}Dob`, valid ? 'hidden' : '-');
+      setText(`${prefix}Jurisdiction`, valid ? 'hidden' : '-');
+      return valid;
+    }
     setText(`${prefix}FirstName`, data.visitor_first_name || '-');
     setText(`${prefix}MiddleName`, data.visitor_middle_name || '-');
     setText(`${prefix}LastName`, data.visitor_last_name || '-');
     setText(`${prefix}Dob`, data.date_of_birth || '-');
     setText(`${prefix}Jurisdiction`, data.id_issuing_jurisdiction || '-');
-    return parsed.ok;
+    return valid;
+  }
+
+  function analyzeDecodedPayload(prefix, payload) {
+    const diagnostic = AamvaDiag?.analyzeAamvaPayload?.(payload) || null;
+    if (diagnostic) renderAamvaStructure(prefix, diagnostic);
+    renderParsed(prefix, payload, diagnostic);
+    if (prefix === 'live') live.lastAamvaDiagnostic = diagnostic;
+    if (prefix === 'photo') photo.lastAamvaDiagnostic = diagnostic;
+    return diagnostic;
   }
 
   function clearLiveResults() {
@@ -499,19 +773,26 @@
     live.lastRaw = '';
     live.lastError = '';
     live.startedAt = live.running ? performance.now() : 0;
-    live.lastPdf417Payload = '';
-    live.lastAamvaPayload = '';
     live.lastCandidateInfo = '-';
     live.matchingPdf417Reads = 0;
     live.matchingAamvaReads = 0;
     live.pdf417Detected = false;
     live.aamvaDetected = false;
     live.selfTestDetected = false;
+    live.lastPdf417Fingerprint = '';
+    live.lastAamvaFingerprint = '';
+    live.lastAamvaDiagnostic = null;
+    live.lastGuideMapping = null;
+    live.originalAttemptSuccess = false;
+    live.contrastAttemptSuccess = false;
+    live.successfulProcessing = 'none';
     $('livePdf417Banner').hidden = true;
     $('liveSelfTestBanner').hidden = true;
     $('liveNonAamvaNote').hidden = true;
     $('liveValidBanner').hidden = true;
     clearParsed('live');
+    clearAamvaStructure('live');
+    renderLiveGuideDiagnostics(null, null);
     renderDecodedText();
     updateLiveMetrics('Idle');
     setError('liveError', '');
@@ -524,9 +805,13 @@
     const elapsedSec = live.startedAt ? Math.max(0.001, (performance.now() - live.startedAt) / 1000) : 0;
     const rate = elapsedSec ? live.attempts / elapsedSec : 0;
     const target = selectedTestTarget() === 'state_id' ? 'State ID / Driver License' : 'Scanner Self-Test';
+    $('liveVideo')?.closest?.('.videoShell')?.classList.toggle('stateIdTarget', selectedTestTarget() === 'state_id');
     setText('liveCameraState', live.running ? 'ACTIVE' : 'OFF');
     setText('liveFrameSize', `${video?.videoWidth || 0} x ${video?.videoHeight || 0}`);
     setText('liveTarget', target);
+    setText('liveRequestedResolution', live.requestedResolution || cameraResolutionLabel(selectedCameraResolution()));
+    setText('liveActualResolution', live.actualResolution || '-');
+    setText('liveCapabilities', live.capabilities || '-');
     setText('liveAttempts', live.attempts);
     setText('livePdf417Successes', live.pdf417Successes);
     setText('liveScanRate', `${rate.toFixed(1)}/sec`);
@@ -537,6 +822,9 @@
     setText('liveAamva', yesNo(live.aamvaDetected));
     setText('liveAamvaSuccesses', live.aamvaSuccesses);
     setText('liveAamvaMatches', `${live.matchingAamvaReads} / ${REQUIRED_MATCHES}`);
+    setText('liveOriginalAttempt', yesNo(live.originalAttemptSuccess));
+    setText('liveContrastAttempt', yesNo(live.contrastAttemptSuccess));
+    setText('liveSuccessfulProcessing', live.successfulProcessing || 'none');
     setText('liveVariant', live.lastVariant || 'none');
     setText('liveStatus', status || (live.running ? 'Searching...' : 'Idle'));
   }
@@ -572,10 +860,16 @@
     live.decodeBusy = true;
     live.attempts += 1;
     try {
-      const hit = await decodeCanvasWithSelections(source, {
-        crop: selectedRegionMode(),
-        barcodePixels: selectedRegionMode() === 'guide' ? `${source.width} x ${source.height}` : '-'
-      });
+      const stateIdMode = selectedTestTarget() === 'state_id';
+      const hit = stateIdMode
+        ? await decodeStateIdGuideCanvas(source, {
+          crop: live.lastGuideMapping?.coords || 'state ID barcode guide',
+          barcodePixels: `${source.width} x ${source.height}`
+        })
+        : await decodeCanvasWithSelections(source, {
+          crop: selectedRegionMode(),
+          barcodePixels: selectedRegionMode() === 'guide' ? `${source.width} x ${source.height}` : '-'
+        });
       live.lastDecodeMs = hit.ms || 0;
       live.lastCandidateInfo = resultDiagnosticSummary(hit.lastResult);
       if (!hit.candidate) {
@@ -586,24 +880,25 @@
       }
 
       const payload = String(hit.candidate.text || '');
-      const isAamva = !!IdScan?.looksLikeAamvaPdf417?.(payload);
+      const diagnostic = analyzeDecodedPayload('live', payload);
+      const isAamva = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
       const isSelfTest = payload === SELFTEST_TEXT;
+      const fingerprint = AamvaDiag?.fingerprintPayload?.(payload) || `${payload.length}:${payload.slice(0, 12)}`;
       live.pdf417Successes += 1;
       live.lastFormat = resultFormat(hit.candidate);
       live.lastVariant = hit.variant;
       live.pdf417Detected = true;
       live.aamvaDetected = isAamva;
       live.selfTestDetected = isSelfTest;
-      live.lastRaw = payload;
-      if (payload === live.lastPdf417Payload) live.matchingPdf417Reads += 1;
+      live.lastRaw = $('showDecodedText')?.checked ? payload : '';
+      if (fingerprint === live.lastPdf417Fingerprint) live.matchingPdf417Reads += 1;
       else live.matchingPdf417Reads = 1;
-      live.lastPdf417Payload = payload;
+      live.lastPdf417Fingerprint = fingerprint;
       if (isAamva) {
         live.aamvaSuccesses += 1;
-        if (payload === live.lastAamvaPayload) live.matchingAamvaReads += 1;
+        if (fingerprint === live.lastAamvaFingerprint) live.matchingAamvaReads += 1;
         else live.matchingAamvaReads = 1;
-        live.lastAamvaPayload = payload;
-        renderParsed('live', payload);
+        live.lastAamvaFingerprint = fingerprint;
         $('liveValidBanner').hidden = live.matchingAamvaReads < REQUIRED_MATCHES;
         if (navigator.vibrate) {
           try { navigator.vibrate(60); } catch {}
@@ -612,7 +907,7 @@
         clearParsed('live');
         $('liveValidBanner').hidden = true;
         live.matchingAamvaReads = 0;
-        live.lastAamvaPayload = '';
+        live.lastAamvaFingerprint = '';
       }
       $('livePdf417Banner').hidden = false;
       $('liveSelfTestBanner').hidden = !(selectedTestTarget() === 'selftest' && isSelfTest && live.matchingPdf417Reads >= REQUIRED_MATCHES);
@@ -626,6 +921,8 @@
         status = 'PDF417 self-test detected; waiting for matching read';
       } else if (target === 'state_id' && isAamva && live.matchingAamvaReads >= REQUIRED_MATCHES) {
         status = 'Valid AAMVA State ID';
+      } else if (target === 'state_id' && diagnostic?.aamvaIndicators && !isAamva) {
+        status = `AAMVA indicators found; ${diagnostic.parserFailureReason || 'parser did not validate'}`;
       }
       updateLiveMetrics(status);
     } catch (err) {
@@ -645,9 +942,13 @@
     setError('liveError', '');
     live.running = true;
     live.startedAt = performance.now();
+    const resolutionKey = selectedCameraResolution();
+    live.requestedResolution = cameraResolutionLabel(resolutionKey);
     updateLiveMetrics('Starting camera...');
     try {
-      live.stream = await startRearCamera($('liveVideo'));
+      live.stream = await startRearCamera($('liveVideo'), resolutionKey);
+      live.actualResolution = cameraSettingsSummary(live.stream, $('liveVideo'));
+      live.capabilities = cameraCapabilitiesSummary(live.stream);
       updateLiveMetrics('Searching...');
       scheduleLiveScan();
     } catch (err) {
@@ -669,6 +970,8 @@
     live.stream = null;
     live.decodeBusy = false;
     live.lastRaw = '';
+    live.lastPdf417Fingerprint = '';
+    live.lastAamvaFingerprint = '';
     renderDecodedText();
     updateLiveMetrics('Stopped');
   }
@@ -712,6 +1015,8 @@
     photo.directPhotoResult = emptyDecodeState();
     photo.allFormatsResult = emptyDecodeState();
     photo.manualCropResult = emptyDecodeState();
+    photo.autoCropResult = emptyDecodeState();
+    photo.lastAamvaDiagnostic = null;
     crop.lastMapping = null;
     setText('photoDimensions', '-');
     setText('directResultCount', '-');
@@ -732,7 +1037,9 @@
     setText('manualCropDetected', 'NO');
     setText('manualCropMs', '-');
     setText('manualCropVariant', 'none');
+    setText('autoCropResults', 'Take a barcode photo first.');
     clearParsed('photo');
+    clearAamvaStructure('photo');
     setError('photoError', '');
     setCropToolVisible(false);
     clearDecoderInputPreview();
@@ -853,13 +1160,13 @@
       const directDecoded = await decodeDirectOriginalFile(file);
       if (directDecoded) {
         const payload = String(directDecoded.text || '');
+        const diagnostic = analyzeDecodedPayload('photo', payload);
         photo.detected = true;
         photo.variant = 'direct original File';
-        photo.aamvaDetected = !!IdScan?.looksLikeAamvaPdf417?.(payload);
+        photo.aamvaDetected = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
         setText('photoDetected', 'YES');
         setText('photoVariant', photo.variant);
         setText('photoAamva', yesNo(photo.aamvaDetected));
-        if (photo.aamvaDetected) renderParsed('photo', payload);
       }
 
       setText('photoStatus', 'Preparing canvas diagnostics...');
@@ -879,13 +1186,13 @@
       setText('photoDecodeMs', photo.decodeMs ? `${photo.decodeMs} ms` : '-');
       if (hit.candidate) {
         const payload = String(hit.candidate.text || '');
+        const diagnostic = analyzeDecodedPayload('photo', payload);
         photo.detected = true;
         photo.variant = hit.variant;
-        photo.aamvaDetected = !!IdScan?.looksLikeAamvaPdf417?.(payload);
+        photo.aamvaDetected = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
         setText('photoDetected', 'YES');
         setText('photoVariant', photo.variant);
         setText('photoAamva', yesNo(photo.aamvaDetected));
-        if (photo.aamvaDetected) renderParsed('photo', payload);
         setText('photoStatus', photo.aamvaDetected ? 'Valid AAMVA' : 'PDF417 detected');
       } else {
         setText('photoStatus', directDecoded ? 'Direct original File decoded; canvas variants did not' : 'PDF417 decode returned no result');
@@ -928,6 +1235,96 @@
     } catch (err) {
       photo.lastError = errorText(err);
       setError('photoError', err);
+    } finally {
+      updateInterpretation();
+    }
+  }
+
+  function cropSourceCanvasByNormalized(rect) {
+    if (!photo.sourceCanvas) throw new Error('Take a barcode photo first');
+    const x = Math.max(0, Math.min(1, Number(rect.x)));
+    const y = Math.max(0, Math.min(1, Number(rect.y)));
+    const right = Math.max(x, Math.min(1, x + Number(rect.w)));
+    const bottom = Math.max(y, Math.min(1, y + Number(rect.h)));
+    const sx = Math.max(0, Math.min(photo.sourceCanvas.width - 1, Math.round(x * photo.sourceCanvas.width)));
+    const sy = Math.max(0, Math.min(photo.sourceCanvas.height - 1, Math.round(y * photo.sourceCanvas.height)));
+    const sw = Math.max(1, Math.min(photo.sourceCanvas.width - sx, Math.round((right - x) * photo.sourceCanvas.width)));
+    const sh = Math.max(1, Math.min(photo.sourceCanvas.height - sy, Math.round((bottom - y) * photo.sourceCanvas.height)));
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, sw, sh);
+    ctx.drawImage(photo.sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    return { canvas, coords: `x=${sx}, y=${sy}, w=${sw}, h=${sh}` };
+  }
+
+  async function runAutoCropExperiment() {
+    if (!photo.sourceCanvas) {
+      setError('photoError', new Error('Take a barcode photo first'));
+      return;
+    }
+    const presets = [
+      { name: 'Bottom 45%', rect: { x: 0, y: 0.55, w: 1, h: 0.45 } },
+      { name: 'Bottom 35%', rect: { x: 0, y: 0.65, w: 1, h: 0.35 } },
+      { name: 'Center-lower wide', rect: { x: 0.05, y: 0.48, w: 0.9, h: 0.28 } },
+      { name: 'Full Image', rect: { x: 0, y: 0, w: 1, h: 1 } }
+    ];
+    const lines = ['AUTO-CROP EXPERIMENT'];
+    let best = null;
+    try {
+      for (const preset of presets) {
+        const cropped = cropSourceCanvasByNormalized(preset.rect);
+        let presetHit = null;
+        for (const mode of ['original', 'contrast']) {
+          const canvas = processedCanvas(cropped.canvas, mode);
+          drawDecoderInputPreview(canvas, {
+            crop: `${preset.name}; ${cropped.coords}`,
+            rotation: 'library native',
+            processing: mode,
+            barcodePixels: `${canvas.width} x ${canvas.height}`
+          });
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+          const read = await runBarcodeRead(ctx.getImageData(0, 0, canvas.width, canvas.height), diagnosticPdf417Options());
+          const decoded = read.results.find((result) => isPdf417(result) && hasDecodedText(result));
+          if (decoded) {
+            const payload = String(decoded.text || '');
+            const diagnostic = analyzeDecodedPayload('photo', payload);
+            presetHit = {
+              ...emptyDecodeState(),
+              success: true,
+              ms: read.ms,
+              count: read.results.length,
+              format: resultFormat(decoded),
+              candidateInfo: resultDiagnosticSummary(decoded),
+              dimensions: `${canvas.width} x ${canvas.height}`,
+              variant: `${preset.name}, ${mode}`,
+              diagnostic
+            };
+            if (!best) best = presetHit;
+            break;
+          }
+        }
+        lines.push(`${preset.name}: PDF417 ${presetHit ? 'YES' : 'NO'}${presetHit ? `; processing ${presetHit.variant.split(', ')[1]}; ${presetHit.ms} ms; ${presetHit.dimensions}` : ''}`);
+      }
+      photo.autoCropResult = best || emptyDecodeState();
+      if (best) {
+        photo.detected = true;
+        photo.variant = `auto crop, ${best.variant}`;
+        photo.aamvaDetected = !!(best.diagnostic?.aamvaIndicators && (best.diagnostic.strictParserPass || best.diagnostic.fieldRecoveryPass));
+        setText('photoDetected', 'YES');
+        setText('photoVariant', photo.variant);
+        setText('photoAamva', yesNo(photo.aamvaDetected));
+        setText('photoStatus', photo.aamvaDetected ? 'Auto-crop valid AAMVA' : 'Auto-crop PDF417 detected');
+      } else {
+        setText('photoStatus', 'Auto-crop experiment found no PDF417');
+      }
+      setText('autoCropResults', lines.join('\n'));
+    } catch (err) {
+      photo.lastError = errorText(err);
+      setError('photoError', err);
+      setText('autoCropResults', `${lines.join('\n')}\nError: ${errorText(err)}`);
     } finally {
       updateInterpretation();
     }
@@ -1166,14 +1563,14 @@
           photo.detected = true;
           photo.variant = `manual crop, ${variant}`;
           const payload = String(decoded.text || '');
-          photo.aamvaDetected = !!IdScan?.looksLikeAamvaPdf417?.(payload);
+          const diagnostic = analyzeDecodedPayload('photo', payload);
+          photo.aamvaDetected = !!(diagnostic?.aamvaIndicators && (diagnostic.strictParserPass || diagnostic.fieldRecoveryPass));
           setText('manualCropDetected', 'YES');
           setText('manualCropMs', `${photo.manualCropMs} ms`);
           setText('manualCropVariant', variant);
           setText('photoDetected', 'YES');
           setText('photoVariant', photo.variant);
           setText('photoAamva', yesNo(photo.aamvaDetected));
-          if (photo.aamvaDetected) renderParsed('photo', payload);
           setText('photoStatus', photo.aamvaDetected ? 'Manual crop valid AAMVA' : 'Manual crop PDF417 detected');
           updateInterpretation();
           return;
@@ -1340,6 +1737,8 @@
       text = 'CASE A: Self-test FAILS -> ZXing integration/WASM problem. Do not spend time tuning the iPad camera until the decoder pipeline is fixed.';
     } else if (selfTest.success && live.selfTestDetected && live.matchingPdf417Reads >= REQUIRED_MATCHES && !live.aamvaDetected) {
       text = 'LIVE SELF-TEST: iPad rear camera and local PDF417 decoding are working. This barcode is intentionally not an AAMVA State ID.';
+    } else if (selfTest.success && manualCropSuccess && photo.lastAamvaDiagnostic && !photo.aamvaDetected) {
+      text = `PHYSICAL PDF417: Barcode decoding works from a tight crop. AAMVA parser diagnostics: ${photo.lastAamvaDiagnostic.parserFailureReason || 'strict parser did not validate'}.`;
     } else if (selfTest.success && !directSuccess && manualCropSuccess) {
       text = 'CASE B: Self-test PASSES, direct original photo FAILS, manual tight crop PASSES -> image framing/crop problem.';
     } else if (selfTest.success && directSuccess) {
@@ -1385,6 +1784,29 @@
 
   function buildDiagnosticReport() {
     const options = diagnosticPdf417Options();
+    const diagnostic = live.lastAamvaDiagnostic || photo.lastAamvaDiagnostic || {};
+    const physicalPdf417Decoded = (selectedTestTarget() === 'state_id' && live.pdf417Successes > 0)
+      || photo.directPhotoResult.success
+      || photo.manualCropResult.success
+      || photo.autoCropResult.success;
+    const successfulSource = live.aamvaDetected
+      ? 'live guide'
+      : photo.manualCropResult.success
+        ? 'manual crop'
+        : photo.autoCropResult.success
+          ? 'photo crop'
+          : photo.directPhotoResult.success
+            ? 'direct photo'
+            : '-';
+    const successfulProcessing = live.successfulProcessing !== 'none'
+      ? live.successfulProcessing
+      : photo.manualCropResult.success
+        ? photo.manualCropResult.variant
+        : photo.autoCropResult.success
+          ? photo.autoCropResult.variant
+          : photo.directPhotoResult.success
+            ? photo.directPhotoResult.variant
+            : '-';
     return [
       'EagleNEST Scanner Lab',
       `Build: ${LAB_BUILD}`,
@@ -1409,13 +1831,32 @@
       `Self-test success: ${yesNo(selfTest.success).toLowerCase()}`,
       `Self-test decode ms: ${selfTest.ms || '-'}`,
       `Test Target: ${selectedTestTarget() === 'state_id' ? 'State ID / Driver License' : 'Scanner Self-Test'}`,
+      `Physical PDF417 decoded: ${yesNo(physicalPdf417Decoded).toLowerCase()}`,
+      `Successful source: ${successfulSource}`,
+      `Successful processing: ${successfulProcessing}`,
       `Direct photo result: success=${yesNo(photo.directPhotoResult.success).toLowerCase()}; count=${photo.directPhotoResult.count}; format=${photo.directPhotoResult.format}; ms=${photo.directPhotoResult.ms || '-'}; candidate=${photo.directPhotoResult.candidateInfo}`,
       `All-formats result: success=${yesNo(photo.allFormatsResult.success).toLowerCase()}; count=${photo.allFormatsResult.count}; format=${photo.allFormatsResult.format}; ms=${photo.allFormatsResult.ms || '-'}; candidate=${photo.allFormatsResult.candidateInfo}`,
       `Manual crop result: success=${yesNo(photo.manualCropResult.success).toLowerCase()}; dimensions=${photo.manualCropResult.dimensions || photo.manualCropDimensions}; variant=${photo.manualCropResult.variant}; ms=${photo.manualCropResult.ms || '-'}; candidate=${photo.manualCropResult.candidateInfo}`,
+      `Auto-crop result: success=${yesNo(photo.autoCropResult.success).toLowerCase()}; dimensions=${photo.autoCropResult.dimensions}; variant=${photo.autoCropResult.variant}; ms=${photo.autoCropResult.ms || '-'}; candidate=${photo.autoCropResult.candidateInfo}`,
       `Manual crop mapping valid: ${yesNo(!!crop.lastMapping?.valid).toLowerCase()}`,
       `Natural image dimensions: ${crop.lastMapping ? `${crop.lastMapping.sourceWidth} x ${crop.lastMapping.sourceHeight}` : photo.dimensions}`,
       `Rendered image dimensions: ${crop.lastMapping?.rendered ? `${Math.round(crop.lastMapping.rendered.width)} x ${Math.round(crop.lastMapping.rendered.height)}` : '-'}`,
       `Mapped crop dimensions: ${crop.lastMapping ? `${crop.lastMapping.sw} x ${crop.lastMapping.sh}` : '-'}`,
+      `AAMVA header indicator: ${yesNo(diagnostic.aamvaIndicators).toLowerCase()}`,
+      `ANSI header: ${yesNo(diagnostic.ansiHeader).toLowerCase()}`,
+      `AAMVA version: ${diagnostic.aamvaVersion || '-'}`,
+      `DL subfile: ${yesNo(diagnostic.dlSubfile).toLowerCase()}`,
+      `ID subfile: ${yesNo(diagnostic.idSubfile).toLowerCase()}`,
+      `DCS tag: ${yesNo(diagnostic.dcsTag).toLowerCase()}`,
+      `DAC tag: ${yesNo(diagnostic.dacTag).toLowerCase()}`,
+      `DAD tag: ${yesNo(diagnostic.dadTag).toLowerCase()}`,
+      `DBB tag: ${yesNo(diagnostic.dbbTag).toLowerCase()}`,
+      `Strict parser: ${diagnostic.strictParserPass ? 'PASS' : 'FAIL'}`,
+      `Field recovery: ${diagnostic.fieldRecoveryPass ? 'PASS' : 'FAIL'}`,
+      `Safe parser failure reason: ${diagnostic.parserFailureReason || '-'}`,
+      `Requested camera resolution: ${live.requestedResolution || cameraResolutionLabel(selectedCameraResolution())}`,
+      `Actual camera resolution: ${live.actualResolution || '-'}`,
+      `Guide decoder dimensions: ${live.lastGuideMapping ? `${live.lastGuideMapping.sw} x ${live.lastGuideMapping.sh}` : '-'}`,
       `Live attempts: ${live.attempts}`,
       `Live PDF417 total successes: ${live.pdf417Successes}`,
       `Live matching PDF417 reads: ${live.matchingPdf417Reads} / ${REQUIRED_MATCHES}`,
@@ -1463,12 +1904,19 @@
     $$('input[name="testTarget"]').forEach((input) => {
       input.addEventListener('change', () => clearLiveResults());
     });
+    $$('input[name="cameraResolution"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        live.requestedResolution = cameraResolutionLabel(selectedCameraResolution());
+        updateLiveMetrics(live.running ? 'Restart scan to apply resolution change' : 'Idle');
+      });
+    });
     $('takePhotoBtn')?.addEventListener('click', () => $('barcodePhotoInput')?.click());
     $('takeAnotherPhotoBtn')?.addEventListener('click', () => {
       clearPhotoResult();
       $('barcodePhotoInput')?.click();
     });
     $('tryAllFormatsBtn')?.addEventListener('click', tryAllFormats);
+    $('runAutoCropBtn')?.addEventListener('click', runAutoCropExperiment);
     $('clearPhotoBtn')?.addEventListener('click', clearPhotoResult);
     $('barcodePhotoInput')?.addEventListener('change', handlePhotoSelected);
     $('showCropToolBtn')?.addEventListener('click', () => setCropToolVisible(true));
@@ -1489,6 +1937,8 @@
     updateLiveMetrics('Idle');
     clearParsed('live');
     clearParsed('photo');
+    clearAamvaStructure('live');
+    clearAamvaStructure('photo');
     clearDecoderInputPreview();
     clearCropMappingDiagnostics();
     updateInterpretation();

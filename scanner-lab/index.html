@@ -98,7 +98,9 @@
       <div class="liveGrid">
         <div class="videoShell">
           <video id="liveVideo" class="video" autoplay playsinline muted></video>
-          <div class="barcodeGuide" aria-hidden="true"></div>
+          <div class="barcodeGuide" id="liveBarcodeGuide" aria-hidden="true">
+            <span>Hold the BACK of your ID close to the iPad and place ONLY the barcode inside this box.</span>
+          </div>
         </div>
 
         <div class="stack">
@@ -110,6 +112,9 @@
             <div><dt>Camera</dt><dd id="liveCameraState">OFF</dd></div>
             <div><dt>Frame</dt><dd id="liveFrameSize">0 x 0</dd></div>
             <div><dt>Test Target</dt><dd id="liveTarget">Scanner Self-Test</dd></div>
+            <div><dt>Requested camera resolution</dt><dd id="liveRequestedResolution">Default</dd></div>
+            <div><dt>Actual camera resolution</dt><dd id="liveActualResolution">-</dd></div>
+            <div><dt>Camera capability range</dt><dd id="liveCapabilities">-</dd></div>
             <div><dt>Scan attempts</dt><dd id="liveAttempts">0</dd></div>
             <div><dt>PDF417 Reads</dt><dd id="livePdf417Successes">0</dd></div>
             <div><dt>Last PDF417 detected</dt><dd id="livePdf417Detected">NO</dd></div>
@@ -120,6 +125,9 @@
             <div><dt>AAMVA-looking payload</dt><dd id="liveAamva">NO</dd></div>
             <div><dt>AAMVA reads</dt><dd id="liveAamvaSuccesses">0</dd></div>
             <div><dt>Consecutive valid AAMVA reads</dt><dd id="liveAamvaMatches">0 / 2</dd></div>
+            <div><dt>Original PDF417</dt><dd id="liveOriginalAttempt">NO</dd></div>
+            <div><dt>Contrast PDF417</dt><dd id="liveContrastAttempt">NO</dd></div>
+            <div><dt>Successful processing</dt><dd id="liveSuccessfulProcessing">none</dd></div>
             <div><dt>Successful variant</dt><dd id="liveVariant">none</dd></div>
             <div><dt>Status</dt><dd id="liveStatus">Idle</dd></div>
           </dl>
@@ -131,6 +139,13 @@
           <legend>Test Target</legend>
           <label><input type="radio" name="testTarget" value="selftest" checked> Scanner Self-Test</label>
           <label><input type="radio" name="testTarget" value="state_id"> State ID / Driver License</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Camera Resolution</legend>
+          <label><input type="radio" name="cameraResolution" value="default" checked> Default</label>
+          <label><input type="radio" name="cameraResolution" value="hd"> HD</label>
+          <label><input type="radio" name="cameraResolution" value="higher"> Higher</label>
         </fieldset>
 
         <fieldset>
@@ -159,13 +174,50 @@
 
         <fieldset>
           <legend>Decoded text</legend>
-          <label><input type="checkbox" id="showDecodedText"> Show decoded text</label>
+          <label><input type="checkbox" id="showDecodedText"> Show decoded text / PII</label>
         </fieldset>
       </div>
 
       <div class="resultGrid">
         <section class="resultPanel">
+          <h3>Live Guide Mapping</h3>
+          <dl class="fieldList">
+            <div><dt>Video natural</dt><dd id="liveVideoNatural">-</dd></div>
+            <div><dt>Guide displayed</dt><dd id="liveGuideDisplayed">-</dd></div>
+            <div><dt>Mapped video crop</dt><dd id="liveMappedVideoCrop">-</dd></div>
+            <div><dt>Guide decoder input</dt><dd id="liveGuideDecoderInput">-</dd></div>
+          </dl>
+        </section>
+
+        <section class="resultPanel">
+          <h3>Live AAMVA Structure</h3>
+          <dl class="fieldList">
+            <div><dt>Compliance indicator @</dt><dd id="liveStructCompliance">NO</dd></div>
+            <div><dt>ANSI header</dt><dd id="liveStructAnsi">NO</dd></div>
+            <div><dt>IIN present</dt><dd id="liveStructIin">NO</dd></div>
+            <div><dt>AAMVA version</dt><dd id="liveStructAamvaVersion">-</dd></div>
+            <div><dt>Jurisdiction version</dt><dd id="liveStructJurisdictionVersion">-</dd></div>
+            <div><dt>DL subfile found</dt><dd id="liveStructDl">NO</dd></div>
+            <div><dt>ID subfile found</dt><dd id="liveStructId">NO</dd></div>
+            <div><dt>DCS field tag present</dt><dd id="liveStructDcs">NO</dd></div>
+            <div><dt>DAC field tag present</dt><dd id="liveStructDac">NO</dd></div>
+            <div><dt>DAD field tag present</dt><dd id="liveStructDad">NO</dd></div>
+            <div><dt>DBB field tag present</dt><dd id="liveStructDbb">NO</dd></div>
+            <div><dt>DAQ field tag present</dt><dd id="liveStructDaq">NO</dd></div>
+            <div><dt>Record separator present</dt><dd id="liveStructRecordSeparator">NO</dd></div>
+            <div><dt>Segment terminator present</dt><dd id="liveStructSegmentTerminator">NO</dd></div>
+            <div><dt>Line-feed/data separators present</dt><dd id="liveStructLineFeed">NO</dd></div>
+            <div><dt>Decoded text length</dt><dd id="liveStructLength">0</dd></div>
+            <div><dt>Parser result</dt><dd id="liveStructParserResult">INVALID</dd></div>
+            <div><dt>Strict parser</dt><dd id="liveStrictParser">FAIL</dd></div>
+            <div><dt>Permitted-field recovery</dt><dd id="liveFieldRecovery">FAIL</dd></div>
+            <div><dt>Parser failure reason</dt><dd id="liveStructFailure">-</dd></div>
+          </dl>
+        </section>
+
+        <section class="resultPanel">
           <h3>AAMVA Parsed Fields</h3>
+          <p class="helper">Field values stay hidden unless decoded text / PII display is enabled.</p>
           <dl class="fieldList">
             <div><dt>Valid AAMVA</dt><dd id="liveValidAamva">NO</dd></div>
             <div><dt>First Name</dt><dd id="liveFirstName">-</dd></div>
@@ -219,6 +271,17 @@
       </div>
 
       <p class="labNote">For realistic results, test a physical printed barcode or physical ID. Photographing a barcode displayed on another screen may introduce moire and reduce decode reliability.</p>
+
+      <section class="resultPanel">
+        <div class="panelHeader compactHeader">
+          <h3>Auto-Crop Experiment</h3>
+          <div class="actions">
+            <button type="button" id="runAutoCropBtn" class="secondary">Run Auto-Crop Experiment</button>
+          </div>
+        </div>
+        <p class="helper">Tests a bounded set of likely wide barcode regions using original and contrast processing.</p>
+        <pre id="autoCropResults" class="reportBox">Take a barcode photo first.</pre>
+      </section>
 
       <section class="resultPanel">
         <h3>Photo Quality Diagnostics</h3>
@@ -292,12 +355,39 @@
 
       <section class="resultPanel">
         <h3>Photo AAMVA Parsed Fields</h3>
+        <p class="helper">Field values stay hidden unless decoded text / PII display is enabled.</p>
         <dl class="fieldList">
           <div><dt>First Name</dt><dd id="photoFirstName">-</dd></div>
           <div><dt>Middle Name</dt><dd id="photoMiddleName">-</dd></div>
           <div><dt>Last Name</dt><dd id="photoLastName">-</dd></div>
           <div><dt>DOB</dt><dd id="photoDob">-</dd></div>
           <div><dt>Jurisdiction</dt><dd id="photoJurisdiction">-</dd></div>
+        </dl>
+      </section>
+
+      <section class="resultPanel">
+        <h3>Photo AAMVA Structure</h3>
+        <dl class="fieldList">
+          <div><dt>Compliance indicator @</dt><dd id="photoStructCompliance">NO</dd></div>
+          <div><dt>ANSI header</dt><dd id="photoStructAnsi">NO</dd></div>
+          <div><dt>IIN present</dt><dd id="photoStructIin">NO</dd></div>
+          <div><dt>AAMVA version</dt><dd id="photoStructAamvaVersion">-</dd></div>
+          <div><dt>Jurisdiction version</dt><dd id="photoStructJurisdictionVersion">-</dd></div>
+          <div><dt>DL subfile found</dt><dd id="photoStructDl">NO</dd></div>
+          <div><dt>ID subfile found</dt><dd id="photoStructId">NO</dd></div>
+          <div><dt>DCS field tag present</dt><dd id="photoStructDcs">NO</dd></div>
+          <div><dt>DAC field tag present</dt><dd id="photoStructDac">NO</dd></div>
+          <div><dt>DAD field tag present</dt><dd id="photoStructDad">NO</dd></div>
+          <div><dt>DBB field tag present</dt><dd id="photoStructDbb">NO</dd></div>
+          <div><dt>DAQ field tag present</dt><dd id="photoStructDaq">NO</dd></div>
+          <div><dt>Record separator present</dt><dd id="photoStructRecordSeparator">NO</dd></div>
+          <div><dt>Segment terminator present</dt><dd id="photoStructSegmentTerminator">NO</dd></div>
+          <div><dt>Line-feed/data separators present</dt><dd id="photoStructLineFeed">NO</dd></div>
+          <div><dt>Decoded text length</dt><dd id="photoStructLength">0</dd></div>
+          <div><dt>Parser result</dt><dd id="photoStructParserResult">INVALID</dd></div>
+          <div><dt>Strict parser</dt><dd id="photoStrictParser">FAIL</dd></div>
+          <div><dt>Permitted-field recovery</dt><dd id="photoFieldRecovery">FAIL</dd></div>
+          <div><dt>Parser failure reason</dt><dd id="photoStructFailure">-</dd></div>
         </dl>
       </section>
 
@@ -350,6 +440,7 @@
 
   <script src="../visitor/visitor_shared.js"></script>
   <script src="../visitor/id_scan_adapters.js"></script>
+  <script src="./aamva_diagnostics.js"></script>
   <script src="./scanner-lab.js"></script>
 </body>
 </html>

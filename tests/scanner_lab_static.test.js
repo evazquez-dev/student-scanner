@@ -5,9 +5,11 @@ const path = require('node:path');
 const labHtml = fs.readFileSync(path.resolve(__dirname, '../scanner-lab/index.html'), 'utf8');
 const labCss = fs.readFileSync(path.resolve(__dirname, '../scanner-lab/scanner-lab.css'), 'utf8');
 const labJs = fs.readFileSync(path.resolve(__dirname, '../scanner-lab/scanner-lab.js'), 'utf8');
+const labAamvaDiagJs = fs.readFileSync(path.resolve(__dirname, '../scanner-lab/aamva_diagnostics.js'), 'utf8');
 const adapter = fs.readFileSync(path.resolve(__dirname, '../visitor/id_scan_adapters.js'), 'utf8');
 const visitorJs = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor.js'), 'utf8');
 const sw = fs.readFileSync(path.resolve(__dirname, '../sw.js'), 'utf8');
+const AamvaDiag = require('../scanner-lab/aamva_diagnostics.js');
 const selfTestFixture = path.resolve(__dirname, '../scanner-lab/fixtures/pdf417-selftest.png');
 
 function sectionBetween(src, startNeedle, endNeedle) {
@@ -18,13 +20,103 @@ function sectionBetween(src, startNeedle, endNeedle) {
   return src.slice(start, end);
 }
 
-const labSource = [labHtml, labCss, labJs].join('\n');
+const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
 
 {
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-3'/, 'Scanner Lab should expose Build 3');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-4'/, 'Scanner Lab should expose Build 4');
+}
+
+function syntheticAamva(subfile, fields, header) {
+  return [
+    '@',
+    '\x1e',
+    '\r',
+    header || `ANSI 636000080102${subfile || 'DL'}00410288`,
+    ...fields
+  ].join('\n');
+}
+
+{
+  const raw = syntheticAamva('DL', [
+    'DCSDOE',
+    'DACJANE',
+    'DADQ',
+    'DBB01021980',
+    'DAQDO-NOT-COPY',
+    'DAJNY'
+  ]);
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.complianceIndicator, true);
+  assert.equal(diag.ansiHeader, true);
+  assert.equal(diag.iinPresent, true);
+  assert.equal(diag.aamvaVersion, '8');
+  assert.equal(diag.jurisdictionVersion, '1');
+  assert.equal(diag.dlSubfile, true);
+  assert.equal(diag.idSubfile, false);
+  assert.equal(diag.dcsTag, true);
+  assert.equal(diag.dacTag, true);
+  assert.equal(diag.dadTag, true);
+  assert.equal(diag.dbbTag, true);
+  assert.equal(diag.daqTag, true);
+  assert.equal(diag.recordSeparator, true);
+  assert.equal(diag.segmentTerminator, true);
+  assert.equal(diag.lineFeedSeparators, true);
+  assert.equal(diag.strictParserPass, true);
+  assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.recoveredData.visitor_first_name, 'JANE');
+  assert.equal(diag.recoveredData.visitor_middle_name, 'Q');
+  assert.equal(diag.recoveredData.visitor_last_name, 'DOE');
+  assert.equal(diag.recoveredData.date_of_birth, '1980-01-02');
+}
+
+{
+  const raw = syntheticAamva('ID', [
+    'DCSROE',
+    'DACRICHARD',
+    'DBB19800102'
+  ]);
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.idSubfile, true);
+  assert.equal(diag.dlSubfile, false);
+  assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.recoveredData.date_of_birth, '1980-01-02');
+}
+
+{
+  const raw = syntheticAamva('DL', [
+    'DCSALT',
+    'DCTMORGAN LEE',
+    'DBB02031981'
+  ], 'ANSI 636000010702DL00410288');
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.aamvaVersion, '1');
+  assert.equal(diag.jurisdictionVersion, '7');
+  assert.equal(diag.fieldRecoveryPass, true);
+  assert.equal(diag.recoveredData.visitor_first_name, 'MORGAN');
+  assert.equal(diag.recoveredData.visitor_middle_name, 'LEE');
+  assert.equal(diag.recoveredData.date_of_birth, '1981-02-03');
+}
+
+{
+  const raw = syntheticAamva('DL', [
+    'DCSRECOVER',
+    'DACCASEY',
+    'DBB01021980'
+  ], 'ANSI 636000DL00410288');
+  const diag = AamvaDiag.analyzeAamvaPayload(raw);
+  assert.equal(diag.ansiHeader, true);
+  assert.equal(diag.strictParserPass, false);
+  assert.equal(diag.fieldRecoveryPass, true);
+}
+
+{
+  const diag = AamvaDiag.analyzeAamvaPayload('shipping PDF417 text with DCS and DAC and DBB01021980 but no AAMVA structure');
+  assert.equal(diag.aamvaIndicators, false);
+  assert.equal(diag.strictParserPass, false);
+  assert.equal(diag.fieldRecoveryPass, false);
 }
 
 {
@@ -43,6 +135,7 @@ const labSource = [labHtml, labCss, labJs].join('\n');
 {
   assert.match(labHtml, /\.\.\/visitor\/visitor_shared\.js/, 'Scanner Lab should reuse shared AAMVA parser');
   assert.match(labHtml, /\.\.\/visitor\/id_scan_adapters\.js/, 'Scanner Lab should reuse Visitor PDF417 adapter');
+  assert.match(labHtml, /\.\/aamva_diagnostics\.js/, 'Scanner Lab should load lab-only AAMVA diagnostics');
   assert.match(adapter, /new URL\('\.\/',\s*document\.currentScript\.src\)/, 'Adapter assets should resolve relative to the adapter script path');
   assert.match(adapter, /vendor\/zxing-wasm\/\$\{VERSIONS\.zxingWasm\}\/reader\/index\.js/, 'Adapter should load local ZXing JS');
   assert.match(adapter, /vendor\/zxing-wasm\/\$\{VERSIONS\.zxingWasm\}\/reader\/zxing_reader\.wasm/, 'Adapter should load local ZXing WASM');
@@ -69,7 +162,7 @@ const labSource = [labHtml, labCss, labJs].join('\n');
 }
 
 {
-  assert.match(labJs, /startRearCamera\(\$\(\'liveVideo\'\)\)/, 'Live scanner should use rear-camera video');
+  assert.match(labJs, /startRearCamera\(\$\(\'liveVideo\'\),\s*resolutionKey\)/, 'Live scanner should use rear-camera video with selected resolution');
   assert.match(labJs, /LIVE_SCAN_INTERVAL_MS\s*=\s*240/, 'Live scanner should throttle decode cadence');
   assert.match(labJs, /decodeBusy/, 'Live scanner should prevent overlapping decode operations');
   assert.match(labHtml, /name="testTarget" value="selftest" checked/, 'Scanner Lab should have explicit self-test target mode');
@@ -84,6 +177,16 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(labJs, /matchingAamvaReads/, 'Matching AAMVA counter should exist');
   assert.match(labJs, /payload === SELFTEST_TEXT/, 'Lab should recognize its own self-test PDF417 payload in live camera mode');
   assert.match(labJs, /Live iPad PDF417 scanning works/, 'Self-test PDF417 live success should not require AAMVA');
+  assert.match(labHtml, /Camera Resolution/, 'Scanner Lab should expose camera resolution controls');
+  assert.match(labHtml, /name="cameraResolution" value="default" checked/, 'Default camera resolution should be selectable');
+  assert.match(labHtml, /name="cameraResolution" value="hd"/, 'HD camera resolution should be selectable');
+  assert.match(labHtml, /name="cameraResolution" value="higher"/, 'Higher camera resolution should be selectable');
+  assert.match(labJs, /width\s*=\s*\{\s*ideal:\s*1920\s*\}/, 'Higher resolution should request 1920 width');
+  assert.match(labJs, /height\s*=\s*\{\s*ideal:\s*1080\s*\}/, 'Higher resolution should request 1080 height');
+  assert.match(labJs, /getSettings\?\.\(\)/, 'Actual camera settings should be displayed');
+  assert.match(labJs, /getCapabilities\?\.\(\)/, 'Camera capability ranges should be displayed when available');
+  assert.match(labHtml, /liveActualResolution/, 'Actual camera resolution should appear in the UI');
+  assert.match(labHtml, /liveCapabilities/, 'Camera capability range should appear in the UI');
   assert.match(labJs, /selectedRegionMode/, 'Live scanner should support full-frame vs guide-only regions');
   assert.match(labHtml, /name="regionMode" value="full" checked/, 'Full-frame mode should be available by default');
   assert.match(labHtml, /name="regionMode" value="guide"/, 'Guide-only mode should be available');
@@ -95,6 +198,20 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(labHtml, /name="processing" value="grayscale"/, 'Grayscale test option should exist');
   assert.match(labHtml, /name="processing" value="contrast"/, 'Contrast test option should exist');
   assert.match(labHtml, /name="processing" value="resize2x"/, '2x resize test option should exist');
+  assert.match(labHtml, /Hold the BACK of your ID close to the iPad and place ONLY the barcode inside this box/, 'State ID live mode should guide users to frame only the barcode');
+  assert.match(labJs, /getRenderedVideoRect/, 'Live guide crop should account for rendered video bounds');
+  assert.match(labJs, /guideToVideoPixels/, 'Live guide crop should map displayed guide to video pixels');
+  assert.match(labJs, /sourceCanvasFromVideoGuide/, 'State ID live mode should decode the guide crop');
+  assert.match(labJs, /drawImage\(video,\s*mapping\.sx,\s*mapping\.sy,\s*mapping\.sw,\s*mapping\.sh/, 'Guide crop should draw the mapped natural video pixels');
+  assert.match(labHtml, /Live Guide Mapping/, 'Live guide mapping diagnostics should be visible');
+  assert.match(labHtml, /Mapped video crop/, 'Mapped video crop should be visible');
+  assert.match(labHtml, /Guide decoder input/, 'Guide decoder input dimensions should be visible');
+  assert.match(labJs, /decodeStateIdGuideCanvas/, 'State ID live mode should use the simplified guide decoder pipeline');
+  assert.match(labJs, /const modes = \['original', 'contrast'\]/, 'State ID live mode should try original then contrast');
+  assert.match(labJs, /live\.originalAttemptSuccess/, 'Original attempt result should be tracked');
+  assert.match(labJs, /live\.contrastAttemptSuccess/, 'Contrast attempt result should be tracked');
+  assert.match(labJs, /lastAamvaFingerprint/, 'AAMVA matching should use a temporary fingerprint');
+  assert.match(labJs, /fingerprintPayload/, 'Raw payload matching should use fingerprint helper');
 }
 
 {
@@ -140,6 +257,37 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(labJs, /directPhotoResult/, 'Direct photo result state should be separate');
   assert.match(labJs, /allFormatsResult/, 'All-formats result state should be separate');
   assert.match(labJs, /manualCropResult/, 'Manual crop result state should be separate');
+  assert.match(labHtml, /Auto-Crop Experiment/, 'Photo test should include bounded auto-crop experiment');
+  assert.match(labJs, /Bottom 45%/, 'Auto-crop experiment should include bottom 45 percent preset');
+  assert.match(labJs, /Center-lower wide/, 'Auto-crop experiment should include center-lower wide preset');
+  assert.match(labJs, /runAutoCropExperiment/, 'Auto-crop experiment should be implemented');
+  assert.match(labJs, /for \(const mode of \['original', 'contrast'\]\)/, 'Auto-crop experiment should try original then contrast');
+}
+
+{
+  assert.match(labHtml, /Live AAMVA Structure/, 'Live safe AAMVA structure diagnostics should exist');
+  assert.match(labHtml, /Photo AAMVA Structure/, 'Photo safe AAMVA structure diagnostics should exist');
+  assert.match(labHtml, /Compliance indicator @/, 'Compliance indicator should be shown safely');
+  assert.match(labHtml, /ANSI header/, 'ANSI header presence should be shown safely');
+  assert.match(labHtml, /IIN present/, 'IIN presence should be shown safely');
+  assert.match(labHtml, /AAMVA version/, 'AAMVA version should be shown safely');
+  assert.match(labHtml, /DL subfile found/, 'DL subfile presence should be shown safely');
+  assert.match(labHtml, /ID subfile found/, 'ID subfile presence should be shown safely');
+  assert.match(labHtml, /DCS field tag present/, 'DCS tag presence should be shown safely');
+  assert.match(labHtml, /DAC field tag present/, 'DAC tag presence should be shown safely');
+  assert.match(labHtml, /DAD field tag present/, 'DAD tag presence should be shown safely');
+  assert.match(labHtml, /DBB field tag present/, 'DBB tag presence should be shown safely');
+  assert.match(labHtml, /DAQ field tag present/, 'DAQ tag presence should be shown safely');
+  assert.match(labHtml, /Strict parser/, 'Strict parser result should be shown');
+  assert.match(labHtml, /Permitted-field recovery/, 'Field recovery result should be shown');
+  assert.match(labAamvaDiagJs, /analyzeAamvaPayload/, 'AAMVA structural analyzer should exist');
+  assert.match(labAamvaDiagJs, /strictParserPass/, 'AAMVA analyzer should expose strict parser result');
+  assert.match(labAamvaDiagJs, /fieldRecoveryPass/, 'AAMVA analyzer should expose field recovery result');
+  assert.match(labAamvaDiagJs, /recordSeparator:\s*\/\\x1e\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check record separators');
+  assert.match(labAamvaDiagJs, /segmentTerminator:\s*\/\\r\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check segment terminators');
+  assert.match(labAamvaDiagJs, /lineFeedSeparators:\s*\/\\n\/\.test\(raw\)/, 'AAMVA analyzer should preserve/check line-feed separators');
+  assert.match(labAamvaDiagJs, /normalizeDob/, 'AAMVA analyzer should normalize DBB dates');
+  assert.match(labAamvaDiagJs, /Required field tags found but parser rejected separators/, 'AAMVA analyzer should provide safe parser failure reasons');
 }
 
 {
@@ -162,6 +310,25 @@ const labSource = [labHtml, labCss, labJs].join('\n');
   assert.match(reportSection, /Direct photo result/, 'Diagnostic report should include direct File status');
   assert.match(reportSection, /All-formats result/, 'Diagnostic report should include all-formats status');
   assert.match(reportSection, /Manual crop result/, 'Diagnostic report should include manual crop status');
+  assert.match(reportSection, /Auto-crop result/, 'Diagnostic report should include auto-crop status');
+  assert.match(reportSection, /Physical PDF417 decoded/, 'Diagnostic report should include physical PDF417 status');
+  assert.match(reportSection, /Successful source/, 'Diagnostic report should include successful source');
+  assert.match(reportSection, /Successful processing/, 'Diagnostic report should include successful processing');
+  assert.match(reportSection, /AAMVA header indicator/, 'Diagnostic report should include safe AAMVA header indicator');
+  assert.match(reportSection, /ANSI header/, 'Diagnostic report should include safe ANSI header status');
+  assert.match(reportSection, /AAMVA version/, 'Diagnostic report should include AAMVA version only');
+  assert.match(reportSection, /DL subfile/, 'Diagnostic report should include DL subfile status');
+  assert.match(reportSection, /ID subfile/, 'Diagnostic report should include ID subfile status');
+  assert.match(reportSection, /DCS tag/, 'Diagnostic report should include DCS tag status');
+  assert.match(reportSection, /DAC tag/, 'Diagnostic report should include DAC tag status');
+  assert.match(reportSection, /DAD tag/, 'Diagnostic report should include DAD tag status');
+  assert.match(reportSection, /DBB tag/, 'Diagnostic report should include DBB tag status');
+  assert.match(reportSection, /Strict parser/, 'Diagnostic report should include strict parser status');
+  assert.match(reportSection, /Field recovery/, 'Diagnostic report should include field recovery status');
+  assert.match(reportSection, /Safe parser failure reason/, 'Diagnostic report should include safe parser failure reason');
+  assert.match(reportSection, /Requested camera resolution/, 'Diagnostic report should include requested camera resolution');
+  assert.match(reportSection, /Actual camera resolution/, 'Diagnostic report should include actual camera resolution');
+  assert.match(reportSection, /Guide decoder dimensions/, 'Diagnostic report should include guide decoder dimensions');
   [
     /lastRaw/,
     /decodedText/,
