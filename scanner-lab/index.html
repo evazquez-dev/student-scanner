@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <title>EagleNEST Scanner Lab</title>
+  <link rel="stylesheet" href="./scanner-lab.css">
+</head>
+<body>
+  <header class="labHeader">
+    <div>
+      <h1>EagleNEST Scanner Lab</h1>
+      <p class="subtitle">iPad Camera + PDF417 Test</p>
+    </div>
+    <div class="build" id="buildLabel">Scanner Lab build: loading</div>
+  </header>
+
+  <main>
+    <section class="notice">
+      <strong>Testing only.</strong> Nothing scanned on this page is saved or uploaded.
+      <br>
+      For testing, use a test/sample ID where possible. Scanned information remains only on this device and is cleared when you leave or refresh this page.
+    </section>
+
+    <nav class="tabs" aria-label="Scanner Lab sections">
+      <button type="button" class="tab active" data-tab="camera">Camera Test</button>
+      <button type="button" class="tab" data-tab="live">Live PDF417</button>
+      <button type="button" class="tab" data-tab="photo">Photo PDF417</button>
+      <button type="button" class="tab" data-tab="diagnostics">Diagnostics</button>
+    </nav>
+
+    <section id="panel-camera" class="panel active" data-panel="camera">
+      <div class="panelHeader">
+        <h2>Camera Test</h2>
+        <div class="actions">
+          <button type="button" id="startCameraBtn">Start Rear Camera</button>
+          <button type="button" id="stopCameraBtn" class="secondary">Stop Camera</button>
+        </div>
+      </div>
+
+      <div class="cameraLayout">
+        <video id="cameraVideo" class="video" autoplay playsinline muted></video>
+        <dl class="metricGrid">
+          <div><dt>Camera active</dt><dd id="cameraActive">NO</dd></div>
+          <div><dt>videoWidth</dt><dd id="cameraWidth">0</dd></div>
+          <div><dt>videoHeight</dt><dd id="cameraHeight">0</dd></div>
+          <div><dt>readyState</dt><dd id="cameraReadyState">0</dd></div>
+          <div><dt>Facing mode</dt><dd id="cameraFacingMode">unknown</dd></div>
+          <div><dt>Device label</dt><dd id="cameraDeviceLabel">unknown</dd></div>
+          <div><dt>Frame callback</dt><dd id="cameraFrameCallback">NO</dd></div>
+          <div><dt>Timestamp</dt><dd id="cameraTimestamp">-</dd></div>
+        </dl>
+      </div>
+      <pre id="cameraError" class="errorBox" aria-live="polite"></pre>
+    </section>
+
+    <section id="panel-live" class="panel" data-panel="live">
+      <div class="panelHeader">
+        <h2>Live PDF417 Test</h2>
+        <div class="actions">
+          <button type="button" id="startLiveBtn">Start Live Scan</button>
+          <button type="button" id="stopLiveBtn" class="secondary">Stop Live Scan</button>
+          <button type="button" id="clearLiveBtn" class="secondary">Clear Results</button>
+        </div>
+      </div>
+
+      <div class="liveGrid">
+        <div class="videoShell">
+          <video id="liveVideo" class="video" autoplay playsinline muted></video>
+          <div class="barcodeGuide" aria-hidden="true"></div>
+        </div>
+
+        <div class="stack">
+          <div class="validBanner" id="liveValidBanner" hidden>&#10003; VALID STATE ID READ</div>
+          <dl class="metricGrid compact">
+            <div><dt>Camera</dt><dd id="liveCameraState">OFF</dd></div>
+            <div><dt>Frame</dt><dd id="liveFrameSize">0 x 0</dd></div>
+            <div><dt>Scan attempts</dt><dd id="liveAttempts">0</dd></div>
+            <div><dt>Successful decodes</dt><dd id="liveSuccesses">0</dd></div>
+            <div><dt>Current scan rate</dt><dd id="liveScanRate">0.0/sec</dd></div>
+            <div><dt>Last decode duration</dt><dd id="liveDecodeMs">-</dd></div>
+            <div><dt>Last format</dt><dd id="liveFormat">none</dd></div>
+            <div><dt>AAMVA-looking payload</dt><dd id="liveAamva">NO</dd></div>
+            <div><dt>Consecutive matching reads</dt><dd id="liveMatches">0 / 2</dd></div>
+            <div><dt>Successful variant</dt><dd id="liveVariant">none</dd></div>
+            <div><dt>Status</dt><dd id="liveStatus">Idle</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="controlGrid">
+        <fieldset>
+          <legend>Decode region</legend>
+          <label><input type="radio" name="regionMode" value="full" checked> Full Frame</label>
+          <label><input type="radio" name="regionMode" value="guide"> Guide Only</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Rotation attempts</legend>
+          <label><input type="checkbox" name="rotation" value="0" checked> 0&deg;</label>
+          <label><input type="checkbox" name="rotation" value="90" checked> 90&deg;</label>
+          <label><input type="checkbox" name="rotation" value="180"> 180&deg;</label>
+          <label><input type="checkbox" name="rotation" value="270"> 270&deg;</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Image processing</legend>
+          <label><input type="checkbox" name="processing" value="original" checked> Original</label>
+          <label><input type="checkbox" name="processing" value="grayscale"> Grayscale</label>
+          <label><input type="checkbox" name="processing" value="contrast"> Contrast enhanced</label>
+          <label><input type="checkbox" name="processing" value="resize2x"> 2x resize</label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Decoded text</legend>
+          <label><input type="checkbox" id="showDecodedText"> Show decoded text</label>
+        </fieldset>
+      </div>
+
+      <div class="resultGrid">
+        <section class="resultPanel">
+          <h3>AAMVA Parsed Fields</h3>
+          <dl class="fieldList">
+            <div><dt>Valid AAMVA</dt><dd id="liveValidAamva">NO</dd></div>
+            <div><dt>First Name</dt><dd id="liveFirstName">-</dd></div>
+            <div><dt>Middle Name</dt><dd id="liveMiddleName">-</dd></div>
+            <div><dt>Last Name</dt><dd id="liveLastName">-</dd></div>
+            <div><dt>DOB</dt><dd id="liveDob">-</dd></div>
+            <div><dt>Jurisdiction</dt><dd id="liveJurisdiction">-</dd></div>
+          </dl>
+        </section>
+        <section class="resultPanel">
+          <h3>Temporary Decoded Text</h3>
+          <pre id="decodedText" class="decodedText" hidden></pre>
+        </section>
+      </div>
+
+      <pre id="liveError" class="errorBox" aria-live="polite"></pre>
+    </section>
+
+    <section id="panel-photo" class="panel" data-panel="photo">
+      <div class="panelHeader">
+        <h2>Photo PDF417 Test</h2>
+        <div class="actions">
+          <button type="button" id="takePhotoBtn">Take Photo of Barcode</button>
+          <button type="button" id="takeAnotherPhotoBtn" class="secondary">Take Another Photo</button>
+          <button type="button" id="clearPhotoBtn" class="secondary">Clear Photo</button>
+        </div>
+      </div>
+
+      <input id="barcodePhotoInput" type="file" accept="image/*" capture="environment" hidden>
+
+      <div class="photoGrid">
+        <div class="photoPreviewBox">
+          <img id="photoPreview" alt="Temporary barcode photo preview" hidden>
+          <div id="photoPlaceholder" class="placeholder">No photo selected</div>
+        </div>
+        <dl class="metricGrid compact">
+          <div><dt>Original dimensions</dt><dd id="photoDimensions">-</dd></div>
+          <div><dt>PDF417 detected</dt><dd id="photoDetected">NO</dd></div>
+          <div><dt>Valid AAMVA</dt><dd id="photoAamva">NO</dd></div>
+          <div><dt>Decode time</dt><dd id="photoDecodeMs">-</dd></div>
+          <div><dt>Successful variant</dt><dd id="photoVariant">none</dd></div>
+          <div><dt>Status</dt><dd id="photoStatus">Idle</dd></div>
+        </dl>
+      </div>
+
+      <section class="resultPanel">
+        <h3>Photo AAMVA Parsed Fields</h3>
+        <dl class="fieldList">
+          <div><dt>First Name</dt><dd id="photoFirstName">-</dd></div>
+          <div><dt>Middle Name</dt><dd id="photoMiddleName">-</dd></div>
+          <div><dt>Last Name</dt><dd id="photoLastName">-</dd></div>
+          <div><dt>DOB</dt><dd id="photoDob">-</dd></div>
+          <div><dt>Jurisdiction</dt><dd id="photoJurisdiction">-</dd></div>
+        </dl>
+      </section>
+
+      <pre id="photoError" class="errorBox" aria-live="polite"></pre>
+    </section>
+
+    <section id="panel-diagnostics" class="panel" data-panel="diagnostics">
+      <div class="panelHeader">
+        <h2>Diagnostics</h2>
+        <div class="actions">
+          <button type="button" id="refreshDiagnosticsBtn">Refresh Diagnostics</button>
+          <button type="button" id="copyDiagnosticsBtn" class="secondary">Copy Diagnostic Report</button>
+        </div>
+      </div>
+
+      <dl class="metricGrid diagnostics">
+        <div><dt>navigator.mediaDevices</dt><dd id="diagMediaDevices">NO</dd></div>
+        <div><dt>getUserMedia</dt><dd id="diagGetUserMedia">NO</dd></div>
+        <div><dt>requestVideoFrameCallback</dt><dd id="diagFrameCallback">NO</dd></div>
+        <div><dt>createImageBitmap</dt><dd id="diagImageBitmap">NO</dd></div>
+        <div><dt>OffscreenCanvas</dt><dd id="diagOffscreenCanvas">NO</dd></div>
+        <div><dt>BarcodeDetector</dt><dd id="diagBarcodeDetector">NO</dd></div>
+        <div><dt>TextDetector</dt><dd id="diagTextDetector">NO</dd></div>
+        <div><dt>WebAssembly</dt><dd id="diagWebAssembly">NO</dd></div>
+        <div><dt>User agent</dt><dd id="diagUserAgent">-</dd></div>
+        <div><dt>Screen size</dt><dd id="diagScreenSize">-</dd></div>
+        <div><dt>Device pixel ratio</dt><dd id="diagDpr">-</dd></div>
+        <div><dt>Page URL</dt><dd id="diagPageUrl">-</dd></div>
+        <div><dt>ZXing loaded</dt><dd id="diagZxingLoaded">NO</dd></div>
+        <div><dt>ZXing version</dt><dd id="diagZxingVersion">3.1.2</dd></div>
+        <div><dt>PDF417 support</dt><dd id="diagPdf417Support">YES</dd></div>
+      </dl>
+
+      <pre id="diagnosticReport" class="reportBox" aria-live="polite"></pre>
+    </section>
+  </main>
+
+  <script src="../visitor/visitor_shared.js"></script>
+  <script src="../visitor/id_scan_adapters.js"></script>
+  <script src="./scanner-lab.js"></script>
+</body>
+</html>

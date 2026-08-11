@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.1.0-2026-08-11'; // bump on each deploy
+const VERSION = 'v20.2.0-2026-08-11'; // bump on each deploy
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [
@@ -30,8 +30,8 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Bypass admin and visitor routes so live records/forms are never cached.
-  if (url.pathname.includes('/admin/') || url.pathname.includes('/visitor/')) {
+  // Bypass admin, visitor, and scanner lab routes so live records/forms/test code are never cached.
+  if (url.pathname.includes('/admin/') || url.pathname.includes('/visitor/') || url.pathname.includes('/scanner-lab/')) {
     event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }

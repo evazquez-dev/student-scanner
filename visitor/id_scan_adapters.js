@@ -214,6 +214,21 @@
     return String(result?.text || result?.bytes || result?.rawBytes || '').trim();
   }
 
+  async function readPdf417Candidates(input, options) {
+    const zxing = await prepareZxing();
+    const readerOptions = {
+      ...PDF417_READER_OPTIONS,
+      ...(options || {}),
+      formats: ['PDF417']
+    };
+    const results = await zxing.readBarcodes(input, readerOptions);
+    return (results || []).map((result) => ({
+      text: decodedText(result),
+      format: String(result?.format || '').trim(),
+      symbology: String(result?.symbology || '').trim()
+    })).filter((result) => result.text);
+  }
+
   function looksLikeAamvaPdf417(text) {
     const raw = String(text || '');
     if (raw.length < 35 || !/ANSI\s+\d{6}/.test(raw.replace(/\s+/g, ' '))) return false;
@@ -223,24 +238,22 @@
   }
 
   async function decodePdf417ImageData(imageData) {
-    const zxing = await prepareZxing();
-    const results = await zxing.readBarcodes(imageData, PDF417_READER_OPTIONS);
+    const results = await readPdf417Candidates(imageData);
     const hit = (results || []).find((result) => {
       const format = String(result?.format || result?.symbology || '').toUpperCase();
-      return format.includes('PDF417') && looksLikeAamvaPdf417(decodedText(result));
+      return format.includes('PDF417') && looksLikeAamvaPdf417(result.text);
     });
-    return hit ? decodedText(hit) : '';
+    return hit ? hit.text : '';
   }
 
   async function decodePdf417Blob(blob) {
     if (!blob || !String(blob.type || '').toLowerCase().startsWith('image/')) throw new Error('id_image_required');
-    const zxing = await prepareZxing();
-    const results = await zxing.readBarcodes(blob, PDF417_READER_OPTIONS);
+    const results = await readPdf417Candidates(blob);
     const hit = (results || []).find((result) => {
       const format = String(result?.format || result?.symbology || '').toUpperCase();
-      return format.includes('PDF417') && looksLikeAamvaPdf417(decodedText(result));
+      return format.includes('PDF417') && looksLikeAamvaPdf417(result.text);
     });
-    return hit ? decodedText(hit) : '';
+    return hit ? hit.text : '';
   }
 
   function createFrameScheduler(video, callback, intervalMs) {
@@ -605,6 +618,7 @@
     drawVideoGuideCanvas,
     canvasLooksEmptyBlack,
     looksLikeAamvaPdf417,
+    readPdf417Candidates,
     decodePdf417ImageData,
     decodePdf417Blob,
     createStateIdAutoScanner,
