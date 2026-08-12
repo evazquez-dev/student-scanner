@@ -46,6 +46,11 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(badgeSection, /Shared\.makeQrSvg\(`ENVISIT:\$\{v\.badge_checkout_token\}`/, 'Badge QR must remain ENVISIT token based');
   assert.doesNotMatch(badgeSection, /makeQrSvg\([^)]*photo_id|makeQrSvg\([^)]*photoId/, 'Badge QR must not include photo metadata');
   assert.doesNotMatch(badgeSection, /date_of_birth|Date of Birth|DOB/, 'Badge must not print date of birth');
+  const returningBadgeSection = sectionBetween(desk, 'async function printReturningPass', 'async function checkoutVisit');
+  assert.match(returningBadgeSection, /ENVISITOR:/, 'Returning parent badge should use ENVISITOR reusable QR payloads');
+  assert.match(returningBadgeSection, /@page\{size:2\.4in 3\.9in;margin:0\}/, 'Returning parent badge must preserve 2.4in x 3.9in print size');
+  assert.doesNotMatch(returningBadgeSection, /date_of_birth|Date of Birth|DOB|qrText\}/, 'Returning parent badge must not print DOB or plaintext token text outside QR');
+  assert.doesNotMatch(returningBadgeSection, /profile_id/, 'Returning parent badge must not print internal profile IDs');
 }
 
 {
@@ -83,15 +88,18 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kioskHtml, /id="reviewScreen"/, 'Kiosk should include review step');
   assert.match(kioskHtml, /name="date_of_birth"[^>]+type="date"[^>]+required/, 'Kiosk should require date of birth');
   assert.match(kioskHtml, /id="idPrefillToggleBtn"[^>]+aria-expanded="false"/, 'Initial kiosk DOM should show only the explicit Use ID to Fill Form action');
+  assert.match(kioskHtml, /id="returningBadgeBtn"/, 'Initial kiosk DOM should offer Scan Previous Badge');
   assert.match(kioskHtml, /id="idPrefillActions"[^>]+hidden/, 'Initial kiosk DOM should hide State ID/IDNYC choices until Use ID is pressed');
   assert.match(kioskHtml, /id="stateIdPrefillBtn"/, 'Kiosk should offer state ID prefill');
   assert.match(kioskHtml, /id="idnycPrefillBtn"/, 'Kiosk should offer IDNYC prefill');
   assert.match(kioskHtml, /id="stateIdScanPanel"[^>]+data-id-entry-mode="manual"[^>]+hidden/, 'Initial kiosk DOM should hide the State ID scanner panel with no flash');
+  assert.match(kioskHtml, /id="returningBadgeActions"[^>]+hidden/, 'Initial kiosk DOM should hide returning badge checkout controls');
   assert.match(kioskHtml, /id="idScanVideo"[^>]+autoplay[^>]+playsinline[^>]+muted/, 'ID prefill should use a live rear-camera video scanner');
   assert.match(kioskHtml, /id="idScanGuide"/, 'ID prefill should show a scanner guide');
   assert.match(kioskHtml, /id="idScanPhotoFallbackBtn"/, 'ID prefill should offer native camera photo fallback');
   assert.match(kioskHtml, /id="idnycCaptureInput"[^>]+capture="environment"/, 'IDNYC capture should use environment camera');
   assert.match(kioskHtml, /id="stateIdPhotoInput"[^>]+capture="environment"/, 'State ID fallback capture should use environment camera');
+  assert.match(kioskHtml, /name="returning_opt_in"[^>]+type="checkbox"/, 'Returning Parent opt-in should be a real unchecked form checkbox');
   assert.match(kioskHtml, /id_scan_adapters\.js/, 'Kiosk should load the local ID scan adapter');
   assert.match(kioskHtml, /id="visitorPhotoInput"[^>]+type="file"[^>]+accept="image\/\*"[^>]+capture="user"/, 'Kiosk visitor photo should use native front-camera file capture');
   assert.match(kioskHtml, /id="cameraFrame"[^>]+data-photo-state="live"/, 'Kiosk camera frame should expose live/review photo state');
@@ -139,9 +147,11 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kiosk, /function\s+setIdEntryMode\s*\(mode\)/, 'Kiosk should centralize ID-entry mode visibility');
   const setIdEntryModeSection = sectionBetween(kiosk, 'function setIdEntryMode(mode)', 'function showIdChoice');
   assert.match(setIdEntryModeSection, /nextMode\s*!==\s*'id_choice'/, 'ID type choices should only appear in id_choice mode');
-  assert.match(setIdEntryModeSection, /nextMode\s*===\s*'state_id'\s*\|\|\s*nextMode\s*===\s*'idnyc'/, 'Scanner panel should be visible only in scanner modes');
+  assert.match(setIdEntryModeSection, /'returning_badge'/, 'Returning badge should be an explicit mutually exclusive scanner mode');
+  assert.match(setIdEntryModeSection, /nextMode\s*===\s*'state_id'\s*\|\|\s*nextMode\s*===\s*'idnyc'\s*\|\|\s*nextMode\s*===\s*'returning_badge'/, 'Scanner panel should be visible only in explicit scanner modes');
   assert.match(setIdEntryModeSection, /stateIdScanPanel\.hidden\s*=\s*!scanVisible/, 'Scanner panel should hide outside explicit scanner modes');
   assert.match(setIdEntryModeSection, /clearIdScanTransientState\(\)/, 'Leaving scanner modes should clear transient scanner UI state');
+  assert.match(setIdEntryModeSection, /returningBadgeActions[\s\S]*hidden\s*=\s*true/, 'Leaving returning badge mode should hide checkout controls');
   const showIdChoiceSection = sectionBetween(kiosk, 'function showIdChoice()', 'function setIdScanFallbacks');
   assert.match(showIdChoiceSection, /setIdEntryMode\('id_choice'\)/, 'Use ID to Fill Form should show only ID type choices');
   assert.doesNotMatch(showIdChoiceSection, /configureIdScanPanel|createStateIdAutoScanner|idScanSession\.start|stateIdScanPanel\.hidden\s*=\s*false/, 'Use ID to Fill Form alone must not show or initialize the State ID scanner');
@@ -149,7 +159,7 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(bootSection, /idPrefillToggleBtn\?\.addEventListener\('click',\s*showIdChoice\)/, 'Use ID action should enter ID choice mode');
   assert.match(bootSection, /setIdEntryMode\('manual'\)/, 'Kiosk boot should reset to manual ID-entry mode');
   assert.doesNotMatch(bootSection, /createStateIdAutoScanner|createIdnycAutoCapture|idScanSession\.start\(\)/, 'State ID/IDNYC camera must not start on page load');
-  const closeScanSection = sectionBetween(kiosk, 'function closeStateIdScan()', 'function showIdScanFallbacks');
+  const closeScanSection = sectionBetween(kiosk, 'function closeStateIdScan(options = {})', 'function showIdScanFallbacks');
   assert.match(closeScanSection, /stopIdScanSession\(\)/, 'Leaving ID scan mode should stop the previous camera session');
   assert.match(closeScanSection, /setIdEntryMode\('manual'\)/, 'Manual/cancel/reset should hide all ID scanner UI');
   const startStateSection = sectionBetween(kiosk, 'async function startStateIdPrefill()', 'async function handleStateIdPhotoFallback');
@@ -158,6 +168,13 @@ function sectionBetween(src, startNeedle, endNeedle) {
   const startIdnycSection = sectionBetween(kiosk, 'async function startIdnycPrefill()', 'async function handleIdnycCapture');
   assert.match(startIdnycSection, /closeStateIdScan\(\)/, 'Selecting IDNYC should stop and hide State ID scanning first');
   assert.match(startIdnycSection, /configureIdScanPanel\('idnyc'\)/, 'Selecting IDNYC should explicitly enter IDNYC scanner mode');
+  const startReturningSection = sectionBetween(kiosk, 'async function startReturningBadgeScan()', 'async function handleStateIdPhotoFallback');
+  assert.match(startReturningSection, /configureIdScanPanel\('returning_badge'\)/, 'Selecting Scan Previous Badge should explicitly enter returning badge scanner mode');
+  assert.match(startReturningSection, /IdScan\.createReturningBadgeScanner/, 'Returning badge flow should use local rear-camera QR scanning');
+  assert.doesNotMatch(startReturningSection, /createStateIdAutoScanner|createIdnycAutoCapture/, 'Returning badge scanning must not start State ID or IDNYC scanners');
+  const returningHandlerSection = sectionBetween(kiosk, 'async function handleReturningBadgeText', 'async function startReturningBadgeScan');
+  assert.match(returningHandlerSection, /\/visitor\/kiosk\/badge_checkout/, 'Returning badge scanner should support existing ENVISIT checkout QR codes');
+  assert.match(returningHandlerSection, /\/visitor\/kiosk\/returning_scan/, 'Returning badge scanner should resolve ENVISITOR reusable credentials');
   const applyStateSection = sectionBetween(kiosk, 'function applyStateIdResult', 'async function startStateIdPrefill');
   assert.match(applyStateSection, /closeStateIdScan\(\)/, 'Successful State ID scan should hide the scanner');
   assert.match(applyStateSection, /applyIdPrefill\(parsed\.data/, 'Successful State ID scan should preserve and populate visitor fields');
@@ -179,6 +196,7 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(idScan, /width:\s*\{\s*ideal:\s*1920\s*\}/, 'State ID scanner should request the higher rear-camera width proven in Scanner Lab');
   assert.match(idScan, /height:\s*\{\s*ideal:\s*1080\s*\}/, 'State ID scanner should request the higher rear-camera height proven in Scanner Lab');
   assert.match(idScan, /formats:\s*\[\s*'PDF417'\s*\]/, 'PDF417 must be explicitly enabled');
+  assert.match(idScan, /formats:\s*\[\s*'QRCode'\s*\]/, 'Returning pass scan should explicitly enable QRCode decoding');
   assert.match(idScan, /binarizer:\s*'LocalAverage'/, 'State ID scanner should use the proven LocalAverage binarizer');
   assert.match(idScan, /tryDenoise:\s*true/, 'State ID scanner should use the proven denoise option');
   assert.match(idScan, /STATE_ID_REQUIRED_MATCHES\s*=\s*2/, 'State ID auto scan should require repeated matching reads');
@@ -201,6 +219,11 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(idScan, /zxing-wasm\/\$\{VERSIONS\.zxingWasm\}\/reader\/index\.js/, 'ZXing reader should be loaded from local vendor assets');
   assert.match(idScan, /zxing-wasm\/\$\{VERSIONS\.zxingWasm\}\/reader\/zxing_reader\.wasm/, 'ZXing WASM should be loaded locally');
   assert.doesNotMatch(idScan, /cdn\.jsdelivr|fastly\.jsdelivr|api\.qrserver|barcodeapi/i, 'ID scan adapter must not use runtime barcode CDNs/APIs');
+  assert.match(idScan, /function\s+createReturningBadgeScanner/, 'Kiosk should have an isolated returning QR scanner');
+  assert.match(idScan, /drawVideoGuideCanvas\(video,\s*'qr',\s*guide\)/, 'Returning QR scanner should crop the visible QR guide');
+  assert.match(idScan, /decodeBusy/, 'Returning QR scanner should prevent overlapping decodes');
+  assert.match(idScan, /startsWith\('ENVISITOR:'\)/, 'Returning QR scanner should recognize ENVISITOR credentials');
+  assert.match(idScan, /startsWith\('ENVISIT:'\)/, 'QR scanner adapter should continue recognizing existing ENVISIT badges');
   assert.doesNotMatch(kioskHtml, /ZXing|WASM|descriptor|AAMVA version|Show Raw|Show Parsed Fields|decode ms|raw bytes/i, 'Production kiosk must not expose Scanner Lab debug UI');
   assert.doesNotMatch(kioskCss, /decoderInput|cropMapping|manualCrop|safeDiagnostic/i, 'Production kiosk CSS must not expose Scanner Lab debug controls');
   assert.match(kioskCss, /\.barcodeGuide\s*\{[\s\S]*top:\s*39%[\s\S]*bottom:\s*39%/, 'Production State ID guide should be wide and barcode-only');
@@ -226,6 +249,13 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(kiosk, /Escanear una identificación es opcional y solo se usa para ayudar a completar su nombre y fecha de nacimiento/, 'Spanish kiosk privacy notice must disclose optional ID prefill scope');
   assert.match(kiosk, /A current visitor photo is securely stored for up to 30 days/, 'English kiosk privacy notice must disclose visitor photo retention');
   assert.match(kiosk, /Una foto actual del visitante se guarda de forma segura por hasta 30 días/, 'Spanish kiosk privacy notice must disclose visitor photo retention');
+  assert.match(kiosk, /scanPreviousBadge:\s*'Escanear pase anterior'/, 'Spanish kiosk should translate Scan Previous Badge');
+  assert.match(kiosk, /stateIdPrefill:\s*'Licencia de conducir \/ identificación estatal'/, 'Spanish State ID choice should be translated');
+  assert.match(kiosk, /stateIdScanPrompt:\s*'Voltee su identificación y coloque el código de barras del REVERSO dentro del cuadro\.'/, 'Spanish State ID scanner prompt should be translated');
+  assert.match(kiosk, /stateIdMoveCloser:\s*'Acérquelo'/, 'Spanish State ID move-closer status should be translated');
+  assert.match(kiosk, /stateIdHoldSteady:\s*'Manténgalo firme'/, 'Spanish State ID hold-steady status should be translated');
+  assert.match(kiosk, /returningPhotoCurrent:\s*'Su foto de visitante está vigente para este mes\.'/, 'Spanish returning photo-current status should be translated');
+  assert.match(kiosk, /returningClaimExpired:\s*'La sesión del pase venció\. Vuelva a escanear el pase\.'/, 'Spanish returning claim expiry should be translated');
   assert.doesNotMatch(kiosk, /data:image|base64/i, 'Kiosk should not persist/send Base64 photo data');
 }
 

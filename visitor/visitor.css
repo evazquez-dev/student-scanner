@@ -167,6 +167,11 @@ button:disabled {
   gap: 10px;
 }
 
+.returningBadgeBtn,
+.idPrefillToggle {
+  width: 100%;
+}
+
 .idScanPanel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -237,6 +242,14 @@ button:disabled {
   border-radius: 16px;
 }
 
+.qrGuide {
+  left: 28%;
+  right: 28%;
+  top: 20%;
+  bottom: 20%;
+  border-radius: 10px;
+}
+
 .scanStatus {
   min-height: 1.5em;
   color: var(--brand);
@@ -249,6 +262,26 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.returningOptIn {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
+.returningOptIn input {
+  width: auto;
+  margin-right: 8px;
+}
+
+.returningOptIn small {
+  display: block;
+  color: var(--muted);
+  font-weight: 500;
+  line-height: 1.35;
+  margin-top: 6px;
 }
 
 .visuallyHidden {

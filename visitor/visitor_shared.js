@@ -443,9 +443,11 @@
 
   function parseVisitorBadgeScan(value) {
     const s = cleanText(value, 260);
-    const m = s.match(/^ENVISIT:([A-Za-z0-9_-]{32,120})$/);
-    if (!m) return { ok: false, error: 'not_visitor_badge' };
-    return { ok: true, token: m[1] };
+    const visit = s.match(/^ENVISIT:([A-Za-z0-9_-]{32,120})$/);
+    if (visit) return { ok: true, kind: 'visit_checkout', token: visit[1] };
+    const returning = s.match(/^ENVISITOR:([A-Za-z0-9_-]{32,180})$/);
+    if (returning) return { ok: true, kind: 'returning_parent', token: returning[1] };
+    return { ok: false, error: 'not_visitor_badge' };
   }
 
   function createScannerBuffer(onScan, options) {

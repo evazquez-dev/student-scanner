@@ -40,6 +40,7 @@
       purposeRequired: 'Purpose is required.',
       idPrefillTitle: 'Use ID to Fill Form',
       idPrefillIntro: 'Optional. You can scan an ID or enter information manually.',
+      scanPreviousBadge: 'Scan Previous Badge',
       stateIdPrefill: 'State Driver License / State ID',
       idnycPrefill: 'Scan IDNYC',
       manualEntry: 'Enter Information Manually',
@@ -50,6 +51,8 @@
       stateIdHoldSteady: 'Hold steady',
       stateIdReading: 'Reading ID...',
       stateIdReadSuccess: 'ID read successfully',
+      stateIdConfirmInfo: 'Please confirm your information.',
+      stateIdTrouble: 'Having trouble reading the barcode?',
       stateIdUnreadable: "We couldn't read the barcode. Try again or enter your information manually.",
       tryAgain: 'Try Again',
       takePhotoInstead: 'Take Photo Instead',
@@ -67,6 +70,24 @@
       idnycFound: 'We found the following information. Please confirm it is correct.',
       idnycUnreadable: "We couldn't read all of the information. Please complete the highlighted fields.",
       cameraUnavailableManual: 'Camera is unavailable. You can still enter your information manually.',
+      returningScanTitle: 'Scan Previous Badge',
+      returningScanPrompt: 'Place the QR code inside the box.',
+      returningReading: 'Reading pass...',
+      returningPassFound: 'Pass found',
+      returningPassInvalid: 'Invalid or expired pass.',
+      returningPassRevoked: 'Pass revoked.',
+      returningWelcomeBack: "Welcome back. Please confirm your information and tell us about today's visit.",
+      returningActive: 'You are currently checked in.',
+      returningPending: 'You already have a visitor request waiting for security review.',
+      returningCheckedInAt: 'Checked in',
+      returningCheckOut: 'Check Out',
+      returningCheckoutDone: 'You have been checked out.',
+      returningCheckoutFailed: 'We could not check you out. Please ask security for help.',
+      returningPhotoCurrent: 'Your visitor photo is current for this month.',
+      returningPhotoRequiredMonth: 'A new visitor photo is required this month.',
+      returningClaimExpired: 'Your pass session expired. Please scan the pass again.',
+      returningOptIn: 'Save my information for faster future check-ins and create a reusable Parent Pass.',
+      returningOptInHelp: 'This saves basic visitor profile information so you do not need to re-enter it next time.',
       photoTitle: 'Visitor Photo',
       photoIntro: 'Please look at the camera.',
       nativePhotoPrompt: 'Take a current visitor photo.',
@@ -114,6 +135,7 @@
       purposeRequired: 'El propósito es obligatorio.',
       idPrefillTitle: 'Usar identificación para completar',
       idPrefillIntro: 'Opcional. Puede escanear una identificación o ingresar la información manualmente.',
+      scanPreviousBadge: 'Escanear pase anterior',
       stateIdPrefill: 'Licencia de conducir / identificación estatal',
       idnycPrefill: 'Escanear IDNYC',
       manualEntry: 'Ingresar información manualmente',
@@ -124,9 +146,11 @@
       stateIdHoldSteady: 'Manténgalo firme',
       stateIdReading: 'Leyendo identificación...',
       stateIdReadSuccess: 'Identificación leída correctamente',
+      stateIdConfirmInfo: 'Confirme su información.',
+      stateIdTrouble: '¿Tiene problemas para leer el código de barras?',
       stateIdUnreadable: 'No pudimos leer el código de barras. Inténtelo de nuevo o ingrese la información manualmente.',
       tryAgain: 'Intentar de nuevo',
-      takePhotoInstead: 'Tomar foto',
+      takePhotoInstead: 'Tomar una foto',
       idPrefillSuccess: 'La información se completó desde la identificación. Confirme que sea correcta.',
       idPrefillNeedsCompletion: 'No pudimos completar todos los campos obligatorios. Complete los campos resaltados.',
       idnycScanTitle: 'Escanear IDNYC',
@@ -141,6 +165,24 @@
       idnycFound: 'Encontramos la siguiente información. Confirme que sea correcta.',
       idnycUnreadable: 'No pudimos leer toda la información. Complete los campos resaltados.',
       cameraUnavailableManual: 'La cámara no está disponible. Aun puede ingresar la información manualmente.',
+      returningScanTitle: 'Escanear pase anterior',
+      returningScanPrompt: 'Coloque el código QR dentro del cuadro.',
+      returningReading: 'Leyendo pase...',
+      returningPassFound: 'Pase encontrado',
+      returningPassInvalid: 'Pase no reconocido o vencido.',
+      returningPassRevoked: 'Pase revocado.',
+      returningWelcomeBack: 'Bienvenido/a de nuevo. Confirme su información e indique el motivo de la visita de hoy.',
+      returningActive: 'Ya está registrado/a.',
+      returningPending: 'Ya tiene una solicitud de visitante esperando revisión de seguridad.',
+      returningCheckedInAt: 'Registrado/a a las',
+      returningCheckOut: 'Registrar salida',
+      returningCheckoutDone: 'Su salida ha sido registrada.',
+      returningCheckoutFailed: 'No pudimos registrar su salida. Pida ayuda al personal de seguridad.',
+      returningPhotoCurrent: 'Su foto de visitante está vigente para este mes.',
+      returningPhotoRequiredMonth: 'Se requiere una nueva foto de visitante este mes.',
+      returningClaimExpired: 'La sesión del pase venció. Vuelva a escanear el pase.',
+      returningOptIn: 'Guardar mi información para registrarme más rápido en futuras visitas y crear un pase reutilizable para padres.',
+      returningOptInHelp: 'Esto guarda información básica del perfil de visitante para que no tenga que ingresarla la próxima vez.',
       photoTitle: 'Foto del visitante',
       photoIntro: 'Mire a la cámara.',
       nativePhotoPrompt: 'Tome una foto actual del visitante.',
@@ -186,6 +228,8 @@
   const stateIdPhotoInput = $('stateIdPhotoInput');
   const idPrefillToggleBtn = $('idPrefillToggleBtn');
   const idPrefillActions = $('idPrefillActions');
+  const returningBadgeActions = $('returningBadgeActions');
+  const returningOptInWrap = $('returningOptInWrap');
   const stateIdScanPanel = $('stateIdScanPanel');
   const idScanVideo = $('idScanVideo');
   const idScanGuide = $('idScanGuide');
@@ -209,6 +253,10 @@
   let idEntryMode = 'manual';
   let idScanMode = '';
   let idScanSession = null;
+  let returningClaim = '';
+  let returningCheckoutClaim = '';
+  let returningPhotoCurrent = false;
+  let returningProfile = null;
   const touchedFields = new Set();
 
   function credential() {
@@ -254,6 +302,8 @@
     $('tryAgainIdScanBtn').textContent = strings.tryAgain;
     $('idScanPhotoFallbackBtn').textContent = strings.takePhotoInstead;
     $('enterManualIdScanBtn').textContent = strings.manualEntry;
+    $('returningCheckoutBtn').textContent = strings.returningCheckOut;
+    $('cancelReturningBadgeBtn').textContent = strings.cancel;
     nextPhotoBtn.textContent = strings.nextPhoto;
     submitBtn.textContent = strings.submit;
     document.querySelectorAll('[data-i18n]').forEach((el) => {
@@ -279,9 +329,18 @@
         touchedFields.add('purpose');
       }
       renderChoices();
+      updateReturningOptInVisibility();
       validateForm({ focus: false });
     });
     return btn;
+  }
+
+  function updateReturningOptInVisibility() {
+    if (!returningOptInWrap) return;
+    const show = visitorType === 'parent_guardian' && !returningClaim;
+    returningOptInWrap.hidden = !show;
+    const input = visitorForm?.elements?.returning_opt_in;
+    if (!show && input) input.checked = false;
   }
 
   function renderChoices() {
@@ -295,6 +354,7 @@
     Object.keys(Shared.PURPOSES).forEach((key) => {
       purposeWrap.appendChild(choiceButton('purpose', key, Shared.purposeLabel(key, lang)));
     });
+    updateReturningOptInVisibility();
   }
 
   function revokePhotoUrl() {
@@ -457,6 +517,7 @@
     clearPhoto();
     stopCamera();
     closeStateIdScan();
+    clearReturningSession();
     clearValidation();
     setStatus(formStatus, '');
     setStatus(photoStatus, '');
@@ -476,7 +537,9 @@
       organization: Shared.cleanText(fd.get('organization'), 140),
       purpose,
       destination: Shared.cleanText(fd.get('destination'), 160),
-      notes: Shared.cleanText(fd.get('notes'), 400)
+      notes: Shared.cleanText(fd.get('notes'), 400),
+      returning_opt_in: fd.get('returning_opt_in') === 'on',
+      returning_claim: returningClaim || ''
     };
   }
 
@@ -486,8 +549,10 @@
 
   function renderReview(visitor) {
     const photoUrl = photoObjectUrl || '';
-    $('reviewPhoto').src = photoUrl;
-    $('reviewPhoto').alt = T[lang].photoTitle;
+    $('reviewPhoto').hidden = !photoUrl;
+    if (photoUrl) $('reviewPhoto').src = photoUrl;
+    else $('reviewPhoto').removeAttribute('src');
+    $('reviewPhoto').alt = photoUrl ? T[lang].photoTitle : '';
     const rows = [
       [T[lang].firstName, visitor.visitor_first_name],
       [T[lang].middleName, visitor.visitor_middle_name || '-'],
@@ -518,6 +583,13 @@
     const visitor = formPayload();
     pendingVisitorPayload = visitor;
     setStatus(formStatus, '');
+    if (returningClaim && returningPhotoCurrent) {
+      clearPhoto();
+      renderReview(visitor);
+      setStatus(reviewStatus, T[lang].returningPhotoCurrent, true);
+      show(reviewScreen);
+      return;
+    }
     show(photoScreen);
     stopCamera();
     setPhotoCaptureState(photoBlob ? 'review' : 'live');
@@ -624,6 +696,7 @@
 
   function clearIdScanTransientState() {
     setIdScanFallbacks(false);
+    if (returningBadgeActions) returningBadgeActions.hidden = true;
     if (idScanStatus) {
       idScanStatus.textContent = '';
       idScanStatus.classList.remove('ok');
@@ -631,20 +704,22 @@
   }
 
   function setIdEntryMode(mode) {
-    const nextMode = ['id_choice', 'state_id', 'idnyc'].includes(mode) ? mode : 'manual';
+    const nextMode = ['id_choice', 'state_id', 'idnyc', 'returning_badge'].includes(mode) ? mode : 'manual';
     idEntryMode = nextMode;
-    const scanVisible = nextMode === 'state_id' || nextMode === 'idnyc';
+    const scanVisible = nextMode === 'state_id' || nextMode === 'idnyc' || nextMode === 'returning_badge';
     if (idPrefillActions) idPrefillActions.hidden = nextMode !== 'id_choice';
     if (idPrefillToggleBtn) idPrefillToggleBtn.setAttribute('aria-expanded', nextMode === 'id_choice' ? 'true' : 'false');
     if (stateIdScanPanel) {
       stateIdScanPanel.hidden = !scanVisible;
       stateIdScanPanel.setAttribute('data-id-entry-mode', scanVisible ? nextMode : 'manual');
     }
+    if (returningBadgeActions && nextMode !== 'returning_badge') returningBadgeActions.hidden = true;
     if (!scanVisible) clearIdScanTransientState();
   }
 
   function showIdChoice() {
     stopIdScanSession();
+    clearReturningSession();
     idScanMode = '';
     setStatus(formStatus, '');
     setIdEntryMode('id_choice');
@@ -657,6 +732,12 @@
   function idScanStatusMessage(mode, state, detail) {
     const strings = T[lang];
     const hint = detail?.hint || '';
+    if (mode === 'returning_badge') {
+      if (state === 'camera_starting') return strings.cameraStarting;
+      if (state === 'success') return strings.returningPassFound;
+      if (state === 'failed') return detail?.reason === 'camera_unavailable' ? strings.cameraUnavailableManual : strings.returningPassInvalid;
+      return strings.returningReading;
+    }
     if (mode === 'state_id') {
       if (state === 'camera_starting') return strings.cameraStarting;
       if (state === 'confirming_candidate') return strings.stateIdReading;
@@ -689,28 +770,36 @@
     setStatus(formStatus, '');
     setIdEntryMode(mode);
     setIdScanFallbacks(false);
-    if (idScanTitle) idScanTitle.textContent = mode === 'idnyc' ? T[lang].idnycScanTitle : T[lang].stateIdScanTitle;
-    if (idScanInstructions) idScanInstructions.textContent = mode === 'idnyc' ? T[lang].idnycPrompt : T[lang].stateIdScanPrompt;
+    const photoFallback = $('idScanPhotoFallbackBtn');
+    if (photoFallback) photoFallback.hidden = mode === 'returning_badge';
+    if (idScanTitle) idScanTitle.textContent = mode === 'returning_badge' ? T[lang].returningScanTitle : (mode === 'idnyc' ? T[lang].idnycScanTitle : T[lang].stateIdScanTitle);
+    if (idScanInstructions) idScanInstructions.textContent = mode === 'returning_badge' ? T[lang].returningScanPrompt : (mode === 'idnyc' ? T[lang].idnycPrompt : T[lang].stateIdScanPrompt);
     if (idScanGuide) {
-      idScanGuide.classList.toggle('barcodeGuide', mode !== 'idnyc');
+      idScanGuide.classList.toggle('barcodeGuide', mode === 'state_id');
       idScanGuide.classList.toggle('cardGuide', mode === 'idnyc');
+      idScanGuide.classList.toggle('qrGuide', mode === 'returning_badge');
     }
-    idScanVideo?.parentElement?.setAttribute('data-scan-mode', mode === 'idnyc' ? 'idnyc' : 'state');
+    idScanVideo?.parentElement?.setAttribute('data-scan-mode', mode === 'idnyc' ? 'idnyc' : (mode === 'returning_badge' ? 'returning' : 'state'));
     updateIdScanStatus('camera_starting');
   }
 
-  function closeStateIdScan() {
+  function closeStateIdScan(options = {}) {
     stopIdScanSession();
     idScanMode = '';
+    if (!options.preserveReturningCheckin) {
+      returningCheckoutClaim = '';
+    }
     setIdEntryMode('manual');
   }
 
   function showIdScanFallbacks(message) {
     stopIdScanSession();
-    setIdEntryMode(idScanMode === 'idnyc' ? 'idnyc' : 'state_id');
+    setIdEntryMode(idScanMode === 'idnyc' ? 'idnyc' : (idScanMode === 'returning_badge' ? 'returning_badge' : 'state_id'));
     setIdScanFallbacks(true);
+    const photoFallback = $('idScanPhotoFallbackBtn');
+    if (photoFallback) photoFallback.hidden = idScanMode === 'returning_badge';
     if (idScanStatus) {
-      idScanStatus.textContent = message || (idScanMode === 'idnyc' ? T[lang].idnycUnreadable : T[lang].stateIdUnreadable);
+      idScanStatus.textContent = message || (idScanMode === 'returning_badge' ? T[lang].returningPassInvalid : (idScanMode === 'idnyc' ? T[lang].idnycUnreadable : T[lang].stateIdUnreadable));
       idScanStatus.classList.remove('ok');
     }
   }
@@ -744,6 +833,157 @@
       onSuccess: applyStateIdResult,
       onPartial: applyStateIdResult,
       onTimeout: () => showIdScanFallbacks(T[lang].stateIdUnreadable),
+      onFailure: () => showIdScanFallbacks(T[lang].cameraUnavailableManual)
+    });
+    await idScanSession.start();
+  }
+
+  function clearReturningSession() {
+    returningClaim = '';
+    returningCheckoutClaim = '';
+    returningPhotoCurrent = false;
+    returningProfile = null;
+    const input = visitorForm?.elements?.returning_opt_in;
+    if (input) input.checked = false;
+    updateReturningOptInVisibility();
+  }
+
+  function clearReturningClaimForManualEntry() {
+    if (!returningClaim && !returningProfile && !returningCheckoutClaim) return;
+    clearReturningSession();
+  }
+
+  function applyReturningProfile(profile, message, photoCurrent) {
+    returningProfile = profile || null;
+    returningPhotoCurrent = photoCurrent === true;
+    const data = {
+      visitor_first_name: profile?.visitor_first_name || profile?.first_name || '',
+      visitor_middle_name: profile?.visitor_middle_name || profile?.middle_name || '',
+      visitor_last_name: profile?.visitor_last_name || profile?.last_name || '',
+      date_of_birth: profile?.date_of_birth || ''
+    };
+    if (profile?.visitor_type) {
+      visitorType = profile.visitor_type;
+      touchedFields.add('visitor_type');
+    }
+    if (profile?.organization && visitorForm?.elements?.organization) {
+      visitorForm.elements.organization.value = profile.organization;
+    }
+    renderChoices();
+    applyIdPrefill(data, message || T[lang].returningWelcomeBack);
+    updateReturningOptInVisibility();
+    const errors = validationErrors(formPayload());
+    const identityErrors = ['visitor_first_name', 'visitor_last_name', 'date_of_birth'].filter((field) => errors[field]);
+    if (identityErrors.length) return;
+    const photoMessage = returningPhotoCurrent ? T[lang].returningPhotoCurrent : T[lang].returningPhotoRequiredMonth;
+    setStatus(formStatus, `${message || T[lang].returningWelcomeBack} ${photoMessage}`, true);
+  }
+
+  function showReturningCheckout(profile, claim, activeVisit) {
+    returningCheckoutClaim = claim || '';
+    returningProfile = profile || null;
+    setIdEntryMode('returning_badge');
+    setIdScanFallbacks(false);
+    if (returningBadgeActions) returningBadgeActions.hidden = false;
+    const name = profile?.visitor_first_name || profile?.first_name || '';
+    const checkedAt = activeVisit?.checked_in_at || activeVisit?.admitted_at || '';
+    const timeText = checkedAt ? `${T[lang].returningCheckedInAt}: ${new Date(checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
+    if (idScanStatus) {
+      idScanStatus.textContent = [name ? `${T[lang].returningWelcomeBack.replace(/\..*$/, '.')}` : '', T[lang].returningActive, timeText].filter(Boolean).join(' ');
+      idScanStatus.classList.add('ok');
+    }
+  }
+
+  async function handleReturningBadgeText(qrText) {
+    const parsed = Shared.parseVisitorBadgeScan(qrText);
+    if (!parsed.ok) {
+      showIdScanFallbacks(T[lang].returningPassInvalid);
+      return;
+    }
+    if (parsed.kind === 'visit_checkout') {
+      const resp = await fetch(new URL('/visitor/kiosk/badge_checkout', API_BASE), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-visitor-kiosk': credential()
+        },
+        cache: 'no-store',
+        body: JSON.stringify({ qr_text: qrText })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.ok) {
+        if (handleKioskAuthFailure(resp, data)) return;
+        showIdScanFallbacks(T[lang].returningPassInvalid);
+        return;
+      }
+      resetForm();
+      $('thanksTitle').textContent = T[lang].thanksTitle;
+      $('thanksMessage').textContent = T[lang].returningCheckoutDone;
+      show(thanksScreen);
+      window.setTimeout(() => {
+        lang = 'en';
+        show(languageScreen);
+      }, 7000);
+      return;
+    }
+    if (parsed.kind !== 'returning_parent') {
+      showIdScanFallbacks(T[lang].returningPassInvalid);
+      return;
+    }
+    const resp = await fetch(new URL('/visitor/kiosk/returning_scan', API_BASE), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-visitor-kiosk': credential()
+      },
+      cache: 'no-store',
+      body: JSON.stringify({ qr_text: qrText })
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data?.ok) {
+      if (handleKioskAuthFailure(resp, data)) return;
+      const err = data?.error === 'returning_pass_revoked' ? T[lang].returningPassRevoked : T[lang].returningPassInvalid;
+      showIdScanFallbacks(err);
+      return;
+    }
+    if (data.mode === 'active') {
+      stopIdScanSession();
+      showReturningCheckout(data.profile || {}, data.checkout_claim || '', data.active_visit || {});
+      return;
+    }
+    if (data.mode === 'pending') {
+      stopIdScanSession();
+      closeStateIdScan();
+      setStatus(formStatus, T[lang].returningPending);
+      return;
+    }
+    returningClaim = String(data.claim || '');
+    if (!returningClaim) {
+      showIdScanFallbacks(T[lang].returningClaimExpired);
+      return;
+    }
+    stopIdScanSession();
+    closeStateIdScan({ preserveReturningCheckin: true });
+    applyReturningProfile(data.profile || {}, T[lang].returningWelcomeBack, data.photo_current === true);
+  }
+
+  async function startReturningBadgeScan() {
+    clearReturningSession();
+    closeStateIdScan();
+    configureIdScanPanel('returning_badge');
+    if (!IdScan?.createReturningBadgeScanner) {
+      showIdScanFallbacks(T[lang].cameraUnavailableManual);
+      return;
+    }
+    idScanSession = IdScan.createReturningBadgeScanner({
+      video: idScanVideo,
+      guide: idScanGuide,
+      timeoutMs: IdScan.STATE_ID_TIMEOUT_MS || 14000,
+      onState: updateIdScanStatus,
+      onSuccess: (text) => {
+        handleReturningBadgeText(text).catch(() => showIdScanFallbacks(T[lang].returningPassInvalid));
+      },
+      onTimeout: () => showIdScanFallbacks(T[lang].returningPassInvalid),
       onFailure: () => showIdScanFallbacks(T[lang].cameraUnavailableManual)
     });
     await idScanSession.start();
@@ -873,7 +1113,8 @@
       validateForm({ markAll: true });
       return;
     }
-    if (!photoBlob) {
+    const canReuseProfilePhoto = !!(returningClaim && returningPhotoCurrent);
+    if (!photoBlob && !canReuseProfilePhoto) {
       show(photoScreen);
       setPhotoRequiredError(true, T[lang].photoRequired);
       return;
@@ -899,8 +1140,10 @@
       }
       const visitId = data?.visit?.visit_id || '';
       if (!visitId) throw new Error('visit_id_missing');
-      const uploaded = await uploadVisitorPhoto(visitId);
-      if (!uploaded) return;
+      if (photoBlob) {
+        const uploaded = await uploadVisitorPhoto(visitId);
+        if (!uploaded) return;
+      }
       resetForm();
       $('thanksTitle').textContent = T[lang].thanksTitle;
       $('thanksMessage').textContent = T[lang].thanks;
@@ -979,7 +1222,8 @@
     });
     $('tryAgainIdScanBtn')?.addEventListener('click', () => {
       const mode = idScanMode || 'state_id';
-      if (mode === 'idnyc') startIdnycPrefill();
+      if (mode === 'returning_badge') startReturningBadgeScan();
+      else if (mode === 'idnyc') startIdnycPrefill();
       else startStateIdPrefill();
     });
     $('idScanPhotoFallbackBtn')?.addEventListener('click', () => {
@@ -996,11 +1240,50 @@
     });
     $('enterManualIdScanBtn')?.addEventListener('click', () => {
       closeStateIdScan();
+      clearReturningSession();
       setStatus(formStatus, '');
     });
     idnycCaptureInput?.addEventListener('change', handleIdnycCapture);
     stateIdPhotoInput?.addEventListener('change', handleStateIdPhotoFallback);
     $('idnycPrefillBtn')?.addEventListener('click', startIdnycPrefill);
+    $('returningBadgeBtn')?.addEventListener('click', startReturningBadgeScan);
+    $('cancelReturningBadgeBtn')?.addEventListener('click', () => {
+      closeStateIdScan();
+      clearReturningSession();
+      setStatus(formStatus, '');
+    });
+    $('returningCheckoutBtn')?.addEventListener('click', async () => {
+      if (!returningCheckoutClaim || busy) return;
+      busy = true;
+      try {
+        const resp = await fetch(new URL('/visitor/kiosk/returning_checkout', API_BASE), {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-visitor-kiosk': credential()
+          },
+          cache: 'no-store',
+          body: JSON.stringify({ checkout_claim: returningCheckoutClaim })
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data?.ok) {
+          if (handleKioskAuthFailure(resp, data)) return;
+          throw new Error(data?.error || `HTTP ${resp.status}`);
+        }
+        resetForm();
+        $('thanksTitle').textContent = T[lang].thanksTitle;
+        $('thanksMessage').textContent = T[lang].returningCheckoutDone;
+        show(thanksScreen);
+        window.setTimeout(() => {
+          lang = 'en';
+          show(languageScreen);
+        }, 7000);
+      } catch {
+        setStatus(idScanStatus, T[lang].returningCheckoutFailed);
+      } finally {
+        busy = false;
+      }
+    });
     visitorForm.querySelectorAll('input, textarea').forEach((el) => {
       const name = el.name;
       if (!name) return;

@@ -48,6 +48,7 @@
         <div class="toolbar">
           <button id="newVisitorBtn" class="primary" type="button">+ Check In Visitor</button>
           <button id="scanBadgeBtn" type="button">Scan Badge Checkout</button>
+          <button id="returningProfilesBtn" type="button">Returning Parent Passes</button>
           <button id="emergencyBtn" type="button">Who Is In The Building?</button>
           <button id="pairBtn" type="button">Pair Visitor Kiosk</button>
           <button id="refreshBtn" type="button">Refresh</button>
@@ -233,6 +234,22 @@
       <h2>Scan Badge Checkout</h2>
       <div id="checkoutScanTarget" class="scanTarget" tabindex="0">Scanner input active. Scan a visitor badge QR code.</div>
       <div id="checkoutStatus" class="status"></div>
+      <div class="dialogActions">
+        <button type="button" data-close-dialog>Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="returningProfileDialog">
+    <form method="dialog">
+      <h2>Returning Parent Passes</h2>
+      <p class="muted">Search active Returning Parent profiles to replace or revoke a lost pass. Plaintext QR credentials are never shown after issuance.</p>
+      <div class="filters">
+        <input id="returningProfileSearch" placeholder="Parent name" autocomplete="off">
+        <button id="returningProfileSearchBtn" class="primary" type="button">Search</button>
+      </div>
+      <div id="returningProfileStatus" class="status" aria-live="polite"></div>
+      <div id="returningProfileResults" class="resultList"></div>
       <div class="dialogActions">
         <button type="button" data-close-dialog>Close</button>
       </div>

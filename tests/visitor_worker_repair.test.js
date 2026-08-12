@@ -8,7 +8,7 @@ const wrangler = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../cf-re
 
 async function loadWorker() {
   const src = workerSource
-    .replace('export {\n', 'export {\n  allowedCorsOrigin_,\n  badAdminMutationOrigin_,\n  handleVisitorAdminRoute_,\n  handleVisitorKioskRoute_,\n  newVisitorPhotoId_,\n  readVisitorPhotoUpload_,\n  sanitizeVisitorPatch_,\n  sanitizeVisitorVerification_,\n  visitorGasVisitPayload_,\n  visitorPhotoKey_,\n');
+    .replace('export {\n', 'export {\n  allowedCorsOrigin_,\n  badAdminMutationOrigin_,\n  handleVisitorAdminRoute_,\n  handleVisitorKioskRoute_,\n  newVisitorPhotoId_,\n  parseReturningPassScan_,\n  readVisitorPhotoUpload_,\n  returningPhotoCurrent_,\n  sanitizeVisitorPatch_,\n  sanitizeVisitorVerification_,\n  visitorGasProfilePayload_,\n  visitorGasVisitPayload_,\n  visitorNycMonth_,\n  visitorPhotoKey_,\n');
   return import(`data:text/javascript;base64,${Buffer.from(src).toString('base64')}`);
 }
 
@@ -222,9 +222,29 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
       image_data: 'raw-bytes',
       image_base64: 'abc',
       date_of_birth: '1980-01-01',
-      badge_checkout_token: 'secret'
+      badge_checkout_token: 'secret',
+      returning_claim: 'claim_secret',
+      returning_pass_token: 'ENVISITOR:secret'
     });
     assert.deepEqual(payload, { visit_id: 'vis_1', photo_id: 'photo_safe', date_of_birth: '1980-01-01' });
+
+    const profilePayload = mod.visitorGasProfilePayload_({
+      profile_id: 'vprof_1',
+      visitor_first_name: 'Parent',
+      visitor_last_name: 'Guest',
+      date_of_birth: '1980-01-01',
+      visitor_type: 'parent_guardian',
+      credential_hash: 'hash_only',
+      plaintext_token: 'ENVISITOR:do-not-store',
+      qr_text: 'ENVISITOR:do-not-store',
+      latest_photo_id: 'photo_abc',
+      latest_photo_month: '2026-08'
+    });
+    assert.equal(profilePayload.credential_hash, 'hash_only');
+    assert.equal(JSON.stringify(profilePayload).includes('ENVISITOR'), false, 'GAS profile payload must not include plaintext reusable token');
+    assert.equal(JSON.stringify(profilePayload).includes('do-not-store'), false, 'GAS profile payload must strip transient QR text');
+    assert.equal(mod.parseReturningPassScan_(`ENVISITOR:${'A'.repeat(64)}`).ok, true);
+    assert.equal(mod.parseReturningPassScan_('ENVISIT:' + 'A'.repeat(43)).ok, false);
   }
 
   {
@@ -281,6 +301,177 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     await instance.alarm();
     assert.equal((await state.storage.list({ prefix: 'persist:' })).size, 0);
     global.fetch = originalFetch;
+  }
+
+  {
+    const state = new FakeState();
+    const instance = new mod.VisitorDeskDO(state, {});
+    await instance.ready;
+    const code = await doJson(instance, '/create_pair_code', { actor_email: 'security@example.org', label: 'iPad' });
+    const pair = await doJson(instance, '/pair', { code: code.data.code, label: 'iPad', ip: '192.0.2.10' });
+    const direct = await doJson(instance, '/staff_create', {
+      actor_email: 'security@example.org',
+      direct_admit: true,
+      visitor: {
+        visitor_first_name: 'Temp',
+        visitor_last_name: 'Badge',
+        date_of_birth: '1980-01-01',
+        visitor_type: 'school_guest',
+        purpose: 'meeting',
+        photo_required_override: true
+      }
+    });
+    assert.equal(direct.data.visit.status, 'checked_in');
+    assert.ok(direct.data.visit.badge_checkout_token);
+    const env = { VISITOR_DESK_DO: doStub(instance) };
+    const rejectedCheckout = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/badge_checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': 'not-a-paired-kiosk' },
+      body: JSON.stringify({ qr_text: `ENVISIT:${direct.data.visit.badge_checkout_token}` })
+    }), env, ctx(), '/visitor/kiosk/badge_checkout');
+    assert.equal(rejectedCheckout.status, 403);
+    const checkoutResp = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/badge_checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': pair.data.kiosk_credential },
+      body: JSON.stringify({ qr_text: `ENVISIT:${direct.data.visit.badge_checkout_token}` })
+    }), env, ctx(), '/visitor/kiosk/badge_checkout');
+    const checkout = await checkoutResp.json();
+    assert.equal(checkoutResp.status, 200);
+    assert.equal(checkout.visit.status, 'checked_out');
+    const repeated = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/badge_checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': pair.data.kiosk_credential },
+      body: JSON.stringify({ qr_text: `ENVISIT:${direct.data.visit.badge_checkout_token}` })
+    }), env, ctx(), '/visitor/kiosk/badge_checkout');
+    const repeatedData = await repeated.json();
+    assert.equal(repeatedData.already, true);
+  }
+
+  {
+    const state = new FakeState();
+    const instance = new mod.VisitorDeskDO(state, {});
+    await instance.ready;
+    const { credential, visit, dedupe } = await pairedKioskVisit(mod, instance, {
+      visitor_first_name: 'Returning',
+      visitor_middle_name: 'Q',
+      visitor_last_name: 'Parent',
+      visitor_type: 'parent_guardian',
+      purpose: 'meeting',
+      returning_opt_in: true
+    });
+    const photoId = mod.newVisitorPhotoId_();
+    const attached = await doJson(instance, '/attach_photo', {
+      visit_id: visit.visit_id,
+      kiosk_credential: credential,
+      dedupe_key: dedupe,
+      photo_id: photoId,
+      source: 'kiosk_camera'
+    });
+    assert.equal(attached.data.ok, true);
+    const admitted = await doJson(instance, '/admit', { visit_id: visit.visit_id, actor_email: 'security@example.org' });
+    assert.equal(admitted.data.ok, true);
+    assert.match(admitted.data.returning_pass.qr_text, /^ENVISITOR:[A-Za-z0-9_-]{64,220}$/);
+    assert.equal(admitted.data.profile.visitor_type, 'parent_guardian');
+    assert.equal(admitted.data.profile.latest_photo_id, photoId);
+    assert.equal(admitted.data.profile.latest_photo_month, mod.visitorNycMonth_(new Date().toISOString()));
+    const plaintextToken = admitted.data.returning_pass.qr_text.slice('ENVISITOR:'.length);
+    const storageJson = JSON.stringify([...state.storage.map.entries()]);
+    assert.equal(storageJson.includes(admitted.data.returning_pass.qr_text), false, 'DO storage must not persist ENVISITOR plaintext');
+    assert.equal(storageJson.includes(plaintextToken), false, 'DO storage must not persist reusable token plaintext');
+    assert.equal(storageJson.includes('profile_cred:'), true, 'DO storage should index only a hashed credential');
+
+    const r2 = new FakeR2();
+    await r2.put(mod.visitorPhotoKey_(photoId), fakeJpeg(), { httpMetadata: { contentType: 'image/jpeg' } });
+    const env = { VISITOR_DESK_DO: doStub(instance), VISITOR_PHOTOS: r2 };
+    assert.equal((await mod.returningPhotoCurrent_(env, admitted.data.profile)).current, true);
+    assert.equal((await mod.returningPhotoCurrent_({ VISITOR_PHOTOS: new FakeR2() }, admitted.data.profile)).reason, 'photo_expired');
+    assert.equal((await mod.returningPhotoCurrent_(env, { ...admitted.data.profile, latest_photo_month: '2026-01' })).reason, 'photo_month_stale');
+    await doJson(instance, '/checkout', { visit_id: admitted.data.visit.visit_id, actor_email: 'security@example.org' });
+
+    const scanResp = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/returning_scan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': credential },
+      body: JSON.stringify({ qr_text: admitted.data.returning_pass.qr_text })
+    }), env, ctx(), '/visitor/kiosk/returning_scan');
+    const scan = await scanResp.json();
+    assert.equal(scanResp.status, 200);
+    assert.equal(scan.mode, 'checkin');
+    assert.equal(scan.photo_current, true, 'current-month profile photo with live R2 object should be reusable');
+    assert.equal(JSON.stringify(scan).includes(plaintextToken), false, 'kiosk scan response must not echo reusable token');
+
+    const returningSubmit = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/submit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': credential },
+      body: JSON.stringify({
+        dedupe_key: 'returning-claim-submit',
+        visitor: {
+          visitor_first_name: scan.profile.visitor_first_name,
+          visitor_middle_name: scan.profile.visitor_middle_name,
+          visitor_last_name: scan.profile.visitor_last_name,
+          date_of_birth: scan.profile.date_of_birth,
+          visitor_type: 'parent_guardian',
+          purpose: 'meeting',
+          returning_claim: scan.claim
+        }
+      })
+    }), env, ctx(), '/visitor/kiosk/submit');
+    const returningData = await returningSubmit.json();
+    assert.equal(returningSubmit.status, 200);
+    assert.equal(returningData.visit.visitor_profile_id, admitted.data.profile.profile_id);
+    assert.equal(returningData.visit.photo_id, photoId);
+    assert.equal(returningData.visit.photo_source, 'returning_profile_reuse');
+    assert.equal(r2.map.size, 1, 'reused monthly photo should not upload a duplicate JPEG');
+
+    const reusedClaimAgain = await doJson(instance, '/submit', {
+      kiosk_credential: credential,
+      dedupe_key: 'returning-claim-reuse',
+      returning_claim: scan.claim,
+      visitor: {
+        visitor_first_name: 'Duplicate',
+        visitor_last_name: 'Parent',
+        date_of_birth: '1980-01-01',
+        visitor_type: 'parent_guardian',
+        purpose: 'meeting'
+      }
+    });
+    assert.equal(reusedClaimAgain.resp.status, 409, 'returning check-in claims should be single-use after successful submit');
+
+    const secondAdmit = await doJson(instance, '/admit', { visit_id: returningData.visit.visit_id, actor_email: 'security@example.org' });
+    assert.equal(secondAdmit.data.ok, true);
+    const activeScanResp = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/returning_scan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': credential },
+      body: JSON.stringify({ qr_text: admitted.data.returning_pass.qr_text })
+    }), env, ctx(), '/visitor/kiosk/returning_scan');
+    const activeScan = await activeScanResp.json();
+    assert.equal(activeScan.mode, 'active');
+    assert.equal(activeScan.checkout_claim.startsWith('rclaim_'), true);
+    const checkoutResp = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/returning_checkout', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': credential },
+      body: JSON.stringify({ checkout_claim: activeScan.checkout_claim })
+    }), env, ctx(), '/visitor/kiosk/returning_checkout');
+    const checkoutData = await checkoutResp.json();
+    assert.equal(checkoutResp.status, 200);
+    assert.equal(checkoutData.visit.status, 'checked_out');
+
+    const replaced = await doJson(instance, '/returning_replace', { profile_id: admitted.data.profile.profile_id, actor_email: 'security@example.org' });
+    assert.equal(replaced.data.ok, true);
+    assert.notEqual(replaced.data.returning_pass.qr_text, admitted.data.returning_pass.qr_text);
+    const oldAfterReplace = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/returning_scan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': credential },
+      body: JSON.stringify({ qr_text: admitted.data.returning_pass.qr_text })
+    }), env, ctx(), '/visitor/kiosk/returning_scan');
+    assert.notEqual(oldAfterReplace.status, 200, 'replaced reusable pass must invalidate old token');
+    const revoked = await doJson(instance, '/returning_revoke', { profile_id: admitted.data.profile.profile_id, actor_email: 'security@example.org' });
+    assert.equal(revoked.data.profile.status, 'revoked');
+    const revokedScan = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/returning_scan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': credential },
+      body: JSON.stringify({ qr_text: replaced.data.returning_pass.qr_text })
+    }), env, ctx(), '/visitor/kiosk/returning_scan');
+    assert.notEqual(revokedScan.status, 200, 'revoked reusable pass must fail future scans');
   }
 
   {

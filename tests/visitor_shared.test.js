@@ -242,8 +242,14 @@ function assertNoForbidden(obj) {
   const token = 'A'.repeat(43);
   const parsed = Shared.parseVisitorBadgeScan(`ENVISIT:${token}`);
   assert.equal(parsed.ok, true);
+  assert.equal(parsed.kind, 'visit_checkout');
   assert.equal(parsed.token, token);
+  const returning = Shared.parseVisitorBadgeScan(`ENVISITOR:${'R'.repeat(64)}`);
+  assert.equal(returning.ok, true);
+  assert.equal(returning.kind, 'returning_parent');
+  assert.equal(returning.token, 'R'.repeat(64));
   assert.equal(Shared.parseVisitorBadgeScan('ENVISIT:short').ok, false);
+  assert.equal(Shared.parseVisitorBadgeScan('ENVISITOR:short').ok, false);
   assert.equal(Shared.parseVisitorBadgeScan('random unrelated scanner input').ok, false);
 }
 

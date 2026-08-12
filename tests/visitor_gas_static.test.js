@@ -13,6 +13,9 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   const activeMatches = sheets.match(/SpreadsheetApp\.getActiveSpreadsheet\(\)/g) || [];
   assert.equal(activeMatches.length, 1, 'getActiveSpreadsheet should only be used by setupVisitorSpreadsheet');
   assert.match(sheets, /insertColumnsAfter/);
+  assert.match(sheets, /SHEET_PROFILES/);
+  assert.match(sheets, /ensureVisitorProfileHeaders_/);
+  assert.match(sheets, /visitorProfilesSheet_/);
 }
 
 {
@@ -21,6 +24,9 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   assert.match(records, /LockService\.getScriptLock\s*\(/, 'Visitor web-app persistence must use a script-wide lock');
   assert.match(records, /\.waitLock\s*\(\s*30000\s*\)/, 'Visitor persistence should wait for the script lock');
   assert.match(records, /SpreadsheetApp\.flush\s*\(\s*\)/, 'Visitor persistence should flush sheet writes before releasing the lock');
+  assert.match(records, /function\s+visitorUpsertProfile_/, 'Visitor GAS should upsert Returning Parent profiles separately');
+  assert.match(records, /'Credential Hash': safeSheetText_\(profile\.credential_hash/, 'Visitor_Profiles should mirror credential hash only');
+  assert.doesNotMatch(records, /qr_text|plaintext|ENVISITOR/, 'Visitor GAS records must not persist plaintext reusable QR tokens');
 }
 
 {
@@ -51,6 +57,10 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   assert.match(config, /Photo Captured At/);
   assert.match(config, /Photo Source/);
   assert.match(config, /Photo Required Override/);
+  assert.match(config, /SHEET_PROFILES:\s*'Visitor_Profiles'/);
+  assert.match(config, /Visitor Profile ID/);
+  assert.match(config, /Credential Hash/);
+  assert.match(config, /Latest Photo Month/);
   assert.match(config, /Deprecated Visitor-side student pickup columns/);
   assert.match(config, /Student Pickup Status/);
   assert.match(config, /Student Pickup Completed At/);
@@ -60,6 +70,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 {
   const code = read('Code.gs');
   assert.doesNotMatch(code, /updateVisitorStudentLink/, 'Visitor GAS should not expose student-link actions');
+  assert.match(code, /upsertVisitorProfile/, 'Visitor GAS should expose profile upsert action');
 }
 
 {
@@ -67,6 +78,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   assert.match(records, /'Date of Birth': safeSheetText_\(visit\.date_of_birth/);
   assert.match(records, /'Photo ID': safeSheetText_\(visit\.photo_id/);
   assert.match(records, /'Photo Captured At': visit\.photo_captured_at/);
+  assert.match(records, /'Visitor Profile ID': safeSheetText_\(visit\.visitor_profile_id/);
+  assert.match(records, /'Returning Parent Opt In': visit\.returning_parent_opt_in/);
   assert.doesNotMatch(records, /photo_base64|image_base64|image_data|data:image/i, 'Visitor GAS must not write image bytes/Base64');
   assert.doesNotMatch(records, /'Student OSIS': visit\.student_osis/, 'Visitor GAS should not actively populate deprecated student columns');
 }
@@ -75,7 +88,10 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   const security = read('VisitorSecurity.gs');
   assert.match(security, /date_of_birth: visitorCleanStr_\(v\.date_of_birth/);
   assert.match(security, /photo_id: visitorCleanStr_\(v\.photo_id/);
+  assert.match(security, /function\s+visitorSanitizeProfile_/, 'Visitor GAS should sanitize Returning Parent profiles');
+  assert.match(security, /credential_hash: visitorCleanStr_\(p\.credential_hash/, 'Visitor GAS should accept only hash metadata for reusable credential');
   assert.doesNotMatch(security, /photo_base64|image_base64|image_data|data:image/i, 'Visitor GAS sanitizer must not accept image bytes/Base64');
+  assert.doesNotMatch(security, /qr_text|plaintext|ENVISITOR/, 'Visitor GAS sanitizer must not accept plaintext reusable QR tokens');
 }
 
 {

@@ -42,8 +42,19 @@
     returnErrors: true
   };
 
+  const QR_READER_OPTIONS = {
+    formats: ['QRCode'],
+    tryHarder: true,
+    tryRotate: true,
+    tryInvert: true,
+    tryDownscale: true,
+    maxNumberOfSymbols: 1,
+    returnErrors: true
+  };
+
   const STATE_ID_REQUIRED_MATCHES = 2;
   const STATE_ID_SCAN_INTERVAL_MS = 240;
+  const RETURNING_QR_SCAN_INTERVAL_MS = 180;
   const STATE_ID_TIMEOUT_MS = 14000;
   const IDNYC_ANALYZE_INTERVAL_MS = 180;
   const IDNYC_STABLE_FRAMES = 4;
@@ -233,11 +244,12 @@
   }
 
   function drawVideoGuideCanvas(video, mode, guideEl) {
-    const crop = mode === 'pdf417' && guideEl ? guideToVideoPixels(video, guideEl) : frameCrop(video, mode);
+    const useGuide = (mode === 'pdf417' || mode === 'qr') && guideEl;
+    const crop = useGuide ? guideToVideoPixels(video, guideEl) : frameCrop(video, mode);
     if (!crop || typeof document === 'undefined') return null;
     const canvas = document.createElement('canvas');
-    canvas.width = mode === 'pdf417' && guideEl ? crop.sw : crop.dw;
-    canvas.height = mode === 'pdf417' && guideEl ? crop.sh : crop.dh;
+    canvas.width = useGuide ? crop.sw : crop.dw;
+    canvas.height = useGuide ? crop.sh : crop.dh;
     const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
     if (!ctx) return null;
     ctx.fillStyle = '#fff';
@@ -430,6 +442,16 @@
       ...PDF417_READER_OPTIONS,
       ...(options || {}),
       formats: ['PDF417']
+    };
+    const results = await readBarcodeResults(input, readerOptions);
+    return results.filter((result) => result.text || result.bytes?.length);
+  }
+
+  async function readQrCandidates(input, options) {
+    const readerOptions = {
+      ...QR_READER_OPTIONS,
+      ...(options || {}),
+      formats: ['QRCode']
     };
     const results = await readBarcodeResults(input, readerOptions);
     return results.filter((result) => result.text || result.bytes?.length);
@@ -712,6 +734,91 @@
     return { start, stop, decodePdf417Blob };
   }
 
+  function createReturningBadgeScanner(options) {
+    const opts = options || {};
+    const video = opts.video;
+    const guide = opts.guide || opts.guideEl || null;
+    const scanIntervalMs = Number(opts.scanIntervalMs || RETURNING_QR_SCAN_INTERVAL_MS);
+    const timeoutMs = Number(opts.timeoutMs || STATE_ID_TIMEOUT_MS);
+    let stream = null;
+    let scheduler = null;
+    let timeoutTimer = 0;
+    let decodeBusy = false;
+    let active = false;
+
+    function state(name, detail) {
+      try { opts.onState?.(name, detail || {}); } catch {}
+    }
+
+    function stop() {
+      active = false;
+      if (timeoutTimer) clearTimeout(timeoutTimer);
+      timeoutTimer = 0;
+      scheduler?.stop();
+      scheduler = null;
+      stopStream(stream, video);
+      stream = null;
+      decodeBusy = false;
+    }
+
+    async function analyzeFrame() {
+      if (!active || decodeBusy) return;
+      const canvas = drawVideoGuideCanvas(video, 'qr', guide);
+      if (!canvas) {
+        state('scanning', { hint: 'placeQr' });
+        return;
+      }
+      decodeBusy = true;
+      try {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return;
+        const results = await readQrCandidates(ctx.getImageData(0, 0, canvas.width, canvas.height));
+        const found = (results || []).find((result) => decodedText(result).startsWith('ENVISITOR:') || decodedText(result).startsWith('ENVISIT:'));
+        if (!found) {
+          state('scanning', { hint: 'placeQr' });
+          return;
+        }
+        const text = decodedText(found);
+        state('success');
+        stop();
+        opts.onSuccess?.(text, found);
+      } catch {
+        state('scanning', { hint: 'placeQr' });
+      } finally {
+        decodeBusy = false;
+      }
+    }
+
+    async function start() {
+      if (active) return;
+      active = true;
+      state('camera_starting');
+      try {
+        stream = await startRearCamera(video);
+        if (!active) {
+          stopStream(stream, video);
+          stream = null;
+          return;
+        }
+        state('scanning', { hint: 'placeQr' });
+        timeoutTimer = setTimeout(() => {
+          if (!active) return;
+          state('failed', { reason: 'timeout' });
+          stop();
+          opts.onTimeout?.();
+        }, timeoutMs);
+        scheduler = createFrameScheduler(video, analyzeFrame, scanIntervalMs);
+        scheduler.start();
+      } catch {
+        stop();
+        state('failed', { reason: 'camera_unavailable' });
+        opts.onFailure?.('camera_unavailable');
+      }
+    }
+
+    return { start, stop };
+  }
+
   function frameQuality(canvas) {
     const ctx = canvas?.getContext?.('2d', { willReadFrequently: true });
     if (!ctx || !canvas.width || !canvas.height) return { ok: false, reason: 'frame_unavailable' };
@@ -935,8 +1042,10 @@
     VERSIONS,
     PDF417_READER_OPTIONS,
     DIAGNOSTIC_PDF417_OPTIONS,
+    QR_READER_OPTIONS,
     STATE_ID_REQUIRED_MATCHES,
     STATE_ID_SCAN_INTERVAL_MS,
+    RETURNING_QR_SCAN_INTERVAL_MS,
     STATE_ID_TIMEOUT_MS,
     IDNYC_ANALYZE_INTERVAL_MS,
     IDNYC_STABLE_FRAMES,
@@ -956,9 +1065,11 @@
     looksLikeAamvaPdf417,
     readBarcodeResults,
     readPdf417Candidates,
+    readQrCandidates,
     decodePdf417ImageData,
     decodePdf417Blob,
     createStateIdAutoScanner,
+    createReturningBadgeScanner,
     createIdnycAutoCapture,
     frameQuality,
     looksLikeUsableIdnycText,

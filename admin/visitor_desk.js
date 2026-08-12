@@ -34,6 +34,7 @@
   const pairDialog = $('pairDialog');
   const checkoutDialog = $('checkoutDialog');
   const emergencyDialog = $('emergencyDialog');
+  const returningProfileDialog = $('returningProfileDialog');
 
   let ACCESS = null;
   let STATE = { waiting: [], active: [], counts: {} };
@@ -195,10 +196,26 @@
     return `<div><strong>${esc(typeLabel(v))}</strong></div><div>${esc(purposeLabel(v))}</div><div class="muted">${esc(dest)}</div>${dob}<div>${verified} ${photo}</div>`;
   }
 
+  function returningPassSummary(v) {
+    if (v?.returning_pass_status === 'revoked') return '<span class="pill warn">Returning Pass revoked</span>';
+    if (v?.visitor_profile_id || v?.returning_pass_status === 'active') return '<span class="pill ok">Returning Pass active</span>';
+    if (v?.returning_parent_opt_in) return '<span class="pill">Returning Pass requested</span>';
+    return '';
+  }
+
+  function returningPassActions(v) {
+    if (v?.visitor_type !== 'parent_guardian' && !v?.visitor_profile_id && !v?.returning_parent_opt_in) return '';
+    if (v?.visitor_profile_id) {
+      return `<button data-action="replace-returning" data-id="${esc(v.visit_id)}">Replace Pass</button><button class="danger" data-action="revoke-returning" data-id="${esc(v.visit_id)}">Revoke Pass</button>`;
+    }
+    if (v?.status === 'checked_in') return `<button data-action="issue-returning" data-id="${esc(v.visit_id)}">Issue Pass</button>`;
+    return '';
+  }
+
   function waitingRow(v) {
     return `<tr>
       <td><div class="visitorCell">${photoSlot(v)}<div><strong>${esc(fullName(v))}</strong><div class="muted">${esc(v.organization || '')}</div><div class="muted">${esc(v.language || '')} ${esc(v.source || '')}</div></div></div></td>
-      <td>${visitSummary(v)}</td>
+      <td>${visitSummary(v)}<div>${returningPassSummary(v)}</div></td>
       <td><div>${esc(fmtDT(v.submitted_at || v.created_at))}</div><div class="muted">${esc(v.kiosk_id || '')}</div></td>
       <td><div class="actions">
         <button data-action="edit" data-id="${esc(v.visit_id)}">Review/Edit</button>
@@ -214,12 +231,13 @@
   function activeRow(v) {
     return `<tr>
       <td><div class="visitorCell">${photoSlot(v)}<div><strong>${esc(fullName(v))}</strong><div class="muted">Badge ${esc(v.badge_code || '-')}</div></div></div></td>
-      <td>${visitSummary(v)}</td>
+      <td>${visitSummary(v)}<div>${returningPassSummary(v)}</div></td>
       <td><div>${esc(fmtDT(v.check_in_at))}</div><div class="muted">${esc(elapsed(v.check_in_at))} in building</div><div class="muted">${esc(v.check_in_by || '')}</div></td>
       <td><div class="actions">
         <button data-action="details" data-id="${esc(v.visit_id)}">View Details</button>
         <button data-action="take-photo" data-id="${esc(v.visit_id)}">Take Visitor Photo</button>
         <button data-action="reprint" data-id="${esc(v.visit_id)}">Reprint Badge</button>
+        ${returningPassActions(v)}
         <button class="primary" data-action="checkout" data-id="${esc(v.visit_id)}">Check Out</button>
       </div></td>
     </tr>`;
@@ -557,6 +575,9 @@
       await refreshState(true);
       try {
         await printBadge(data.visit, false, reservedPrintWindow);
+        if (data.returning_pass?.qr_text && data.profile) {
+          await printReturningPass(data.profile, data.returning_pass);
+        }
         setStatus(data.already ? 'Visitor was already checked in. Badge opened for printing.' : 'Visitor checked in. Badge opened for printing.', 'ok');
       } catch {
         setStatus('Visitor checked in, but the print window was blocked. Use Reprint Badge.', 'bad');
@@ -633,6 +654,38 @@
     await api('/admin/visitor/badge_printed', { method: 'POST', body: { visit_id: v.visit_id, reprint: !!reprint } }).catch(() => null);
   }
 
+  async function printReturningPass(profile, pass, reservedWindow) {
+    const qrText = String(pass?.qr_text || '');
+    if (!/^ENVISITOR:[A-Za-z0-9_-]{32,220}$/.test(qrText)) throw new Error('returning_qr_missing');
+    const qrSvg = Shared.makeQrSvg(qrText, { border: 2 });
+    const name = esc(fullName(profile));
+    const code = esc(pass.card_code || '');
+    const win = reservedWindow || reservePrintWindow();
+    if (!win) throw new Error('print_window_blocked');
+    win.document.write(`<!doctype html><html><head><title>Returning Parent Pass</title><style>
+      @page{size:2.4in 3.9in;margin:0}
+      *{box-sizing:border-box}
+      html,body{margin:0;width:2.4in;height:3.9in;font-family:Arial,sans-serif;color:#000;background:#fff}
+      .badge{width:2.4in;height:3.9in;padding:.13in;display:grid;grid-template-rows:auto auto 1fr auto;gap:.07in;border:1px solid #000;text-align:center}
+      .brand{font-size:8pt;font-weight:800}
+      .title{font-size:16pt;font-weight:950;line-height:1.05}
+      .reuse{font-size:10pt;font-weight:900;border:1px solid #000;padding:.03in}
+      .name{font-size:18pt;font-weight:950;line-height:1.05;word-break:break-word;align-self:center}
+      .qr svg{display:block;width:1.18in;height:1.18in;margin:0 auto}
+      .meta{font-size:8pt;line-height:1.2}
+      .code{font-size:8pt;font-weight:900}
+    </style></head><body><div class="badge">
+      <div class="brand">The American Dream School<br>EagleNEST</div>
+      <div class="title">PARENT / VISITOR PASS</div>
+      <div class="name">${name}</div>
+      <div><div class="qr">${qrSvg}</div><div class="reuse">RETURNING / REUSABLE</div><div class="meta">Scan for faster check-in / check-out</div><div class="code">${code}</div></div>
+    </div></body></html>`);
+    win.document.close();
+    setTimeout(() => {
+      try { win.focus(); win.print(); } catch {}
+    }, 250);
+  }
+
   async function checkoutVisit(v) {
     if (!window.confirm(`Check out ${fullName(v)}?`)) return;
     try {
@@ -641,6 +694,51 @@
       setStatus('Visitor checked out.', 'ok');
     } catch (err) {
       setStatus(`Checkout failed: ${err?.message || err}`, 'bad');
+    }
+  }
+
+  async function issueReturningPass(v) {
+    if (!window.confirm(`Issue a reusable Returning Parent Pass for ${fullName(v)}?`)) return;
+    const reservedPrintWindow = reservePrintWindow();
+    try {
+      const data = await api('/admin/visitor/returning_issue', { method: 'POST', body: { visit_id: v.visit_id } });
+      await printReturningPass(data.profile, data.returning_pass, reservedPrintWindow);
+      await refreshState(true);
+      setStatus('Returning Parent Pass opened for printing.', 'ok');
+    } catch (err) {
+      try { reservedPrintWindow?.close(); } catch {}
+      setStatus(`Returning pass issue failed: ${err?.message || err}`, 'bad');
+    }
+  }
+
+  async function replaceReturningPass(profileOrVisit) {
+    const profileId = profileOrVisit?.profile_id || profileOrVisit?.visitor_profile_id;
+    if (!profileId) return;
+    if (!window.confirm('Replace this Returning Parent Pass? The old QR will stop working immediately.')) return;
+    const reservedPrintWindow = reservePrintWindow();
+    try {
+      const data = await api('/admin/visitor/returning_replace', { method: 'POST', body: { profile_id: profileId } });
+      await printReturningPass(data.profile, data.returning_pass, reservedPrintWindow);
+      await refreshState(true);
+      if (returningProfileDialog?.open) await searchReturningProfiles();
+      setStatus('Replacement Returning Parent Pass opened for printing.', 'ok');
+    } catch (err) {
+      try { reservedPrintWindow?.close(); } catch {}
+      setStatus(`Returning pass replacement failed: ${err?.message || err}`, 'bad');
+    }
+  }
+
+  async function revokeReturningPass(profileOrVisit) {
+    const profileId = profileOrVisit?.profile_id || profileOrVisit?.visitor_profile_id;
+    if (!profileId) return;
+    if (!window.confirm('Revoke this Returning Parent Pass? Future scans of the current QR will fail.')) return;
+    try {
+      await api('/admin/visitor/returning_revoke', { method: 'POST', body: { profile_id: profileId } });
+      await refreshState(true);
+      if (returningProfileDialog?.open) await searchReturningProfiles();
+      setStatus('Returning Parent Pass revoked.', 'ok');
+    } catch (err) {
+      setStatus(`Returning pass revoke failed: ${err?.message || err}`, 'bad');
     }
   }
 
@@ -790,6 +888,42 @@
     }
   }
 
+  async function searchReturningProfiles() {
+    const query = Shared.cleanText($('returningProfileSearch').value, 120);
+    const results = $('returningProfileResults');
+    $('returningProfileStatus').textContent = 'Searching...';
+    try {
+      const data = await api(`/admin/visitor/returning_profiles?name=${encodeURIComponent(query)}`);
+      const profiles = data.profiles || [];
+      results.innerHTML = profiles.length ? profiles.map((profile) => `
+        <div class="profileResult" data-profile-id="${esc(profile.profile_id)}">
+          <div>
+            <strong>${esc(fullName(profile))}</strong>
+            <div class="muted">${esc(Shared.visitorTypeLabel(profile.visitor_type, 'en'))}${profile.organization ? ` - ${esc(profile.organization)}` : ''}</div>
+            <div class="muted">Status: ${esc(profile.status || 'active')} | Version ${esc(profile.credential_version || 1)} | Last used ${esc(fmtDT(profile.last_used_at))}</div>
+            <div class="muted">Photo month: ${esc(profile.latest_photo_month || '-')}</div>
+          </div>
+          <div class="actions">
+            <button type="button" data-profile-action="replace" data-profile-id="${esc(profile.profile_id)}">Replace Pass</button>
+            <button type="button" class="danger" data-profile-action="revoke" data-profile-id="${esc(profile.profile_id)}">Revoke Pass</button>
+          </div>
+        </div>
+      `).join('') : '<div class="muted">No Returning Parent profiles matched.</div>';
+      $('returningProfileStatus').textContent = `${profiles.length} profile${profiles.length === 1 ? '' : 's'} found.`;
+    } catch (err) {
+      results.textContent = '';
+      $('returningProfileStatus').textContent = `Profile search failed: ${err?.message || err}`;
+    }
+  }
+
+  function openReturningProfiles() {
+    $('returningProfileSearch').value = '';
+    $('returningProfileResults').textContent = '';
+    $('returningProfileStatus').textContent = '';
+    returningProfileDialog.showModal();
+    setTimeout(() => $('returningProfileSearch').focus(), 50);
+  }
+
   const checkoutScanner = Shared.createScannerBuffer(async (scan) => {
     const checkoutStatus = $('checkoutStatus');
     checkoutStatus.textContent = 'Checking badge...';
@@ -857,6 +991,9 @@
     else if (action === 'take-photo') openPhotoDialog(v);
     else if (action === 'admit') admitVisit(v);
     else if (action === 'checkout') checkoutVisit(v);
+    else if (action === 'issue-returning') issueReturningPass(v);
+    else if (action === 'replace-returning') replaceReturningPass(v);
+    else if (action === 'revoke-returning') revokeReturningPass(v);
     else if (action === 'reprint') {
       const reservedPrintWindow = reservePrintWindow();
       api('/admin/visitor/reprint', { method: 'POST', body: { visit_id: v.visit_id } })
@@ -941,6 +1078,23 @@
     $('emergencyBtn').addEventListener('click', loadEmergency);
     $('printEmergencyBtn').addEventListener('click', () => window.print());
     $('pairBtn').addEventListener('click', openPairDialog);
+    $('returningProfilesBtn').addEventListener('click', openReturningProfiles);
+    $('returningProfileSearchBtn').addEventListener('click', searchReturningProfiles);
+    $('returningProfileSearch').addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        searchReturningProfiles();
+      }
+    });
+    $('returningProfileResults').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('button[data-profile-action]');
+      if (!btn) return;
+      const profile = {
+        profile_id: btn.dataset.profileId
+      };
+      if (btn.dataset.profileAction === 'replace') replaceReturningPass(profile);
+      else if (btn.dataset.profileAction === 'revoke') revokeReturningPass(profile);
+    });
     $('newPairCodeBtn').addEventListener('click', generatePairCode);
     $('scanBadgeBtn').addEventListener('click', openCheckoutDialog);
     $('historyBtn').addEventListener('click', startHistorySearch);

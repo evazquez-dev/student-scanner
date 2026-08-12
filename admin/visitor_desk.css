@@ -200,6 +200,16 @@ label.check input { width: auto; }
 }
 .pane { white-space: pre-wrap; overflow: auto; }
 .resultList { display: grid; gap: 8px; margin: 12px 0; max-height: 320px; overflow: auto; }
+.profileResult {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--soft);
+}
 .scanTarget {
   border: 2px dashed var(--border);
   border-radius: 8px;

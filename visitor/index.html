@@ -49,6 +49,7 @@
       <form id="visitorForm" class="visitorForm" autocomplete="off">
         <section class="idPrefillPanel" aria-labelledby="idPrefillToggleBtn">
           <p data-i18n="idPrefillIntro"></p>
+          <button id="returningBadgeBtn" type="button" class="secondary returningBadgeBtn" data-i18n="scanPreviousBadge"></button>
           <button id="idPrefillToggleBtn" type="button" class="secondary idPrefillToggle" data-i18n="idPrefillTitle" aria-expanded="false" aria-controls="idPrefillActions stateIdScanPanel"></button>
           <div id="idPrefillActions" class="idPrefillActions" hidden>
             <button id="stateIdPrefillBtn" type="button" class="secondary" data-i18n="stateIdPrefill"></button>
@@ -68,6 +69,10 @@
               <div id="idScanGuide" class="idScanGuide barcodeGuide" aria-hidden="true"></div>
             </div>
             <div id="idScanStatus" class="scanStatus"></div>
+            <div id="returningBadgeActions" class="idScanFallbackActions" hidden>
+              <button id="returningCheckoutBtn" type="button" class="primary" data-i18n="returningCheckOut"></button>
+              <button id="cancelReturningBadgeBtn" type="button" data-i18n="cancel"></button>
+            </div>
             <div id="idScanFallbackActions" class="idScanFallbackActions" hidden>
               <button id="tryAgainIdScanBtn" type="button" class="secondary"></button>
               <button id="idScanPhotoFallbackBtn" type="button" class="secondary"></button>
@@ -87,6 +92,7 @@
         <label><span data-i18n="middleName"></span><input name="visitor_middle_name" maxlength="80"></label>
         <label data-field="date_of_birth"><span data-i18n="dateOfBirth"></span><input name="date_of_birth" type="date" required><span class="fieldError" data-error-for="date_of_birth"></span></label>
         <label><span data-i18n="organization"></span><input name="organization" maxlength="140"></label>
+        <label id="returningOptInWrap" class="returningOptIn" hidden><input name="returning_opt_in" type="checkbox"> <span data-i18n="returningOptIn"></span><small data-i18n="returningOptInHelp"></small></label>
 
         <fieldset data-field="visitor_type">
           <legend data-i18n="visitorType"></legend>
