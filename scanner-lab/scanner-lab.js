@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-11-7';
+  const LAB_BUILD = '2026-08-14-8';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -135,6 +135,25 @@
     autoCropResult: sessionResults.autoCropResult,
     lastAamvaDiagnostic: null
   };
+
+  const idnyc = {
+    file: null,
+    objectUrl: '',
+    source: '-',
+    dimensions: '-',
+    productionText: '',
+    productionParsed: null,
+    productionMs: 0,
+    productionRun: false,
+    tesseractText: '',
+    tesseractParsed: null,
+    tesseractMs: 0,
+    tesseractRun: false
+  };
+
+  let idnycParsedVisible = false;
+  let idnycOcrVisible = false;
+  let labTesseractPromise = null;
 
   const selfTest = {
     success: false,
@@ -1270,11 +1289,13 @@
     revokePhotoUrl();
     const img = $('photoPreview');
     const input = $('barcodePhotoInput');
+    const uploadInput = $('barcodeUploadInput');
     if (img) {
       img.hidden = true;
       img.removeAttribute('src');
     }
     if (input) input.value = '';
+    if (uploadInput) uploadInput.value = '';
     $('photoPlaceholder').hidden = false;
     photo.file = null;
     photo.sourceCanvas = null;
@@ -1348,6 +1369,7 @@
     clearParsed('photo');
     clearAamvaStructure('live');
     clearAamvaStructure('photo');
+    clearIdnycResult();
     renderSessionResults();
     renderLastSuccessfulPdf417();
     updateInterpretation();
@@ -1385,6 +1407,320 @@
     setText('cropDisplaySelection', '-');
     setText('cropNaturalSelection', '-');
     setText('cropMappingValid', 'NO');
+  }
+
+  function revokeIdnycUrl() {
+    if (!idnyc.objectUrl) return;
+    URL.revokeObjectURL(idnyc.objectUrl);
+    idnyc.objectUrl = '';
+  }
+
+  function parsedPresence(parsed) {
+    const data = parsed?.data || {};
+    return {
+      first: !!String(data.visitor_first_name || '').trim(),
+      middle: !!String(data.visitor_middle_name || '').trim(),
+      last: !!String(data.visitor_last_name || '').trim(),
+      dob: !!String(data.date_of_birth || '').trim()
+    };
+  }
+
+  function renderIdnycPrivateFields() {
+    const prod = idnyc.productionParsed?.data || {};
+    const tess = idnyc.tesseractParsed?.data || {};
+    const visible = idnycParsedVisible;
+    setText('idnycProdFirst', visible ? (prod.visitor_first_name || '-') : '-');
+    setText('idnycProdMiddle', visible ? (prod.visitor_middle_name || '-') : '-');
+    setText('idnycProdLast', visible ? (prod.visitor_last_name || '-') : '-');
+    setText('idnycProdDob', visible ? (prod.date_of_birth || '-') : '-');
+    setText('idnycTessFirst', visible ? (tess.visitor_first_name || '-') : '-');
+    setText('idnycTessMiddle', visible ? (tess.visitor_middle_name || '-') : '-');
+    setText('idnycTessLast', visible ? (tess.visitor_last_name || '-') : '-');
+    setText('idnycTessDob', visible ? (tess.date_of_birth || '-') : '-');
+    if ($('idnycParsedWrap')) $('idnycParsedWrap').hidden = !visible;
+    setText('showIdnycParsedBtn', visible ? 'Hide Parsed Fields' : 'Show Parsed Fields');
+  }
+
+  function renderIdnycRawText() {
+    const wrap = $('idnycRawOcrWrap');
+    if (wrap) wrap.hidden = !idnycOcrVisible;
+    setText('idnycProdRaw', idnycOcrVisible ? (idnyc.productionText || '(no OCR text)') : '');
+    setText('idnycTessRaw', idnycOcrVisible ? (idnyc.tesseractText || '(not run)') : '');
+    setText('showIdnycOcrBtn', idnycOcrVisible ? 'Hide OCR Text' : 'Show OCR Text');
+  }
+
+  function renderIdnycResult(kind) {
+    const isProd = kind === 'prod';
+    const parsed = isProd ? idnyc.productionParsed : idnyc.tesseractParsed;
+    const text = isProd ? idnyc.productionText : idnyc.tesseractText;
+    const ms = isProd ? idnyc.productionMs : idnyc.tesseractMs;
+    const ran = isProd ? idnyc.productionRun : idnyc.tesseractRun;
+    const prefix = isProd ? 'idnycProd' : 'idnycTess';
+    const presence = parsedPresence(parsed);
+    setText(`${prefix}Run`, yesNo(ran));
+    setText(`${prefix}Ms`, ran ? `${Math.round(ms)} ms` : '-');
+    setText(`${prefix}TextLength`, text.length);
+    setText(`${prefix}Usable`, yesNo(!!(text && IdScan?.looksLikeUsableIdnycText?.(text))));
+    setText(`${prefix}Parser`, yesNo(!!parsed?.ok));
+    setText(`${prefix}FirstFound`, yesNo(presence.first));
+    setText(`${prefix}MiddleFound`, yesNo(presence.middle));
+    setText(`${prefix}LastFound`, yesNo(presence.last));
+    setText(`${prefix}DobFound`, yesNo(presence.dob));
+    renderIdnycPrivateFields();
+    renderIdnycRawText();
+  }
+
+  function buildSafeIdnycReport() {
+    if (!idnyc.file) return 'Select an IDNYC image first.';
+    const prod = parsedPresence(idnyc.productionParsed);
+    const tess = parsedPresence(idnyc.tesseractParsed);
+    return [
+      'EagleNEST Scanner Lab — Safe IDNYC Diagnostics',
+      `Build: ${LAB_BUILD}`,
+      `Source: ${idnyc.source || '-'}`,
+      `Image dimensions: ${idnyc.dimensions || '-'}`,
+      `File type: ${idnyc.file.type || 'unknown'}`,
+      `File size: ${idnyc.file.size || 0} bytes`,
+      `TextDetector available: ${yesNo(!!window.TextDetector)}`,
+      `Production OCR run: ${yesNo(idnyc.productionRun)}`,
+      `Production OCR duration: ${idnyc.productionRun ? `${Math.round(idnyc.productionMs)} ms` : '-'}`,
+      `Production OCR text length: ${idnyc.productionText.length}`,
+      `Production text looks usable: ${yesNo(!!(idnyc.productionText && IdScan?.looksLikeUsableIdnycText?.(idnyc.productionText)))}`,
+      `Production parser success: ${yesNo(!!idnyc.productionParsed?.ok)}`,
+      `Production first name found: ${yesNo(prod.first)}`,
+      `Production middle name found: ${yesNo(prod.middle)}`,
+      `Production last name found: ${yesNo(prod.last)}`,
+      `Production DOB found: ${yesNo(prod.dob)}`,
+      `Forced Tesseract run: ${yesNo(idnyc.tesseractRun)}`,
+      `Forced Tesseract duration: ${idnyc.tesseractRun ? `${Math.round(idnyc.tesseractMs)} ms` : '-'}`,
+      `Forced Tesseract text length: ${idnyc.tesseractText.length}`,
+      `Forced Tesseract text looks usable: ${yesNo(!!(idnyc.tesseractText && IdScan?.looksLikeUsableIdnycText?.(idnyc.tesseractText)))}`,
+      `Forced Tesseract parser success: ${yesNo(!!idnyc.tesseractParsed?.ok)}`,
+      `Forced Tesseract first name found: ${yesNo(tess.first)}`,
+      `Forced Tesseract middle name found: ${yesNo(tess.middle)}`,
+      `Forced Tesseract last name found: ${yesNo(tess.last)}`,
+      `Forced Tesseract DOB found: ${yesNo(tess.dob)}`,
+      'PII/raw OCR included: NO'
+    ].join('\n');
+  }
+
+  function updateSafeIdnycReport() {
+    setText('idnycSafeReport', buildSafeIdnycReport());
+  }
+
+  function clearIdnycResult() {
+    revokeIdnycUrl();
+    ['idnycUploadInput', 'idnycPhotoInput'].forEach((id) => {
+      const input = $(id);
+      if (input) input.value = '';
+    });
+    const preview = $('idnycPreview');
+    if (preview) {
+      preview.hidden = true;
+      preview.removeAttribute('src');
+    }
+    if ($('idnycPlaceholder')) $('idnycPlaceholder').hidden = false;
+    idnyc.file = null;
+    idnyc.source = '-';
+    idnyc.dimensions = '-';
+    idnyc.productionText = '';
+    idnyc.productionParsed = null;
+    idnyc.productionMs = 0;
+    idnyc.productionRun = false;
+    idnyc.tesseractText = '';
+    idnyc.tesseractParsed = null;
+    idnyc.tesseractMs = 0;
+    idnyc.tesseractRun = false;
+    idnycParsedVisible = false;
+    idnycOcrVisible = false;
+    setText('idnycSource', '-');
+    setText('idnycDimensions', '-');
+    setText('idnycFileType', '-');
+    setText('idnycFileSize', '-');
+    setText('idnycBrightness', '-');
+    setText('idnycSharpness', '-');
+    setText('idnycContrast', '-');
+    setText('idnycTextDetector', yesNo(!!window.TextDetector));
+    setText('idnycStatus', 'Idle');
+    setError('idnycError', '');
+    renderIdnycResult('prod');
+    renderIdnycResult('tess');
+    updateSafeIdnycReport();
+  }
+
+  async function runIdnycProductionOcr() {
+    if (!idnyc.file) {
+      setError('idnycError', new Error('Upload or take an IDNYC photo first'));
+      return;
+    }
+    setError('idnycError', '');
+    setText('idnycStatus', 'Running production OCR path...');
+    const started = performance.now();
+    try {
+      const text = await IdScan.recognizeIdnycImage(idnyc.file);
+      idnyc.productionMs = performance.now() - started;
+      idnyc.productionText = String(text || '');
+      idnyc.productionParsed = Shared.parseIdnycOcrText(idnyc.productionText);
+      idnyc.productionRun = true;
+      setText('idnycStatus', idnyc.productionParsed?.ok ? 'Production OCR parsed all required fields' : 'Production OCR completed; parser did not find all required fields');
+    } catch (err) {
+      idnyc.productionMs = performance.now() - started;
+      idnyc.productionText = '';
+      idnyc.productionParsed = null;
+      idnyc.productionRun = true;
+      setText('idnycStatus', 'Production OCR error');
+      setError('idnycError', err);
+    } finally {
+      renderIdnycResult('prod');
+      updateSafeIdnycReport();
+    }
+  }
+
+  function loadLabScriptOnce(src, globalName) {
+    if (globalName && window[globalName]) return Promise.resolve(window[globalName]);
+    return new Promise((resolve, reject) => {
+      const existing = Array.from(document.scripts || []).find((node) => node.src === src);
+      if (existing) {
+        existing.addEventListener('load', () => resolve(globalName ? window[globalName] : true), { once: true });
+        existing.addEventListener('error', () => reject(new Error('script_load_failed')), { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.onload = () => resolve(globalName ? window[globalName] : true);
+      script.onerror = () => reject(new Error('script_load_failed'));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function prepareLabTesseract() {
+    if (labTesseractPromise) return labTesseractPromise;
+    labTesseractPromise = (async () => {
+      const versions = IdScan?.VERSIONS || {};
+      const src = IdScan.assetUrl(`vendor/tesseract.js/${versions.tesseract || '7.0.0'}/tesseract.min.js`);
+      await loadLabScriptOnce(src, 'Tesseract');
+      if (!window.Tesseract?.createWorker) throw new Error('ocr_unavailable');
+      return window.Tesseract;
+    })();
+    return labTesseractPromise;
+  }
+
+  async function forceTesseractIdnyc(file) {
+    const tesseract = await prepareLabTesseract();
+    const versions = IdScan?.VERSIONS || {};
+    let worker = null;
+    try {
+      worker = await tesseract.createWorker('eng', 1, {
+        workerPath: IdScan.assetUrl(`vendor/tesseract.js/${versions.tesseract || '7.0.0'}/worker.min.js`),
+        corePath: IdScan.assetUrl(`vendor/tesseract.js-core/${versions.tesseractCore || '7.0.0'}/tesseract-core-lstm.wasm.js`),
+        langPath: IdScan.assetUrl(`vendor/tesseract.js-data/eng/${versions.tesseractEngData || '1.0.0'}`),
+        cacheMethod: 'none',
+        gzip: true,
+        workerBlobURL: true,
+        logger: function () {}
+      });
+      if (typeof worker.setParameters === 'function') {
+        await worker.setParameters({
+          tessedit_pageseg_mode: tesseract.PSM?.SPARSE_TEXT || '11',
+          user_defined_dpi: '300'
+        });
+      }
+      const result = await worker.recognize(file);
+      return String(result?.data?.text || '');
+    } finally {
+      try { await worker?.terminate?.(); } catch {}
+    }
+  }
+
+  async function runIdnycForcedTesseract() {
+    if (!idnyc.file) {
+      setError('idnycError', new Error('Upload or take an IDNYC photo first'));
+      return;
+    }
+    setError('idnycError', '');
+    setText('idnycStatus', 'Running forced local Tesseract...');
+    const started = performance.now();
+    try {
+      idnyc.tesseractText = await forceTesseractIdnyc(idnyc.file);
+      idnyc.tesseractMs = performance.now() - started;
+      idnyc.tesseractParsed = Shared.parseIdnycOcrText(idnyc.tesseractText);
+      idnyc.tesseractRun = true;
+      setText('idnycStatus', idnyc.tesseractParsed?.ok ? 'Forced Tesseract parsed all required fields' : 'Forced Tesseract completed; parser did not find all required fields');
+    } catch (err) {
+      idnyc.tesseractMs = performance.now() - started;
+      idnyc.tesseractText = '';
+      idnyc.tesseractParsed = null;
+      idnyc.tesseractRun = true;
+      setText('idnycStatus', 'Forced Tesseract error');
+      setError('idnycError', err);
+    } finally {
+      renderIdnycResult('tess');
+      updateSafeIdnycReport();
+    }
+  }
+
+  async function handleIdnycSelected(ev) {
+    const file = ev?.target?.files?.[0] || null;
+    if (!file) return;
+    const source = ev?.target?.id === 'idnycPhotoInput' ? 'New camera photo' : 'Uploaded existing image';
+    clearIdnycResult();
+    idnyc.file = file;
+    idnyc.source = source;
+    try {
+      idnyc.objectUrl = URL.createObjectURL(file);
+      const preview = $('idnycPreview');
+      if (preview) {
+        preview.src = idnyc.objectUrl;
+        preview.hidden = false;
+      }
+      if ($('idnycPlaceholder')) $('idnycPlaceholder').hidden = true;
+      setText('idnycSource', source);
+      setText('idnycFileType', file.type || 'unknown');
+      setText('idnycFileSize', `${file.size} bytes`);
+      setText('idnycTextDetector', yesNo(!!window.TextDetector));
+      setText('idnycStatus', 'Reading image...');
+      const canvas = await imageFileToCanvas(file);
+      idnyc.dimensions = `${canvas.width} x ${canvas.height}`;
+      setText('idnycDimensions', idnyc.dimensions);
+      renderQuality('idnyc', canvas);
+      updateSafeIdnycReport();
+      await runIdnycProductionOcr();
+    } catch (err) {
+      setText('idnycStatus', 'Image error');
+      setError('idnycError', err);
+      updateSafeIdnycReport();
+    }
+  }
+
+  function toggleIdnycParsed() {
+    idnycParsedVisible = !idnycParsedVisible;
+    renderIdnycPrivateFields();
+  }
+
+  function toggleIdnycOcr() {
+    idnycOcrVisible = !idnycOcrVisible;
+    renderIdnycRawText();
+  }
+
+  async function copySafeIdnycDiagnostics() {
+    const report = buildSafeIdnycReport();
+    setText('idnycSafeReport', report);
+    try {
+      await navigator.clipboard.writeText(report);
+      setText('idnycSafeReport', `${report}\n\nCopied.`);
+    } catch {
+      const text = document.createElement('textarea');
+      text.value = report;
+      text.setAttribute('readonly', '');
+      text.style.position = 'fixed';
+      text.style.left = '-1000px';
+      document.body.appendChild(text);
+      text.select();
+      try { document.execCommand('copy'); } catch {}
+      text.remove();
+      setText('idnycSafeReport', `${report}\n\nCopy attempted.`);
+    }
   }
 
   async function imageFileToCanvas(file) {
@@ -2049,10 +2385,11 @@
     stopCameraTest();
     stopLiveScan();
     if (!opts.keepPhoto) clearPhotoResult();
+    if (!opts.keepIdnyc) clearIdnycResult();
   }
 
   function selectTab(name) {
-    stopAll({ keepPhoto: name === 'photo' });
+    stopAll({ keepPhoto: name === 'photo', keepIdnyc: name === 'idnyc' });
     $$('.tab').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === name));
     $$('.panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === name));
     updateDiagnostics();
@@ -2262,6 +2599,7 @@
       });
     });
     $('takePhotoBtn')?.addEventListener('click', () => $('barcodePhotoInput')?.click());
+    $('uploadBarcodePhotoBtn')?.addEventListener('click', () => $('barcodeUploadInput')?.click());
     $('takeAnotherPhotoBtn')?.addEventListener('click', () => {
       clearPhotoResult();
       $('barcodePhotoInput')?.click();
@@ -2270,6 +2608,17 @@
     $('runAutoCropBtn')?.addEventListener('click', runAutoCropExperiment);
     $('clearPhotoBtn')?.addEventListener('click', clearPhotoResult);
     $('barcodePhotoInput')?.addEventListener('change', handlePhotoSelected);
+    $('barcodeUploadInput')?.addEventListener('change', handlePhotoSelected);
+    $('uploadIdnycBtn')?.addEventListener('click', () => $('idnycUploadInput')?.click());
+    $('takeIdnycPhotoBtn')?.addEventListener('click', () => $('idnycPhotoInput')?.click());
+    $('runIdnycProductionBtn')?.addEventListener('click', runIdnycProductionOcr);
+    $('runIdnycTesseractBtn')?.addEventListener('click', runIdnycForcedTesseract);
+    $('clearIdnycBtn')?.addEventListener('click', clearIdnycResult);
+    $('idnycUploadInput')?.addEventListener('change', handleIdnycSelected);
+    $('idnycPhotoInput')?.addEventListener('change', handleIdnycSelected);
+    $('showIdnycParsedBtn')?.addEventListener('click', toggleIdnycParsed);
+    $('showIdnycOcrBtn')?.addEventListener('click', toggleIdnycOcr);
+    $('copyIdnycDiagnosticsBtn')?.addEventListener('click', copySafeIdnycDiagnostics);
     $('showCropToolBtn')?.addEventListener('click', () => setCropToolVisible(true));
     $('decodeCropBtn')?.addEventListener('click', decodeManualCrop);
     $$('.cropPreset').forEach((button) => {
@@ -2290,6 +2639,7 @@
     clearParsed('photo');
     clearAamvaStructure('live');
     clearAamvaStructure('photo');
+    clearIdnycResult();
     renderSessionResults();
     renderLastSuccessfulPdf417();
     clearDecoderInputPreview();

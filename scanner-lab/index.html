@@ -71,6 +71,7 @@
       <button type="button" class="tab" data-tab="selftest">Decoder Self-Test</button>
       <button type="button" class="tab" data-tab="live">Live PDF417</button>
       <button type="button" class="tab" data-tab="photo">Photo PDF417</button>
+      <button type="button" class="tab" data-tab="idnyc">IDNYC Photo OCR</button>
       <button type="button" class="tab" data-tab="diagnostics">Diagnostics</button>
     </nav>
 
@@ -342,6 +343,7 @@
         <h2>Photo PDF417 Test</h2>
         <div class="actions">
           <button type="button" id="takePhotoBtn">Take Photo of Barcode</button>
+          <button type="button" id="uploadBarcodePhotoBtn" class="secondary">Upload Existing Image</button>
           <button type="button" id="takeAnotherPhotoBtn" class="secondary">Take Another Photo</button>
           <button type="button" id="tryAllFormatsBtn" class="secondary">Try All Barcode Formats</button>
           <button type="button" id="clearPhotoBtn" class="secondary">Clear Photo</button>
@@ -349,6 +351,7 @@
       </div>
 
       <input id="barcodePhotoInput" type="file" accept="image/*" capture="environment" hidden>
+      <input id="barcodeUploadInput" type="file" accept="image/*" hidden>
 
       <div class="photoGrid">
         <div class="photoPreviewBox">
@@ -551,6 +554,134 @@
       </section>
 
       <pre id="photoError" class="errorBox" aria-live="polite"></pre>
+    </section>
+
+    <section id="panel-idnyc" class="panel" data-panel="idnyc">
+      <div class="panelHeader">
+        <div>
+          <h2>IDNYC Photo OCR Lab</h2>
+          <p class="helper">Use a saved IDNYC photo or take a new one. The image and OCR text stay only in this browser and are cleared when you leave or refresh the lab.</p>
+        </div>
+        <div class="actions">
+          <button type="button" id="uploadIdnycBtn">Upload Existing Image</button>
+          <button type="button" id="takeIdnycPhotoBtn" class="secondary">Take New Photo</button>
+          <button type="button" id="runIdnycProductionBtn" class="secondary">Run Production OCR</button>
+          <button type="button" id="runIdnycTesseractBtn" class="secondary">Force Tesseract</button>
+          <button type="button" id="clearIdnycBtn" class="secondary">Clear</button>
+        </div>
+      </div>
+
+      <input id="idnycUploadInput" type="file" accept="image/*" hidden>
+      <input id="idnycPhotoInput" type="file" accept="image/*" capture="environment" hidden>
+
+      <div class="photoGrid">
+        <div class="photoPreviewBox">
+          <img id="idnycPreview" alt="Temporary IDNYC photo preview" hidden>
+          <div id="idnycPlaceholder" class="placeholder">No IDNYC image selected</div>
+        </div>
+        <dl class="metricGrid compact">
+          <div><dt>Source</dt><dd id="idnycSource">-</dd></div>
+          <div><dt>Image dimensions</dt><dd id="idnycDimensions">-</dd></div>
+          <div><dt>File type</dt><dd id="idnycFileType">-</dd></div>
+          <div><dt>File size</dt><dd id="idnycFileSize">-</dd></div>
+          <div><dt>Brightness</dt><dd id="idnycBrightness">-</dd></div>
+          <div><dt>Sharpness</dt><dd id="idnycSharpness">-</dd></div>
+          <div><dt>Contrast</dt><dd id="idnycContrast">-</dd></div>
+          <div><dt>TextDetector available</dt><dd id="idnycTextDetector">-</dd></div>
+          <div><dt>Status</dt><dd id="idnycStatus">Idle</dd></div>
+        </dl>
+      </div>
+
+      <p class="labNote">This tab tests the same local IDNYC OCR + parser used by Visitor Management without modifying production. Raw OCR and parsed personal values are hidden by default and never included in copied diagnostics.</p>
+
+      <section class="resultPanel">
+        <h3>Production OCR Path</h3>
+        <p class="helper">Runs <code>recognizeIdnycImage()</code> exactly as the Visitor kiosk does, then parses with <code>parseIdnycOcrText()</code>.</p>
+        <dl class="fieldList">
+          <div><dt>OCR run</dt><dd id="idnycProdRun">NO</dd></div>
+          <div><dt>OCR duration</dt><dd id="idnycProdMs">-</dd></div>
+          <div><dt>OCR text length</dt><dd id="idnycProdTextLength">0</dd></div>
+          <div><dt>Text looks usable</dt><dd id="idnycProdUsable">NO</dd></div>
+          <div><dt>Parser success</dt><dd id="idnycProdParser">NO</dd></div>
+          <div><dt>First name found</dt><dd id="idnycProdFirstFound">NO</dd></div>
+          <div><dt>Middle name found</dt><dd id="idnycProdMiddleFound">NO</dd></div>
+          <div><dt>Last name found</dt><dd id="idnycProdLastFound">NO</dd></div>
+          <div><dt>DOB found</dt><dd id="idnycProdDobFound">NO</dd></div>
+        </dl>
+      </section>
+
+      <section class="resultPanel">
+        <h3>Forced Tesseract Comparison</h3>
+        <p class="helper">Optional lab-only comparison. This bypasses any browser TextDetector fast path and uses the same bundled local Tesseract assets. Nothing is uploaded.</p>
+        <dl class="fieldList">
+          <div><dt>OCR run</dt><dd id="idnycTessRun">NO</dd></div>
+          <div><dt>OCR duration</dt><dd id="idnycTessMs">-</dd></div>
+          <div><dt>OCR text length</dt><dd id="idnycTessTextLength">0</dd></div>
+          <div><dt>Text looks usable</dt><dd id="idnycTessUsable">NO</dd></div>
+          <div><dt>Parser success</dt><dd id="idnycTessParser">NO</dd></div>
+          <div><dt>First name found</dt><dd id="idnycTessFirstFound">NO</dd></div>
+          <div><dt>Middle name found</dt><dd id="idnycTessMiddleFound">NO</dd></div>
+          <div><dt>Last name found</dt><dd id="idnycTessLastFound">NO</dd></div>
+          <div><dt>DOB found</dt><dd id="idnycTessDobFound">NO</dd></div>
+        </dl>
+      </section>
+
+      <section class="resultGrid idnycPrivateResults">
+        <section class="resultPanel">
+          <div class="panelHeader compactHeader">
+            <h3>Parsed Fields — On Device Only</h3>
+            <button type="button" id="showIdnycParsedBtn" class="secondary">Show Parsed Fields</button>
+          </div>
+          <p class="helper">Hidden by default. Compare these values visually with the card. Do not paste the actual values into chat.</p>
+          <div id="idnycParsedWrap" hidden>
+            <div class="idnycCompareGrid">
+              <div>
+                <h3>Production Path</h3>
+                <dl class="fieldList">
+                  <div><dt>First Name</dt><dd id="idnycProdFirst">-</dd></div>
+                  <div><dt>Middle Name</dt><dd id="idnycProdMiddle">-</dd></div>
+                  <div><dt>Last Name</dt><dd id="idnycProdLast">-</dd></div>
+                  <div><dt>DOB</dt><dd id="idnycProdDob">-</dd></div>
+                </dl>
+              </div>
+              <div>
+                <h3>Forced Tesseract</h3>
+                <dl class="fieldList">
+                  <div><dt>First Name</dt><dd id="idnycTessFirst">-</dd></div>
+                  <div><dt>Middle Name</dt><dd id="idnycTessMiddle">-</dd></div>
+                  <div><dt>Last Name</dt><dd id="idnycTessLast">-</dd></div>
+                  <div><dt>DOB</dt><dd id="idnycTessDob">-</dd></div>
+                </dl>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="resultPanel">
+          <div class="panelHeader compactHeader">
+            <h3>Raw OCR Text — On Device Only</h3>
+            <button type="button" id="showIdnycOcrBtn" class="secondary">Show OCR Text</button>
+          </div>
+          <p class="helper">Hidden by default because it can contain personal information. It is never included in copied diagnostics.</p>
+          <div id="idnycRawOcrWrap" hidden>
+            <h3>Production Path</h3>
+            <pre id="idnycProdRaw" class="decodedText"></pre>
+            <h3>Forced Tesseract</h3>
+            <pre id="idnycTessRaw" class="decodedText"></pre>
+          </div>
+        </section>
+      </section>
+
+      <section class="resultPanel">
+        <div class="panelHeader compactHeader">
+          <h3>Safe IDNYC Diagnostics</h3>
+          <button type="button" id="copyIdnycDiagnosticsBtn" class="secondary">Copy Safe Diagnostics</button>
+        </div>
+        <p class="helper">Contains only image/engine/status information and whether fields were found — never names, DOB values, or OCR text.</p>
+        <pre id="idnycSafeReport" class="reportBox">Select an IDNYC image first.</pre>
+      </section>
+
+      <pre id="idnycError" class="errorBox" aria-live="polite"></pre>
     </section>
 
     <section id="panel-diagnostics" class="panel" data-panel="diagnostics">

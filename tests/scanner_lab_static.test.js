@@ -26,7 +26,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-11-7'/, 'Scanner Lab should expose Build 7');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-14-8'/, 'Scanner Lab should expose Build 8');
 }
 
 function asciiBytes(text) {
@@ -659,7 +659,23 @@ function syntheticMultiAamvaResult(subfiles, options) {
 }
 
 {
-  assert.doesNotMatch(labSource, /IDNYC|Tesseract|tesseract|recognizeIdnycImage|TextDetector OCR/i, 'Scanner Lab should not add IDNYC/Tesseract OCR in this pass');
+  assert.match(labHtml, /data-tab="idnyc"/, 'Scanner Lab should expose an IDNYC OCR tab');
+  assert.match(labHtml, /id="idnycUploadInput"[^>]+type="file"[^>]+accept="image\/\*"/, 'IDNYC lab should allow existing image upload');
+  assert.doesNotMatch(labHtml, /id="idnycUploadInput"[^>]+capture=/, 'Existing-image upload must not force the camera');
+  assert.match(labHtml, /id="idnycPhotoInput"[^>]+capture="environment"/, 'IDNYC lab should also allow rear-camera capture');
+  assert.match(labJs, /IdScan\.recognizeIdnycImage\(idnyc\.file\)/, 'IDNYC lab production test should call the production OCR adapter');
+  assert.match(labJs, /Shared\.parseIdnycOcrText/, 'IDNYC lab should parse OCR through the production parser');
+  assert.match(labJs, /forceTesseractIdnyc/, 'IDNYC lab should support a forced-Tesseract comparison');
+  assert.match(labJs, /cacheMethod:\s*'none'/, 'Forced Tesseract lab path must disable OCR cache storage');
+  assert.match(labJs, /PII\/raw OCR included: NO/, 'Safe IDNYC diagnostics should explicitly exclude PII/raw OCR');
+  const safeReportSection = sectionBetween(labJs, 'function buildSafeIdnycReport', 'function updateSafeIdnycReport');
+  [
+    /visitor_first_name\s*\|\|/,
+    /visitor_last_name\s*\|\|/,
+    /date_of_birth\s*\|\|/,
+    /productionText\s*\}/,
+    /tesseractText\s*\}/
+  ].forEach((pattern) => assert.doesNotMatch(safeReportSection, pattern, `Safe IDNYC report must not include actual field/OCR values: ${pattern}`));
   assert.match(visitorJs, /IdScan\.createStateIdAutoScanner/, 'Production Visitor state ID scanner should remain intact');
 }
 
@@ -684,6 +700,12 @@ function syntheticMultiAamvaResult(subfiles, options) {
   const clearAllSection = sectionBetween(labJs, 'function clearAllTestResults', 'async function imageFileToCanvas');
   assert.match(clearAllSection, /Object\.keys\(SOURCE_KEYS\)/, 'Clear All should reset each source result');
   assert.match(clearAllSection, /lastSuccessfulPdf417\s*=\s*null/, 'Clear All should reset lastSuccessfulPdf417');
+}
+
+{
+  assert.match(labHtml, /id="barcodeUploadInput"[^>]+type="file"[^>]+accept="image\/\*"/, 'Photo PDF417 should allow existing-image upload');
+  assert.doesNotMatch(labHtml, /id="barcodeUploadInput"[^>]+capture=/, 'Existing PDF417 upload must not force camera capture');
+  assert.match(labJs, /barcodeUploadInput[^\n]*addEventListener\('change', handlePhotoSelected\)/, 'Uploaded PDF417 images should reuse the existing photo decode path');
 }
 
 console.log('scanner_lab_static tests passed');
