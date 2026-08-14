@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-14-8';
+  const LAB_BUILD = '2026-08-14-9';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -2573,7 +2573,7 @@
   }
 
   function bindEvents() {
-    setText('buildLabel', `Scanner Lab build: ${LAB_BUILD}`);
+    setText('buildLabel', `Scanner Lab HTML: 2026-08-14-9 · JS: ${LAB_BUILD}`);
     renderDecodeOptions();
     $$('.tab').forEach((tab) => {
       tab.addEventListener('click', () => selectTab(tab.dataset.tab));
@@ -2609,11 +2609,17 @@
     $('clearPhotoBtn')?.addEventListener('click', clearPhotoResult);
     $('barcodePhotoInput')?.addEventListener('change', handlePhotoSelected);
     $('barcodeUploadInput')?.addEventListener('change', handlePhotoSelected);
-    $('uploadIdnycBtn')?.addEventListener('click', () => $('idnycUploadInput')?.click());
-    $('takeIdnycPhotoBtn')?.addEventListener('click', () => $('idnycPhotoInput')?.click());
     $('runIdnycProductionBtn')?.addEventListener('click', runIdnycProductionOcr);
     $('runIdnycTesseractBtn')?.addEventListener('click', runIdnycForcedTesseract);
     $('clearIdnycBtn')?.addEventListener('click', clearIdnycResult);
+    ['uploadIdnycBtn', 'takeIdnycPhotoBtn'].forEach((id) => {
+      $(id)?.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        ev.preventDefault();
+        const inputId = id === 'uploadIdnycBtn' ? 'idnycUploadInput' : 'idnycPhotoInput';
+        $(inputId)?.click();
+      });
+    });
     $('idnycUploadInput')?.addEventListener('change', handleIdnycSelected);
     $('idnycPhotoInput')?.addEventListener('change', handleIdnycSelected);
     $('showIdnycParsedBtn')?.addEventListener('click', toggleIdnycParsed);

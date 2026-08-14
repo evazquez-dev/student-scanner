@@ -26,7 +26,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-14-8'/, 'Scanner Lab should expose Build 8');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-14-9'/, 'Scanner Lab should expose Build 9');
 }
 
 function asciiBytes(text) {

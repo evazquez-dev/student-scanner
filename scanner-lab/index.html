@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
   <title>EagleNEST Scanner Lab</title>
-  <link rel="stylesheet" href="./scanner-lab.css">
+  <link rel="stylesheet" href="./scanner-lab.css?v=20260814-9">
 </head>
 <body>
   <header class="labHeader">
@@ -13,7 +13,7 @@
       <h1>EagleNEST Scanner Lab</h1>
       <p class="subtitle">iPad Camera + PDF417 Test</p>
     </div>
-    <div class="build" id="buildLabel">Scanner Lab build: loading</div>
+    <div class="build" id="buildLabel">Scanner Lab HTML: 2026-08-14-9 · JS: loading</div>
   </header>
 
   <main>
@@ -563,8 +563,8 @@
           <p class="helper">Use a saved IDNYC photo or take a new one. The image and OCR text stay only in this browser and are cleared when you leave or refresh the lab.</p>
         </div>
         <div class="actions">
-          <button type="button" id="uploadIdnycBtn">Upload Existing Image</button>
-          <button type="button" id="takeIdnycPhotoBtn" class="secondary">Take New Photo</button>
+          <label id="uploadIdnycBtn" class="filePickerButton" for="idnycUploadInput" role="button" tabindex="0">Upload Existing Image</label>
+          <label id="takeIdnycPhotoBtn" class="filePickerButton secondary" for="idnycPhotoInput" role="button" tabindex="0">Take New Photo</label>
           <button type="button" id="runIdnycProductionBtn" class="secondary">Run Production OCR</button>
           <button type="button" id="runIdnycTesseractBtn" class="secondary">Force Tesseract</button>
           <button type="button" id="clearIdnycBtn" class="secondary">Clear</button>
@@ -728,9 +728,9 @@
     </section>
   </main>
 
-  <script src="../visitor/visitor_shared.js"></script>
-  <script src="../visitor/id_scan_adapters.js"></script>
-  <script src="./aamva_diagnostics.js"></script>
-  <script src="./scanner-lab.js"></script>
+  <script src="../visitor/visitor_shared.js?v=20260814-9"></script>
+  <script src="../visitor/id_scan_adapters.js?v=20260814-9"></script>
+  <script src="./aamva_diagnostics.js?v=20260814-9"></script>
+  <script src="./scanner-lab.js?v=20260814-9"></script>
 </body>
 </html>

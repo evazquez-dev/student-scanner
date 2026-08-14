@@ -118,12 +118,22 @@ button,
   cursor: pointer;
 }
 
-button.secondary {
+
+.filePickerButton {
+  cursor: pointer;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button.secondary,
+.filePickerButton.secondary {
   background: #fff;
   color: var(--brand);
 }
 
 button:focus-visible,
+.filePickerButton:focus-visible,
 input:focus-visible {
   outline: 4px solid #ffca28;
   outline-offset: 2px;
