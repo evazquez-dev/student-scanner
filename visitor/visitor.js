@@ -1188,6 +1188,35 @@
     }
   }
 
+  let screenWakeLock = null;
+
+  async function requestScreenWakeLock() {
+    if (!('wakeLock' in navigator) || document.visibilityState !== 'visible' || screenWakeLock) return;
+    try {
+      screenWakeLock = await navigator.wakeLock.request('screen');
+      screenWakeLock.addEventListener('release', () => {
+        screenWakeLock = null;
+      });
+    } catch {
+      screenWakeLock = null;
+    }
+  }
+
+  async function releaseScreenWakeLock() {
+    const lock = screenWakeLock;
+    screenWakeLock = null;
+    if (!lock) return;
+    try {
+      await lock.release();
+    } catch {}
+  }
+
+  function handleKioskVisibilityChange() {
+    if (document.visibilityState === 'visible') {
+      requestScreenWakeLock();
+    }
+  }
+
   function boot() {
     document.querySelectorAll('.languageBtn').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -1302,9 +1331,13 @@
       openPhotoStep();
     });
     $('pairForm').addEventListener('submit', pairKiosk);
+    document.addEventListener('visibilitychange', handleKioskVisibilityChange);
+    document.addEventListener('pointerdown', requestScreenWakeLock, { passive: true });
+    requestScreenWakeLock();
     window.addEventListener('pagehide', () => {
       stopCamera();
       closeStateIdScan();
+      releaseScreenWakeLock();
     });
     setLang('en');
     setIdEntryMode('manual');

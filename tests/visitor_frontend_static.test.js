@@ -10,6 +10,7 @@ const kioskHtml = fs.readFileSync(path.resolve(__dirname, '../visitor/index.html
 const kioskCss = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor.css'), 'utf8');
 const shared = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor_shared.js'), 'utf8');
 const idScan = fs.readFileSync(path.resolve(__dirname, '../visitor/id_scan_adapters.js'), 'utf8');
+const kioskManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../visitor/manifest.webmanifest'), 'utf8'));
 
 function sectionBetween(src, startNeedle, endNeedle) {
   const start = src.indexOf(startNeedle);
@@ -17,6 +18,20 @@ function sectionBetween(src, startNeedle, endNeedle) {
   const end = src.indexOf(endNeedle, start);
   assert.notEqual(end, -1, `missing end marker: ${endNeedle}`);
   return src.slice(start, end);
+}
+
+{
+  assert.equal(kioskManifest.name, 'EagleNEST Visitor', 'Visitor kiosk should have its own installable app name');
+  assert.equal(kioskManifest.start_url, '/student-scanner/visitor/', 'Visitor app should launch directly into the visitor kiosk');
+  assert.equal(kioskManifest.scope, '/student-scanner/visitor/', 'Visitor app should be scoped to visitor routes only');
+  assert.equal(kioskManifest.display, 'standalone', 'Visitor app should launch without normal Safari browser chrome');
+  assert.equal(kioskManifest.orientation, 'portrait', 'Visitor kiosk should prefer portrait orientation on iPad');
+  assert.match(kioskHtml, /rel="manifest"\s+href="\.\/manifest\.webmanifest"/, 'Visitor kiosk should link its dedicated manifest');
+  assert.match(kioskHtml, /name="apple-mobile-web-app-capable"\s+content="yes"/, 'Visitor kiosk should opt into iOS Home Screen app mode');
+  assert.match(kioskHtml, /name="apple-mobile-web-app-title"\s+content="EagleNEST Visitor"/, 'Visitor kiosk should have a dedicated iOS app title');
+  assert.match(kiosk, /navigator\.wakeLock\.request\('screen'\)/, 'Visitor kiosk should request a screen wake lock when supported');
+  assert.match(kiosk, /visibilitychange/, 'Visitor kiosk should reacquire wake lock after returning to the foreground');
+  assert.match(kiosk, /releaseScreenWakeLock\(\)/, 'Visitor kiosk should release wake lock on page exit');
 }
 
 {
