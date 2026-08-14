@@ -397,6 +397,80 @@
     return { first: parts[0], middle: parts.slice(1, -1).join(' '), last: parts[parts.length - 1] };
   }
 
+  const IDNYC_LABEL_ONLY = /^(?:NYC\s+IDENTIFICATION\s+CARD|ID\s*(?:NUMBER|NO\.?|#)|NAME|NOMBRE|ISSUANCE\s+DATE|ISSUED|EXPIRATION\s+DATE|EXPIRES?|ORGAN\s+DONOR|EYE\s+COLOR|HEIGHT|GENDER|SEX|DATE\s+OF\s+BIRTH|DOB|D\.O\.B\.?|FECHA\s+DE\s+NACIMIENTO|ADDRESS|DIRECCI[ÓO]N)$/i;
+  const IDNYC_LABEL_PREFIX = /^(?:NYC\s+IDENTIFICATION\s+CARD|ID\s*(?:NUMBER|NO\.?|#)|ISSUANCE\s+DATE|ISSUED|EXPIRATION\s+DATE|EXPIRES?|ORGAN\s+DONOR|EYE\s+COLOR|HEIGHT|GENDER|SEX|DATE\s+OF\s+BIRTH|DOB|D\.O\.B\.?|FECHA\s+DE\s+NACIMIENTO|ADDRESS|DIRECCI[ÓO]N)\b/i;
+  const IDNYC_NAME_ANCHOR = /^(?:NAME|NOMBRE)\b\s*[:\-]?\s*(.*)$/i;
+
+  function idnycNameCandidate(value) {
+    const line = cleanText(value, 100);
+    if (!line || IDNYC_LABEL_ONLY.test(line) || IDNYC_LABEL_PREFIX.test(line)) return false;
+    if (/\d/.test(line)) return false;
+    if (line.length < 2 || line.length > 80) return false;
+    if (!/[A-Za-zÀ-ÖØ-öø-ÿ]/.test(line)) return false;
+    if (/[^A-Za-zÀ-ÖØ-öø-ÿ .,'’\-]/.test(line)) return false;
+    const words = line.replace(/,/g, ' ').split(/\s+/).filter(Boolean);
+    return words.length >= 1 && words.length <= 6;
+  }
+
+  function parseIdnycGivenLine(value) {
+    const line = cleanText(value, 100);
+    if (!line) return { first: '', middle: '' };
+    const comma = line.split(',').map((part) => cleanText(part, 80));
+    if (comma.length >= 2) {
+      return {
+        first: comma[0] || '',
+        middle: comma.slice(1).join(' ').trim()
+      };
+    }
+    const parts = line.split(/\s+/).filter(Boolean);
+    return {
+      first: parts[0] || '',
+      middle: parts.slice(1).join(' ')
+    };
+  }
+
+  function parseIdnycAnchoredName(lines) {
+    let anchorIndex = -1;
+    let anchorTail = '';
+    for (let i = 0; i < lines.length; i += 1) {
+      const match = lines[i].match(IDNYC_NAME_ANCHOR);
+      if (!match) continue;
+      anchorIndex = i;
+      anchorTail = cleanText(match[1] || '', 100);
+      break;
+    }
+    if (anchorIndex < 0) return { first: '', middle: '', last: '' };
+
+    const after = [];
+    for (let i = anchorIndex + 1; i < lines.length && i <= anchorIndex + 6 && after.length < 3; i += 1) {
+      const line = lines[i];
+      if (IDNYC_LABEL_ONLY.test(line) || IDNYC_LABEL_PREFIX.test(line)) {
+        if (after.length) break;
+        continue;
+      }
+      if (idnycNameCandidate(line)) after.push(line);
+    }
+
+    // Current IDNYC layout: NAME, then surname on one line, followed by
+    // given name and optional middle name/initial on the next line.
+    if (anchorTail && idnycNameCandidate(anchorTail) && after.length >= 1) {
+      const given = parseIdnycGivenLine(after[0]);
+      return { first: given.first, middle: given.middle, last: anchorTail };
+    }
+    if (!anchorTail && after.length >= 2) {
+      const given = parseIdnycGivenLine(after[1]);
+      return { first: given.first, middle: given.middle, last: after[0] };
+    }
+
+    // Preserve the older OCR form "NAME: FIRST MIDDLE LAST" when the
+    // entire name appears on the NAME line and no second name line exists.
+    if (anchorTail && idnycNameCandidate(anchorTail) && after.length === 0) {
+      return splitPersonName(anchorTail);
+    }
+
+    return { first: '', middle: '', last: '' };
+  }
+
   function parseIdnycOcrText(text) {
     const rawText = String(text == null ? '' : text);
     const lines = rawText
@@ -415,22 +489,11 @@
         ? validIsoDate(`${parts[3]}-${String(parts[1]).padStart(2, '0')}-${String(parts[2]).padStart(2, '0')}`)
         : normalizeDateOfBirth(rawDob);
     }
-    let nameText = '';
-    for (let i = 0; i < lines.length; i += 1) {
-      const line = lines[i];
-      const named = line.match(/\b(?:NAME|NOMBRE)\b[:\s-]+(.+)$/i);
-      if (named && named[1]) {
-        nameText = named[1];
-        break;
-      }
-      if (/^(IDNYC|NEW YORK|CITY|CARD|IDENTIFICATION|EXPIR|DOB|DATE OF BIRTH|ADDRESS|SEX|GENDER)\b/i.test(line)) continue;
-      if (/\d{2,}/.test(line)) continue;
-      if (/^[A-Z][A-Z' -]{3,}$/.test(line)) {
-        nameText = line;
-        break;
-      }
-    }
-    const name = splitPersonName(nameText);
+
+    // IDNYC OCR is intentionally layout-aware. Do not fall back to the
+    // first uppercase-looking line: labels such as "ID NUMBER" can look
+    // like a person's name and caused incorrect production prefills.
+    const name = parseIdnycAnchoredName(lines);
     const data = {
       visitor_first_name: cleanText(name.first, 80),
       visitor_middle_name: cleanText(name.middle, 80),
@@ -438,7 +501,7 @@
       date_of_birth: dob
     };
     const ok = !!(data.visitor_first_name && data.visitor_last_name && data.date_of_birth);
-    return { ok, data: ok ? redactForbidden(data) : redactForbidden(data), error: ok ? '' : 'idnyc_fields_missing' };
+    return { ok, data: redactForbidden(data), error: ok ? '' : 'idnyc_fields_missing' };
   }
 
   function parseVisitorBadgeScan(value) {

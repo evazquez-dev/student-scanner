@@ -327,6 +327,59 @@ function assertNoForbidden(obj) {
 }
 
 {
+  const parsed = Shared.parseIdnycOcrText([
+    'NYC IDENTIFICATION CARD',
+    'ID NUMBER',
+    '1234 567890 1234',
+    'NAME',
+    'SAMPLE',
+    'WENDY, S',
+    'DATE OF BIRTH',
+    '03/16/1988',
+    'EXPIRATION DATE',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.data, {
+    visitor_first_name: 'WENDY',
+    visitor_middle_name: 'S',
+    visitor_last_name: 'SAMPLE',
+    date_of_birth: '1988-03-16'
+  });
+  assert.notEqual(parsed.data.visitor_first_name, 'ID');
+  assert.notEqual(parsed.data.visitor_last_name, 'NUMBER');
+  assertNoForbidden(parsed);
+}
+
+{
+  const parsed = Shared.parseIdnycOcrText([
+    'ID NUMBER',
+    'NAME SAMPLE',
+    'WENDY, S',
+    'DATE OF BIRTH 03/16/1988'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.data, {
+    visitor_first_name: 'WENDY',
+    visitor_middle_name: 'S',
+    visitor_last_name: 'SAMPLE',
+    date_of_birth: '1988-03-16'
+  });
+}
+
+{
+  const parsed = Shared.parseIdnycOcrText([
+    'ID NUMBER',
+    'DATE OF BIRTH 03/16/1988',
+    'EXPIRATION DATE 03/16/2031'
+  ].join('\n'));
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.data.visitor_first_name || '', '');
+  assert.equal(parsed.data.visitor_last_name || '', '');
+  assert.equal(parsed.data.date_of_birth, '1988-03-16');
+}
+
+{
   const parsed = Shared.parseIdnycOcrText('IDNYC\nunclear text only');
   assert.equal(parsed.ok, false);
   assert.equal(parsed.data.date_of_birth || '', '');
