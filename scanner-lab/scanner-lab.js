@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-14-9';
+  const LAB_BUILD = '2026-08-14-10';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -10,6 +10,7 @@
   const Shared = window.EagleNestVisitor;
   const IdScan = window.EagleNestVisitorIdScan;
   const AamvaDiag = window.EagleNestScannerLabAamva;
+  const IdnycDiag = window.EagleNestScannerLabIdnyc;
 
   const $ = (id) => document.getElementById(id);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -143,10 +144,12 @@
     dimensions: '-',
     productionText: '',
     productionParsed: null,
+    productionLabParsed: null,
     productionMs: 0,
     productionRun: false,
     tesseractText: '',
     tesseractParsed: null,
+    tesseractLabParsed: null,
     tesseractMs: 0,
     tesseractRun: false
   };
@@ -1427,12 +1430,17 @@
 
   function renderIdnycPrivateFields() {
     const prod = idnyc.productionParsed?.data || {};
+    const labProd = idnyc.productionLabParsed?.data || {};
     const tess = idnyc.tesseractParsed?.data || {};
     const visible = idnycParsedVisible;
     setText('idnycProdFirst', visible ? (prod.visitor_first_name || '-') : '-');
     setText('idnycProdMiddle', visible ? (prod.visitor_middle_name || '-') : '-');
     setText('idnycProdLast', visible ? (prod.visitor_last_name || '-') : '-');
     setText('idnycProdDob', visible ? (prod.date_of_birth || '-') : '-');
+    setText('idnycLabProdFirst', visible ? (labProd.visitor_first_name || '-') : '-');
+    setText('idnycLabProdMiddle', visible ? (labProd.visitor_middle_name || '-') : '-');
+    setText('idnycLabProdLast', visible ? (labProd.visitor_last_name || '-') : '-');
+    setText('idnycLabProdDob', visible ? (labProd.date_of_birth || '-') : '-');
     setText('idnycTessFirst', visible ? (tess.visitor_first_name || '-') : '-');
     setText('idnycTessMiddle', visible ? (tess.visitor_middle_name || '-') : '-');
     setText('idnycTessLast', visible ? (tess.visitor_last_name || '-') : '-');
@@ -1470,6 +1478,17 @@
     renderIdnycRawText();
   }
 
+  function renderIdnycLabCandidate() {
+    const parsed = idnyc.productionLabParsed || null;
+    const diag = parsed?.diagnostics || {};
+    setText('idnycLabProdParser', yesNo(!!parsed?.ok));
+    setText('idnycLabProdNameAnchor', yesNo(!!diag.nameAnchorFound));
+    setText('idnycLabProdNameLines', Number(diag.nameCandidateCount || 0));
+    setText('idnycLabProdRejectedIdNumber', yesNo(!!diag.idNumberLabelSeenAndRejected));
+    setText('idnycLabProdDobFound', yesNo(!!diag.dobFound));
+    setText('idnycLabProdStrategy', diag.nameStrategy || '-');
+  }
+
   function buildSafeIdnycReport() {
     if (!idnyc.file) return 'Select an IDNYC image first.';
     const prod = parsedPresence(idnyc.productionParsed);
@@ -1491,6 +1510,12 @@
       `Production middle name found: ${yesNo(prod.middle)}`,
       `Production last name found: ${yesNo(prod.last)}`,
       `Production DOB found: ${yesNo(prod.dob)}`,
+      `Lab candidate parser success: ${yesNo(!!idnyc.productionLabParsed?.ok)}`,
+      `Lab candidate NAME anchor found: ${yesNo(!!idnyc.productionLabParsed?.diagnostics?.nameAnchorFound)}`,
+      `Lab candidate name lines found: ${Number(idnyc.productionLabParsed?.diagnostics?.nameCandidateCount || 0)}`,
+      `Lab candidate ID NUMBER label rejected: ${yesNo(!!idnyc.productionLabParsed?.diagnostics?.idNumberLabelSeenAndRejected)}`,
+      `Lab candidate DOB found: ${yesNo(!!idnyc.productionLabParsed?.diagnostics?.dobFound)}`,
+      `Lab candidate strategy: ${idnyc.productionLabParsed?.diagnostics?.nameStrategy || '-'}`,
       `Forced Tesseract run: ${yesNo(idnyc.tesseractRun)}`,
       `Forced Tesseract duration: ${idnyc.tesseractRun ? `${Math.round(idnyc.tesseractMs)} ms` : '-'}`,
       `Forced Tesseract text length: ${idnyc.tesseractText.length}`,
@@ -1525,10 +1550,12 @@
     idnyc.dimensions = '-';
     idnyc.productionText = '';
     idnyc.productionParsed = null;
+    idnyc.productionLabParsed = null;
     idnyc.productionMs = 0;
     idnyc.productionRun = false;
     idnyc.tesseractText = '';
     idnyc.tesseractParsed = null;
+    idnyc.tesseractLabParsed = null;
     idnyc.tesseractMs = 0;
     idnyc.tesseractRun = false;
     idnycParsedVisible = false;
@@ -1545,6 +1572,7 @@
     setError('idnycError', '');
     renderIdnycResult('prod');
     renderIdnycResult('tess');
+    renderIdnycLabCandidate();
     updateSafeIdnycReport();
   }
 
@@ -1561,17 +1589,20 @@
       idnyc.productionMs = performance.now() - started;
       idnyc.productionText = String(text || '');
       idnyc.productionParsed = Shared.parseIdnycOcrText(idnyc.productionText);
+      idnyc.productionLabParsed = IdnycDiag?.analyze ? IdnycDiag.analyze(idnyc.productionText) : null;
       idnyc.productionRun = true;
       setText('idnycStatus', idnyc.productionParsed?.ok ? 'Production OCR parsed all required fields' : 'Production OCR completed; parser did not find all required fields');
     } catch (err) {
       idnyc.productionMs = performance.now() - started;
       idnyc.productionText = '';
       idnyc.productionParsed = null;
+      idnyc.productionLabParsed = null;
       idnyc.productionRun = true;
       setText('idnycStatus', 'Production OCR error');
       setError('idnycError', err);
     } finally {
       renderIdnycResult('prod');
+      renderIdnycLabCandidate();
       updateSafeIdnycReport();
     }
   }
@@ -1645,12 +1676,14 @@
       idnyc.tesseractText = await forceTesseractIdnyc(idnyc.file);
       idnyc.tesseractMs = performance.now() - started;
       idnyc.tesseractParsed = Shared.parseIdnycOcrText(idnyc.tesseractText);
+      idnyc.tesseractLabParsed = IdnycDiag?.analyze ? IdnycDiag.analyze(idnyc.tesseractText) : null;
       idnyc.tesseractRun = true;
       setText('idnycStatus', idnyc.tesseractParsed?.ok ? 'Forced Tesseract parsed all required fields' : 'Forced Tesseract completed; parser did not find all required fields');
     } catch (err) {
       idnyc.tesseractMs = performance.now() - started;
       idnyc.tesseractText = '';
       idnyc.tesseractParsed = null;
+      idnyc.tesseractLabParsed = null;
       idnyc.tesseractRun = true;
       setText('idnycStatus', 'Forced Tesseract error');
       setError('idnycError', err);

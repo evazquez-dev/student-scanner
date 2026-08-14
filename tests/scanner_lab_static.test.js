@@ -10,6 +10,7 @@ const adapter = fs.readFileSync(path.resolve(__dirname, '../visitor/id_scan_adap
 const visitorJs = fs.readFileSync(path.resolve(__dirname, '../visitor/visitor.js'), 'utf8');
 const sw = fs.readFileSync(path.resolve(__dirname, '../sw.js'), 'utf8');
 const AamvaDiag = require('../scanner-lab/aamva_diagnostics.js');
+const IdnycDiag = require('../scanner-lab/idnyc_diagnostics.js');
 const selfTestFixture = path.resolve(__dirname, '../scanner-lab/fixtures/pdf417-selftest.png');
 
 function sectionBetween(src, startNeedle, endNeedle) {
@@ -26,7 +27,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-14-9'/, 'Scanner Lab should expose Build 9');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-14-10'/, 'Scanner Lab should expose Build 10');
 }
 
 function asciiBytes(text) {
@@ -659,6 +660,40 @@ function syntheticMultiAamvaResult(subfiles, options) {
 }
 
 {
+  const sampleLike = [
+    'NYC IDENTIFICATION CARD',
+    'ID NUMBER',
+    '1234 567890 1234',
+    'NAME',
+    'SAMPLE',
+    'WENDY, S',
+    'ISSUANCE DATE',
+    '03/11/2025',
+    'EXPIRATION DATE',
+    '03/11/2030',
+    'DATE OF BIRTH',
+    '12/24/2001',
+    'ADDRESS'
+  ].join('\n');
+  const parsed = IdnycDiag.analyze(sampleLike);
+  assert.equal(parsed.ok, true, 'Lab IDNYC parser should parse the anchored two-line NAME layout');
+  assert.equal(parsed.data.visitor_first_name, 'WENDY');
+  assert.equal(parsed.data.visitor_middle_name, 'S');
+  assert.equal(parsed.data.visitor_last_name, 'SAMPLE');
+  assert.equal(parsed.data.date_of_birth, '2001-12-24');
+  assert.equal(parsed.diagnostics.nameAnchorFound, true);
+  assert.equal(parsed.diagnostics.idNumberLabelSeenAndRejected, true, 'ID NUMBER must never become a visitor name');
+  assert.equal(parsed.diagnostics.nameStrategy, 'name_label_two_line');
+}
+
+{
+  const badLabelOnly = IdnycDiag.analyze('NYC IDENTIFICATION CARD\nID NUMBER\nNAME\nDATE OF BIRTH 12/24/2001');
+  assert.equal(badLabelOnly.ok, false, 'Labels alone must not produce a false-success name');
+  assert.notEqual(badLabelOnly.data.visitor_first_name, 'ID');
+  assert.notEqual(badLabelOnly.data.visitor_last_name, 'NUMBER');
+}
+
+{
   assert.match(labHtml, /data-tab="idnyc"/, 'Scanner Lab should expose an IDNYC OCR tab');
   assert.match(labHtml, /id="idnycUploadInput"[^>]+type="file"[^>]+accept="image\/\*"/, 'IDNYC lab should allow existing image upload');
   assert.doesNotMatch(labHtml, /id="idnycUploadInput"[^>]+capture=/, 'Existing-image upload must not force the camera');
@@ -666,6 +701,9 @@ function syntheticMultiAamvaResult(subfiles, options) {
   assert.match(labJs, /IdScan\.recognizeIdnycImage\(idnyc\.file\)/, 'IDNYC lab production test should call the production OCR adapter');
   assert.match(labJs, /Shared\.parseIdnycOcrText/, 'IDNYC lab should parse OCR through the production parser');
   assert.match(labJs, /forceTesseractIdnyc/, 'IDNYC lab should support a forced-Tesseract comparison');
+  assert.match(labHtml, /idnyc_diagnostics\.js/, 'IDNYC Lab should load the lab-only layout-aware parser');
+  assert.match(labJs, /IdnycDiag\?\.analyze/, 'IDNYC Lab should compare a lab-only parser against production without changing Visitor parsing');
+  assert.match(labHtml, /ID NUMBER label rejected/, 'IDNYC Lab should expose safe label-rejection diagnostics');
   assert.match(labJs, /cacheMethod:\s*'none'/, 'Forced Tesseract lab path must disable OCR cache storage');
   assert.match(labJs, /PII\/raw OCR included: NO/, 'Safe IDNYC diagnostics should explicitly exclude PII/raw OCR');
   const safeReportSection = sectionBetween(labJs, 'function buildSafeIdnycReport', 'function updateSafeIdnycReport');
