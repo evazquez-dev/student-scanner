@@ -291,7 +291,9 @@ async function ensureSecretMenuModel({ force = false } = {}){
     return SECRET_MENU_MODEL;
   }
 
-  if (!force && SECRET_MENU_MODEL.loaded && SECRET_MENU_MODEL.nyDate === nyDate) return SECRET_MENU_MODEL;
+  // Do not treat a fallback/error model as a successful live sync.
+  // A pre-auth request can legitimately return no_session; once auth exists, retry.
+  if (!force && SECRET_MENU_MODEL.loaded && !SECRET_MENU_MODEL.error && SECRET_MENU_MODEL.nyDate === nyDate) return SECRET_MENU_MODEL;
 
   if (!force) {
     const cached = readSecretMenuCache_(nyDate);
@@ -3419,9 +3421,8 @@ async function bootTeacherAttendance(){
   initThemeToggle();
   initViewToggle();
   initSecretMenu();
-  if (!DEMO_MODE && isSecretEnabled()) {
-    void ensureSecretMenuModel().catch(() => {});
-  }
+  // Behavior menu requires an authenticated admin session. Sync it only after
+  // session/check or Google login succeeds.
   startOutElapsedTicker();
   // Secret console API is registered by initSecretMenu()
 
@@ -3592,6 +3593,12 @@ async function bootTeacherAttendance(){
     show(appShell);
     IS_AUTHED = true;
     setStatus(true, 'Live');
+
+    // Session is confirmed. Replace any stale no_session/expired fallback.
+    if (isSecretEnabled()) {
+      void ensureSecretMenuModel({ force: true }).catch(() => {});
+    }
+
     // Populate dropdowns (PeriodLocal + Class Rooms)
     try{
       const opts = await fetchTeacherOptions();
@@ -3787,6 +3794,11 @@ async function onGoogleCredential(resp){
     show(appShell);
     setStatus(true, 'Live');
     IS_AUTHED = true;
+
+    // New login is established. Force a fresh live behavior menu sync.
+    if (isSecretEnabled()) {
+      void ensureSecretMenuModel({ force: true }).catch(() => {});
+    }
 
     // ✅ NOW populate period + room immediately (same logic as bootTeacherAttendance)
     try{
