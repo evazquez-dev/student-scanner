@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <title>EagleNEST — Student Contacts</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./student_contacts.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>
+    (function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();
+  </script>
+</head>
+<body data-module="student_contacts">
+  <main class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h1>Student Contacts</h1>
+      <p class="muted">Sign in with your staff account.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="status muted">Loading…</div>
+    </section>
+
+    <section id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <h1>Student Contacts</h1>
+          <p class="muted">PowerSchool contacts with your personal EagleNEST corrections layered on top.</p>
+        </div>
+        <div id="syncStamp" class="syncStamp">PowerSchool sync: —</div>
+      </header>
+
+      <section class="card searchCard">
+        <label for="studentSearch">Find a student</label>
+        <div class="suggest">
+          <input id="studentSearch" class="input" placeholder="Name or OSIS…" autocomplete="off" />
+          <div id="searchMenu" class="searchMenu"></div>
+        </div>
+        <div id="searchStatus" class="muted small">Type at least 2 characters.</div>
+      </section>
+
+      <section id="studentHeader" class="studentHeader" hidden>
+        <div>
+          <div id="studentName" class="studentName">—</div>
+          <div id="studentMeta" class="muted">—</div>
+        </div>
+        <div class="headerActions">
+          <div id="contactCount" class="countPill">0 contacts</div>
+          <button id="logGeneralComm" class="btn primary" type="button">Log communication</button>
+        </div>
+      </section>
+
+      <section id="emptyState" class="card emptyState">
+        Search for a student to view PowerSchool family/contact information.
+      </section>
+      <section id="contacts" class="contacts" aria-live="polite"></section>
+
+      <section id="communicationHistoryCard" class="card historyCard" hidden>
+        <div class="historyHead"><div><h2>Communication History</h2><div class="muted small">Most recent logged family/student communications for this student.</div></div><button id="refreshHistory" class="btn secondary" type="button">Refresh</button></div>
+        <div id="communicationHistory" class="historyList"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="editBackdrop" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+      <div class="modalHead">
+        <div>
+          <h2 id="editTitle">Edit contact for me</h2>
+          <div id="editSubtitle" class="muted small"></div>
+        </div>
+        <button id="closeEdit" type="button" class="iconBtn" aria-label="Close">×</button>
+      </div>
+
+      <div class="fieldGrid">
+        <label>Name<input id="editName" class="input" /></label>
+        <label>Relationship<input id="editRelationship" class="input" placeholder="Mother, Father, Aunt…" /></label>
+        <label>Primary phone<input id="editPhone" class="input" inputmode="tel" /></label>
+        <label>Primary email<input id="editEmail" class="input" inputmode="email" /></label>
+      </div>
+
+      <label class="noteLabel">Correction note (optional)
+        <textarea id="editNote" class="input textarea" maxlength="1000" placeholder="What do you know about this contact?"></textarea>
+      </label>
+
+      <label class="checkRow">
+        <input id="publishSuggestion" type="checkbox" checked>
+        <span>Also send my changes as a PowerSchool correction suggestion</span>
+      </label>
+      <p class="muted small">Your personal edit changes only what you see in EagleNEST. A correction suggestion is added to the shared review queue; it does not edit PowerSchool.</p>
+
+      <div id="editError" class="errorText" hidden></div>
+      <div class="modalActions">
+        <button id="resetEdits" type="button" class="btn secondary">Reset my edits</button>
+        <div class="spacer"></div>
+        <button id="cancelEdit" type="button" class="btn secondary">Cancel</button>
+        <button id="saveEdit" type="button" class="btn primary">Save changes</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="commBackdrop" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true" aria-labelledby="commTitle">
+      <div class="modalHead">
+        <div><h2 id="commTitle">Log communication</h2><div id="commSubtitle" class="muted small"></div></div>
+        <button id="closeComm" type="button" class="iconBtn" aria-label="Close">×</button>
+      </div>
+
+      <div class="fieldGrid commGrid">
+        <label>Contacted at<input id="commAt" class="input" type="datetime-local" /></label>
+        <label>Method<select id="commMethod" class="input"><option>Phone</option><option>Email</option><option>ParentSquare</option><option>Text</option><option>In Person</option><option>Other</option></select></label>
+        <label>Direction<select id="commDirection" class="input"><option>Outgoing</option><option>Incoming</option><option>Two-way</option></select></label>
+        <label>Category<select id="commCategory" class="input"><option>Attendance</option><option>Behavior</option><option>Academic</option><option>Enrollment</option><option>Positive Contact</option><option>General</option><option>Other</option></select></label>
+        <label>Outcome<select id="commOutcome" class="input"><option>Spoke/Connected</option><option>Message Sent</option><option>Voicemail</option><option>No Answer</option><option>Resolved</option><option>Follow-up Needed</option><option>Other</option></select></label>
+        <label>Related incident ID (optional)<input id="commIncident" class="input" placeholder="IR-2627-000001" /></label>
+      </div>
+
+      <label class="noteLabel">Notes<textarea id="commNotes" class="input textarea" maxlength="4000" placeholder="What was communicated?" required></textarea></label>
+
+      <label class="checkRow"><input id="commFollowUp" type="checkbox"><span>Follow-up needed</span></label>
+      <div id="followUpFields" class="fieldGrid" hidden>
+        <label>Follow-up date/time<input id="commFollowUpAt" class="input" type="datetime-local" /></label>
+        <label>Follow-up owner<input id="commFollowUpOwner" class="input" type="email" placeholder="staff@theamericandreamschool.org" /></label>
+      </div>
+
+      <div id="commError" class="errorText" hidden></div>
+      <div class="modalActions"><div class="spacer"></div><button id="cancelComm" class="btn secondary" type="button">Cancel</button><button id="saveComm" class="btn primary" type="button">Save communication</button></div>
+    </section>
+  </div>
+
+  <script src="./student_contacts.js"></script>
+</body>
+</html>

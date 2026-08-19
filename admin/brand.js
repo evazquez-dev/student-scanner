@@ -10,6 +10,8 @@
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
     student_view: 'Student View',
+    student_contacts: 'Student Contacts',
+    contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
     visitor_desk: 'Visitor Desk',
     early_dismissal: 'Early Dismissal',

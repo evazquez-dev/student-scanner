@@ -16,6 +16,8 @@
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scans',
     student_view: 'Student View',
+    student_contacts: 'Student Contacts',
+    contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
     visitor_desk: 'Visitor Desk',
     early_dismissal: 'Early Dismissal',
@@ -170,6 +172,8 @@
           senior_lunch_audit: isAdminLike,
           student_scans: true,
           student_view: isSuperAdmin,
+          student_contacts: true,
+          contact_review: isAdminLike,
           incident_creator: true,
           behavior_history: true,
           supervised_lunch: true,
@@ -254,6 +258,7 @@
         items: [
           { key:'student_scans',      label: MODULES.student_scans || 'Scans Report',            href:'./student_scans.html',      badge:'scan history' },
           { key:'student_view',       label: MODULES.student_view || 'Student View',             href:'./student_view.html',       badge:'student lookup' },
+          { key:'student_contacts',   label: MODULES.student_contacts || 'Student Contacts',     href:'./student_contacts.html',   badge:'family contacts' },
           { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch audit' },
           { key:'supervised_lunch',   label: MODULES.supervised_lunch || 'Supervised Lunch',     href:'./supervised_lunch.html',   badge:'room setup' },
           { key:'reflection_hold',     label: MODULES.reflection_hold || 'Reflection Hold',       href:'./reflection_hold.html',    badge:'after-school gate' },
@@ -280,6 +285,7 @@
         items: [
           { key:'incident_creator',   label: MODULES.incident_creator || 'Incident Creator',     href:'./incident_creator.html',   badge:'report incident' },
           { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',     href:'./behavior_history.html',   badge:'behavior log' },
+          { key:'contact_review',     label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', badge:'data cleanup' },
           { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Fidelity Dashboard', href:'./fidelity.html',           badge:'data trust' },
           { key:'admin_roles',        label: MODULES.admin_roles || 'Admin Roles',               href:'./admin_roles.html',        badge:'role access' },
           { key:'admin_dashboard',    label: MODULES.admin || 'Super Admin Dashboard',           href:'./index.html',              badge:'system settings' },

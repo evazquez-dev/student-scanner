@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <title>EagleNEST — Contact Correction Review</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./contact_review.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
+</head>
+<body data-module="contact_review">
+  <main class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h1>Contact Correction Review</h1>
+      <p class="muted">Admin access required.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="muted status">Loading…</div>
+    </section>
+
+    <section id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <h1>Contact Correction Review</h1>
+          <p class="muted">Matching staff suggestions are grouped here. No action on this page writes to PowerSchool.</p>
+        </div>
+        <div class="actions"><button id="refreshBtn" class="btn secondary">Refresh</button><button id="csvBtn" class="btn secondary">Export CSV</button></div>
+      </header>
+
+      <section class="card filters">
+        <label>Status
+          <select id="statusFilter" class="input">
+            <option value="">All open groups</option>
+            <option value="CORROBORATED">Corroborated</option>
+            <option value="READY_FOR_POWERSCHOOL">Ready for PowerSchool</option>
+            <option value="OPEN">Single report</option>
+          </select>
+        </label>
+        <label>Search
+          <input id="q" class="input" placeholder="Student, contact, field, value…">
+        </label>
+        <div id="summary" class="summary"></div>
+      </section>
+
+      <div id="status" class="muted status"></div>
+      <section id="rows" class="rows"></section>
+    </section>
+  </main>
+
+  <div id="reviewBackdrop" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true">
+      <div class="modalHead"><div><h2 id="reviewTitle">Review correction</h2><div id="reviewSub" class="muted small"></div></div><button id="closeReview" class="iconBtn" type="button">×</button></div>
+      <div class="noteLabel"><div class="small muted">Staff notes</div><div id="staffReports" class="staffReports"></div></div>
+      <label class="noteLabel">Admin note<textarea id="reviewNote" class="input textarea" maxlength="1000"></textarea></label>
+      <div class="reviewButtons">
+        <button data-review="READY_FOR_POWERSCHOOL" class="btn primary">Queue for PowerSchool</button>
+        <button data-review="REJECTED" class="btn danger">Reject</button>
+        <button data-review="DISMISSED" class="btn secondary">Dismiss</button>
+        <button data-review="RESOLVED_MANUALLY" class="btn secondary">Mark resolved</button>
+      </div>
+      <div id="reviewError" class="error" hidden></div>
+    </section>
+  </div>
+
+  <script src="./contact_review.js"></script>
+</body>
+</html>
