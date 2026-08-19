@@ -57,6 +57,24 @@
 
       <!-- App -->
       <div id="appInner">
+        <!-- First Day Readiness -->
+        <section class="card" id="preflightCard">
+          <h2>SY2627 First-Day Readiness</h2>
+          <div class="row">
+            <div class="col">
+              <div class="muted">
+                Read-only launch checks for roster, schedules, locations, PowerSchool rollover,
+                GAS bridges, Worker secrets/bindings, and Visitor Management. No attendance is written.
+              </div>
+              <div id="preflightStatus" class="mono" style="font-size:1.15rem;font-weight:700;margin-top:.65rem;">Not checked</div>
+            </div>
+            <div class="col right">
+              <button id="btnPreflight" class="btn primary">Run First-Day Preflight</button>
+            </div>
+          </div>
+          <pre id="preflightOut" class="pane">—</pre>
+        </section>
+
         <!-- Diagnostics -->
         <section class="card" id="diagCard">
           <h2>Diagnostics</h2>

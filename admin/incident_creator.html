@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/" />
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+  <link rel="stylesheet" href="./nav.css" />
+  <link rel="stylesheet" href="./incident_creator.css" />
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>
+    (function(){
+      try{
+        var key='ss_theme_v1';
+        var t=localStorage.getItem(key);
+        if(!t) t=(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+        document.documentElement.dataset.theme=t;
+      }catch(e){}
+    })();
+  </script>
+  <title>EagleNEST — Incident Creator</title>
+</head>
+<body data-module="incident_creator">
+  <main class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h1>Staff sign-in</h1>
+      <p class="muted">Use your school account to create an incident report.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="statusText">Loading…</div>
+    </section>
+
+    <section id="app" hidden>
+      <header class="pageHeader">
+        <div>
+          <p class="eyebrow">Behavior &amp; Student Support</p>
+          <h1>Incident Creator</h1>
+          <p class="muted intro">Record what happened. Investigation, consequences, and resolution can be managed separately after submission.</p>
+        </div>
+        <div class="headerMeta">
+          <span id="reporterPill" class="pill">—</span>
+          <span id="sourcePill" class="pill pillSubtle" hidden></span>
+        </div>
+      </header>
+
+      <div id="successBox" class="notice success" hidden>
+        <div>
+          <strong>Incident submitted.</strong>
+          <div id="successText"></div>
+        </div>
+        <button id="newReportBtn" class="btn btnGhost" type="button">Create another</button>
+      </div>
+      <div id="errorBox" class="notice error" hidden></div>
+
+      <form id="incidentForm" novalidate>
+        <section class="card sectionCard">
+          <div class="sectionHeading">
+            <div>
+              <span class="step">1</span>
+              <h2>People involved</h2>
+            </div>
+            <span class="requiredTag">Required</span>
+          </div>
+          <p class="muted sectionHelp">Search for one or more students. Use “Other people involved” for staff, visitors, or anyone not in the student roster.</p>
+
+          <div id="peopleChips" class="chips"></div>
+          <div class="picker">
+            <label for="peopleSearch">Student(s) involved</label>
+            <input id="peopleSearch" class="control" type="search" autocomplete="off" placeholder="Search by student name or OSIS…" />
+            <div id="peopleResults" class="searchResults" hidden></div>
+          </div>
+
+          <label class="field full" for="otherPeople">
+            <span>Other people involved <span class="optional">optional</span></span>
+            <input id="otherPeople" class="control" type="text" maxlength="3000" placeholder="Staff member, visitor, non-student, etc." />
+          </label>
+        </section>
+
+        <section class="card sectionCard">
+          <div class="sectionHeading">
+            <div>
+              <span class="step">2</span>
+              <h2>Witnesses</h2>
+            </div>
+            <span class="optionalTag">Optional</span>
+          </div>
+          <p class="muted sectionHelp">Unlike the old Google Form, witnesses are not required when there were none.</p>
+
+          <div id="witnessChips" class="chips"></div>
+          <div class="picker">
+            <label for="witnessSearch">Student witness(es)</label>
+            <input id="witnessSearch" class="control" type="search" autocomplete="off" placeholder="Search by student name or OSIS…" />
+            <div id="witnessResults" class="searchResults" hidden></div>
+          </div>
+
+          <label class="field full" for="otherWitnesses">
+            <span>Other witnesses <span class="optional">optional</span></span>
+            <input id="otherWitnesses" class="control" type="text" maxlength="3000" placeholder="Staff member, visitor, or other witness" />
+          </label>
+        </section>
+
+        <section class="card sectionCard">
+          <div class="sectionHeading">
+            <div>
+              <span class="step">3</span>
+              <h2>Incident details</h2>
+            </div>
+          </div>
+
+          <div class="grid two">
+            <label class="field" for="incidentDate">
+              <span>Date <b>*</b></span>
+              <input id="incidentDate" class="control" type="date" required />
+            </label>
+            <label class="field" for="incidentTime">
+              <span>Approximate time <span class="optional">optional</span></span>
+              <input id="incidentTime" class="control" type="time" />
+            </label>
+            <label class="field" for="locationCategory">
+              <span>Location category <b>*</b></span>
+              <select id="locationCategory" class="control" required></select>
+            </label>
+            <label class="field" for="locationDetail">
+              <span>Specific location <b>*</b></span>
+              <input id="locationDetail" class="control" type="text" maxlength="1000" required placeholder="Room 405, hallway by stairs, online platform, etc." />
+            </label>
+          </div>
+
+          <div id="launchContext" class="contextBox" hidden></div>
+
+          <label class="field full" for="description">
+            <span>Describe the incident <b>*</b></span>
+            <textarea id="description" class="control textarea" maxlength="20000" required placeholder="Describe what happened, including the sequence of events and the people involved. Include relevant time/location details and be as specific as possible."></textarea>
+          </label>
+        </section>
+
+        <section class="card sectionCard">
+          <div class="sectionHeading">
+            <div>
+              <span class="step">4</span>
+              <h2>Evidence</h2>
+            </div>
+            <span class="optionalTag">Optional</span>
+          </div>
+          <p id="evidenceHelp" class="muted sectionHelp">Screenshots, documents, pictures, or video.</p>
+          <label class="fileDrop" for="evidenceInput">
+            <input id="evidenceInput" type="file" multiple accept=".png,.jpg,.jpeg,.heic,.heif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.mov,.mp4,.m4v,image/*,video/*,application/pdf" />
+            <span><strong>Add evidence files</strong><br><small id="evidenceLimits">Loading upload limits…</small></span>
+          </label>
+          <div id="fileList" class="fileList"></div>
+        </section>
+
+        <section class="submitBar">
+          <div>
+            <strong>Ready to submit?</strong>
+            <div class="muted small">The reporter and submission timestamp are recorded automatically.</div>
+          </div>
+          <div class="submitActions">
+            <button id="clearBtn" class="btn btnGhost" type="button">Clear</button>
+            <button id="submitBtn" class="btn btnPrimary" type="submit">Submit incident report</button>
+          </div>
+        </section>
+      </form>
+    </section>
+  </main>
+  <div id="busyOverlay" class="busyOverlay" hidden><div class="busyCard"><div class="spinner"></div><strong>Submitting incident…</strong><span>Keep this page open until the incident number appears.</span></div></div>
+  <script src="./incident_creator.js"></script>
+</body>
+</html>

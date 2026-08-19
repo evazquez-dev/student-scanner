@@ -23,7 +23,7 @@ const BEHAVIOR_RECENT_ENDPOINT = '/admin/behavior/recent';
 const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
 const SECRET_MENU_CACHE_PREFIX = 'ta_behavior_menu_cache_v1:';
 const BEHAVIOR_LOG_FILTER_KEY = 'ta_behavior_log_filters_v1';
-const INCIDENT_CREATOR_FALLBACK_URL = '/incident-creator.html';
+const INCIDENT_CREATOR_FALLBACK_URL = './incident_creator.html';
 const DEMO_BEHAVIOR_MENU_PAYLOAD = {
   submenus: ['Positive', 'Negative', 'Incident Creator'],
   options_by_submenu: {
@@ -400,7 +400,15 @@ function initSecretMenu(){
         setErr('Incident Creator URL is not configured yet.');
         return;
       }
-      window.location.assign(url);
+      const target = new URL(url, window.location.href);
+      const student = SECRET_MENU.student || {};
+      if (student.osis) target.searchParams.set('osis', String(student.osis));
+      if (student.name) target.searchParams.set('name', String(student.name));
+      if (student.date) target.searchParams.set('date', String(student.date));
+      if (student.room) target.searchParams.set('room', String(student.room));
+      if (student.periodLocal) target.searchParams.set('periodLocal', String(student.periodLocal));
+      target.searchParams.set('source', 'teacher_attendance');
+      window.location.assign(target.toString());
       return;
     }
 

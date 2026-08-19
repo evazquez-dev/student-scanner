@@ -170,6 +170,7 @@
           senior_lunch_audit: isAdminLike,
           student_scans: true,
           student_view: isSuperAdmin,
+          incident_creator: true,
           behavior_history: true,
           supervised_lunch: true,
           reflection_hold: true,
@@ -277,6 +278,7 @@
       {
         title: 'Behavior And Admin',
         items: [
+          { key:'incident_creator',   label: MODULES.incident_creator || 'Incident Creator',     href:'./incident_creator.html',   badge:'report incident' },
           { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',     href:'./behavior_history.html',   badge:'behavior log' },
           { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Fidelity Dashboard', href:'./fidelity.html',           badge:'data trust' },
           { key:'admin_roles',        label: MODULES.admin_roles || 'Admin Roles',               href:'./admin_roles.html',        badge:'role access' },

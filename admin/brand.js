@@ -16,6 +16,7 @@
     after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
+    incident_creator: 'Incident Creator',
     behavior_history: 'Logged Behaviors',
     fidelity_dashboard: 'Fidelity Dashboard',
     reflection_hold: 'Reflection Hold',

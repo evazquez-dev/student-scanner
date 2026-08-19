@@ -345,6 +345,44 @@ async function adminFetch(path, init = {}) {
 }
 
 /* ===============================
+ * SY2627 FIRST-DAY PREFLIGHT
+ * =============================== */
+const preflightOut = document.getElementById('preflightOut');
+const preflightStatus = document.getElementById('preflightStatus');
+
+document.getElementById('btnPreflight')?.addEventListener('click', async () => {
+  if (preflightStatus) preflightStatus.textContent = 'Checking…';
+  if (preflightOut) preflightOut.textContent = 'Loading release readiness…';
+  try {
+    const r = await adminFetch('/admin/diag', { method: 'GET' });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    const rel = j.release || {};
+    const checks = Array.isArray(rel.checks) ? rel.checks : [];
+    const glyph = { pass: 'PASS', warn: 'WARN', fail: 'FAIL' };
+    const lines = checks.map(c => `${glyph[c.status] || c.status}: ${c.label} — ${c.detail}`);
+    if (preflightStatus) {
+      preflightStatus.textContent = rel.ready
+        ? `READY — ${rel.schoolYear || 'SY2627'}`
+        : `NOT READY — ${rel.failCount || 0} blocking check(s)`;
+    }
+    if (preflightOut) {
+      preflightOut.textContent = [
+        `Status: ${rel.status || 'UNKNOWN'}`,
+        `School year: ${rel.schoolYear || '2026-27'}`,
+        '',
+        ...lines,
+        '',
+        'Note: Daily Attendance and Meeting Attendance GAS each have their own local preflight function for Script Properties.'
+      ].join('\n');
+    }
+  } catch (e) {
+    if (preflightStatus) preflightStatus.textContent = 'CHECK FAILED';
+    if (preflightOut) preflightOut.textContent = `Error: ${e.message || e}`;
+  }
+});
+
+/* ===============================
  * DIAGNOSTICS
  * =============================== */
 document.getElementById('btnPing')?.addEventListener('click', async () => {
