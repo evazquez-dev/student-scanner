@@ -161,6 +161,16 @@ body.ssNav-open #ssNavBackdrop{ display:block; }
   border-color: rgba(59,130,246,0.75);
 }
 
+.ssNavExternalSection{
+  margin-top:auto;
+  padding-top:4px;
+  border-top:1px solid var(--nav-border);
+}
+
+.ssNavExternalLink .ssNavBadge{
+  font-size:0.9rem;
+}
+
 .ssNavBadge{
   font-size:0.70rem;
   letter-spacing:0.03em;

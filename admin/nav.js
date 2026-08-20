@@ -412,6 +412,44 @@
       linksWrap.appendChild(sectionEl);
     }
 
+    // ===== Super Admin-managed external links =====
+    const externalLinks = Array.isArray(access?.external_links) ? access.external_links : [];
+    if (externalLinks.length) {
+      const sectionEl = document.createElement('div');
+      sectionEl.className = 'ssNavSection ssNavExternalSection';
+
+      const sectionTitle = document.createElement('div');
+      sectionTitle.className = 'ssNavSectionTitle';
+      sectionTitle.textContent = 'External Links';
+      sectionEl.appendChild(sectionTitle);
+
+      for (const item of externalLinks) {
+        const label = String(item?.label || '').trim();
+        const href = String(item?.url || item?.href || '').trim();
+        if (!label || !/^https?:\/\//i.test(href)) continue;
+
+        const a = document.createElement('a');
+        a.className = 'ssNavLink ssNavExternalLink';
+        a.href = href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+
+        const left = document.createElement('span');
+        left.textContent = label;
+
+        const right = document.createElement('span');
+        right.className = 'ssNavBadge';
+        right.textContent = '\u2197';
+        right.setAttribute('aria-hidden', 'true');
+
+        a.appendChild(left);
+        a.appendChild(right);
+        sectionEl.appendChild(a);
+      }
+
+      if (sectionEl.querySelector('.ssNavExternalLink')) linksWrap.appendChild(sectionEl);
+    }
+
     // ===== Theme (shared) =====
     const THEME_KEY = 'ss_theme_v1';
     const LEGACY_THEME_KEYS = ['teacher_att_theme', 'staff_pull_theme'];

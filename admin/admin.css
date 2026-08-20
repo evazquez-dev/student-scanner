@@ -190,3 +190,28 @@ tr.row-bad{ background: var(--row-bad-bg); }
 
 /* tighter buttons in the table */
 .rowBtns .btn { padding:6px 10px; margin-right:6px; }
+
+/* Super Admin: editable external navigation links */
+.externalLinksRows{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:12px;
+}
+.externalLinkRow{
+  display:grid;
+  grid-template-columns:minmax(150px, .7fr) minmax(260px, 1.5fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.externalLinkRow input{
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+.externalLinksActions{ margin-top:10px; }
+@media (max-width:700px){
+  .externalLinkRow{ grid-template-columns:1fr; }
+  .externalLinkRow .btn{ width:100%; }
+}
+

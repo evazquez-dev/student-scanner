@@ -141,6 +141,12 @@ const webappScheduleModeSel = document.getElementById('webappScheduleMode');
 const appShell = document.getElementById('appShell');
 const appInner = document.getElementById('appInner');
 
+// External nav links
+const externalLinksRows = document.getElementById('externalLinksRows');
+const externalLinksOut = document.getElementById('externalLinksOut');
+const btnAddExternalLink = document.getElementById('btnAddExternalLink');
+const btnSaveExternalLinks = document.getElementById('btnSaveExternalLinks');
+
 /* ===============================
  * SMALL HELPERS
  * =============================== */
@@ -234,6 +240,7 @@ function showApp() {
 async function afterLoginBoot() {
   showApp();
   await loadSystemMode();
+  await loadExternalNavLinks();
 
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
@@ -412,6 +419,102 @@ btnToggleSystemMode?.addEventListener('click', async () => {
   }catch(e){
     if (systemModeOut) systemModeOut.textContent = `Mode change failed: ${e?.message || e}`;
     btnToggleSystemMode.disabled = false;
+  }
+});
+
+/* ===============================
+ * EXTERNAL NAVIGATION LINKS
+ * =============================== */
+function addExternalLinkRow(link = {}){
+  if (!externalLinksRows) return;
+  const row = document.createElement('div');
+  row.className = 'externalLinkRow';
+
+  const label = document.createElement('input');
+  label.type = 'text';
+  label.maxLength = 80;
+  label.placeholder = 'Label (example: PowerSchool)';
+  label.setAttribute('aria-label', 'External link label');
+  label.value = String(link?.label || '');
+
+  const url = document.createElement('input');
+  url.type = 'url';
+  url.maxLength = 2048;
+  url.placeholder = 'https://example.com/';
+  url.setAttribute('aria-label', 'External link URL');
+  url.value = String(link?.url || link?.href || '');
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn ghost';
+  remove.textContent = 'Remove';
+  remove.addEventListener('click', () => row.remove());
+
+  row.append(label, url, remove);
+  externalLinksRows.appendChild(row);
+}
+
+function renderExternalNavLinks(links){
+  if (!externalLinksRows) return;
+  externalLinksRows.replaceChildren();
+  const rows = Array.isArray(links) ? links : [];
+  for (const link of rows) addExternalLinkRow(link);
+  if (!rows.length) addExternalLinkRow();
+}
+
+function collectExternalNavLinks(){
+  const links = [];
+  for (const row of externalLinksRows?.querySelectorAll('.externalLinkRow') || []) {
+    const inputs = row.querySelectorAll('input');
+    const label = String(inputs[0]?.value || '').trim();
+    const url = String(inputs[1]?.value || '').trim();
+    if (!label && !url) continue;
+    if (!label || !url) throw new Error('Every external link row needs both a label and a link.');
+    let parsed;
+    try { parsed = new URL(url); } catch { throw new Error(`Invalid URL for “${label}”.`); }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      throw new Error(`“${label}” must use an http:// or https:// link.`);
+    }
+    links.push({ label, url: parsed.href });
+  }
+  return links;
+}
+
+async function loadExternalNavLinks(){
+  if (!externalLinksRows) return;
+  if (externalLinksOut) externalLinksOut.textContent = 'Loading…';
+  try{
+    const r = await adminFetch('/admin/nav_external_links', { method:'GET' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderExternalNavLinks(j.links || []);
+    if (externalLinksOut) externalLinksOut.textContent = `${Number(j.count || 0)} external link(s) configured.`;
+  }catch(e){
+    renderExternalNavLinks([]);
+    if (externalLinksOut) externalLinksOut.textContent = `Load failed: ${e?.message || e}`;
+  }
+}
+
+btnAddExternalLink?.addEventListener('click', () => addExternalLinkRow());
+
+btnSaveExternalLinks?.addEventListener('click', async () => {
+  btnSaveExternalLinks.disabled = true;
+  try{
+    const links = collectExternalNavLinks();
+    if (externalLinksOut) externalLinksOut.textContent = 'Saving…';
+    const r = await adminFetch('/admin/nav_external_links', {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body:JSON.stringify({ links })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.detail || j?.error || `HTTP ${r.status}`);
+    renderExternalNavLinks(j.links || []);
+    if (externalLinksOut) externalLinksOut.textContent = `Saved ${Number(j.count || 0)} external link(s). Open/reload another EagleNEST page to see the updated nav.`;
+  }catch(e){
+    if (externalLinksOut) externalLinksOut.textContent = `Save failed: ${e?.message || e}`;
+  }finally{
+    btnSaveExternalLinks.disabled = false;
   }
 });
 

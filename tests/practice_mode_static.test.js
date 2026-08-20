@@ -94,3 +94,24 @@ test('Standalone GAS operational write entrypoints check practice mode', () => {
   assert.match(early, /form\.deleteResponse\(best\.getId\(\)\)/);
   assert.match(early, /e\.range\.getSheet\(\)\.deleteRow\(e\.range\.getRow\(\)\)/);
 });
+
+test('Practice operational history reads are isolated from live GAS history', () => {
+  assert.match(worker, /path === "\/admin\/scans_query"/);
+  assert.match(worker, /allPracticeRows[\s\S]{0,1400}history_scope: "practice_today_only"/);
+  assert.match(worker, /path === "\/admin\/behavior\/list"[\s\S]{0,500}isPracticeMode_\(env\)[\s\S]{0,250}buildPracticeBehaviorList_/);
+  assert.match(worker, /path === "\/admin\/communications\/student"[\s\S]{0,1000}history_scope: "practice_today_only"/);
+});
+
+test('Practice scans and behaviors remain queryable for the current practice day', () => {
+  assert.match(worker, /persistPracticeScanLog_/);
+  assert.match(worker, /practiceScanRecordFromLogRow_/);
+  assert.match(worker, /path === "\/query"[\s\S]{0,650}practiceScanRecordFromLogRow_/);
+  assert.match(worker, /putPracticeRecord_\(env, "behavior", practiceBehavior/);
+  assert.match(worker, /path === "\/list_all"[\s\S]{0,700}sanitizeBehaviorLogCacheEntry_/);
+});
+
+test('Practice behavior edits persist only in practice storage', () => {
+  assert.match(worker, /async function updatePracticeBehavior_/);
+  assert.match(worker, /await env\.ROSTER\.put\(key, JSON\.stringify\(next\), practicePutOptions_\(env\)\)/);
+  assert.match(worker, /Practice behavior updated for today only/);
+});
