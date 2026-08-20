@@ -24,6 +24,7 @@ const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
 const SECRET_MENU_CACHE_PREFIX = 'ta_behavior_menu_cache_v1:';
 const BEHAVIOR_LOG_FILTER_KEY = 'ta_behavior_log_filters_v1';
 const INCIDENT_CREATOR_FALLBACK_URL = './incident_creator.html';
+const COMMUNICATION_LOG_FALLBACK_URL = './student_contacts.html';
 const DEMO_BEHAVIOR_MENU_PAYLOAD = {
   submenus: ['Positive', 'Negative', 'Incident Creator'],
   options_by_submenu: {
@@ -414,6 +415,25 @@ function initSecretMenu(){
       return;
     }
 
+    if (act === 'communication') {
+      closeSecretMenu();
+      if (DEMO_MODE) {
+        setStatus(true, 'Demo communication no-op');
+        return;
+      }
+      const target = new URL(COMMUNICATION_LOG_FALLBACK_URL, window.location.href);
+      const student = SECRET_MENU.student || {};
+      if (student.osis) target.searchParams.set('osis', String(student.osis));
+      if (student.name) target.searchParams.set('name', String(student.name));
+      if (student.date) target.searchParams.set('date', String(student.date));
+      if (student.room) target.searchParams.set('room', String(student.room));
+      if (student.periodLocal) target.searchParams.set('periodLocal', String(student.periodLocal));
+      target.searchParams.set('source', 'teacher_attendance');
+      target.searchParams.set('action', 'log-communication');
+      window.location.assign(target.toString());
+      return;
+    }
+
     if (act !== 'event' && act !== 'test') return;
 
     const submenu = dec('data-submenu').trim();
@@ -598,6 +618,10 @@ function renderSecretMenu(){
         return `<button data-act="event" data-submenu="${encodedSub}" data-option="${encodedSub}" style="${baseBtnStyle}">${escapeHtml_(submenu)}</button>`;
       }).join('');
     }
+
+    // Communication logging is a local app action, not a Behavior_Log event.
+    // Keep it available beside Incident Creator even if the behavior menu payload changes.
+    body += `<button data-act="communication" style="${baseBtnStyle}">Log Communication</button>`;
   }
 
   const err = SECRET_MENU_MODEL.error

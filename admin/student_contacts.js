@@ -8,6 +8,8 @@ const GOOGLE_CLIENT_ID = meta('google-client-id') || '';
 const ADMIN_SESSION_KEY = 'ss_admin_session_sid_v1';
 const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
+const PAGE_PARAMS = new URLSearchParams(window.location.search);
+const PAGE_SOURCE = String(PAGE_PARAMS.get('source') || 'student_contacts').trim() || 'student_contacts';
 
 function getStoredAdminSessionSid() {
   try {
@@ -548,7 +550,7 @@ async function saveCommunication() {
       follow_up_at_iso: commFollowUp.checked ? localInputToIso(commFollowUpAt.value) : '',
       follow_up_owner_email: commFollowUp.checked ? commFollowUpOwner.value.trim() : '',
       related_incident_id: commIncident.value.trim(),
-      source: 'student_contacts'
+      source: PAGE_SOURCE
     };
     const r = await adminFetch('/admin/communications/create', {
       method: 'POST',
@@ -624,8 +626,23 @@ async function boot() {
   loginCard.hidden = true;
   app.hidden = false;
 
-  const osis = new URL(location.href).searchParams.get('osis');
-  if (osis) await selectStudent({ osis, name: '', email: '' });
+  const bootUrl = new URL(location.href);
+  const osis = bootUrl.searchParams.get('osis');
+  if (osis) {
+    await selectStudent({
+      osis,
+      name: bootUrl.searchParams.get('name') || '',
+      email: ''
+    });
+
+    if (bootUrl.searchParams.get('action') === 'log-communication') {
+      // Consume the one-time action so a refresh does not reopen the modal.
+      const cleanUrl = new URL(location.href);
+      cleanUrl.searchParams.delete('action');
+      history.replaceState(null, '', cleanUrl);
+      openCommunication(null);
+    }
+  }
 }
 
 boot().catch((e) => {
