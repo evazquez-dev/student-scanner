@@ -319,24 +319,41 @@ function renderContacts() {
   }
 }
 
+let contactLoadSequence = 0;
+const CONTACT_LOADING_DELAY_MS = 220;
+
 async function loadContacts() {
   if (!currentStudent) return;
-  contactsEl.classList.add('loading');
-  searchStatus.textContent = 'Loading contacts…';
+
+  const requestSequence = ++contactLoadSequence;
+  const studentNumber = String(currentStudent.osis || '');
+  let loadingShown = false;
+  const loadingTimer = setTimeout(() => {
+    if (requestSequence !== contactLoadSequence) return;
+    loadingShown = true;
+    contactsEl.classList.add('loading');
+    searchStatus.textContent = 'Loading contacts…';
+  }, CONTACT_LOADING_DELAY_MS);
+
   try {
-    const r = await adminFetch(`/admin/contacts/student?student_number=${encodeURIComponent(currentStudent.osis)}`);
+    const r = await adminFetch(`/admin/contacts/student?student_number=${encodeURIComponent(studentNumber)}`);
     const j = await r.json().catch(() => null);
+    if (requestSequence !== contactLoadSequence) return;
     if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
     currentData = j;
     searchStatus.textContent = '';
     renderContacts();
   } catch (e) {
+    if (requestSequence !== contactLoadSequence) return;
     searchStatus.textContent = `Contact load failed: ${e.message || e}`;
     contactsEl.innerHTML = '';
     emptyState.hidden = false;
     emptyState.textContent = `Could not load contacts: ${e.message || e}`;
   } finally {
-    contactsEl.classList.remove('loading');
+    clearTimeout(loadingTimer);
+    if (requestSequence === contactLoadSequence && loadingShown) {
+      contactsEl.classList.remove('loading');
+    }
   }
 }
 
@@ -383,12 +400,32 @@ function renderCommunicationHistory() {
 
 async function selectStudent(item) {
   currentStudent = { osis: String(item.osis || ''), name: item.name || '', email: item.email || '' };
+  currentData = null;
   studentSearch.value = currentStudent.name || currentStudent.osis;
   showSearchMenu([]);
+
+  // Update the student context immediately, but avoid flashing a loading state
+  // for normal Worker/KV lookups that complete in a fraction of a second.
+  studentHeader.hidden = false;
+  communicationHistoryCard.hidden = false;
+  studentName.textContent = currentStudent.name || '—';
+  studentMeta.textContent = `OSIS ${currentStudent.osis}`;
+  contactCount.textContent = '';
+  syncStamp.textContent = '';
+  contactsEl.innerHTML = '';
+  contactsEl.classList.remove('loading');
+  emptyState.hidden = true;
+  searchStatus.textContent = '';
+
   const u = new URL(location.href);
   u.searchParams.set('osis', currentStudent.osis);
   history.replaceState(null, '', u);
-  await Promise.all([loadContacts(), loadCommunicationHistory()]);
+
+  // Contact cards take the fast Worker/KV path. Communication history remains
+  // independent so it cannot block the contact list from rendering.
+  const contactsPromise = loadContacts();
+  loadCommunicationHistory().catch(() => {});
+  await contactsPromise;
 }
 
 function openEditor(contact) {
