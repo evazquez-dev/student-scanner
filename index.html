@@ -486,6 +486,24 @@
   const isBathroom = (name) => String(name || '').toLowerCase().startsWith('bathroom (');
   const API_BASE = 'https://red-cake-77d5.evazquez-3e0.workers.dev/';
 
+
+  async function refreshPracticeModeBanner(){
+    try{
+      const r = await fetch(new URL('/system/mode', API_BASE), { cache:'no-store' });
+      const j = await r.json().catch(() => ({}));
+      let el = document.getElementById('practiceModeBanner');
+      if (!(r.ok && j?.practice)) { if (el) el.remove(); return; }
+      if (!el){
+        el = document.createElement('div'); el.id = 'practiceModeBanner';
+        Object.assign(el.style,{position:'fixed',top:'0',left:'0',right:'0',zIndex:'999999',padding:'10px 16px',textAlign:'center',fontWeight:'900',background:'#f59e0b',color:'#111827',boxShadow:'0 4px 16px rgba(0,0,0,.3)'});
+        document.body.appendChild(el);
+      }
+      el.textContent = '🧪 PRACTICE MODE — scans and operational activity are temporary and will NOT be saved to PowerSchool or Google Sheets.';
+    }catch{}
+  }
+  refreshPracticeModeBanner();
+  setInterval(refreshPracticeModeBanner, 60000);
+
   (async () => { try {
     await fetch(API_BASE, { method: 'POST', body: new URLSearchParams({ action: 'ping' }) });
   } catch (_) {} })();

@@ -233,6 +233,7 @@ function showApp() {
 
 async function afterLoginBoot() {
   showApp();
+  await loadSystemMode();
 
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
@@ -343,6 +344,76 @@ async function adminFetch(path, init = {}) {
   stashAdminSessionFromResponse(resp, null);
   return resp;
 }
+
+
+/* ===============================
+ * GLOBAL SYSTEM MODE
+ * =============================== */
+let currentSystemMode = null;
+const systemModeStatus = document.getElementById('systemModeStatus');
+const systemModeDetail = document.getElementById('systemModeDetail');
+const systemModeOut = document.getElementById('systemModeOut');
+const btnToggleSystemMode = document.getElementById('btnToggleSystemMode');
+
+function renderSystemModeAdmin(data){
+  currentSystemMode = data || null;
+  const practice = data?.practice === true || String(data?.mode || '').toLowerCase() === 'practice';
+  if (systemModeStatus) {
+    systemModeStatus.textContent = practice ? '🧪 PRACTICE MODE' : '🟢 LIVE MODE';
+    systemModeStatus.style.color = practice ? 'var(--warn)' : 'var(--ok)';
+  }
+  if (systemModeDetail) {
+    systemModeDetail.textContent = practice
+      ? 'Non-Visitor operational actions stay in date-scoped Cloudflare practice storage and are never exported. Visitor Management remains LIVE.'
+      : 'Normal persistence is enabled. Non-Visitor operational actions can write to connected systems.';
+  }
+  if (btnToggleSystemMode) {
+    btnToggleSystemMode.disabled = !data?.ok;
+    btnToggleSystemMode.textContent = practice ? 'Return to LIVE' : 'Enable PRACTICE';
+    btnToggleSystemMode.classList.toggle('primary', !practice);
+  }
+  if (systemModeOut) systemModeOut.textContent = JSON.stringify(data || {}, null, 2);
+}
+
+async function loadSystemMode(){
+  try{
+    const r = await adminFetch('/admin/system_mode', { method:'GET' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderSystemModeAdmin(j);
+    return j;
+  }catch(e){
+    if (systemModeStatus) systemModeStatus.textContent = 'MODE CHECK FAILED — WRITES FAIL CLOSED';
+    if (systemModeDetail) systemModeDetail.textContent = 'The Worker could not confirm LIVE mode. Operational writes should be treated as Practice/blocked until mode can be read.';
+    if (systemModeOut) systemModeOut.textContent = String(e?.message || e);
+    if (btnToggleSystemMode) btnToggleSystemMode.disabled = true;
+    return null;
+  }
+}
+
+btnToggleSystemMode?.addEventListener('click', async () => {
+  const practice = currentSystemMode?.practice === true || String(currentSystemMode?.mode || '').toLowerCase() === 'practice';
+  const next = practice ? 'live' : 'practice';
+  const msg = practice
+    ? 'Return EagleNEST to LIVE mode? All remaining non-Visitor practice activity for today will be permanently discarded. Nothing from Practice Mode will be exported. Visitor records are unaffected.'
+    : 'Enable PRACTICE mode? Real roster/schedules/contacts remain available, but non-Visitor operational activity will stay temporary in Cloudflare and will NOT be sent to PowerSchool or Google Sheets. Visitor Management remains LIVE.';
+  if (!confirm(msg)) return;
+  btnToggleSystemMode.disabled = true;
+  if (systemModeOut) systemModeOut.textContent = `Changing system mode to ${next.toUpperCase()}…`;
+  try{
+    const r = await adminFetch('/admin/system_mode', {
+      method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ mode:next })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderSystemModeAdmin(j);
+    try{ window.dispatchEvent(new CustomEvent('eaglenest-system-mode', { detail:j })); }catch{}
+    setTimeout(() => location.reload(), 500);
+  }catch(e){
+    if (systemModeOut) systemModeOut.textContent = `Mode change failed: ${e?.message || e}`;
+    btnToggleSystemMode.disabled = false;
+  }
+});
 
 /* ===============================
  * SY2627 FIRST-DAY PREFLIGHT

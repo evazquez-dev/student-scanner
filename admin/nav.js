@@ -114,6 +114,58 @@
     return resp;
   }
 
+
+  function isVisitorPage(){
+    return /visitor_desk\.html$/i.test(location.pathname || '');
+  }
+
+  function renderSystemModeBanner(info){
+    let el = document.getElementById('eaglenestSystemModeBanner');
+    const practice = info?.practice === true || String(info?.mode || '').toLowerCase() === 'practice';
+    if (!practice){
+      if (el) el.remove();
+      if (document.body?.dataset?.practiceBannerOffsetApplied){
+        document.body.style.paddingTop = document.body.dataset.practiceBannerOriginalPaddingTop || '';
+        delete document.body.dataset.practiceBannerOffsetApplied;
+        delete document.body.dataset.practiceBannerOriginalPaddingTop;
+      }
+      document.documentElement.dataset.systemMode = 'live';
+      return;
+    }
+    document.documentElement.dataset.systemMode = 'practice';
+    if (!el){
+      el = document.createElement('div');
+      el.id = 'eaglenestSystemModeBanner';
+      Object.assign(el.style, {
+        position:'fixed', left:'0', right:'0', top:'0', zIndex:'2147483646',
+        padding:'10px 54px', textAlign:'center', fontWeight:'900', letterSpacing:'.02em',
+        background:'#f59e0b', color:'#111827', borderBottom:'2px solid rgba(17,24,39,.4)',
+        boxShadow:'0 4px 16px rgba(0,0,0,.28)'
+      });
+      document.body.appendChild(el);
+    }
+    el.textContent = isVisitorPage()
+      ? '🧪 PRACTICE MODE is active elsewhere — VISITOR MANAGEMENT IS LIVE AND PERSISTENT'
+      : '🧪 PRACTICE MODE — activity here is temporary, will be purged, and will NOT be exported. Visitor Management remains LIVE.';
+    if (!document.body.dataset.practiceBannerOffsetApplied){
+      document.body.dataset.practiceBannerOffsetApplied = '1';
+      document.body.dataset.practiceBannerOriginalPaddingTop = getComputedStyle(document.body).paddingTop || '0px';
+      document.body.style.paddingTop = `calc(${document.body.dataset.practiceBannerOriginalPaddingTop} + 42px)`;
+    }
+  }
+
+  async function refreshSystemMode(){
+    try{
+      const r = await fetch(new URL('/system/mode', API_BASE), { cache:'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j?.ok){
+        renderSystemModeBanner(j);
+        try{ window.dispatchEvent(new CustomEvent('eaglenest-system-mode', { detail:j })); }catch{}
+        return j;
+      }
+    }catch{}
+    return null;
+  }
   function currentFile() {
     const p = (location.pathname || '').split('/').pop() || '';
     return p || 'index.html';
@@ -456,9 +508,16 @@
     }
   }
 
+  function bootModeWatcher(){
+    refreshSystemMode();
+    setInterval(refreshSystemMode, 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSystemMode(); });
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bootNav);
+    document.addEventListener('DOMContentLoaded', () => { bootModeWatcher(); bootNav(); });
   } else {
+    bootModeWatcher();
     bootNav();
   }
 })();

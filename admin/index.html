@@ -57,6 +57,23 @@
 
       <!-- App -->
       <div id="appInner">
+        <!-- Global System Mode -->
+        <section class="card" id="systemModeCard">
+          <h2>Global System Mode</h2>
+          <div class="row">
+            <div class="col">
+              <div id="systemModeStatus" class="mono" style="font-size:1.25rem;font-weight:900;">Checking…</div>
+              <div id="systemModeDetail" class="muted" style="margin-top:.45rem;">
+                Practice Mode keeps real reference data available but isolates non-Visitor operational activity in Cloudflare for the current New York day only.
+              </div>
+            </div>
+            <div class="col right">
+              <button id="btnToggleSystemMode" class="btn" disabled>Change mode</button>
+            </div>
+          </div>
+          <pre id="systemModeOut" class="pane">—</pre>
+        </section>
+
         <!-- First Day Readiness -->
         <section class="card" id="preflightCard">
           <h2>SY2627 First-Day Readiness</h2>

@@ -4,7 +4,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const worker = fs.readFileSync(path.resolve(root, '../cf-redcake/red-cake-77d5/src/worker.js'), 'utf8');
 const contacts = fs.readFileSync(path.join(root, 'admin/student_contacts.js'), 'utf8');
-const nightly = fs.readFileSync(path.resolve(root, '../PowerSchool Nightly Sync/PS_Nightly_Sync_With_Contacts_v4.gs'), 'utf8');
+const nightly = fs.readFileSync(path.resolve(root, '../Google Apps Script/clasp-projects/powerschool-nightly-sync/code.js'), 'utf8');
 
 assert.match(worker, /CONTACT_CACHE_META_KEY/);
 assert.match(worker, /path === "\/internal\/contact-cache\/push"/);

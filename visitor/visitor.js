@@ -13,6 +13,21 @@
   const KIOSK_ID_KEY = 'envisit_kiosk_id_v1';
   const PHOTO_MAX_BYTES = 512 * 1024;
 
+
+  async function showVisitorLivePracticeNotice(){
+    try{
+      const r = await fetch(new URL('/system/mode', API_BASE), { cache:'no-store' });
+      const j = await r.json().catch(() => ({}));
+      if (!(r.ok && j?.practice)) return;
+      if (document.getElementById('visitorLivePracticeNotice')) return;
+      const el = document.createElement('div');
+      el.id = 'visitorLivePracticeNotice';
+      el.textContent = 'Visitor Management is LIVE and persistent. Practice Mode applies to other EagleNEST modules.';
+      Object.assign(el.style,{position:'fixed',left:'10px',right:'10px',bottom:'10px',zIndex:'99999',padding:'8px 12px',borderRadius:'10px',background:'rgba(15,23,42,.94)',color:'#fff',fontWeight:'800',fontSize:'12px',textAlign:'center',boxShadow:'0 4px 16px rgba(0,0,0,.28)'});
+      document.body.appendChild(el);
+    }catch{}
+  }
+
   const T = {
     en: {
       title: 'Visitor Check-In',
@@ -1344,5 +1359,6 @@
     show(credential() ? languageScreen : setupScreen);
   }
 
+  window.addEventListener('DOMContentLoaded', showVisitorLivePracticeNotice);
   window.addEventListener('DOMContentLoaded', boot);
 })();
