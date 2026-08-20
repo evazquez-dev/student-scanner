@@ -52,6 +52,17 @@ test('Frontend exposes practice status and super-admin mode control', () => {
   assert.match(visitor, /Visitor Management is LIVE/i);
 });
 
+test('Practice banner dynamically offsets the shared hamburger and drawer', () => {
+  const nav = read('student-scanner/admin/nav.js');
+  const navCss = read('student-scanner/admin/nav.css');
+  assert.match(nav, /--eaglenest-practice-banner-height/);
+  assert.match(nav, /getBoundingClientRect\(\)\.height/);
+  assert.match(nav, /ResizeObserver/);
+  assert.match(navCss, /data-system-mode="practice"[^\n]*#ssNavToggle/);
+  assert.match(navCss, /data-system-mode="practice"[^\n]*#ssNavDrawer/);
+  assert.match(navCss, /height:calc\(100vh - var\(--eaglenest-practice-banner-height/);
+});
+
 test('Every authoritative non-Visitor operational GAS project has a fail-closed mode guard', () => {
   const projects = [
     'daily-attendance',

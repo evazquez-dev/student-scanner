@@ -119,16 +119,36 @@
     return /visitor_desk\.html$/i.test(location.pathname || '');
   }
 
+  let practiceBannerResizeObserver = null;
+
+  function syncPracticeBannerLayout(el){
+    if (!el || !document.body) return;
+    const height = Math.max(0, Math.ceil(el.getBoundingClientRect().height || 0));
+    document.documentElement.style.setProperty('--eaglenest-practice-banner-height', `${height}px`);
+    if (!document.body.dataset.practiceBannerOffsetApplied){
+      document.body.dataset.practiceBannerOffsetApplied = '1';
+      document.body.dataset.practiceBannerOriginalPaddingTop = getComputedStyle(document.body).paddingTop || '0px';
+    }
+    document.body.style.paddingTop = `calc(${document.body.dataset.practiceBannerOriginalPaddingTop} + ${height}px)`;
+  }
+
+  function clearPracticeBannerLayout(){
+    try{ practiceBannerResizeObserver?.disconnect(); }catch{}
+    practiceBannerResizeObserver = null;
+    document.documentElement.style.setProperty('--eaglenest-practice-banner-height', '0px');
+    if (document.body?.dataset?.practiceBannerOffsetApplied){
+      document.body.style.paddingTop = document.body.dataset.practiceBannerOriginalPaddingTop || '';
+      delete document.body.dataset.practiceBannerOffsetApplied;
+      delete document.body.dataset.practiceBannerOriginalPaddingTop;
+    }
+  }
+
   function renderSystemModeBanner(info){
     let el = document.getElementById('eaglenestSystemModeBanner');
     const practice = info?.practice === true || String(info?.mode || '').toLowerCase() === 'practice';
     if (!practice){
       if (el) el.remove();
-      if (document.body?.dataset?.practiceBannerOffsetApplied){
-        document.body.style.paddingTop = document.body.dataset.practiceBannerOriginalPaddingTop || '';
-        delete document.body.dataset.practiceBannerOffsetApplied;
-        delete document.body.dataset.practiceBannerOriginalPaddingTop;
-      }
+      clearPracticeBannerLayout();
       document.documentElement.dataset.systemMode = 'live';
       return;
     }
@@ -147,10 +167,13 @@
     el.textContent = isVisitorPage()
       ? '🧪 PRACTICE MODE is active elsewhere — VISITOR MANAGEMENT IS LIVE AND PERSISTENT'
       : '🧪 PRACTICE MODE — activity here is temporary, will be purged, and will NOT be exported. Visitor Management remains LIVE.';
-    if (!document.body.dataset.practiceBannerOffsetApplied){
-      document.body.dataset.practiceBannerOffsetApplied = '1';
-      document.body.dataset.practiceBannerOriginalPaddingTop = getComputedStyle(document.body).paddingTop || '0px';
-      document.body.style.paddingTop = `calc(${document.body.dataset.practiceBannerOriginalPaddingTop} + 42px)`;
+
+    // Measure the real banner height so wrapped text on phones/tablets also
+    // pushes both the page content and the fixed navigation down correctly.
+    syncPracticeBannerLayout(el);
+    if (!practiceBannerResizeObserver && 'ResizeObserver' in window){
+      practiceBannerResizeObserver = new ResizeObserver(() => syncPracticeBannerLayout(el));
+      practiceBannerResizeObserver.observe(el);
     }
   }
 
