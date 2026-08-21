@@ -147,6 +147,14 @@ const externalLinksOut = document.getElementById('externalLinksOut');
 const btnAddExternalLink = document.getElementById('btnAddExternalLink');
 const btnSaveExternalLinks = document.getElementById('btnSaveExternalLinks');
 
+// Super Admin read-only View as Teacher
+const viewAsStaffSelect = document.getElementById('viewAsStaffSelect');
+const viewAsEmail = document.getElementById('viewAsEmail');
+const viewAsStaffDetail = document.getElementById('viewAsStaffDetail');
+const viewAsOut = document.getElementById('viewAsOut');
+const btnStartViewAs = document.getElementById('btnStartViewAs');
+let viewAsStaffRows = [];
+
 // Persistent academic roster / DOW settings
 const academicRosterStatus = document.getElementById('academicRosterStatus');
 const academicRosterMeta = document.getElementById('academicRosterMeta');
@@ -254,6 +262,7 @@ async function afterLoginBoot() {
   await loadSystemMode();
   await loadExternalNavLinks();
   await loadAcademicRosterSettings();
+  await loadViewAsStaffSettings();
 
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
@@ -517,6 +526,75 @@ function renderAcademicCourseMappings(mappings){
   if (!rows.length) addAcademicCourseMapRow();
   else rows.forEach(addAcademicCourseMapRow);
 }
+
+function viewAsStaffOptionLabel(row){
+  const name = String(row?.name || row?.email || '').trim();
+  const email = String(row?.email || '').trim();
+  const match = String(row?.teacher_assignment_match || '').trim();
+  return `${name}${email && email !== name ? ` — ${email}` : ''}${match ? ` [${match}]` : ''}`;
+}
+function renderViewAsStaffDetail(){
+  if (!viewAsStaffDetail) return;
+  const email = String(viewAsEmail?.value || '').trim().toLowerCase();
+  const row = viewAsStaffRows.find((x) => String(x?.email || '').toLowerCase() === email);
+  if (!row) {
+    viewAsStaffDetail.textContent = email ? 'Enter an email from All HS Staff.' : 'Staff choices come from the persistent All HS Staff academic-roster feed.';
+    return;
+  }
+  const match = String(row.teacher_assignment_match || '').trim() || 'not assigned';
+  const status = String(row.mapping_status || 'unknown').replaceAll('_',' ');
+  viewAsStaffDetail.textContent = `${row.name || row.email} · Teacher Assignments Match: ${match} · Mapping status: ${status}`;
+}
+async function loadViewAsStaffSettings(){
+  if (!viewAsStaffSelect) return;
+  if (viewAsOut) viewAsOut.textContent = 'Loading All HS Staff…';
+  try {
+    const r = await adminFetch('/admin/view_as/staff', { method:'GET' });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    viewAsStaffRows = Array.isArray(j.staff) ? j.staff : [];
+    viewAsStaffSelect.replaceChildren(new Option('Select from All HS Staff…',''));
+    for (const row of viewAsStaffRows) {
+      const opt = new Option(viewAsStaffOptionLabel(row), String(row.email || ''));
+      viewAsStaffSelect.appendChild(opt);
+    }
+    if (viewAsOut) viewAsOut.textContent = `Loaded ${viewAsStaffRows.length} staff email(s). Choose a person or type an email address.`;
+    renderViewAsStaffDetail();
+  } catch (e) {
+    if (viewAsOut) viewAsOut.textContent = `Could not load staff list: ${e?.message || e}`;
+  }
+}
+async function startViewAsTeacher(){
+  const email = String(viewAsEmail?.value || '').trim().toLowerCase();
+  if (!email) {
+    if (viewAsOut) viewAsOut.textContent = 'Choose a person or enter an email address first.';
+    return;
+  }
+  btnStartViewAs.disabled = true;
+  if (viewAsOut) viewAsOut.textContent = `Starting read-only view as ${email}…`;
+  try {
+    const r = await adminFetch('/admin/session/view_as', {
+      method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ email })
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.message || j?.error || `HTTP ${r.status}`);
+    location.href = './my_schedule.html';
+  } catch (e) {
+    if (viewAsOut) viewAsOut.textContent = `Could not start View as Teacher: ${e?.message || e}`;
+    btnStartViewAs.disabled = false;
+  }
+}
+viewAsStaffSelect?.addEventListener('change', () => {
+  if (viewAsEmail) viewAsEmail.value = String(viewAsStaffSelect.value || '');
+  renderViewAsStaffDetail();
+});
+viewAsEmail?.addEventListener('input', () => {
+  const email = String(viewAsEmail.value || '').trim().toLowerCase();
+  if (viewAsStaffSelect && viewAsStaffRows.some((x) => String(x.email || '').toLowerCase() === email)) viewAsStaffSelect.value = email;
+  else if (viewAsStaffSelect) viewAsStaffSelect.value = '';
+  renderViewAsStaffDetail();
+});
+btnStartViewAs?.addEventListener('click', startViewAsTeacher);
 
 function addAcademicCourseMapRow(mapping = {}){
   if (!academicCourseMapRows) return;

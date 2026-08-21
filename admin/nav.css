@@ -1,6 +1,7 @@
 /* admin/nav.css */
 :root{
   --eaglenest-practice-banner-height: 0px;
+  --eaglenest-view-as-banner-height: 0px;
   --nav-fg: var(--fg, #e5e7eb);
   --nav-border: var(--border-strong, var(--border, rgba(148,163,184,0.65)));
   --nav-pill-bg: var(--pill-bg, var(--surface-soft-2, rgba(15,23,42,0.85)));
@@ -56,6 +57,28 @@ html[data-system-mode="practice"] #ssNavDrawer{
   top:var(--eaglenest-practice-banner-height, 42px);
   height:calc(100vh - var(--eaglenest-practice-banner-height, 42px));
   max-height:calc(100vh - var(--eaglenest-practice-banner-height, 42px));
+}
+html[data-view-as="true"] #ssNavToggle{
+  top:calc(var(--eaglenest-view-as-banner-height, 42px) + 12px);
+}
+html[data-view-as="true"] body.ssNav-offset #ssNavToggle{
+  top:calc(var(--eaglenest-view-as-banner-height, 42px) + 56px);
+}
+html[data-view-as="true"] #ssNavDrawer{
+  top:var(--eaglenest-view-as-banner-height, 42px);
+  height:calc(100vh - var(--eaglenest-view-as-banner-height, 42px));
+  max-height:calc(100vh - var(--eaglenest-view-as-banner-height, 42px));
+}
+html[data-system-mode="practice"][data-view-as="true"] #ssNavToggle{
+  top:calc(var(--eaglenest-practice-banner-height, 42px) + var(--eaglenest-view-as-banner-height, 42px) + 12px);
+}
+html[data-system-mode="practice"][data-view-as="true"] body.ssNav-offset #ssNavToggle{
+  top:calc(var(--eaglenest-practice-banner-height, 42px) + var(--eaglenest-view-as-banner-height, 42px) + 56px);
+}
+html[data-system-mode="practice"][data-view-as="true"] #ssNavDrawer{
+  top:calc(var(--eaglenest-practice-banner-height, 42px) + var(--eaglenest-view-as-banner-height, 42px));
+  height:calc(100vh - var(--eaglenest-practice-banner-height, 42px) - var(--eaglenest-view-as-banner-height, 42px));
+  max-height:calc(100vh - var(--eaglenest-practice-banner-height, 42px) - var(--eaglenest-view-as-banner-height, 42px));
 }
 
 #ssNavBackdrop{

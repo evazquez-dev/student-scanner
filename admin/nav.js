@@ -181,6 +181,69 @@
     }
   }
 
+  let viewAsBannerResizeObserver = null;
+  function syncViewAsBannerLayout(el){
+    const height = Math.max(0, Math.ceil(el?.getBoundingClientRect?.().height || 0));
+    document.documentElement.style.setProperty('--eaglenest-view-as-banner-height', `${height}px`);
+  }
+  function clearViewAsBanner(){
+    try{ viewAsBannerResizeObserver?.disconnect(); }catch{}
+    viewAsBannerResizeObserver = null;
+    document.getElementById('eaglenestViewAsBanner')?.remove();
+    document.documentElement.style.setProperty('--eaglenest-view-as-banner-height', '0px');
+    delete document.documentElement.dataset.viewAs;
+  }
+  function renderViewAsBanner(viewAs){
+    if (!viewAs?.active){ clearViewAsBanner(); return; }
+    document.documentElement.dataset.viewAs = 'true';
+    let el = document.getElementById('eaglenestViewAsBanner');
+    if (!el){
+      el = document.createElement('div');
+      el.id = 'eaglenestViewAsBanner';
+      Object.assign(el.style, {
+        position:'sticky', top:'var(--eaglenest-practice-banner-height, 0px)', zIndex:'2147483645',
+        display:'flex', alignItems:'center', justifyContent:'center', gap:'12px', flexWrap:'wrap',
+        padding:'9px 54px', textAlign:'center', fontWeight:'900', letterSpacing:'.01em',
+        background:'#7c3aed', color:'#fff', borderBottom:'2px solid rgba(255,255,255,.28)',
+        boxShadow:'0 4px 14px rgba(0,0,0,.2)'
+      });
+      document.body.prepend(el);
+    }
+    const target = viewAs.target || {};
+    const actor = viewAs.actor || {};
+    el.replaceChildren();
+    const text = document.createElement('span');
+    text.textContent = `👁 VIEWING AS: ${target.name || target.email || 'Staff'}${target.email ? ` (${target.email})` : ''} — READ ONLY`;
+    const exit = document.createElement('button');
+    exit.type = 'button';
+    exit.textContent = 'Exit View';
+    Object.assign(exit.style, {
+      border:'1px solid rgba(255,255,255,.8)', borderRadius:'999px', padding:'5px 12px',
+      background:'rgba(255,255,255,.14)', color:'#fff', fontWeight:'900', cursor:'pointer'
+    });
+    exit.title = actor.email ? `Return to ${actor.email}` : 'Return to Super Admin';
+    exit.addEventListener('click', async () => {
+      exit.disabled = true;
+      try{
+        const r = await adminFetch('/admin/session/view_as', {
+          method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ email:'' })
+        });
+        const j = await r.json().catch(()=>({}));
+        if (!r.ok || !j?.ok) throw new Error(j?.message || j?.error || `HTTP ${r.status}`);
+        location.href = './index.html';
+      }catch(e){
+        exit.disabled = false;
+        alert(`Could not exit View as Teacher: ${e?.message || e}`);
+      }
+    });
+    el.append(text, exit);
+    syncViewAsBannerLayout(el);
+    if (!viewAsBannerResizeObserver && 'ResizeObserver' in window){
+      viewAsBannerResizeObserver = new ResizeObserver(() => syncViewAsBannerLayout(el));
+      viewAsBannerResizeObserver.observe(el);
+    }
+  }
+
   async function refreshSystemMode(){
     try{
       const r = await fetch(new URL('/system/mode', API_BASE), { cache:'no-store' });
@@ -237,6 +300,9 @@
         ok:true,
         email: j.email || null,
         role,
+        actor_email: j.actor_email || j.email || null,
+        actor_role: j.actor_role || j.role || null,
+        view_as: j.view_as || null,
         can: {
           super_admin: isSuperAdmin,
           admin: isAdminLike,
@@ -291,6 +357,7 @@
     if (document.getElementById('ssNavDrawer') || document.getElementById('ssNavToggle')) return;
     if (!access?.ok) return;
 
+    renderViewAsBanner(access?.view_as || null);
     if (wantsOffset()) document.body.classList.add('ssNav-offset');
 
     // Toggle
@@ -320,7 +387,9 @@
     const roleLabel = access.role === 'super_admin'
       ? 'super admin'
       : (access.role === 'admin' ? 'admin' : access.role || '');
-    meta.textContent = `${access.email || '\u2014'}${roleLabel ? ` (${roleLabel})` : ''}`;
+    meta.textContent = access?.view_as?.active
+      ? `${access.email || '\u2014'}${roleLabel ? ` (${roleLabel})` : ''} · read-only preview`
+      : `${access.email || '\u2014'}${roleLabel ? ` (${roleLabel})` : ''}`;
 
     const linksWrap = document.createElement('div');
     linksWrap.className = 'ssNavLinks';

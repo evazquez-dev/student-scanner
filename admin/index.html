@@ -74,6 +74,34 @@
           <pre id="systemModeOut" class="pane">—</pre>
         </section>
 
+        <!-- Super Admin Read-only View As -->
+        <section class="card" id="viewAsTeacherCard">
+          <h2>View as Teacher</h2>
+          <div class="muted">
+            Preview EagleNEST exactly as a selected staff member sees it. Your Super Admin login remains the actor, but the selected staff email becomes the effective identity. View-as mode is enforced read-only by the Worker.
+          </div>
+          <div class="viewAsTeacherGrid" style="margin-top:12px;">
+            <label>
+              <span>Choose a person</span>
+              <select id="viewAsStaffSelect">
+                <option value="">Select from All HS Staff…</option>
+              </select>
+            </label>
+            <label>
+              <span>Email address</span>
+              <input id="viewAsEmail" type="email" autocomplete="off" placeholder="teacher@theamericandreamschool.org">
+            </label>
+          </div>
+          <div id="viewAsStaffDetail" class="muted viewAsStaffDetail">Staff choices come from the persistent All HS Staff academic-roster feed.</div>
+          <div class="row" style="margin-top:10px;">
+            <div class="col"></div>
+            <div class="col right">
+              <button id="btnStartViewAs" class="btn primary" type="button">Start read-only view</button>
+            </div>
+          </div>
+          <pre id="viewAsOut" class="pane">—</pre>
+        </section>
+
         <!-- External Navigation Links -->
         <section class="card" id="externalLinksCard">
           <h2>External Navigation Links</h2>

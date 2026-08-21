@@ -243,3 +243,11 @@ tr.row-bad{ background: var(--row-bad-bg); }
 @media (max-width:700px){
   .academicCourseMapTable{min-width:720px;}
 }
+
+
+/* Super Admin read-only View as Teacher */
+.viewAsTeacherGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;}
+.viewAsTeacherGrid label{display:grid;gap:6px;font-weight:700;}
+.viewAsTeacherGrid select,.viewAsTeacherGrid input{width:100%;box-sizing:border-box;}
+.viewAsStaffDetail{margin-top:8px;min-height:1.25rem;}
+@media (max-width:760px){.viewAsTeacherGrid{grid-template-columns:1fr;}}
