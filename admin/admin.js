@@ -147,6 +147,18 @@ const externalLinksOut = document.getElementById('externalLinksOut');
 const btnAddExternalLink = document.getElementById('btnAddExternalLink');
 const btnSaveExternalLinks = document.getElementById('btnSaveExternalLinks');
 
+// Persistent academic roster / DOW settings
+const academicRosterStatus = document.getElementById('academicRosterStatus');
+const academicRosterMeta = document.getElementById('academicRosterMeta');
+const academicRosterCounts = document.getElementById('academicRosterCounts');
+const academicRosterIssuesTbody = document.getElementById('academicRosterIssuesTbody');
+const academicCourseMapRows = document.getElementById('academicCourseMapRows');
+const academicRosterOut = document.getElementById('academicRosterOut');
+const btnAcademicHealth = document.getElementById('btnAcademicHealth');
+const btnAcademicRebuild = document.getElementById('btnAcademicRebuild');
+const btnAddCourseMap = document.getElementById('btnAddCourseMap');
+const btnSaveCourseMap = document.getElementById('btnSaveCourseMap');
+
 /* ===============================
  * SMALL HELPERS
  * =============================== */
@@ -241,6 +253,7 @@ async function afterLoginBoot() {
   showApp();
   await loadSystemMode();
   await loadExternalNavLinks();
+  await loadAcademicRosterSettings();
 
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
@@ -479,6 +492,181 @@ function collectExternalNavLinks(){
   }
   return links;
 }
+
+function academicPrettyDate(value){
+  const raw = String(value || '').trim();
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (!Number.isFinite(d.getTime())) return raw;
+  return d.toLocaleString([], { dateStyle:'medium', timeStyle:'short' });
+}
+
+function academicLabel(key){
+  const labels = {
+    students:'Students', enrollments:'Enrollments', courses:'Courses', sections:'Sections',
+    teacher_assignments:'Teacher assignments', teacher_assignment_labels:'Teacher labels',
+    mapped_teachers:'Mapped teachers', staff:'Staff'
+  };
+  return labels[key] || String(key || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function renderAcademicCourseMappings(mappings){
+  if (!academicCourseMapRows) return;
+  academicCourseMapRows.replaceChildren();
+  const rows = Array.isArray(mappings) ? mappings : [];
+  if (!rows.length) addAcademicCourseMapRow();
+  else rows.forEach(addAcademicCourseMapRow);
+}
+
+function addAcademicCourseMapRow(mapping = {}){
+  if (!academicCourseMapRows) return;
+  const tr = document.createElement('tr');
+  tr.className = 'academicCourseMapRow';
+  const source = String(mapping?.source_code || '').trim();
+  const target = String(mapping?.target_code || '').trim();
+  const note = String(mapping?.note || '').trim();
+  tr.innerHTML = `
+    <td><input class="academic-map-source mono" maxlength="120" placeholder="e.g. PE1001" value="${esc(source)}"></td>
+    <td><input class="academic-map-target mono" maxlength="120" placeholder="e.g. PE" value="${esc(target)}"></td>
+    <td><input class="academic-map-note" maxlength="240" placeholder="Optional note" value="${esc(note)}"></td>
+    <td><button class="btn ghost academic-map-remove" type="button">Remove</button></td>`;
+  tr.querySelector('.academic-map-remove')?.addEventListener('click', () => {
+    tr.remove();
+    if (!academicCourseMapRows.querySelector('.academicCourseMapRow')) addAcademicCourseMapRow();
+  });
+  academicCourseMapRows.appendChild(tr);
+}
+
+function collectAcademicCourseMappings(){
+  const rows = [];
+  const seen = new Set();
+  for (const tr of academicCourseMapRows?.querySelectorAll('.academicCourseMapRow') || []) {
+    const source_code = String(tr.querySelector('.academic-map-source')?.value || '').trim().toUpperCase().replace(/\s+/g,'');
+    const target_code = String(tr.querySelector('.academic-map-target')?.value || '').trim().toUpperCase().replace(/\s+/g,'');
+    const note = String(tr.querySelector('.academic-map-note')?.value || '').trim();
+    if (!source_code && !target_code && !note) continue;
+    if (!source_code || !target_code) throw new Error('Every dictionary row needs both a source code and a target code.');
+    if (source_code === target_code) throw new Error(`Mapping ${source_code} points to itself; remove that row instead.`);
+    if (seen.has(source_code)) throw new Error(`Duplicate source mapping: ${source_code}`);
+    seen.add(source_code);
+    rows.push({ source_code, target_code, note });
+  }
+  return rows;
+}
+
+function renderAcademicRosterHealth(data){
+  const configured = data?.configured !== false;
+  const health = data?.health || {};
+  const status = configured ? String(health.status || 'unknown') : 'missing';
+  if (academicRosterStatus) {
+    academicRosterStatus.dataset.status = status;
+    academicRosterStatus.textContent = status === 'ok' ? '✓ Academic roster healthy'
+      : status === 'error' ? `✕ Academic roster has ${Number(health.error_count || 0)} error(s)`
+      : status === 'warning' ? `⚠ Academic roster has ${Number(health.issue_count || 0)} issue(s)`
+      : 'Academic roster has not been built yet';
+  }
+  if (academicRosterMeta) {
+    const src = health.source_generated_at_iso || data?.source_generated_at_iso || '';
+    const built = data?.generated_at_iso || health.generated_at_iso || '';
+    academicRosterMeta.textContent = configured
+      ? `Full-roster source: ${academicPrettyDate(src)} · Compiled: ${academicPrettyDate(built)} · Dictionary entries: ${Number(data?.mapping_count ?? health.mappings ?? 0)}`
+      : 'Push the persistent academic roster from the Student Scanner Apps Script to initialize this feature.';
+  }
+  if (academicRosterCounts) {
+    academicRosterCounts.replaceChildren();
+    const counts = health.counts || {};
+    const order = ['students','enrollments','courses','sections','mapped_teachers','teacher_assignment_labels'];
+    for (const key of order) {
+      const div = document.createElement('div');
+      div.className = 'academicRosterCount';
+      div.innerHTML = `<span class="muted">${esc(academicLabel(key))}</span><strong>${Number(counts[key] || 0).toLocaleString()}</strong>`;
+      academicRosterCounts.appendChild(div);
+    }
+  }
+  if (academicRosterIssuesTbody) {
+    academicRosterIssuesTbody.replaceChildren();
+    const issues = Array.isArray(health.issues) ? health.issues : [];
+    if (!issues.length) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td colspan="3">${configured ? '✓ No roster health issues.' : 'No compiled roster yet.'}</td>`;
+      academicRosterIssuesTbody.appendChild(tr);
+    } else {
+      for (const issue of issues) {
+        const tr = document.createElement('tr');
+        const sev = String(issue?.severity || 'warning').toLowerCase();
+        tr.innerHTML = `<td><span class="academicIssueSeverity ${sev === 'error' ? 'error' : 'warning'}">${esc(sev)}</span></td><td class="mono">${esc(issue?.type || 'issue')}</td><td>${esc(issue?.message || '')}</td>`;
+        academicRosterIssuesTbody.appendChild(tr);
+      }
+    }
+  }
+}
+
+async function loadAcademicRosterSettings(){
+  if (!academicRosterStatus) return;
+  if (academicRosterOut) academicRosterOut.textContent = 'Loading persistent academic roster…';
+  try {
+    const r = await adminFetch('/admin/academic_roster_health', { method:'GET' });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || j?.ok === false) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderAcademicRosterHealth(j);
+    renderAcademicCourseMappings(j.mappings || []);
+    if (academicRosterOut) academicRosterOut.textContent = j.configured === false
+      ? 'No persistent academic roster has been compiled yet.'
+      : `Loaded. ${Number(j.health?.issue_count || 0)} health issue(s).`;
+  } catch (e) {
+    if (academicRosterStatus) {
+      academicRosterStatus.dataset.status = 'error';
+      academicRosterStatus.textContent = 'Could not load academic roster health';
+    }
+    if (academicRosterOut) academicRosterOut.textContent = `Load failed: ${e?.message || e}`;
+  }
+}
+
+async function saveAcademicCourseMappings(){
+  if (!btnSaveCourseMap) return;
+  try {
+    const mappings = collectAcademicCourseMappings();
+    btnSaveCourseMap.disabled = true;
+    if (academicRosterOut) academicRosterOut.textContent = 'Saving dictionary and rebuilding academic roster…';
+    const r = await adminFetch('/admin/academic_course_map', {
+      method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ mappings })
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.detail || j?.error || `HTTP ${r.status}`);
+    renderAcademicCourseMappings(j.mappings || mappings);
+    if (j.roster) renderAcademicRosterHealth({ ...j.roster, mappings:j.mappings, mapping_count:j.count });
+    if (academicRosterOut) academicRosterOut.textContent = j.rebuild_error
+      ? `Dictionary saved, but rebuild failed: ${j.rebuild_error}. The previous compiled roster remains available.`
+      : `Saved ${Number(j.count || 0)} mapping(s) and rebuilt from the last stored full-roster source.`;
+    await loadAcademicRosterSettings();
+  } catch (e) {
+    if (academicRosterOut) academicRosterOut.textContent = `Save failed: ${e?.message || e}`;
+  } finally {
+    btnSaveCourseMap.disabled = false;
+  }
+}
+
+async function rebuildAcademicRoster(){
+  if (!btnAcademicRebuild) return;
+  try {
+    btnAcademicRebuild.disabled = true;
+    if (academicRosterOut) academicRosterOut.textContent = 'Rebuilding from the last known full-roster source…';
+    const r = await adminFetch('/admin/academic_roster_rebuild', { method:'POST' });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderAcademicRosterHealth(j);
+    if (academicRosterOut) academicRosterOut.textContent = `Rebuilt successfully. ${Number(j.health?.issue_count || 0)} health issue(s).`;
+  } catch (e) {
+    if (academicRosterOut) academicRosterOut.textContent = `Rebuild failed: ${e?.message || e}`;
+  } finally {
+    btnAcademicRebuild.disabled = false;
+  }
+}
+
+btnAcademicHealth?.addEventListener('click', loadAcademicRosterSettings);
+btnAcademicRebuild?.addEventListener('click', rebuildAcademicRoster);
+btnAddCourseMap?.addEventListener('click', () => addAcademicCourseMapRow());
+btnSaveCourseMap?.addEventListener('click', saveAcademicCourseMappings);
 
 async function loadExternalNavLinks(){
   if (!externalLinksRows) return;

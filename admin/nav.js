@@ -28,6 +28,7 @@
     attendance_change: 'Attendance Change',
     supervised_lunch: 'Supervised Lunch',
     reflection_hold: 'Reflection Hold',
+    dreamer_of_week: 'Dreamer of the Week',
     excused_apply: 'Attendance Change', // legacy alias
     admin_roles: 'Admin Roles',
     admin: 'Super Admin Dashboard'
@@ -51,6 +52,7 @@
     'attendance_change_admin_session_v1',
     'supervised_lunch_admin_session_v1',
     'reflection_hold_admin_session_v1',
+    'dreamer_of_week_admin_session_v1',
     'excused_apply_admin_session_v1', // legacy
     'admin_session_v1',
     'admin_session_sid' // legacy generic key
@@ -253,6 +255,8 @@
           behavior_history: true,
           supervised_lunch: true,
           reflection_hold: true,
+          dreamer_of_week: true,
+          dow_manage: isAdminLike,
           phone_pass: isAdminLike,
           teacher_trace_lookup: isAdminLike,
           attendance_change: isSuperAdmin,
@@ -337,6 +341,12 @@
           { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch audit' },
           { key:'supervised_lunch',   label: MODULES.supervised_lunch || 'Supervised Lunch',     href:'./supervised_lunch.html',   badge:'room setup' },
           { key:'reflection_hold',     label: MODULES.reflection_hold || 'Reflection Hold',       href:'./reflection_hold.html',    badge:'after-school gate' },
+        ]
+      },
+      {
+        title: 'Recognition',
+        items: [
+          { key:'dreamer_of_week', label: MODULES.dreamer_of_week || 'Dreamer of the Week', href:'./dreamer_of_week.html', badge:'student awards' },
         ]
       },
       {

@@ -22,6 +22,7 @@
     behavior_history: 'Logged Behaviors',
     fidelity_dashboard: 'Fidelity Dashboard',
     reflection_hold: 'Reflection Hold',
+    dreamer_of_week: 'Dreamer of the Week',
     attendance_change: 'Attendance Change',
     excused_apply: 'Attendance Change', // legacy alias
     admin_roles: 'Admin Roles',

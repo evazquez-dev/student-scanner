@@ -93,6 +93,75 @@
           <pre id="externalLinksOut" class="pane">—</pre>
         </section>
 
+        <!-- Persistent Academic Roster -->
+        <section class="card" id="academicRosterCard">
+          <h2>Academic Roster &amp; Dreamer of the Week</h2>
+          <div class="muted">
+            Persistent full-course roster used by Dreamer of the Week. This is separate from today's scanner schedule,
+            so rotating courses such as Art and Dance remain available even when they do not meet today.
+          </div>
+
+          <div class="academicRosterHeader">
+            <div>
+              <div id="academicRosterStatus" class="mono academicHealthStatus">Not loaded</div>
+              <div id="academicRosterMeta" class="muted">—</div>
+            </div>
+            <div class="academicRosterActions">
+              <button id="btnAcademicHealth" class="btn ghost" type="button">Reload health</button>
+              <button id="btnAcademicRebuild" class="btn" type="button">Rebuild from last source</button>
+            </div>
+          </div>
+
+          <div id="academicRosterCounts" class="academicRosterCounts" aria-live="polite"></div>
+
+          <h3 style="margin-top:18px;">Roster health issues</h3>
+          <div class="muted">
+            Staff matching is exact through <code>Teacher Assignments Match</code>. Course/section mismatches are never guessed.
+          </div>
+          <div class="tableWrap" style="margin-top:8px;">
+            <table class="academicIssuesTable">
+              <thead>
+                <tr>
+                  <th>Severity</th>
+                  <th>Type</th>
+                  <th>Issue</th>
+                </tr>
+              </thead>
+              <tbody id="academicRosterIssuesTbody">
+                <tr><td colspan="3" class="muted">Load roster health to view issues.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3 style="margin-top:20px;">Course Code Dictionary</h3>
+          <div class="muted">
+            Map PowerSchool/full-roster codes to the local codes used in Teacher Assignments. A course-level mapping preserves the section suffix:
+            <code>PE1001 → PE</code> also maps <code>PE1001.6A → PE.6A</code>. Exact section mappings can be used for exceptions.
+          </div>
+          <div class="tableWrap" style="margin-top:8px;">
+            <table class="academicCourseMapTable">
+              <thead>
+                <tr>
+                  <th>PowerSchool / source code</th>
+                  <th>EagleNEST / Teacher Assignments code</th>
+                  <th>Note</th>
+                  <th style="width:84px;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="academicCourseMapRows"></tbody>
+            </table>
+          </div>
+          <div class="row academicRosterActions" style="margin-top:10px;">
+            <div class="col">
+              <button id="btnAddCourseMap" class="btn ghost" type="button">+ Add mapping</button>
+            </div>
+            <div class="col right">
+              <button id="btnSaveCourseMap" class="btn primary" type="button">Save dictionary &amp; rebuild</button>
+            </div>
+          </div>
+          <pre id="academicRosterOut" class="pane">—</pre>
+        </section>
+
         <!-- First Day Readiness -->
         <section class="card" id="preflightCard">
           <h2>SY2627 First-Day Readiness</h2>

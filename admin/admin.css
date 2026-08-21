@@ -215,3 +215,31 @@ tr.row-bad{ background: var(--row-bad-bg); }
   .externalLinkRow .btn{ width:100%; }
 }
 
+
+/* Persistent academic roster / DOW settings */
+.academicRosterHeader{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+  margin-top:14px;
+}
+.academicHealthStatus{font-size:1.2rem;font-weight:900;}
+.academicHealthStatus[data-status="ok"]{color:#16803b;}
+.academicHealthStatus[data-status="warning"]{color:#a46600;}
+.academicHealthStatus[data-status="error"]{color:#b42318;}
+.academicHealthStatus[data-status="missing"]{color:var(--muted);}
+.academicRosterActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.academicRosterCounts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:14px;}
+.academicRosterCount{border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--table-bg);}
+.academicRosterCount strong{display:block;font-size:1.15rem;margin-top:3px;}
+.academicIssuesTable,.academicCourseMapTable{width:100%;}
+.academicIssuesTable td,.academicIssuesTable th,.academicCourseMapTable td,.academicCourseMapTable th{vertical-align:top;}
+.academicCourseMapTable input{width:100%;min-width:130px;box-sizing:border-box;}
+.academicIssueSeverity{font-weight:800;text-transform:uppercase;font-size:.78rem;letter-spacing:.03em;}
+.academicIssueSeverity.error{color:#b42318;}
+.academicIssueSeverity.warning{color:#a46600;}
+@media (max-width:700px){
+  .academicCourseMapTable{min-width:720px;}
+}

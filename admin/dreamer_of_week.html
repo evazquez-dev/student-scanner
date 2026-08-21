@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./dreamer_of_week.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>
+    (function(){
+      try{
+        var t=localStorage.getItem('ss_theme_v1');
+        if(!t) t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+        document.documentElement.dataset.theme=t;
+      }catch(e){}
+    })();
+  </script>
+  <title>EagleNEST — Dreamer of the Week</title>
+</head>
+<body data-module="dreamer_of_week">
+  <main class="dowShell">
+    <section id="loginCard" class="dowCard loginCard hidden">
+      <h1>Dreamer of the Week</h1>
+      <p class="muted">Sign in with your school Google account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="statusPane">—</pre>
+    </section>
+
+    <div id="appShell" class="hidden">
+      <header class="pageHeader">
+        <div>
+          <div class="eyebrow">EagleNEST Recognition</div>
+          <h1>Dreamer of the Week</h1>
+          <p class="muted">Select 2–8 recipients per course. Course totals are shared across all sections and teachers.</p>
+        </div>
+        <div class="headerActions">
+          <button id="refreshBtn" class="btn secondary" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="dowCard explainerCard">
+        <div class="explainerGrid">
+          <div><strong>Course-wide</strong><span>All sections of a course share one 2–8 recipient pool.</span></div>
+          <div><strong>Your students only</strong><span>You can select only students enrolled in sections you teach.</span></div>
+          <div><strong>Persistent roster</strong><span>Eligibility is based on the full academic roster, not today's schedule.</span></div>
+          <div><strong>Separate periods</strong><span>Grades 9–10 and 11–12 reset independently.</span></div>
+        </div>
+      </section>
+
+      <section id="pageStatus" class="statusBanner info">Loading Dreamer of the Week…</section>
+
+      <section id="mappingProblem" class="dowCard problemCard hidden">
+        <h2>We couldn't load your classes</h2>
+        <p id="mappingProblemText">Please contact Erick or Edwin to have your schedule mapping corrected.</p>
+      </section>
+
+      <section id="teacherArea" class="hidden">
+        <div class="sectionHeading">
+          <div>
+            <h2>Your Courses</h2>
+            <p id="teacherIdentity" class="muted"></p>
+          </div>
+        </div>
+        <div id="courseCards" class="courseGrid"></div>
+      </section>
+
+      <section id="managerArea" class="hidden">
+        <div class="sectionHeading managerHeading">
+          <div>
+            <div class="eyebrow">Dean / Admin</div>
+            <h2>DOW Period Management</h2>
+            <p class="muted">Closing a period archives its recipients as historical DOW awards, then begins a fresh period for that grade group.</p>
+          </div>
+        </div>
+        <div id="managerBands" class="managerGrid"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="./dreamer_of_week.js?v=20260821-first-pass" type="module"></script>
+</body>
+</html>
