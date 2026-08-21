@@ -4,6 +4,7 @@
   // Edit labels here when you want to rename modules globally.
   const MODULES = {
     kiosk: 'Scanner Kiosk',
+    my_schedule: 'My Schedule',
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',

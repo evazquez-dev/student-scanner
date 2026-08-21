@@ -10,6 +10,7 @@
 
   const BRAND = window.EAGLENEST_BRAND?.name || 'EagleNEST';
   const MODULES = window.EAGLENEST_BRAND?.modules || {
+    my_schedule: 'My Schedule',
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
@@ -39,6 +40,7 @@
     'early_dismissal_admin_session_v1',
     'ss_admin_session_sid_v1',
     'teacher_att_admin_session_v1',
+    'my_schedule_admin_session_v1',
     'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
     'senior_lunch_audit_admin_session_v1',
@@ -209,6 +211,7 @@
         role: 'demo',
         can: {
           teacher_attendance: true,
+          my_schedule: true,
           fidelity: true
         }
       };
@@ -326,6 +329,7 @@
       {
         title: 'Attendance',
         items: [
+          { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', badge:'today' },
           { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'take attendance' },
           { key:'attendance_status',  label: MODULES.attendance_status || 'Attendance Status',   href:'./attendance_status.html',  badge:'live status' },
           { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', badge:'submission trace' },

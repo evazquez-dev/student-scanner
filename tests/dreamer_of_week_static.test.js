@@ -23,7 +23,8 @@ test('persistent academic roster is separate from the daily student class map', 
 test('academic roster uses exact Teacher Assignments Match identity and reports mismatches', () => {
   assert.match(gas, /Teacher Assignments Match/);
   assert.match(worker, /staff_teacher_match_missing/);
-  assert.match(worker, /staff_teacher_match_duplicate/);
+  assert.match(worker, /staff_teacher_match_duplicate_email/);
+  assert.match(worker, /shared_assignment/);
   assert.match(worker, /staff_teacher_match_missing_email/);
   assert.match(worker, /staff_match_without_teacher_assignment/);
   assert.match(worker, /Please contact Erick or Edwin/);
@@ -53,6 +54,73 @@ test('course dictionary supports base-course aliases and exact-section aliases',
   assert.ok(roster.courses.PE);
   assert.deepEqual(Array.from(roster.teachers_by_email['teacher@example.org'].courses.PE.students), ['100000001']);
   assert.equal(roster.health.error_count, 0);
+});
+
+
+test('Teacher Assignments Match supports shared labels for multiple unique staff emails', () => {
+  const start = worker.indexOf('var ACADEMIC_ROSTER_SOURCE_KEY');
+  const end = worker.indexOf('async function loadAcademicRoster_');
+  assert.ok(start >= 0 && end > start, 'academic roster helper block should exist');
+  const code = worker.slice(start, end) + '\nthis.__test = { buildAcademicRoster_ };';
+  const context = { console, Set, Object, Array, String, Number, Date, Math, JSON, __name: () => {} };
+  vm.createContext(context);
+  vm.runInContext(code, context);
+  const { buildAcademicRoster_ } = context.__test;
+
+  const roster = buildAcademicRoster_({
+    generated_at_iso: '2026-08-21T13:00:00-04:00', date: '2026-08-21',
+    students: [
+      { ps_id:'1', osis:'100000001', name:'Student One', grade:'11' },
+      { ps_id:'2', osis:'100000002', name:'Student Two', grade:'12' }
+    ],
+    staff: [
+      { email:'advisor1@example.org', name:'Advisor One', teacher_assignment_match:'CA' },
+      { email:'advisor2@example.org', name:'Advisor Two', teacher_assignment_match:'CA' }
+    ],
+    teacher_assignments: [{ teacher_assignment_match:'CA', section_code:'CA100.1' }],
+    course_requests: [
+      { student_ps_id:'1', course_code:'CA100', section_code:'CA100.1', grade:'11' },
+      { student_ps_id:'2', course_code:'CA100', section_code:'CA100.1', grade:'12' }
+    ],
+    course_names: [{ course_code:'CA100', name:'College Advising' }],
+    section_names: []
+  }, []);
+
+  assert.equal(roster.health.error_count, 0);
+  assert.equal(roster.health.counts.mapped_teachers, 2);
+  assert.equal(roster.teacher_assignment_status.ca.status, 'shared_assignment');
+  assert.deepEqual(Array.from(roster.teacher_assignment_status.ca.emails).sort(), ['advisor1@example.org','advisor2@example.org']);
+  assert.ok(roster.teachers_by_email['advisor1@example.org'].courses.CA100);
+  assert.ok(roster.teachers_by_email['advisor2@example.org'].courses.CA100);
+  assert.equal(roster.staff_mapping_by_email['advisor1@example.org'].status, 'shared_assignment');
+  assert.equal(roster.staff_mapping_by_email['advisor2@example.org'].status, 'shared_assignment');
+});
+
+test('shared Teacher Assignments Match still flags duplicate rows for the same email', () => {
+  const start = worker.indexOf('var ACADEMIC_ROSTER_SOURCE_KEY');
+  const end = worker.indexOf('async function loadAcademicRoster_');
+  const code = worker.slice(start, end) + '\nthis.__test = { buildAcademicRoster_ };';
+  const context = { console, Set, Object, Array, String, Number, Date, Math, JSON, __name: () => {} };
+  vm.createContext(context);
+  vm.runInContext(code, context);
+  const { buildAcademicRoster_ } = context.__test;
+
+  const roster = buildAcademicRoster_({
+    generated_at_iso: '2026-08-21T13:00:00-04:00', date: '2026-08-21',
+    students: [{ ps_id:'1', osis:'100000001', name:'Student One', grade:'11' }],
+    staff: [
+      { email:'advisor1@example.org', name:'Advisor One', teacher_assignment_match:'CA' },
+      { email:'advisor1@example.org', name:'Advisor One Duplicate', teacher_assignment_match:'CA' },
+      { email:'advisor2@example.org', name:'Advisor Two', teacher_assignment_match:'CA' }
+    ],
+    teacher_assignments: [{ teacher_assignment_match:'CA', section_code:'CA100.1' }],
+    course_requests: [{ student_ps_id:'1', course_code:'CA100', section_code:'CA100.1', grade:'11' }],
+    course_names: [], section_names: []
+  }, []);
+
+  assert.ok(roster.health.issues.some((i) => i.type === 'staff_teacher_match_duplicate_email' && i.email === 'advisor1@example.org'));
+  assert.ok(roster.teachers_by_email['advisor2@example.org']);
+  assert.equal(roster.teachers_by_email['advisor1@example.org'], undefined);
 });
 
 test('DOW enforces course-wide 2 to 8 recipient model with independent grade-band cycles', () => {

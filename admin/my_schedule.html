@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./my_schedule.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>
+    (function(){
+      try{
+        var t=localStorage.getItem('ss_theme_v1');
+        if(!t) t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+        document.documentElement.dataset.theme=t;
+      }catch(e){}
+    })();
+  </script>
+  <title>EagleNEST — My Schedule</title>
+</head>
+<body data-module="my_schedule">
+  <main class="scheduleShell">
+    <section id="loginCard" class="scheduleCard loginCard hidden">
+      <h1>My Schedule</h1>
+      <p class="muted">Sign in with your school Google account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="statusPane">—</pre>
+    </section>
+
+    <div id="appShell" class="hidden">
+      <header class="pageHeader">
+        <div>
+          <div class="eyebrow">EagleNEST Attendance</div>
+          <h1>My Schedule</h1>
+          <p id="scheduleSubtitle" class="muted">Today's teaching schedule.</p>
+        </div>
+        <button id="refreshBtn" class="btn secondary" type="button">Refresh</button>
+      </header>
+
+      <section id="pageStatus" class="statusBanner info">Loading today's schedule…</section>
+
+      <section id="mappingProblem" class="scheduleCard problemCard hidden">
+        <h2>We couldn't load your schedule</h2>
+        <p id="mappingProblemText">Please contact Erick or Edwin for a fix.</p>
+      </section>
+
+      <section id="scheduleArea" class="hidden">
+        <div class="scheduleMeta scheduleCard">
+          <div>
+            <span class="metaLabel">Teacher</span>
+            <strong id="teacherName">—</strong>
+          </div>
+          <div>
+            <span class="metaLabel">Teacher Assignment</span>
+            <strong id="teacherMatch">—</strong>
+          </div>
+          <div>
+            <span class="metaLabel">Schedule date</span>
+            <strong id="scheduleDate">—</strong>
+          </div>
+        </div>
+
+        <div id="periodList" class="periodList" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+  <script src="./my_schedule.js?v=20260821-first-pass" type="module"></script>
+</body>
+</html>
