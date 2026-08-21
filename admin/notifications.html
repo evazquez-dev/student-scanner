@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/" />
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./nav.css" />
+  <link rel="stylesheet" href="./notifications.css" />
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>
+    (function(){
+      try{
+        var key='ss_theme_v1';
+        var t=localStorage.getItem(key);
+        if(!t) t=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+        document.documentElement.dataset.theme=t;
+      }catch(e){}
+    })();
+  </script>
+  <title>EagleNEST — Notifications</title>
+</head>
+<body data-module="notifications">
+  <main class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h1>Staff sign-in</h1>
+      <p class="muted">Use your school account to manage EagleNEST notifications.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="statusText">Loading…</div>
+    </section>
+
+    <section id="app" hidden>
+      <header class="pageHeader">
+        <div>
+          <p class="eyebrow">Account &amp; Device</p>
+          <h1>Notifications</h1>
+          <p class="muted intro">Enable push alerts on each device where you want EagleNEST notifications.</p>
+        </div>
+        <span id="viewerPill" class="pill">—</span>
+      </header>
+
+      <div id="notice" class="notice" hidden></div>
+
+      <section class="card sectionCard">
+        <div class="sectionHeading">
+          <div>
+            <span class="statusIcon">🔔</span>
+            <div>
+              <h2>This device</h2>
+              <p id="deviceSummary" class="muted">Checking notification support…</p>
+            </div>
+          </div>
+          <span id="deviceBadge" class="badge">Checking</span>
+        </div>
+        <div class="actions">
+          <button id="enableBtn" class="btn btnPrimary" type="button">Enable Notifications</button>
+          <button id="disableBtn" class="btn" type="button" hidden>Disable on This Device</button>
+          <button id="refreshBtn" class="btn" type="button">Refresh Status</button>
+        </div>
+        <p id="platformHint" class="hint muted"></p>
+      </section>
+
+      <section class="card sectionCard">
+        <div class="sectionHeading">
+          <div>
+            <span class="statusIcon">🧪</span>
+            <div>
+              <h2>Test push</h2>
+              <p class="muted">Sends a generic test alert to every enabled EagleNEST device registered to your signed-in email.</p>
+            </div>
+          </div>
+        </div>
+        <button id="testBtn" class="btn btnPrimary" type="button">Send Test Notification to Me</button>
+        <div id="testOut" class="statusText"></div>
+      </section>
+
+      <section class="card sectionCard">
+        <h2>Phase 1 routing</h2>
+        <div class="routeRow">
+          <span>Incident report → Refer to Dean</span>
+          <strong id="deanEmail">—</strong>
+        </div>
+        <p class="muted small">The lock-screen notification contains no student name or incident description. The report itself remains inside authenticated EagleNEST / incident storage.</p>
+      </section>
+    </section>
+  </main>
+  <script src="./notifications.js"></script>
+</body>
+</html>

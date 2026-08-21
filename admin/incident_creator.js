@@ -20,6 +20,7 @@ const descriptionEl = $('description');
 const otherPeopleEl = $('otherPeople');
 const otherWitnessesEl = $('otherWitnesses');
 const evidenceInput = $('evidenceInput');
+const referToDeanEl = $('referToDean');
 const evidenceLimits = $('evidenceLimits');
 const evidenceHelp = $('evidenceHelp');
 const fileList = $('fileList');
@@ -82,7 +83,7 @@ async function getAccess(){
   return r.ok&&j?.ok?j:null;
 }
 function setBusy(v){
-  BUSY=!!v;busyOverlay.hidden=!BUSY;submitBtn.disabled=BUSY||SUBMITTED;clearBtn.disabled=BUSY;evidenceInput.disabled=BUSY||CONFIG?.evidence_enabled===false;
+  BUSY=!!v;busyOverlay.hidden=!BUSY;submitBtn.disabled=BUSY||SUBMITTED;clearBtn.disabled=BUSY;evidenceInput.disabled=BUSY||CONFIG?.evidence_enabled===false;if(referToDeanEl)referToDeanEl.disabled=BUSY;
 }
 function showError(msg){errorBox.textContent=String(msg||'Unknown error');errorBox.hidden=false;successBox.hidden=true;errorBox.scrollIntoView({behavior:'smooth',block:'center'});}
 function clearNotices(){errorBox.hidden=true;errorBox.textContent='';successBox.hidden=true;}
@@ -214,13 +215,26 @@ async function submitIncident(ev){
   ev.preventDefault();if(BUSY)return;clearNotices();
   let files;try{files=validateForm();}catch(e){showError(e.message||e);return;}
   const fd=new FormData();
-  fd.set('client_submission_id',newSubmissionId());fd.set('incident_date',dateEl.value);fd.set('incident_time',timeEl.value||'');fd.set('location_category',locationCategoryEl.value);fd.set('location_detail',locationDetailEl.value.trim());fd.set('description',descriptionEl.value.trim());fd.set('people_json',JSON.stringify(PEOPLE));fd.set('witnesses_json',JSON.stringify(WITNESSES));fd.set('other_people_involved',otherPeopleEl.value.trim());fd.set('other_witnesses',otherWitnessesEl.value.trim());fd.set('source',SOURCE);fd.set('source_context_json',JSON.stringify(SOURCE_CONTEXT||{}));for(const f of files)fd.append('evidence',f,f.name);
+  fd.set('client_submission_id',newSubmissionId());fd.set('incident_date',dateEl.value);fd.set('incident_time',timeEl.value||'');fd.set('location_category',locationCategoryEl.value);fd.set('location_detail',locationDetailEl.value.trim());fd.set('description',descriptionEl.value.trim());fd.set('people_json',JSON.stringify(PEOPLE));fd.set('witnesses_json',JSON.stringify(WITNESSES));fd.set('other_people_involved',otherPeopleEl.value.trim());fd.set('other_witnesses',otherWitnessesEl.value.trim());fd.set('source',SOURCE);fd.set('source_context_json',JSON.stringify(SOURCE_CONTEXT||{}));fd.set('refer_to_dean',referToDeanEl?.checked?'1':'0');for(const f of files)fd.append('evidence',f,f.name);
   setBusy(true);
   try{
     const r=await adminFetch('/admin/incident/create',{method:'POST',body:fd});
     const j=await r.json().catch(()=>({}));
     if(!r.ok||!j?.ok)throw new Error(j?.error||`incident_create_http_${r.status}`);
-    successText.textContent=`${j.incident_id || 'Incident'} was saved with status ${j.status || 'New'}${j.duplicate?' (existing submission returned)':''}.`;
+    {
+      let msg=`${j.incident_id || 'Incident'} was saved with status ${j.status || 'New'}${j.duplicate?' (existing submission returned)':''}.`;
+      const ref=j?.dean_referral;
+      const n=ref?.notification||null;
+      if(ref){
+        if(n?.simulated) msg+=' Dean referral simulated in Practice Mode; no real push was sent.';
+        else if(Number(n?.sent||0)>0) msg+=` Referred to Dean; push sent to ${Number(n.sent)} enabled device${Number(n.sent)===1?'':'s'}.`;
+        else if(n?.error==='no_push_subscriptions') msg+=' Referred to Dean. Jorge does not have an enabled push device yet.';
+        else if(n?.error==='push_not_configured') msg+=' Referred to Dean. Push notifications are not configured yet.';
+        else if(n?.skipped) msg+=' Dean referral was already recorded for this submission.';
+        else msg+=' Referred to Dean, but the push notification could not be delivered.';
+      }
+      successText.textContent=msg;
+    }
     SUBMITTED=true;successBox.hidden=false;errorBox.hidden=true;successBox.scrollIntoView({behavior:'smooth',block:'center'});
   }catch(e){showError(e.message||e);}finally{setBusy(false);}
 }

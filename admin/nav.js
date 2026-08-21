@@ -5,6 +5,14 @@
   const DEMO_MODE = new URLSearchParams(location.search).get('demo') === '1';
 
   const LS_OPEN = 'ss_nav_open_v1';
+  // Give authenticated admin pages a consistent installable Staff PWA identity.
+  if (!document.querySelector('link[rel="manifest"]')) {
+    const manifestLink = document.createElement('link');
+    manifestLink.rel = 'manifest';
+    manifestLink.href = './manifest.webmanifest';
+    document.head.appendChild(manifestLink);
+  }
+
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -25,6 +33,7 @@
     after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
+    notifications: 'Notifications',
     behavior_history: 'Logged Behaviors',
     attendance_change: 'Attendance Change',
     supervised_lunch: 'Supervised Lunch',
@@ -48,6 +57,7 @@
     'visitor_desk_admin_session_v1',
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
+    'notifications_admin_session_v1',
     'student_scans_admin_session_v1',
     'behavior_history_admin_session_v1',
     'admin_roles_admin_session_v1',
@@ -321,6 +331,7 @@
           student_contacts: true,
           contact_review: isAdminLike,
           incident_creator: true,
+          notifications: true,
           behavior_history: true,
           supervised_lunch: true,
           reflection_hold: true,
@@ -436,6 +447,12 @@
           { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'hall monitor' },
           { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'staff request' },
           { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phone locker' },
+        ]
+      },
+      {
+        title: 'Account & Device',
+        items: [
+          { key:'notifications', label: MODULES.notifications || 'Notifications', href:'./notifications.html', badge:'push alerts' },
         ]
       },
       {

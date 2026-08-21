@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.2.0-2026-08-11'; // bump on each deploy
+const VERSION = 'v20.3.0-2026-08-21'; // bump on each deploy
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [
@@ -91,4 +91,40 @@ self.addEventListener('message', (event) => {
   if (event.source && event.source.postMessage) {
     event.source.postMessage(payload);
   }
+});
+
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch {
+    try { data = { body: event.data ? event.data.text() : '' }; } catch { data = {}; }
+  }
+  const title = String(data.title || 'EagleNEST');
+  const body = String(data.body || 'You have a new EagleNEST notification.');
+  const tag = String(data.tag || 'eaglenest-notification');
+  const url = String(data.url || './admin/notifications.html');
+  const icon = new URL('./icons/icon-192.png', self.registration.scope).href;
+  const badge = new URL('./icons/icon-192.png', self.registration.scope).href;
+  event.waitUntil(self.registration.showNotification(title, {
+    body, tag, icon, badge,
+    data: { url },
+    renotify: true
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const raw = String(event.notification?.data?.url || './admin/notifications.html');
+  const targetUrl = new URL(raw, self.registration.scope).href;
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of windows) {
+      try {
+        if ('navigate' in client) await client.navigate(targetUrl);
+        if ('focus' in client) return client.focus();
+      } catch {}
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    return null;
+  })());
 });
