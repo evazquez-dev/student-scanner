@@ -20,6 +20,9 @@ const VIEW_KEY = 'teacher_att_view'; // 'attendance' | 'organizer'
 const SECRET_BEHAVIOR_ENDPOINT = '/admin/behavior/log';
 const SECRET_BEHAVIOR_MENU_ENDPOINT = '/admin/behavior/menu';
 const BEHAVIOR_RECENT_ENDPOINT = '/admin/behavior/recent';
+const PHONE_PASS_CONTEXT_ENDPOINT = '/admin/phone_pass/context';
+const PHONE_PASS_GRANT_ENDPOINT = '/admin/phone_pass/grant';
+const PHONE_PASS_SEND_BACK_ENDPOINT = '/admin/phone_pass/send_to_return';
 const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
 const SECRET_MENU_CACHE_PREFIX = 'ta_behavior_menu_cache_v1:';
 const BEHAVIOR_LOG_FILTER_KEY = 'ta_behavior_log_filters_v1';
@@ -96,6 +99,17 @@ const SECRET_MENU = {
 let SECRET_BEHAVIOR_UI_STATE = 'idle';
 let SECRET_BEHAVIOR_LIVE_TIMER = null;
 let SECRET_BEHAVIOR_LOGGED_UNTIL = 0;
+let SECRET_PHONE_STATE = {
+  osis: '',
+  loaded: false,
+  loading: false,
+  error: '',
+  phoneOut: false,
+  returnRequested: false,
+  phoneOutSince: '',
+  phoneOutByEmail: '',
+  returnRequestedByEmail: ''
+};
 let DEMO_BEHAVIOR_LOGS = [];
 let BEHAVIOR_LOG_ROWS = [];
 let BEHAVIOR_LOG_CONTEXT = { date: '', room: '', periodLocal: '' };
@@ -341,6 +355,137 @@ async function ensureSecretMenuModel({ force = false } = {}){
   }
 }
 
+function resetSecretPhoneState_(osis = ''){
+  SECRET_PHONE_STATE = {
+    osis: String(osis || '').trim(),
+    loaded: false,
+    loading: false,
+    error: '',
+    phoneOut: false,
+    returnRequested: false,
+    phoneOutSince: '',
+    phoneOutByEmail: '',
+    returnRequestedByEmail: ''
+  };
+}
+
+function applySecretPhoneState_(state, osis = ''){
+  const st = state && typeof state === 'object' ? state : {};
+  SECRET_PHONE_STATE = {
+    osis: String(osis || SECRET_PHONE_STATE.osis || '').trim(),
+    loaded: true,
+    loading: false,
+    error: '',
+    phoneOut: st.phone_out === true,
+    returnRequested: st.phone_return_requested === true,
+    phoneOutSince: String(st.phone_out_since || ''),
+    phoneOutByEmail: String(st.phone_out_by_email || ''),
+    returnRequestedByEmail: String(st.phone_return_requested_by_email || '')
+  };
+}
+
+async function loadSecretPhoneState_({ force = false } = {}){
+  const student = SECRET_MENU.student || {};
+  const osis = String(student.osis || '').trim();
+  if (!osis) return null;
+  if (!force && SECRET_PHONE_STATE.loading && SECRET_PHONE_STATE.osis === osis) return null;
+  if (!force && SECRET_PHONE_STATE.loaded && SECRET_PHONE_STATE.osis === osis) return SECRET_PHONE_STATE;
+
+  if (DEMO_MODE) {
+    if (SECRET_PHONE_STATE.osis !== osis) resetSecretPhoneState_(osis);
+    SECRET_PHONE_STATE.loaded = true;
+    SECRET_PHONE_STATE.loading = false;
+    renderSecretMenu();
+    return SECRET_PHONE_STATE;
+  }
+
+  if (SECRET_PHONE_STATE.osis !== osis) resetSecretPhoneState_(osis);
+  SECRET_PHONE_STATE.loading = true;
+  SECRET_PHONE_STATE.error = '';
+  renderSecretMenu();
+
+  try {
+    const u = new URL(PHONE_PASS_CONTEXT_ENDPOINT, API_BASE);
+    u.searchParams.set('osis', osis);
+    const r = await adminFetch(u, { method: 'GET' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.ok) throw new Error(data?.error || `phone_pass/context HTTP ${r.status}`);
+    applySecretPhoneState_(data.state || null, osis);
+    return SECRET_PHONE_STATE;
+  } catch (err) {
+    SECRET_PHONE_STATE.loading = false;
+    SECRET_PHONE_STATE.loaded = false;
+    SECRET_PHONE_STATE.error = err?.message || String(err);
+    throw err;
+  } finally {
+    if (SECRET_MENU.open && String(SECRET_MENU.student?.osis || '') === osis) renderSecretMenu();
+  }
+}
+
+function secretPhoneMenuHtml_(baseBtnStyle, subtle){
+  const ps = SECRET_PHONE_STATE || {};
+  const osis = String(SECRET_MENU.student?.osis || '').trim();
+  if (!osis) return '';
+
+  const sep = '<div style="height:1px;background:rgba(255,255,255,.14);margin:6px 4px;"></div>';
+  if (ps.osis !== osis || ps.loading || (!ps.loaded && !ps.error)) {
+    return `${sep}<div style="${subtle}">📱 Checking phone status…</div>`;
+  }
+  if (ps.error) {
+    return `${sep}<div style="${subtle};color:#ffb3b3;">📱 Phone status unavailable</div>`;
+  }
+
+  const status = ps.phoneOut
+    ? (ps.returnRequested ? '📱 Phone out • return requested' : '📱 Phone out')
+    : '📱 Phone in locker';
+  const statusHtml = `<div style="${subtle}">${escapeHtml_(status)}</div>`;
+
+  if (!ps.phoneOut) {
+    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="grant" style="${baseBtnStyle}font-weight:600;">Allow Phone Pickup</button>`;
+  }
+  if (ps.returnRequested) {
+    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Return Requested</button>`;
+  }
+  return `${sep}${statusHtml}<button data-act="phone" data-phone-action="send_back" style="${baseBtnStyle}font-weight:600;">Send Phone Back</button>`;
+}
+
+async function performSecretPhoneAction_(action){
+  const student = SECRET_MENU.student || {};
+  const osis = String(student.osis || '').trim();
+  if (!osis) throw new Error('No student selected');
+
+  const act = String(action || '').trim();
+  if (DEMO_MODE) {
+    if (act === 'grant') {
+      applySecretPhoneState_({ phone_out: true, phone_out_since: new Date().toISOString(), phone_out_by_email: 'demo@local', phone_return_requested: false }, osis);
+      return { ok: true, demo: true };
+    }
+    if (act === 'send_back') {
+      applySecretPhoneState_({ phone_out: true, phone_return_requested: true, phone_return_requested_at: new Date().toISOString(), phone_return_requested_by_email: 'demo@local' }, osis);
+      return { ok: true, demo: true };
+    }
+    return { ok: true, demo: true };
+  }
+
+  const endpoint = act === 'send_back' ? PHONE_PASS_SEND_BACK_ENDPOINT : PHONE_PASS_GRANT_ENDPOINT;
+  const payload = {
+    osis,
+    source: 'teacher_attendance',
+    room: String(student.room || ''),
+    periodLocal: String(student.periodLocal || ''),
+    date: String(student.date || '')
+  };
+  const r = await adminFetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok || !data?.ok) throw new Error(data?.message || data?.error || `phone action HTTP ${r.status}`);
+  await loadSecretPhoneState_({ force: true }).catch(() => {});
+  return data;
+}
+
 function initSecretMenu(){
   // idempotent init (avoid duplicate listeners/menu)
   if (SECRET_MENU.el) {
@@ -377,6 +522,27 @@ function initSecretMenu(){
     const dec = (name) => {
       try { return decodeURIComponent(String(btn.getAttribute(name) || '')); } catch { return String(btn.getAttribute(name) || ''); }
     };
+
+    if (act === 'phone') {
+      const phoneAction = dec('data-phone-action').trim();
+      if (!phoneAction || phoneAction === 'requested' || SECRET_PHONE_STATE.loading) return;
+      SECRET_PHONE_STATE.loading = true;
+      SECRET_PHONE_STATE.error = '';
+      renderSecretMenu();
+      try {
+        await performSecretPhoneAction_(phoneAction);
+        const nm = String(SECRET_MENU.student?.name || 'Student').trim() || 'Student';
+        setStatus(true, phoneAction === 'grant' ? `Phone pickup allowed for ${nm}` : `Phone return requested for ${nm}`);
+      } catch (err) {
+        SECRET_PHONE_STATE.loading = false;
+        SECRET_PHONE_STATE.error = err?.message || String(err);
+        setErr(SECRET_PHONE_STATE.error);
+        setStatus(false, 'Phone action failed');
+      } finally {
+        if (SECRET_MENU.open) renderSecretMenu();
+      }
+      return;
+    }
 
     if (act === 'submenu') {
       const submenu = dec('data-submenu').trim();
@@ -527,7 +693,12 @@ function openSecretMenuAtEvent(ev, studentCtx){
   SECRET_MENU.y = ev.clientY;
   SECRET_MENU.student = studentCtx;
   SECRET_MENU.path = [];
+  resetSecretPhoneState_(studentCtx?.osis || '');
   renderSecretMenu();
+
+  void loadSecretPhoneState_().catch(() => {
+    // The behavior menu still works if phone status cannot be loaded.
+  });
 
   void ensureSecretMenuModel().catch((err) => {
     // Keep UI usable even if menu fetch fails.
@@ -622,6 +793,11 @@ function renderSecretMenu(){
     // Communication logging is a local app action, not a Behavior_Log event.
     // Keep it available beside Incident Creator even if the behavior menu payload changes.
     body += `<button data-act="communication" style="${baseBtnStyle}">Log Communication</button>`;
+
+    // Phone control uses the same live phone-pass state as the dedicated Phone Pass page.
+    // Teachers may allow pickup or request that an already-out phone be sent back;
+    // Ops still performs the final Confirm Return step from Phone Pass.
+    body += secretPhoneMenuHtml_(baseBtnStyle, subtle);
   }
 
   const err = SECRET_MENU_MODEL.error
