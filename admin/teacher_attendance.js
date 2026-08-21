@@ -384,6 +384,39 @@ function applySecretPhoneState_(state, osis = ''){
   };
 }
 
+function applyPhoneIndicatorState_(osis, phoneOut, returnRequested = false){
+  const id = String(osis || '').trim();
+  if (!id) return;
+
+  const rowData = ROW_DATA?.get?.(id);
+  if (rowData) {
+    rowData.phoneOutActive = !!phoneOut;
+    rowData.phoneReturnRequested = !!(phoneOut && returnRequested);
+  }
+
+  document.querySelectorAll('[data-phone-icon-osis]').forEach((el) => {
+    if (String(el.dataset.phoneIconOsis || '').trim() !== id) return;
+    el.hidden = !phoneOut;
+    el.title = returnRequested
+      ? 'Student currently has their phone • return requested'
+      : 'Student currently has their phone';
+    el.setAttribute('aria-label', el.title);
+  });
+}
+
+function makePhoneIndicator_(osis, phoneOut, returnRequested = false){
+  const icon = document.createElement('span');
+  icon.className = 'phoneOutIcon';
+  icon.dataset.phoneIconOsis = String(osis || '').trim();
+  icon.textContent = '📱';
+  icon.hidden = !phoneOut;
+  icon.title = returnRequested
+    ? 'Student currently has their phone • return requested'
+    : 'Student currently has their phone';
+  icon.setAttribute('aria-label', icon.title);
+  return icon;
+}
+
 async function loadSecretPhoneState_({ force = false } = {}){
   const student = SECRET_MENU.student || {};
   const osis = String(student.osis || '').trim();
@@ -458,10 +491,12 @@ async function performSecretPhoneAction_(action){
   if (DEMO_MODE) {
     if (act === 'grant') {
       applySecretPhoneState_({ phone_out: true, phone_out_since: new Date().toISOString(), phone_out_by_email: 'demo@local', phone_return_requested: false }, osis);
+      applyPhoneIndicatorState_(osis, true, false);
       return { ok: true, demo: true };
     }
     if (act === 'send_back') {
       applySecretPhoneState_({ phone_out: true, phone_return_requested: true, phone_return_requested_at: new Date().toISOString(), phone_return_requested_by_email: 'demo@local' }, osis);
+      applyPhoneIndicatorState_(osis, true, true);
       return { ok: true, demo: true };
     }
     return { ok: true, demo: true };
@@ -483,6 +518,7 @@ async function performSecretPhoneAction_(action){
   const data = await r.json().catch(() => ({}));
   if (!r.ok || !data?.ok) throw new Error(data?.message || data?.error || `phone action HTTP ${r.status}`);
   await loadSecretPhoneState_({ force: true }).catch(() => {});
+  applyPhoneIndicatorState_(osis, SECRET_PHONE_STATE.phoneOut, SECRET_PHONE_STATE.returnRequested);
   return data;
 }
 
@@ -1280,7 +1316,12 @@ function renderOutInOrganizer(){
     const tail = outSinceISO ? ` • since ${outSinceISO}` : '';
     meta.textContent = `${osis} • ${codeLabel(code)}${tail}`;
 
-    info.appendChild(nm);
+    const nameLine = document.createElement('div');
+    nameLine.className = 'outInNameLine';
+    nameLine.appendChild(nm);
+    nameLine.appendChild(makePhoneIndicator_(osis, r?.phoneOutActive, r?.phoneReturnRequested));
+
+    info.appendChild(nameLine);
     info.appendChild(meta);
 
     const btn = document.createElement('button');
@@ -2898,6 +2939,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
     top.appendChild(dot);      // ✅ shows on mobile (CSS)
     top.appendChild(student);
+    top.appendChild(makePhoneIndicator_(r.osis, r.phoneOutActive, r.phoneReturnRequested));
 
     if (r.zone) {
       const chip = document.createElement('span');
