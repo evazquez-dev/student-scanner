@@ -230,6 +230,7 @@ async function submitIncident(ev){
         else if(Number(n?.sent||0)>0) msg+=` Referred to Dean; push sent to ${Number(n.sent)} enabled device${Number(n.sent)===1?'':'s'}.`;
         else if(n?.error==='no_push_subscriptions') msg+=' Referred to Dean. Jorge does not have an enabled push device yet.';
         else if(n?.error==='push_not_configured') msg+=' Referred to Dean. Push notifications are not configured yet.';
+        else if(n?.error==='push_category_disabled') msg+=' Referred to Dean. Jorge has this notification category turned off.';
         else if(n?.skipped) msg+=' Dean referral was already recorded for this submission.';
         else msg+=' Referred to Dean, but the push notification could not be delivered.';
       }
