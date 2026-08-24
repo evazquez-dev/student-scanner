@@ -244,6 +244,17 @@ body.ssNav-open #ssNavBackdrop{ display:block; }
   border-color: rgba(59,130,246,0.55);
 }
 
+/* Teacher Attendance embeds Phone Pass controls in the student click menu.
+   The dedicated Phone Pass nav link is already filtered by access.can.phone_pass,
+   so use that exact permission-filtered surface as the visibility source of truth.
+   This intentionally fails closed while the nav/access response is still loading. */
+body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) .phoneOutIcon,
+body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) [data-act="phone"],
+body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) [data-act="communication"] + div,
+body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) [data-act="communication"] + div + div{
+  display:none !important;
+}
+
 @media print{
   #ssNavToggle, #ssNavDrawer, #ssNavBackdrop{ display:none !important; }
 }
