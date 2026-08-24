@@ -97,6 +97,49 @@
       </section>
 
       <section class="card sectionCard">
+        <div class="sectionHeading">
+          <div>
+            <span class="statusIcon">🔗</span>
+            <div>
+              <h2>External links</h2>
+              <p class="muted">Choose which shared links appear in your EagleNEST menu and add links that are only for your account.</p>
+            </div>
+          </div>
+        </div>
+
+        <label class="externalDefaultToggle" for="showDefaultExternalLinks">
+          <input id="showDefaultExternalLinks" type="checkbox" checked />
+          <span class="externalToggleCopy">
+            <strong>Show default external links</strong>
+            <small>These are the shared links configured for everyone by the EagleNEST Super Admin.</small>
+          </span>
+        </label>
+
+        <div class="externalLinkSubsection">
+          <div class="externalLinkSubheading">
+            <strong>Default links</strong>
+            <span class="muted small">Managed by Super Admin</span>
+          </div>
+          <div id="defaultExternalLinksPreview" class="externalLinkPreview" aria-live="polite"></div>
+        </div>
+
+        <div class="externalLinkSubsection">
+          <div class="externalLinkSubheading">
+            <strong>My links</strong>
+            <span class="muted small">Visible only in your EagleNEST navigation</span>
+          </div>
+          <div id="personalExternalLinksRows" class="personalExternalLinksRows" aria-live="polite"></div>
+          <div class="externalLinkActions">
+            <button id="addPersonalExternalLinkBtn" class="btn" type="button">+ Add link</button>
+            <button id="savePersonalExternalLinksBtn" class="btn btnPrimary" type="button">Save my links</button>
+          </div>
+          <div id="externalLinksSaveOut" class="statusText"></div>
+        </div>
+
+        <p class="muted small externalLinksHint">Turning off default links hides only the shared defaults. Your personal links will still appear in the navigation menu.</p>
+      </section>
+
+      <section class="card sectionCard">
         <h2>Notification routing</h2>
         <div class="routeRow">
           <span>Incident report → Refer to Dean</span>
