@@ -4,9 +4,9 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const project = path.resolve(root, '..');
-const worker = fs.readFileSync(path.resolve(project, 'cf-redcake/red-cake-77d5/src/worker.js'), 'utf8');
 const index = fs.readFileSync(path.resolve(project, 'cf-redcake/red-cake-77d5/src/index.js'), 'utf8');
 const route = fs.readFileSync(path.resolve(project, 'cf-redcake/red-cake-77d5/src/routes/push-notifications.js'), 'utf8');
+const incidentRoute = fs.readFileSync(path.resolve(project, 'cf-redcake/red-cake-77d5/src/routes/incidents.js'), 'utf8');
 const service = fs.readFileSync(path.resolve(project, 'cf-redcake/red-cake-77d5/src/services/push-notifications.js'), 'utf8');
 const wrangler = fs.readFileSync(path.resolve(project, 'cf-redcake/red-cake-77d5/wrangler.jsonc'), 'utf8');
 const pkg = JSON.parse(fs.readFileSync(path.resolve(project, 'cf-redcake/red-cake-77d5/package.json'), 'utf8'));
@@ -33,12 +33,15 @@ assert.match(route, /push_test_rate_limited/);
 assert.match(route, /body: 'Push notifications are working on this device\.'/);
 assert.match(route, /viewAsReadOnlyResponse/);
 
-// Operational Dean referral remains in the legacy incident workflow until that
-// workflow is extracted, but it still uses privacy-safe push copy and assignment.
-assert.match(worker, /body: "A new incident report has been referred to you in EagleNEST\."/);
-assert.doesNotMatch(worker, /body: `[^`]*\$\{[^}]*student/i, 'Dean push body must not interpolate student data');
-assert.match(worker, /assigned_to_email: assignedToEmail/);
-assert.match(worker, /reason: "practice_mode"/);
+// Incident Creator now owns Dean referral orchestration and calls the shared
+// category-aware push service directly.
+assert.match(incidentRoute, /sendPushCategoryToEmail/);
+assert.match(incidentRoute, /PUSH_CATEGORY_DEAN_REFERRALS/);
+assert.match(incidentRoute, /body: 'A new incident report has been referred to you in EagleNEST\.'/);
+assert.doesNotMatch(incidentRoute, /body: `[^`]*\$\{[^}]*student/i, 'Dean push body must not interpolate student data');
+assert.match(incidentRoute, /assigned_to_email: assignedToEmail/);
+assert.match(incidentRoute, /reason: 'practice_mode'/);
+assert.match(incidentRoute, /reason: 'duplicate_submission'/);
 assert.match(wrangler, /"nodejs_compat"/);
 assert.equal(pkg.dependencies['web-push'], '^3.6.7');
 

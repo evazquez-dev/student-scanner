@@ -20,11 +20,11 @@
   const MODULES = window.EAGLENEST_BRAND?.modules || {
     my_schedule: 'My Schedule',
     teacher_attendance: 'Teacher Attendance',
-    teacher_trace_lookup: 'Attendance Trace Lookup',
+    teacher_trace_lookup: 'Attendance Diagnostics',
     attendance_status: 'Attendance Status',
     senior_lunch_audit: 'Senior Lunch Audit',
-    student_scans: 'Student Scans',
-    student_view: 'Student View',
+    student_scans: 'Student Scan Report',
+    student_view: 'Student Snapshot',
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
@@ -33,15 +33,17 @@
     after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
-    notifications: 'Notifications',
+    notifications: 'My Settings',
+    incident_creator: 'Incident Creator',
     behavior_history: 'Logged Behaviors',
+    fidelity_dashboard: 'Fidelity Dashboard',
     attendance_change: 'Attendance Change',
     supervised_lunch: 'Supervised Lunch',
     reflection_hold: 'Reflection Hold',
     dreamer_of_week: 'Dreamer of the Week',
     excused_apply: 'Attendance Change', // legacy alias
-    admin_roles: 'Admin Roles',
-    admin: 'Super Admin Dashboard'
+    admin_roles: 'Roles & Access',
+    admin: 'System Administration'
   };
 
   const ADMIN_SESSION_HEADER = 'x-admin-session';
@@ -409,61 +411,66 @@
       {
         title: 'Attendance',
         items: [
-          { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', badge:'today' },
-          { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'take attendance' },
-          { key:'attendance_status',  label: MODULES.attendance_status || 'Attendance Status',   href:'./attendance_status.html',  badge:'live status' },
-          { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', badge:'submission trace' },
-          { key:'attendance_change',  label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'edit records' },
+          { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', badge:"today's classes" },
+          { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'class attendance' },
+          { key:'attendance_status', label: MODULES.attendance_status || 'Attendance Status', href:'./attendance_status.html', badge:'period audit' },
+          { key:'attendance_change', label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'bulk changes' },
         ]
       },
       {
-        title: 'Students',
+        title: 'Student Information',
         items: [
-          { key:'student_scans',      label: MODULES.student_scans || 'Scans Report',            href:'./student_scans.html',      badge:'scan history' },
-          { key:'student_view',       label: MODULES.student_view || 'Student View',             href:'./student_view.html',       badge:'student lookup' },
-          { key:'student_contacts',   label: MODULES.student_contacts || 'Student Contacts',     href:'./student_contacts.html',   badge:'family contacts' },
-          { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch audit' },
-          { key:'supervised_lunch',   label: MODULES.supervised_lunch || 'Supervised Lunch',     href:'./supervised_lunch.html',   badge:'room setup' },
-          { key:'reflection_hold',     label: MODULES.reflection_hold || 'Reflection Hold',       href:'./reflection_hold.html',    badge:'after-school gate' },
+          { key:'student_view', label: MODULES.student_view || 'Student Snapshot', href:'./student_view.html', badge:'location & attendance' },
+          { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', badge:'scan & bathroom' },
+          { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', badge:'contacts & communication' },
+        ]
+      },
+      {
+        title: 'Student Support',
+        items: [
+          { key:'supervised_lunch', label: MODULES.supervised_lunch || 'Supervised Lunch', href:'./supervised_lunch.html', badge:'lunch assignments' },
+          { key:'reflection_hold', label: MODULES.reflection_hold || 'Reflection Hold', href:'./reflection_hold.html', badge:'after-school holds' },
+          { key:'incident_creator', label: MODULES.incident_creator || 'Incident Creator', href:'./incident_creator.html', badge:'submit incident report' },
+          { key:'behavior_history', label: MODULES.behavior_history || 'Logged Behaviors', href:'./behavior_history.html', badge:'review & edit logs' },
         ]
       },
       {
         title: 'Recognition',
         items: [
-          { key:'dreamer_of_week', label: MODULES.dreamer_of_week || 'Dreamer of the Week', href:'./dreamer_of_week.html', badge:'student awards' },
+          { key:'dreamer_of_week', label: MODULES.dreamer_of_week || 'Dreamer of the Week', href:'./dreamer_of_week.html', badge:'select recipients' },
+        ]
+      },
+      {
+        title: 'Movement & Operations',
+        items: [
+          { key:'hallway', label: MODULES.hallway || 'Hallway Monitor', href:'./hallway.html', badge:'live locations' },
+          { key:'staff_pull', label: MODULES.staff_pull || 'Staff Pull', href:'./staff_pull.html', badge:'pull & release' },
+          { key:'phone_pass', label: MODULES.phone_pass || 'Phone Pass', href:'./phone_pass.html', badge:'grant & return' },
+          { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch-out compliance' },
+          { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', badge:'attendance & holds' },
         ]
       },
       {
         title: 'Front Desk',
         items: [
-          { key:'visitor_desk',       label: MODULES.visitor_desk || 'Visitor Desk',              href:'./visitor_desk.html',      badge:'visitor log' },
-          { key:'early_dismissal',     label: MODULES.early_dismissal || 'Early Dismissal',       href:'./early_dismissal.html',    badge:'dismissal' },
-          { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', badge:'dismissal' },
+          { key:'visitor_desk', label: MODULES.visitor_desk || 'Visitor Desk', href:'./visitor_desk.html', badge:'check-in & history' },
+          { key:'early_dismissal', label: MODULES.early_dismissal || 'Early Dismissal', href:'./early_dismissal.html', badge:"today's dismissals" },
         ]
       },
       {
-        title: 'Passes',
+        title: 'Account',
         items: [
-          { key:'hallway',            label: MODULES.hallway || 'Hallway Monitor',               href:'./hallway.html',            badge:'hall monitor' },
-          { key:'staff_pull',         label: MODULES.staff_pull || 'Staff Pull',                 href:'./staff_pull.html',         badge:'staff request' },
-          { key:'phone_pass',         label: MODULES.phone_pass || 'Phone Pass',                 href:'./phone_pass.html',         badge:'phone locker' },
+          { key:'notifications', label: MODULES.notifications || 'My Settings', href:'./notifications.html', badge:'alerts & links' },
         ]
       },
       {
-        title: 'Account & Device',
+        title: 'Administration',
         items: [
-          { key:'notifications', label: MODULES.notifications || 'Notifications', href:'./notifications.html', badge:'push alerts' },
-        ]
-      },
-      {
-        title: 'Behavior And Admin',
-        items: [
-          { key:'incident_creator',   label: MODULES.incident_creator || 'Incident Creator',     href:'./incident_creator.html',   badge:'report incident' },
-          { key:'behavior_history',   label: MODULES.behavior_history || 'Logged Behaviors',     href:'./behavior_history.html',   badge:'behavior log' },
-          { key:'contact_review',     label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', badge:'data cleanup' },
-          { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Fidelity Dashboard', href:'./fidelity.html',           badge:'data trust' },
-          { key:'admin_roles',        label: MODULES.admin_roles || 'Admin Roles',               href:'./admin_roles.html',        badge:'role access' },
-          { key:'admin_dashboard',    label: MODULES.admin || 'Super Admin Dashboard',           href:'./index.html',              badge:'system settings' },
+          { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Diagnostics', href:'./teacher_trace_lookup.html', badge:'submission traces' },
+          { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', badge:'review suggestions' },
+          { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Fidelity Dashboard', href:'./fidelity.html', badge:'historical fidelity' },
+          { key:'admin_roles', label: MODULES.admin_roles || 'Roles & Access', href:'./admin_roles.html', badge:'permissions & access' },
+          { key:'admin_dashboard', label: MODULES.admin || 'System Administration', href:'./index.html', badge:'system configuration' },
         ]
       }
     ];

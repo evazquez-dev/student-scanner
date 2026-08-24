@@ -8,6 +8,8 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const exists = (rel) => fs.existsSync(path.join(ROOT, rel));
 
 const worker = read('cf-redcake/red-cake-77d5/src/worker.js');
+const incidentRoute = read('cf-redcake/red-cake-77d5/src/routes/incidents.js');
+const incidentService = read('cf-redcake/red-cake-77d5/src/services/incidents.js');
 
 test('Worker exposes a persistent global system mode with practice scoping and purge', () => {
   assert.match(worker, /SYSTEM_MODE_KEY\s*=\s*"system:mode:v1"/);
@@ -29,7 +31,11 @@ test('Practice queue records are immutable and queue flushers refuse external pe
 test('Attendance push, RFID debug, and incident evidence have Worker-side practice guards', () => {
   assert.match(worker, /async function pushFinalToGAS[\s\S]{0,900}if \(isPracticeMode_\(env\)\)/);
   assert.match(worker, /action === "rfid_debug"[\s\S]{0,220}isPracticeMode_\(env\)/);
-  assert.match(worker, /practice_discarded:\s*true/);
+  assert.match(incidentRoute, /const practice = modeInfo\?\.practice === true/);
+  assert.match(incidentRoute, /if \(practice\)[\s\S]{0,300}practice_discarded:\s*true/);
+  assert.match(incidentRoute, /createPracticeIncident/);
+  assert.match(incidentService, /practice_record:incident:/);
+  assert.match(incidentService, /PRACTICE_KV_TTL_SEC = 36 \* 60 \* 60/);
 });
 
 test('Visitor routes deliberately run with LIVE policy', () => {

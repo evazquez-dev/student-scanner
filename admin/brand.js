@@ -6,11 +6,11 @@
     kiosk: 'Scanner Kiosk',
     my_schedule: 'My Schedule',
     teacher_attendance: 'Teacher Attendance',
-    teacher_trace_lookup: 'Attendance Trace Lookup',
+    teacher_trace_lookup: 'Attendance Diagnostics',
     attendance_status: 'Attendance Status',
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
-    student_view: 'Student View',
+    student_view: 'Student Snapshot',
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
@@ -27,8 +27,8 @@
     dreamer_of_week: 'Dreamer of the Week',
     attendance_change: 'Attendance Change',
     excused_apply: 'Attendance Change', // legacy alias
-    admin_roles: 'Admin Roles',
-    admin: 'Super Admin Dashboard'
+    admin_roles: 'Roles & Access',
+    admin: 'System Administration'
   };
 
   // Expose brand + module labels immediately so nav.js can consume them.
