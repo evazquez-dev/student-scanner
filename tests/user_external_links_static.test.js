@@ -6,17 +6,26 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..', '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
-test('Cloudflare entry layer stores personal external links per signed-in email', () => {
-  const wrapper = read('cf-redcake/red-cake-77d5/src/worker_entry.js');
+test('Cloudflare Worker uses modular entry and extracted external-links modules', () => {
+  const entry = read('cf-redcake/red-cake-77d5/src/index.js');
+  const route = read('cf-redcake/red-cake-77d5/src/routes/external-links.js');
+  const service = read('cf-redcake/red-cake-77d5/src/services/external-links.js');
+  const bridge = read('cf-redcake/red-cake-77d5/src/utils/admin-bridge.js');
   const wrangler = read('cf-redcake/red-cake-77d5/wrangler.jsonc');
-  assert.match(wrangler, /"main"\s*:\s*"src\/worker_entry\.js"/);
-  assert.match(wrapper, /USER_EXTERNAL_LINKS_KEY_PREFIX\s*=\s*'user_external_links_v1:'/);
-  assert.match(wrapper, /path === '\/admin\/user_external_links'/);
-  assert.match(wrapper, /path === '\/admin\/access'/);
-  assert.match(wrapper, /show_default_external_links/);
-  assert.match(wrapper, /personal_external_links/);
-  assert.match(wrapper, /external_links:\s*effective/);
-  assert.match(wrapper, /view_as_read_only/);
+
+  assert.match(wrangler, /"main"\s*:\s*"src\/index\.js"/);
+  assert.match(entry, /from '\.\/routes\/external-links\.js'/);
+  assert.match(entry, /path === '\/admin\/user_external_links'/);
+  assert.match(entry, /path === '\/admin\/access'/);
+  assert.match(entry, /return baseWorker\.fetch\(req, env, ctx\)/);
+  assert.match(route, /handleUserExternalLinksRequest/);
+  assert.match(route, /augmentAccessResponseWithExternalLinks/);
+  assert.match(route, /viewAsReadOnlyResponse/);
+  assert.match(bridge, /view_as_read_only/);
+  assert.match(service, /USER_EXTERNAL_LINKS_KEY_PREFIX\s*=\s*'user_external_links_v1:'/);
+  assert.match(service, /saveUserExternalLinks/);
+  assert.match(service, /combineExternalLinks/);
+  assert.match(service, /parsed\.protocol !== 'http:' && parsed\.protocol !== 'https:'/);
 });
 
 test('notifications page edits personal links and default-link visibility', () => {
