@@ -223,7 +223,11 @@
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data?.ok) throw new Error(data?.error || `undo_http_${resp.status}`);
       await refresh();
-      setStatus(`Undone: ${data.name || row.name || row.osis || 'student'}.`);
+      if (data?.log_cleanup && data.log_cleanup.ok === false) {
+        setStatus(`Undone: ${data.name || row.name || row.osis || 'student'}. Warning: the Early Dismissal log row could not be deleted (${data.log_cleanup.error || 'cleanup failed'}).`, true);
+      } else {
+        setStatus(`Undone: ${data.name || row.name || row.osis || 'student'}.`);
+      }
     } catch (err) {
       setStatus(err?.message || String(err), true);
       await refresh();
