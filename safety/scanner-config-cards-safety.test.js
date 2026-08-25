@@ -52,6 +52,8 @@ test('SAFETY: Kiosk consumes config cards before student lookup/log flow', () =>
 });
 
 test('SAFETY: System Settings exposes two equivalent scanner toggle-card fields', () => {
+  assert.match(adminBrand, /getElementById\('systemModeCard'\)/);
+  assert.doesNotMatch(adminBrand, /resolveModuleKey\(\) !== 'admin'/);
   assert.match(adminBrand, /Scanner Config Card 1 RFID tag/);
   assert.match(adminBrand, /Scanner Config Card 2 RFID tag/);
   assert.match(adminBrand, /Both cards do the same thing/);

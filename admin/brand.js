@@ -86,8 +86,9 @@
 
   /* Scanner RFID config cards — System Administration only. */
   function installScannerConfigCardsAdmin() {
-    if (resolveModuleKey() !== 'admin') return;
     if (document.getElementById('scannerConfigCardsCard')) return;
+    // System Administration's index page predates the data-module attribute used
+    // by newer admin pages. Mount against its unique System Mode card instead.
     const modeCard = document.getElementById('systemModeCard');
     if (!modeCard) return;
 
