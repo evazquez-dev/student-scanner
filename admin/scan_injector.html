@@ -17,7 +17,7 @@
     *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:1rem;min-height:100vh}
     .wrap{max-width:1280px;margin:0 auto;padding-top:56px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
     h1{font-size:1.2rem;margin:0 0 6px}h2{font-size:1rem;margin:0 0 8px}.muted{color:var(--muted)}.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.grow{flex:1 1 220px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
-    label{display:block;font-weight:800;margin-bottom:4px}input,select{width:100%;padding:10px 11px;border-radius:10px;border:1px solid var(--border);background:var(--control);color:var(--fg);font:inherit}
+    label{display:block;font-weight:800;margin-bottom:4px}input,select,textarea{width:100%;padding:10px 11px;border-radius:10px;border:1px solid var(--border);background:var(--control);color:var(--fg);font:inherit}textarea{resize:vertical;min-height:120px}
     button{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--soft);color:var(--fg);font-weight:800;cursor:pointer}button.primary{border-color:var(--accent)}button.danger{border-color:var(--danger)}button[disabled]{opacity:.5;cursor:not-allowed}
     .pill{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-size:.82rem;gap:6px}.practice{border-color:var(--warn);color:var(--warn)}.live{border-color:var(--danger);color:var(--danger)}
     .status{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--soft);white-space:pre-wrap}.status.ok{border-color:var(--accent)}.status.bad{border-color:var(--danger)}
@@ -62,6 +62,15 @@
             <input id="searchInput" class="grow" type="text" placeholder="Search name or OSIS…" />
             <button id="selectVisibleBtn" type="button">Select visible</button>
             <button id="clearVisibleBtn" type="button">Clear visible</button>
+          </div>
+          <div style="margin-bottom:10px">
+            <label for="osisPasteInput">Paste OSIS list</label>
+            <textarea id="osisPasteInput" class="mono" spellcheck="false" placeholder="Paste one OSIS per line…&#10;123456789&#10;987654321"></textarea>
+            <div class="row" style="margin-top:8px">
+              <button id="addOsisBtn" type="button">Add OSIS to selection</button>
+              <button id="clearOsisBoxBtn" type="button">Clear OSIS box</button>
+              <span class="muted">You can paste a column directly from Google Sheets or Excel.</span>
+            </div>
           </div>
           <div class="list"><table><thead><tr><th style="width:44px">Pick</th><th>Name</th><th>OSIS</th><th>Grade</th></tr></thead><tbody id="rosterBody"></tbody></table></div>
         </div>

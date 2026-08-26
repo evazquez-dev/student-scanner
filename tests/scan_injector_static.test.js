@@ -12,8 +12,13 @@ test('Scan Injector page supports batch location/time selection and result repor
   assert.match(html, /Simulated scan time/);
   assert.match(html, /Seconds apart/);
   assert.match(html, /Select visible/);
+  assert.match(html, /Paste OSIS list/);
+  assert.match(html, /Add OSIS to selection/);
   assert.match(html, /Injection results/);
   assert.match(js, /\/admin\/scan_injector\/options/);
   assert.match(js, /\/admin\/scan_injector\/inject/);
   assert.match(js, /osisList:Array\.from\(state\.selected\)/);
+  assert.match(js, /function addPastedOsis/);
+  assert.match(js, /not found/);
+  assert.match(js, /\\d\{6,12\}/);
 });

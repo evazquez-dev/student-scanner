@@ -48,6 +48,36 @@
     }
     updateButton();
   }
+  function normalizePastedOsis(value){
+    const token=String(value||'').trim();
+    if(!/^\d{6,12}$/.test(token))return '';
+    return token;
+  }
+  function addPastedOsis(){
+    const box=$('osisPasteInput');
+    const raw=String(box?.value||'');
+    const tokens=raw.split(/[\r\n\t,; ]+/).map(v=>v.trim()).filter(Boolean);
+    if(!tokens.length){setStatus('Paste one or more OSIS numbers first.',false);return;}
+    const unique=Array.from(new Set(tokens));
+    const known=new Set(state.students.map(s=>String(s.osis||'')));
+    const notFound=[];
+    let invalid=0;
+    let added=0;
+    for(const token of unique){
+      const osis=normalizePastedOsis(token);
+      if(!osis){invalid+=1;continue;}
+      if(!known.has(osis)){notFound.push(osis);continue;}
+      if(!state.selected.has(osis))added+=1;
+      state.selected.add(osis);
+    }
+    if($('searchInput'))$('searchInput').value='';
+    renderRoster();
+    const parts=[`Added ${added} student(s) to the selection.`];
+    if(notFound.length)parts.push(`${notFound.length} OSIS not found: ${notFound.slice(0,12).join(', ')}${notFound.length>12?'…':''}.`);
+    if(invalid)parts.push(`${invalid} invalid entr${invalid===1?'y':'ies'} ignored.`);
+    setStatus(parts.join(' '),notFound.length===0&&invalid===0);
+  }
+
   function renderResults(rows){
     const body=$('resultsBody'); body.innerHTML='';
     if(!rows.length){body.innerHTML='<tr><td colspan="4" class="muted">No results.</td></tr>';return;}
@@ -88,6 +118,9 @@
     $('searchInput')?.addEventListener('input',renderRoster); $('locationSelect')?.addEventListener('change',updateButton); $('whenInput')?.addEventListener('input',updateButton); $('liveConfirm')?.addEventListener('input',updateButton);
     $('selectVisibleBtn')?.addEventListener('click',()=>{for(const s of state.filtered)state.selected.add(s.osis);renderRoster();});
     $('clearVisibleBtn')?.addEventListener('click',()=>{for(const s of state.filtered)state.selected.delete(s.osis);renderRoster();});
+    $('addOsisBtn')?.addEventListener('click',addPastedOsis);
+    $('clearOsisBoxBtn')?.addEventListener('click',()=>{if($('osisPasteInput'))$('osisPasteInput').value='';});
+    $('osisPasteInput')?.addEventListener('keydown',(event)=>{if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();addPastedOsis();}});
     $('clearBtn')?.addEventListener('click',()=>{state.selected.clear();renderRoster();}); $('injectBtn')?.addEventListener('click',inject);
     loadOptions().catch(err=>{ $('authCard').style.display=''; setStatus(String(err?.message||err),false); });
   }
