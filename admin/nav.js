@@ -24,6 +24,7 @@
     attendance_status: 'Attendance Status',
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
+    scan_injector: 'Scan Injector',
     student_view: 'Student Snapshot',
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
@@ -61,6 +62,7 @@
     'phone_pass_admin_session_v1',
     'notifications_admin_session_v1',
     'student_scans_admin_session_v1',
+    'scan_injector_admin_session_v1',
     'behavior_history_admin_session_v1',
     'admin_roles_admin_session_v1',
     'attendance_change_admin_session_v1',
@@ -469,6 +471,7 @@
           { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Diagnostics', href:'./teacher_trace_lookup.html', badge:'submission traces' },
           { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', badge:'review suggestions' },
           { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Fidelity Dashboard', href:'./fidelity.html', badge:'historical fidelity' },
+          { key:'scan_injector', label: MODULES.scan_injector || 'Scan Injector', href:'./scan_injector.html', badge:'simulate scan-ins' },
           { key:'admin_roles', label: MODULES.admin_roles || 'Roles & Access', href:'./admin_roles.html', badge:'permissions & access' },
           { key:'admin_dashboard', label: MODULES.admin || 'System Administration', href:'./index.html', badge:'system configuration' },
         ]
@@ -480,7 +483,8 @@
     for (const section of sections) {
       const visibleItems = section.items.filter((it) => !!(
         access?.can?.[it.key] ||
-        (it.key === 'attendance_change' && access?.can?.excused_apply)
+        (it.key === 'attendance_change' && access?.can?.excused_apply) ||
+        (it.key === 'scan_injector' && (access?.role === 'super_admin' || access?.role === 'admin'))
       ));
       if (!visibleItems.length) continue;
 

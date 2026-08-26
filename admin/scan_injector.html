@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — Scan Injector</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./scan_injector.js" defer></script>
+  <style>
+    :root{color-scheme:dark;--bg:#020617;--card:#0f172a;--soft:#111827;--fg:#e5e7eb;--muted:#94a3b8;--border:#334155;--accent:#22c55e;--danger:#ef4444;--warn:#f59e0b;--control:#0b1220}
+    :root[data-theme="light"]{color-scheme:light;--bg:#eef2f7;--card:#fff;--soft:#f8fafc;--fg:#0f172a;--muted:#475569;--border:#cbd5e1;--control:#fff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:1rem;min-height:100vh}
+    .wrap{max-width:1280px;margin:0 auto;padding-top:56px}.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
+    h1{font-size:1.2rem;margin:0 0 6px}h2{font-size:1rem;margin:0 0 8px}.muted{color:var(--muted)}.row{display:flex;gap:10px;align-items:end;flex-wrap:wrap}.grow{flex:1 1 220px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
+    label{display:block;font-weight:800;margin-bottom:4px}input,select{width:100%;padding:10px 11px;border-radius:10px;border:1px solid var(--border);background:var(--control);color:var(--fg);font:inherit}
+    button{padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--soft);color:var(--fg);font-weight:800;cursor:pointer}button.primary{border-color:var(--accent)}button.danger{border-color:var(--danger)}button[disabled]{opacity:.5;cursor:not-allowed}
+    .pill{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:6px 10px;font-size:.82rem;gap:6px}.practice{border-color:var(--warn);color:var(--warn)}.live{border-color:var(--danger);color:var(--danger)}
+    .status{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--soft);white-space:pre-wrap}.status.ok{border-color:var(--accent)}.status.bad{border-color:var(--danger)}
+    .list{max-height:480px;overflow:auto;border:1px solid var(--border);border-radius:12px}table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left}th{position:sticky;top:0;background:var(--soft);z-index:2}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.liveBox{border:1px solid var(--danger);background:rgba(239,68,68,.08);padding:12px;border-radius:12px}
+  </style>
+</head>
+<body data-module="scan_injector">
+  <div class="wrap">
+    <div class="card">
+      <h1 data-brand-title>EagleNEST — Scan Injector</h1>
+      <div class="muted">Inject multiple synthetic <b>scan-ins</b> through the real scanner pipeline for a configured location and simulated time.</div>
+    </div>
+    <div id="authCard" class="card" style="display:none"><h2>Admin access required</h2><div class="muted">Sign in with an admin account, then refresh.</div></div>
+    <div id="app" style="display:none">
+      <div class="card">
+        <div class="row" style="align-items:center">
+          <span id="modePill" class="pill">Mode: …</span>
+          <span class="pill">Active day: <span id="dateLabel" class="mono">—</span></span>
+          <span class="pill">Selected: <span id="selectedCount" class="mono">0</span></span>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <div class="grow"><label for="locationSelect">Inject at location</label><select id="locationSelect"><option value="">Loading…</option></select></div>
+          <div class="grow"><label for="whenInput">Simulated scan time</label><input id="whenInput" type="datetime-local" step="1" /></div>
+          <div style="width:170px"><label for="spacingInput">Seconds apart</label><input id="spacingInput" type="number" min="0" max="300" step="0.1" value="1" /></div>
+        </div>
+        <div id="liveControls" class="liveBox" style="display:none;margin-top:12px">
+          <b>LIVE MODE</b> — these become real operational scans. Super-admin only.<br>
+          <span class="muted">Type <span class="mono">INJECT LIVE SCANS</span> to enable the button.</span>
+          <input id="liveConfirm" type="text" autocomplete="off" placeholder="INJECT LIVE SCANS" style="margin-top:8px" />
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="injectBtn" class="primary" type="button" disabled>Inject selected scan-ins</button>
+          <button id="clearBtn" type="button">Clear selection</button>
+        </div>
+        <div id="resultBox" class="status" style="margin-top:10px">Choose a location, time, and students.</div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Students</h2>
+          <div class="row" style="margin-bottom:8px">
+            <input id="searchInput" class="grow" type="text" placeholder="Search name or OSIS…" />
+            <button id="selectVisibleBtn" type="button">Select visible</button>
+            <button id="clearVisibleBtn" type="button">Clear visible</button>
+          </div>
+          <div class="list"><table><thead><tr><th style="width:44px">Pick</th><th>Name</th><th>OSIS</th><th>Grade</th></tr></thead><tbody id="rosterBody"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h2>Injection results</h2>
+          <div class="muted" style="margin-bottom:8px">Results appear after each batch. Practice scans remain isolated from live operational data.</div>
+          <div class="list"><table><thead><tr><th>Status</th><th>Student</th><th>Time</th><th>Scanner result</th></tr></thead><tbody id="resultsBody"><tr><td colspan="4" class="muted">No injections yet.</td></tr></tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
