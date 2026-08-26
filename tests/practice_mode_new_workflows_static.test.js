@@ -8,6 +8,8 @@ const index = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/inde
 const diagnostics = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/routes/attendance-diagnostics.js'), 'utf8');
 const incidents = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/routes/incidents.js'), 'utf8');
 const dow = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/services/dreamer-of-week.js'), 'utf8');
+const phonePassRoute = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/routes/phone-pass.js'), 'utf8');
+const phonePass = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/services/phone-pass.js'), 'utf8');
 
 // Shared operational state must be date/mode scoped. New movement workflows
 // depend on these helpers, so this is the central isolation boundary.
@@ -52,14 +54,17 @@ assert.match(worker, /source: "staff_pull"/);
 assert.match(worker, /source: "staff_release"/);
 assert.match(worker, /reason: "staff_release"/);
 
-// Phone Pass state and logs are operational and therefore Practice-scoped.
+// Phone Pass is modular; state, logs, audits and notifications remain Practice-scoped.
 for (const route of ['grant', 'send_to_return', 'return']) {
-  assert.match(worker, new RegExp(`path === "\\/admin\\/phone_pass\\/${route}"`));
+  assert.match(phonePassRoute, new RegExp(`'/admin/phone_pass/${route}'`));
 }
-assert.match(worker, /source: "phone_pass_grant"/);
-assert.match(worker, /source: "phone_pass_send_to_return"/);
-assert.match(worker, /source: "phone_pass_return"/);
-assert.match(worker, /else if \(isPracticeMode_\(env\)\) \{\s*phoneReturnNotification = \{ queued: false, simulated: true,[^}]*reason: "practice_mode" \}/);
+assert.match(phonePass, /source: 'phone_pass_grant'/);
+assert.match(phonePass, /source: 'phone_pass_send_to_return'/);
+assert.match(phonePass, /source: 'phone_pass_return'/);
+assert.match(phonePass, /studentViewOperationalDoName\(modeInfo, 'GLOBAL'\)/);
+assert.match(phonePass, /studentViewOperationalDoName\(modeInfo, `LOG:\$\{date\}`/);
+assert.match(phonePass, /reason: 'practice_mode'/);
+assert.match(phonePassRoute, /!modeInfo\?\.practice/);
 
 // Operational notifications are simulated in Practice Mode rather than sent.
 assert.match(incidents, /if \(practice\) \{\s*deanNotification = \{ ok: true, simulated: true,[^}]*reason: 'practice_mode' \}/);

@@ -5,7 +5,8 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const teacher = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/teacher_attendance.js'), 'utf8');
-const worker = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/worker.js'), 'utf8');
+const route = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/routes/phone-pass.js'), 'utf8');
+const bridge = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/utils/admin-bridge.js'), 'utf8');
 
 test('Teacher Attendance behavior menu exposes state-aware phone controls', () => {
   assert.match(teacher, /PHONE_PASS_CONTEXT_ENDPOINT\s*=\s*'\/admin\/phone_pass\/context'/);
@@ -18,15 +19,18 @@ test('Teacher Attendance behavior menu exposes state-aware phone controls', () =
   assert.match(teacher, /loadSecretPhoneState_/);
 });
 
-test('Worker lets authenticated Teacher Attendance flow read phone state and grant/send-back without opening Phone Pass access', () => {
-  assert.match(worker, /path === "\/admin\/phone_pass\/context"[\s\S]{0,550}requireAdminOrToken\(req, env\)/);
-  assert.match(worker, /path === "\/admin\/phone_pass\/grant"[\s\S]{0,700}requestSource === "teacher_attendance"/);
-  assert.match(worker, /viaTeacherAttendance[\s\S]{0,400}canGrantPhonePass_/);
-  assert.match(worker, /path === "\/admin\/phone_pass\/send_to_return"[\s\S]{0,700}requestSource !== "teacher_attendance"/);
+test('Modular Phone Pass lets authenticated Teacher Attendance flow read phone state and grant/send-back without standalone access', () => {
+  assert.match(route, /path === '\/admin\/phone_pass\/context'/);
+  assert.match(route, /any authenticated staff member/);
+  assert.match(route, /requestSource === 'teacher_attendance'/);
+  assert.match(route, /viaTeacherAttendance/);
+  assert.match(route, /viaPhonePassPage/);
+  assert.match(route, /!viaPhonePassPage/);
 });
 
 test('Teacher phone actions remain covered by View-as read-only enforcement and Ops-only final return', () => {
-  assert.match(worker, /function enforceViewAsReadOnly_/);
-  assert.match(worker, /error:\s*"view_as_read_only"/);
-  assert.match(worker, /path === "\/admin\/phone_pass\/return"[\s\S]{0,250}requirePhonePassReturn_/);
+  assert.match(route, /viewAsReadOnlyResponse/);
+  assert.match(bridge, /error: 'view_as_read_only'/);
+  assert.match(route, /path === '\/admin\/phone_pass\/return'/);
+  assert.match(route, /canReturnPhonePass\(env, who\.email\)/);
 });
