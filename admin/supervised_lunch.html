@@ -14,7 +14,8 @@
   <link rel="stylesheet" href="./nav.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./supervised_lunch.js" defer></script>
+  <script src="./supervised_lunch.js?v=20260825-saved-rosters" defer></script>
+  <script src="./supervised_lunch_saved_rosters.js?v=20260825-named-rosters" defer></script>
   <script>
     (function(){
       try{
@@ -102,15 +103,24 @@
           </div>
         </div>
 
+        <div class="row" style="margin-top:10px;align-items:flex-end;">
+          <div class="grow">
+            <label for="savedRosterSelect"><b>Saved lunch rosters</b></label>
+            <select id="savedRosterSelect"><option value="">Loading saved rosters…</option></select>
+          </div>
+          <button id="loadSavedRosterBtn" type="button" disabled>Load saved roster</button>
+          <button id="deleteSavedRosterBtn" class="danger" type="button" disabled>Delete saved roster</button>
+        </div>
+        <div class="muted" style="margin-top:6px;">Loading a saved roster automatically skips students who are absent, left early, are already off campus, or are no longer assigned to that lunch period.</div>
+
         <div class="row" style="margin-top:10px;">
           <button id="loadAssignmentBtn" type="button">Load current assignment</button>
-          <button id="useLastSetBtn" type="button">Use last set</button>
-          <button id="saveBtn" class="primary" type="button">Save assignment</button>
+          <button id="saveBtn" class="primary" type="button">Apply today’s assignment</button>
+          <button id="saveRosterBtn" type="button">Save roster</button>
           <button id="clearBtn" class="danger" type="button">Clear assignment</button>
         </div>
 
         <div id="resultBox" class="status" style="margin-top:10px;">Select a lunch and room to begin.</div>
-        <div id="lastSetBox" class="status" style="margin-top:10px;">No last used set saved for this lunch yet.</div>
       </div>
 
       <div class="grid">
@@ -147,7 +157,7 @@
           <div id="kpis"></div>
           <pre id="resolvedPreview" class="status">No students selected yet.</pre>
           <div style="height:12px;"></div>
-          <h2>Your saved supervised lunch groups</h2>
+          <h2>Today’s supervised lunch assignments</h2>
           <div id="assignmentSummary" class="summaryList"></div>
         </div>
       </div>
