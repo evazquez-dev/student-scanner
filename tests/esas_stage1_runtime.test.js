@@ -55,6 +55,7 @@ function seed({ viewAs = false, hallway = [] } = {}) {
     'hallway_monitor_allowlist_v1': { emails: hallway },
     'phone_pass_grant_allowlist_v1': { emails: [] },
     'visitor_desk_allowlist_v1': { emails: [] },
+    'roster_v1': { rows: [{ o: '1001', n: 'Test Student', g: '9' }] },
     'academic_roster_v1': {
       staff_mapping_by_email: {
         'teacher@school.org': { email: 'teacher@school.org', name: 'Teacher' },

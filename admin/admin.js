@@ -468,8 +468,12 @@ function renderEsasAdmin(data){
     esasStatus.style.color = active ? 'var(--warn)' : 'var(--ok)';
   }
   if (esasDetail) {
+    const counts = data?.incident?.counts || {};
+    const countText = active && Number.isFinite(Number(counts.expected))
+      ? ` • Expected ${Number(counts.expected) || 0} • Accounted ${Number(counts.accounted) || 0} • Unaccounted ${Number(counts.unaccounted) || 0}`
+      : '';
     esasDetail.textContent = active
-      ? `${data.incident.label || 'Emergency'} • Started ${data.incident.started_at_iso || '—'} • ${data.incident.incident_id || ''}`
+      ? `${data.incident.label || 'Emergency'} • Started ${data.incident.started_at_iso || '—'}${countText} • ${data.incident.incident_id || ''}`
       : 'No emergency accountability incident is active.';
   }
   if (btnActivateEsas) btnActivateEsas.disabled = !data?.ok || active || data?.can_manage !== true;
