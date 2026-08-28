@@ -51,10 +51,16 @@ test('SAFETY: all student accounting mutations retain origin and View-as guards'
   assert.match(durable, /account_undo_not_allowed/);
 });
 
-test('SAFETY: Ops unaccounted list stays management-only while search/my roster are authenticated staff reads', () => {
-  assert.match(route, /handleUnaccounted[\s\S]*manageOnly/);
+test('SAFETY: unaccounted/search/my roster are authenticated staff reads while incident management stays restricted', () => {
+  const unaccountedStart = route.indexOf('async function handleUnaccounted');
+  const accountStart = route.indexOf('async function handleAccount', unaccountedStart);
+  const unaccountedBlock = route.slice(unaccountedStart, accountStart);
+  assert.match(unaccountedBlock, /authenticated/);
+  assert.doesNotMatch(unaccountedBlock, /manageOnly/);
   assert.match(route, /handleMyRoster[\s\S]*authenticated/);
   assert.match(route, /handleSearch[\s\S]*authenticated/);
+  assert.match(route, /handleActivate[\s\S]*manageOnly/);
+  assert.match(route, /handleEnd[\s\S]*manageOnly/);
 });
 
 test('SAFETY: accounting an initially off-campus student promotes them into effective expected population', () => {

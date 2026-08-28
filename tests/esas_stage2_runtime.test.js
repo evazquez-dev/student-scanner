@@ -228,17 +228,14 @@ test('ordinary staff can account any searched student but cannot undo another st
   assert.equal((await data(adminUndo)).student.accounted, false);
 });
 
-test('Ops/Admin unaccounted list is protected and updates immediately as students are accounted', async () => {
+test('all authenticated staff can read the live unaccounted list and it updates immediately as students are accounted', async () => {
   const { handleEsasRequest } = await loadRoute();
   const env = await makeEnv();
   const active = await activate(env, handleEsasRequest);
   const id = active.incident.incident_id;
 
-  const teacherDenied = await handleEsasRequest(req('/admin/esas/unaccounted', { sid: 'teacher-sid' }), env, {});
-  assert.equal(teacherDenied.status, 403);
-  assert.equal((await data(teacherDenied)).error, 'esas_manage_required');
-
-  let unaccounted = await handleEsasRequest(req('/admin/esas/unaccounted', { sid: 'admin-sid' }), env, {});
+  let unaccounted = await handleEsasRequest(req('/admin/esas/unaccounted', { sid: 'teacher-sid' }), env, {});
+  assert.equal(unaccounted.status, 200);
   let list = await data(unaccounted);
   assert.equal(list.count, 3);
   assert.deepEqual(list.students.map((s) => s.osis), ['1001', '1002', '1004']);
@@ -246,7 +243,8 @@ test('Ops/Admin unaccounted list is protected and updates immediately as student
   await handleEsasRequest(req('/admin/esas/account', {
     method: 'POST', sid: 'teacher-sid', body: { incident_id: id, osis: '1001', source: 'roster' }
   }), env, {});
-  unaccounted = await handleEsasRequest(req('/admin/esas/unaccounted', { sid: 'admin-sid' }), env, {});
+  unaccounted = await handleEsasRequest(req('/admin/esas/unaccounted', { sid: 'teacher2-sid' }), env, {});
+  assert.equal(unaccounted.status, 200);
   list = await data(unaccounted);
   assert.equal(list.count, 2);
   assert.deepEqual(list.students.map((s) => s.osis), ['1002', '1004']);

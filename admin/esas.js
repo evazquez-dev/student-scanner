@@ -250,13 +250,12 @@ function renderIncident(){
 
   inactiveCard.hidden = true;
   activeApp.hidden = false;
-  tabOps.hidden = !canManage();
+  tabOps.hidden = false;
 
   if (canManage() && ACTIVE_VIEW === 'roster' && !tabOps.dataset.seenManager) {
     ACTIVE_VIEW = 'ops';
     tabOps.dataset.seenManager = '1';
   }
-  if (!canManage() && ACTIVE_VIEW === 'ops') ACTIVE_VIEW = 'roster';
   renderTabs();
 }
 
@@ -267,7 +266,7 @@ function renderTabs(){
     ops:[tabOps,panelOps]
   };
   for (const [key, [tab, panel]] of Object.entries(mapping)) {
-    const active = key === ACTIVE_VIEW && !(key === 'ops' && !canManage());
+    const active = key === ACTIVE_VIEW;
     tab?.classList.toggle('is-active', active);
     if (panel) panel.hidden = !active;
   }
@@ -401,11 +400,6 @@ function filteredOpsStudents(){
 }
 
 function renderOps(){
-  if (!canManage()) {
-    opsList.innerHTML = '';
-    opsEmpty.hidden = true;
-    return;
-  }
   const all = Array.isArray(OPS_UNACCOUNTED) ? OPS_UNACCOUNTED : [];
   const filtered = filteredOpsStudents();
   opsBadge.textContent = String(all.length);
@@ -458,12 +452,10 @@ async function setStudentAccounted(osis, accounted, source){
     // Deliberately update the visual accounting state only after the Worker confirms the write.
     if (result.student) {
       mergeStudentIntoLists(result.student);
-      if (canManage()) {
-        if (result.student.accounted === true) {
-          OPS_UNACCOUNTED = OPS_UNACCOUNTED.filter((row) => String(row.osis) !== String(result.student.osis));
-        } else if (result.student.expected === true && !OPS_UNACCOUNTED.some((row) => String(row.osis) === String(result.student.osis))) {
-          OPS_UNACCOUNTED = [...OPS_UNACCOUNTED, result.student];
-        }
+      if (result.student.accounted === true) {
+        OPS_UNACCOUNTED = OPS_UNACCOUNTED.filter((row) => String(row.osis) !== String(result.student.osis));
+      } else if (result.student.expected === true && !OPS_UNACCOUNTED.some((row) => String(row.osis) === String(result.student.osis))) {
+        OPS_UNACCOUNTED = [...OPS_UNACCOUNTED, result.student];
       }
     }
     if (result.incident) {
@@ -512,21 +504,12 @@ async function refreshAll({ silent = false } = {}){
       return;
     }
 
-    const requests = [
-      getJson('/admin/esas/my_roster', { method:'GET' })
-    ];
-    if (canManage()) requests.push(getJson('/admin/esas/unaccounted', { method:'GET' }));
-
-    const results = await Promise.all(requests);
-    const roster = results[0] || {};
-    MY_ROSTER = Array.isArray(roster.students) ? roster.students : [];
-
-    if (canManage()) {
-      const ops = results[1] || {};
-      OPS_UNACCOUNTED = Array.isArray(ops.students) ? ops.students : [];
-    } else {
-      OPS_UNACCOUNTED = [];
-    }
+    const [roster, unaccounted] = await Promise.all([
+      getJson('/admin/esas/my_roster', { method:'GET' }),
+      getJson('/admin/esas/unaccounted', { method:'GET' })
+    ]);
+    MY_ROSTER = Array.isArray(roster?.students) ? roster.students : [];
+    OPS_UNACCOUNTED = Array.isArray(unaccounted?.students) ? unaccounted.students : [];
 
     renderRoster();
     renderOps();
@@ -590,7 +573,6 @@ function scheduleSearch(){
 }
 
 function setView(view){
-  if (view === 'ops' && !canManage()) return;
   ACTIVE_VIEW = view;
   if (view === 'ops') tabOps.dataset.seenManager = '1';
   renderTabs();
