@@ -29,6 +29,7 @@
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
+    esas: 'Emergency Accountability',
     visitor_desk: 'Visitor Desk',
     early_dismissal: 'Early Dismissal',
     after_school_monitor: 'After-School Monitor',
@@ -50,6 +51,7 @@
   const ADMIN_SESSION_HEADER = 'x-admin-session';
   const NAV_SESSION_KEYS = [
     'early_dismissal_admin_session_v1',
+    'esas_admin_session_v1',
     'ss_admin_session_sid_v1',
     'teacher_att_admin_session_v1',
     'my_schedule_admin_session_v1',
@@ -137,6 +139,10 @@
     return /visitor_desk\.html$/i.test(location.pathname || '');
   }
 
+  function isEsasPage(){
+    return /esas\.html$/i.test(location.pathname || '');
+  }
+
   let practiceBannerResizeObserver = null;
 
   function syncPracticeBannerLayout(el){
@@ -182,9 +188,11 @@
       });
       document.body.appendChild(el);
     }
-    el.textContent = isVisitorPage()
-      ? '🧪 PRACTICE MODE is active elsewhere — VISITOR MANAGEMENT IS LIVE AND PERSISTENT'
-      : '🧪 PRACTICE MODE — activity here is temporary, will be purged, and will NOT be exported. Visitor Management remains LIVE.';
+    el.textContent = isEsasPage()
+      ? '🧪 PRACTICE MODE is active elsewhere — ESAS IS LIVE AND PERSISTENT'
+      : (isVisitorPage()
+          ? '🧪 PRACTICE MODE is active elsewhere — VISITOR MANAGEMENT IS LIVE AND PERSISTENT'
+          : '🧪 PRACTICE MODE — activity here is temporary, will be purged, and will NOT be exported. Visitor Management remains LIVE.');
 
     // Measure the real banner height so wrapped text on phones/tablets also
     // pushes both the page content and the fixed navigation down correctly.
@@ -411,6 +419,12 @@
 
     const sections = [
       {
+        title: 'Emergency',
+        items: [
+          { key:'esas', label: MODULES.esas || 'Emergency Accountability', href:'./esas.html', badge:'live accountability' },
+        ]
+      },
+      {
         title: 'Attendance',
         items: [
           { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', badge:"today's classes" },
@@ -483,6 +497,7 @@
     for (const section of sections) {
       const visibleItems = section.items.filter((it) => !!(
         access?.can?.[it.key] ||
+        (it.key === 'esas' && !!access?.email) ||
         (it.key === 'attendance_change' && access?.can?.excused_apply) ||
         (it.key === 'scan_injector' && (access?.role === 'super_admin' || access?.role === 'admin'))
       ));

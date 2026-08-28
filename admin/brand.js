@@ -14,6 +14,7 @@
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
+    esas: 'Emergency Accountability',
     visitor_desk: 'Visitor Desk',
     early_dismissal: 'Early Dismissal',
     after_school_monitor: 'After-School Monitor',

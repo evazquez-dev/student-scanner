@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow">
+
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./esas.css">
+
+  <script>
+    (function(){
+      try{
+        var key = 'ss_theme_v1';
+        var t = localStorage.getItem(key);
+        if(!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+        document.documentElement.dataset.theme = t;
+      }catch(e){}
+    })();
+  </script>
+
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <title>EagleNEST — Emergency Accountability</title>
+</head>
+
+<body data-module="esas">
+  <div class="esas-shell">
+    <section id="loginCard" class="login-card">
+      <div class="login-mark">🚨</div>
+      <h1>Emergency Accountability</h1>
+      <p>Sign in with your school Google account. ESAS is a live emergency control-plane feature even when EagleNEST Practice Mode is active.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="login-out">Checking session…</div>
+    </section>
+
+    <main id="appShell" hidden>
+      <header id="incidentHeader" class="incident-header incident-header--inactive">
+        <div class="incident-topline">
+          <div>
+            <div id="incidentKind" class="incident-kind">ESAS</div>
+            <h1 id="incidentTitle" data-brand-title>EagleNEST — Emergency Accountability</h1>
+          </div>
+          <button id="refreshBtn" class="icon-btn" type="button" aria-label="Refresh ESAS">↻</button>
+        </div>
+
+        <div id="incidentMeta" class="incident-meta">Checking emergency status…</div>
+
+        <div id="countGrid" class="count-grid" hidden>
+          <div class="count-card">
+            <span class="count-label">Expected</span>
+            <strong id="expectedCount">—</strong>
+          </div>
+          <div class="count-card count-card--ok">
+            <span class="count-label">Accounted</span>
+            <strong id="accountedCount">—</strong>
+          </div>
+          <div class="count-card count-card--danger">
+            <span class="count-label">Unaccounted</span>
+            <strong id="unaccountedCount">—</strong>
+          </div>
+        </div>
+
+        <div id="syncBar" class="sync-bar sync-bar--checking" role="status" aria-live="polite">
+          <span id="syncDot" class="sync-dot"></span>
+          <span id="syncText">Connecting…</span>
+        </div>
+      </header>
+
+      <section id="inactiveCard" class="state-card" hidden>
+        <div class="state-icon">✓</div>
+        <h2>No ESAS incident is active</h2>
+        <p>This page will keep checking automatically. When an authorized Ops/Admin user activates a drill or emergency, the incident will appear here.</p>
+        <p class="muted">ESAS does not replace established emergency procedures or offline accountability.</p>
+      </section>
+
+      <section id="activeApp" hidden>
+        <div id="contextStrip" class="context-strip"></div>
+
+        <nav class="view-tabs" aria-label="ESAS views">
+          <button id="tabRoster" class="view-tab is-active" type="button" data-view="roster">
+            <span>My Roster</span>
+            <b id="rosterBadge">0</b>
+          </button>
+          <button id="tabSearch" class="view-tab" type="button" data-view="search">
+            <span>Search</span>
+          </button>
+          <button id="tabOps" class="view-tab" type="button" data-view="ops" hidden>
+            <span>Unaccounted</span>
+            <b id="opsBadge">0</b>
+          </button>
+        </nav>
+
+        <section id="panelRoster" class="view-panel">
+          <div class="panel-head">
+            <div>
+              <h2>My Current Roster</h2>
+              <p id="rosterHint">Students assigned to you in the frozen incident snapshot.</p>
+            </div>
+            <div id="rosterProgress" class="progress-pill">0 / 0</div>
+          </div>
+          <div id="rosterList" class="student-list"></div>
+          <div id="rosterEmpty" class="empty-state" hidden></div>
+        </section>
+
+        <section id="panelSearch" class="view-panel" hidden>
+          <div class="panel-head">
+            <div>
+              <h2>Find Any Student</h2>
+              <p>Search the frozen whole-school snapshot by name or OSIS. Use this when a student is physically with you but is not on your roster.</p>
+            </div>
+          </div>
+
+          <label class="search-box">
+            <span class="search-icon">⌕</span>
+            <input id="studentSearch" type="search" inputmode="search" autocomplete="off" placeholder="Student name or OSIS" aria-label="Student name or OSIS">
+            <button id="clearSearchBtn" type="button" aria-label="Clear search">×</button>
+          </label>
+          <div id="searchStatus" class="search-status">Enter at least 2 characters.</div>
+          <div id="searchList" class="student-list"></div>
+        </section>
+
+        <section id="panelOps" class="view-panel" hidden>
+          <div class="panel-head">
+            <div>
+              <h2>Whole-School Unaccounted</h2>
+              <p>Live list of students still expected but not yet accounted for.</p>
+            </div>
+          </div>
+
+          <label class="search-box search-box--filter">
+            <span class="search-icon">⌕</span>
+            <input id="opsFilter" type="search" inputmode="search" autocomplete="off" placeholder="Filter name, OSIS, grade, room, course, teacher" aria-label="Filter unaccounted students">
+            <button id="clearOpsFilterBtn" type="button" aria-label="Clear filter">×</button>
+          </label>
+          <div id="opsStatus" class="search-status"></div>
+          <div id="opsList" class="student-list student-list--ops"></div>
+          <div id="opsEmpty" class="empty-state" hidden></div>
+        </section>
+      </section>
+
+      <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
+    </main>
+  </div>
+
+  <script type="module" src="./esas.js?v=20260828-stage3"></script>
+</body>
+</html>
