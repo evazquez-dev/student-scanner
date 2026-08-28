@@ -21,10 +21,10 @@ test('SAFETY: Supervised Lunch is intercepted before legacy fallback', () => {
   assert.ok(fallbackPos > routePos, 'Supervised Lunch must run before legacy fallback');
 });
 
-test('SAFETY: Supervised Lunch endpoint contracts and dormant rollback blocks remain present', () => {
+test('SAFETY: Supervised Lunch endpoint contracts remain modular and legacy route blocks stay removed', () => {
   for (const endpoint of ENDPOINTS) {
     assert.ok(route.includes(endpoint), `modular route missing ${endpoint}`);
-    assert.ok(worker.includes(endpoint), `legacy rollback block missing ${endpoint}`);
+    assert.ok(!worker.includes(`path === \"${endpoint}\"`), `legacy route block returned ${endpoint}`);
   }
 });
 

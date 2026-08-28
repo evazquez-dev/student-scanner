@@ -8,11 +8,13 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('worker persists and exposes super-admin managed external nav links', () => {
   const worker = read('cf-redcake/red-cake-77d5/src/worker.js');
+  const adminSessionService = read('cf-redcake/red-cake-77d5/src/services/admin-session.js');
   assert.match(worker, /EXTERNAL_NAV_LINKS_KEY\s*=\s*"external_nav_links_v1"/);
   assert.match(worker, /path === "\/admin\/nav_external_links"/);
   assert.match(worker, /sanitizeExternalNavLinks_/);
   assert.match(worker, /parsed\.protocol !== "http:" && parsed\.protocol !== "https:"/);
-  assert.match(worker, /external_links,\n\s*can:/);
+  assert.match(adminSessionService, /external_links: await loadDefaultExternalLinks\(env\)/);
+  assert.match(adminSessionService, /can:\s*\{/);
   assert.match(worker, /writeAudit\(liveModeEnv_\(env\).*update_external_nav_links/);
 });
 

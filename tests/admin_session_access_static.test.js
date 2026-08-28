@@ -54,7 +54,7 @@ test('modular access payload retains the legacy permission surface', () => {
   const service = read('cf-redcake/red-cake-77d5/src/services/admin-session.js');
   for (const key of [
     'super_admin', 'admin', 'admin_dashboard', 'admin_roles', 'fidelity_dashboard',
-    'senior_lunch_audit', 'hallway', 'after_school_monitor', 'staff_pull',
+    'senior_lunch_audit', 'esas', 'esas_manage', 'hallway', 'after_school_monitor', 'staff_pull',
     'visitor_desk', 'phone_pass', 'phone_pass_grant', 'phone_pass_return',
     'early_dismissal', 'early_dismissal_undo', 'teacher_attendance', 'my_schedule',
     'supervised_lunch', 'reflection_hold', 'teacher_trace_lookup', 'attendance_status',

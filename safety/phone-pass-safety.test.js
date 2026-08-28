@@ -9,6 +9,9 @@ const route = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/rout
 const service = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/services/phone-pass.js'), 'utf8');
 const worker = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/worker.js'), 'utf8');
 const earlyDismissalRoute = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/routes/early-dismissal.js'), 'utf8');
+const accessRoute = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/routes/access-management.js'), 'utf8');
+const adminSessionService = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/services/admin-session.js'), 'utf8');
+const accessService = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/services/access-management.js'), 'utf8');
 
 test('all operational Phone Pass paths are intercepted before legacy fallback', () => {
   for (const endpoint of ['options','context','mine','active','grant','send_to_return','return']) {
@@ -52,9 +55,28 @@ test('phone return notifications use the extracted shared push service and remai
   assert.doesNotMatch(service, /body:\s*`[^`]*\$\{studentName\}/);
 });
 
-test('legacy Phone Pass implementation remains dormant for rollback during the smoke phase', () => {
-  assert.match(worker, /path === "\/admin\/phone_pass\/grant"/);
-  assert.match(worker, /path === "\/admin\/phone_pass\/return"/);
+test('legacy Phone Pass operational implementation is removed after verified smoke', () => {
+  for (const endpoint of ['options','context','mine','active','grant','send_to_return','return']) {
+    assert.doesNotMatch(worker, new RegExp(`path === \"\\/admin\\/phone_pass\\/${endpoint}\"`));
+  }
+  for (const helper of [
+    'notifyPhoneReturnRequestedToOps_',
+    'phonePassCaps_',
+    'requirePhonePassGrant_',
+    'requirePhonePassReturn_',
+    'isPhonePassActiveToday_'
+  ]) {
+    assert.doesNotMatch(worker, new RegExp(helper));
+  }
+
+  // Shared access/config machinery now belongs to the modular session/access services.
+  assert.doesNotMatch(worker, /async function loadPhonePassGrantAllowlist_/);
+  assert.doesNotMatch(worker, /async function canGrantPhonePass_/);
+  assert.match(adminSessionService, /export async function canGrantPhonePass/);
+  assert.match(accessService, /PHONE_PASS_GRANT_KEY/);
+  assert.doesNotMatch(worker, /path === "\/admin\/phone_pass_group"/);
+  assert.match(accessRoute, /\/admin\/phone_pass_group/);
+  assert.match(worker, /PUSH_CATEGORY_PHONE_RETURN_REQUESTS/);
 });
 
 

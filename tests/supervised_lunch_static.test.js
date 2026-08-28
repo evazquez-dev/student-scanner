@@ -25,7 +25,7 @@ test('Supervised Lunch frontend endpoint and payload contracts remain unchanged'
   for (const pathname of ['/admin/supervised_lunch/options', '/admin/supervised_lunch/save']) {
     assert.ok(route.includes(pathname), `${pathname} must remain modular`);
     assert.ok(ui.includes(pathname), `${pathname} must remain in frontend`);
-    assert.ok(worker.includes(pathname), `${pathname} must remain in legacy rollback code`);
+    assert.ok(!worker.includes(`if (path === "${pathname}")`), `${pathname} legacy route block should stay removed`);
   }
   assert.match(ui, /JSON\.stringify\(\{ date: state\.today, periodLocal, room, osisList \}\)/);
 });

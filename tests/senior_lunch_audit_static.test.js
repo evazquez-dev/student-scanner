@@ -25,7 +25,7 @@ test('Senior Lunch modular endpoint and frontend contracts remain unchanged', ()
   for (const pathname of ['/admin/senior_outin_audit', '/admin/senior_outin_forgive']) {
     assert.ok(route.includes(pathname), `${pathname} must remain in the modular route`);
     assert.ok(ui.includes(pathname), `${pathname} must remain in the Senior Lunch frontend`);
-    assert.ok(worker.includes(pathname), `${pathname} must remain physically available in legacy worker.js during bridge period`);
+    assert.ok(!worker.includes(`if (path === "${pathname}")`), `${pathname} legacy route block should stay removed`);
   }
   assert.match(ui, /application\/x-www-form-urlencoded;charset=UTF-8/);
   assert.match(ui, /new URLSearchParams\(\{ osis: code \}\)/);

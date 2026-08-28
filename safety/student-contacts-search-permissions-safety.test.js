@@ -18,13 +18,13 @@ function blockBetween(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test('SAFETY: shared teacher-facing roster search is intercepted before the legacy admin-only block', () => {
+test('SAFETY: shared teacher-facing roster search is modular and the legacy admin-only block stays removed', () => {
   assert.match(index, /ROSTER_SEARCH_PATHS\.has\(path\)/);
   assert.match(route, /'\/admin\/roster\/search'/);
   assert.match(route, /loadBaseAccess\(req, env, ctx\)/);
   assert.doesNotMatch(route, /forbidden_role|isAdminLike|super_admin|requireAdminOrRoles/);
   assert.match(contacts, /\/admin\/roster\/search\?q=/);
-  assert.match(worker, /if \(path === "\/admin\/roster\/search"\)/);
+  assert.doesNotMatch(worker, /if \(path === "\/admin\/roster\/search"\)/);
 });
 
 test('SAFETY: Contact Correction Review remains admin-only', () => {

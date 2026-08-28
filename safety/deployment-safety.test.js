@@ -16,6 +16,8 @@ const DIAGNOSTICS_REL = 'cf-redcake/red-cake-77d5/src/routes/attendance-diagnost
 const INCIDENT_ROUTE_REL = 'cf-redcake/red-cake-77d5/src/routes/incidents.js';
 const ACADEMIC_SERVICE_REL = 'cf-redcake/red-cake-77d5/src/services/academic-roster.js';
 const DOW_SERVICE_REL = 'cf-redcake/red-cake-77d5/src/services/dreamer-of-week.js';
+const PHONE_PASS_ROUTE_REL = 'cf-redcake/red-cake-77d5/src/routes/phone-pass.js';
+const PHONE_PASS_SERVICE_REL = 'cf-redcake/red-cake-77d5/src/services/phone-pass.js';
 
 class FakeKV {
   constructor(seed = {}) {
@@ -352,8 +354,7 @@ test('SAFETY: force-live helper stays restricted to approved Visitor/control-pla
       || /handleVisitorAdminRoute_/.test(line)
       || (line.includes('writeAudit(liveModeEnv_(env)') && around.includes('update_external_nav_links'))
       || (line.includes('const liveEnv = liveModeEnv_(env)') && approvedPushRoutes.some((route) => nearestPathBlock.includes(`path === "${route}"`)))
-      || (line.includes('sendPushCategoryToEmail_(liveModeEnv_(env)') && around.includes('practice_mode'))
-      || (line.includes('notifyPhoneReturnRequestedToOps_(liveModeEnv_(env)') && around.includes('isPracticeMode_(env)'));
+      || (line.includes('sendPushCategoryToEmail_(liveModeEnv_(env)') && around.includes('practice_mode'));
 
     assert.equal(approved, true, `unapproved force-live usage: ${line}`);
   }
@@ -372,7 +373,11 @@ test('SAFETY: external operational side effects remain suppressed in Practice Mo
   assert.match(worker, /async function pushFinalToGAS[\s\S]{0,900}if \(isPracticeMode_\(env\)\)/);
   assert.match(worker, /rows\.some\(\(row\)\s*=>\s*row\?\.practice\s*===\s*true\)/);
   assert.match(worker, /events\.some\(\(ev\)\s*=>\s*ev\?\.practice\s*===\s*true\)/);
-  assert.match(worker, /else if \(isPracticeMode_\(env\)\) \{\s*phoneReturnNotification = \{ queued: false, simulated: true,[^}]*reason: "practice_mode" \}/);
+  const phonePassRoute = read(PHONE_PASS_ROUTE_REL);
+  const phonePassService = read(PHONE_PASS_SERVICE_REL);
+  assert.match(phonePassRoute, /result\?\.ok && !result\?\.alreadyReturnRequested && !modeInfo\?\.practice/);
+  assert.match(phonePassService, /reason: 'practice_mode'/);
+  assert.match(phonePassService, /PRACTICE_KV_PREFIX/);
   assert.match(incident, /if \(practice\)[\s\S]{0,300}practice_discarded:\s*true/);
   assert.match(incident, /deanNotification = \{ ok: true, simulated: true,[^}]*reason: 'practice_mode' \}/);
 

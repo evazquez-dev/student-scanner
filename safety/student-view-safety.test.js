@@ -42,8 +42,8 @@ test('SAFETY: Practice Student View reads use Practice Durable Object names', ()
   assert.match(service, /studentViewOperationalDoName\(modeInfo, liveName, date\)/);
 });
 
-test('SAFETY: legacy Student View dashboard remains as rollback fallback', () => {
-  assert.match(worker, /path === "\/admin\/student\/dashboard"/);
+test('SAFETY: legacy Student View dashboard route stays removed after modular cleanup', () => {
+  assert.doesNotMatch(worker, /path === "\/admin\/student\/dashboard"/);
   assert.match(frontend, /\/admin\/student\/dashboard\?osis=/);
   assert.match(frontend, /\/admin\/roster\/search\?q=/);
 });

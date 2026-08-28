@@ -74,6 +74,36 @@
           <pre id="systemModeOut" class="pane">—</pre>
         </section>
 
+
+        <!-- Emergency Student Accountability System -->
+        <section class="card" id="esasControlCard">
+          <h2>ESAS — Emergency Student Accountability</h2>
+          <div class="muted">
+            ESAS is a live emergency control plane. It can be activated even while EagleNEST Practice Mode is enabled.
+            Stage 1 manages the incident lifecycle only; staff redirect/accountability screens are added next.
+          </div>
+          <div class="row" style="margin-top:12px;align-items:flex-end;">
+            <div class="col">
+              <label>Incident type</label>
+              <select id="esasKind">
+                <option value="drill">Drill</option>
+                <option value="emergency">Live emergency</option>
+              </select>
+            </div>
+            <div class="col">
+              <label>Label</label>
+              <input id="esasLabel" type="text" maxlength="120" placeholder="Example: Fire Drill">
+            </div>
+            <div class="col right">
+              <button id="btnActivateEsas" class="btn primary" type="button" disabled>Activate ESAS</button>
+              <button id="btnEndEsas" class="btn ghost" type="button" disabled>End ESAS</button>
+            </div>
+          </div>
+          <div id="esasStatus" class="mono" style="font-size:1.15rem;font-weight:900;margin-top:12px;">Checking…</div>
+          <div id="esasDetail" class="muted" style="margin-top:.45rem;">—</div>
+          <pre id="esasOut" class="pane">—</pre>
+        </section>
+
         <!-- Super Admin Read-only View As -->
         <section class="card" id="viewAsTeacherCard">
           <h2>View as Teacher</h2>

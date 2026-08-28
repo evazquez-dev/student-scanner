@@ -30,9 +30,27 @@ test('student session helper stays because student routes still call it', () => 
   assert.ok(calls.length >= 2, 'requireStudent_ should remain wired to student routes');
 });
 
-test('uncertain Fidelity and bell-override candidates stay intact for separate review', () => {
-  assert.match(worker, /function fetchFidelityDashboardFromGas_/);
-  assert.match(worker, /function postFidelityScoreSnapshotToGas_/);
-  assert.match(worker, /function buildFidelityTeacherRoomPeriodFidelity_/);
-  assert.match(worker, /function mergeBellSchedulesById/);
+test('proven zero-caller Fidelity, bell, push, and scan-correction helpers stay removed', () => {
+  for (const name of [
+    'fetchFidelityDashboardFromGas_',
+    'postFidelityScoreSnapshotToGas_',
+    'buildFidelityTeacherRoomPeriodFidelity_',
+    'mergeBellSchedulesById',
+    'sendPushCategoryToEmails_',
+    'listScanCorrections_',
+    'sendPushToEmails_',
+    'fidelityDashboardRoomPeriodKey_',
+    'fidelityDashboardRoundPct_',
+    'fidelityDashboardExpectedStudents_',
+    'fidelityDashboardAttendanceByPeriod_',
+    'fidelityDashboardAttendanceIsPresentLate_',
+    'fidelityDashboardHasRealClassScan_',
+    'fidelityDashboardPullOverlaps_'
+  ]) {
+    assert.equal(worker.includes(name), false, `${name} returned to worker.js`);
+  }
+  // Active Fidelity ingestion/scoring and attendance bell resolution remain.
+  assert.match(worker, /function captureFidelityEvents_/);
+  assert.match(worker, /function fetchFidelityRangeDashboardFromGas_/);
+  assert.match(worker, /function effectiveBellScheduleForDateISO/);
 });

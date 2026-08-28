@@ -21,10 +21,10 @@ test('SAFETY: Senior Lunch Audit is intercepted before legacy fallback', () => {
   assert.ok(fallbackPos > routePos, 'Senior Lunch must run before legacy fallback');
 });
 
-test('SAFETY: Senior Lunch endpoint contracts and dormant rollback blocks remain present', () => {
+test('SAFETY: Senior Lunch endpoint contracts remain modular and legacy route blocks stay removed', () => {
   for (const endpoint of ENDPOINTS) {
     assert.ok(route.includes(endpoint), `modular route missing ${endpoint}`);
-    assert.ok(worker.includes(endpoint), `legacy rollback block missing ${endpoint}`);
+    assert.ok(!worker.includes(`path === \"${endpoint}\"`), `legacy route block returned ${endpoint}`);
   }
 });
 

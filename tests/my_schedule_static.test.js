@@ -6,6 +6,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const worker = read('cf-redcake/red-cake-77d5/src/worker.js');
+const adminSessionService = read('cf-redcake/red-cake-77d5/src/services/admin-session.js');
 
 test('My Schedule uses exact staff Teacher Assignments Match and daily teacher room-period data', () => {
   assert.match(worker, /async function buildMyScheduleState_/);
@@ -33,7 +34,7 @@ test('My Schedule page highlights current period and links directly to Teacher A
 });
 
 test('My Schedule is available to regular staff and remains a live reference in Practice Mode', () => {
-  assert.match(worker, /my_schedule:\s*true/);
+  assert.match(adminSessionService, /my_schedule:\s*true/);
   assert.match(worker, /practice:\s*isPracticeMode_\(env\)/);
   const nav = read('student-scanner/admin/nav.js');
   assert.match(nav, /my_schedule:\s*true/);

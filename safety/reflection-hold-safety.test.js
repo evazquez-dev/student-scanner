@@ -46,10 +46,8 @@ test('SAFETY: Reflection Hold preserves priority and legacy compatibility rules'
   assert.match(service, /REFLECTION_HOLD_LEGACY_LOC/);
 });
 
-test('SAFETY: legacy Reflection Hold implementation remains physically present for rollback', () => {
+test('SAFETY: legacy Reflection Hold route blocks stay removed after modular cleanup', () => {
   for (const suffix of ['options', 'preview', 'confirm', 'update', 'release']) {
-    assert.match(legacy, new RegExp(`path === "\\/admin\\/reflection_hold\\/${suffix}"`));
+    assert.doesNotMatch(legacy, new RegExp(`path === \"\/admin\/reflection_hold\/${suffix}\"`));
   }
-  assert.match(legacy, /reflectionHoldRosterRows_/);
-  assert.match(legacy, /reflectionHoldInfo_/);
 });

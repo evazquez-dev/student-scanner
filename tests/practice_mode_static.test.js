@@ -10,6 +10,7 @@ const exists = (rel) => fs.existsSync(path.join(ROOT, rel));
 const worker = read('cf-redcake/red-cake-77d5/src/worker.js');
 const incidentRoute = read('cf-redcake/red-cake-77d5/src/routes/incidents.js');
 const incidentService = read('cf-redcake/red-cake-77d5/src/services/incidents.js');
+const studentScansService = read('cf-redcake/red-cake-77d5/src/services/student-scans.js');
 
 test('Worker exposes a persistent global system mode with practice scoping and purge', () => {
   assert.match(worker, /SYSTEM_MODE_KEY\s*=\s*"system:mode:v1"/);
@@ -102,8 +103,8 @@ test('Standalone GAS operational write entrypoints check practice mode', () => {
 });
 
 test('Practice operational history reads are isolated from live GAS history', () => {
-  assert.match(worker, /path === "\/admin\/scans_query"/);
-  assert.match(worker, /allPracticeRows[\s\S]{0,1400}history_scope: "practice_today_only"/);
+  assert.match(studentScansService, /allPracticeRows[\s\S]{0,1400}history_scope: 'practice_today_only'/);
+  assert.match(studentScansService, /action: 'scans_query'/);
   assert.match(worker, /path === "\/admin\/behavior\/list"[\s\S]{0,500}isPracticeMode_\(env\)[\s\S]{0,250}buildPracticeBehaviorList_/);
   assert.match(worker, /path === "\/admin\/communications\/student"[\s\S]{0,1000}history_scope: "practice_today_only"/);
 });

@@ -2,11 +2,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = path.resolve(__dirname, '../../Google Apps Script/Visitor Management');
+const root = path.resolve(__dirname, '../../Google Apps Script/clasp-projects/visitor-management');
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 {
-  const sheets = read('VisitorSheets.gs');
+  const sheets = read('VisitorSheets.js');
   assert.match(sheets, /SPREADSHEET_ID_PROP/);
   assert.match(sheets, /setProperty\(VISITOR_CFG\.SPREADSHEET_ID_PROP,\s*ss\.getId\(\)\)/);
   assert.match(sheets, /SpreadsheetApp\.openById\(id\)/);
@@ -19,7 +19,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 }
 
 {
-  const records = read('VisitorRecords.gs');
+  const records = read('VisitorRecords.js');
   assert.doesNotMatch(records, /getDocumentLock\s*\(/, 'Visitor web-app persistence must not use document locks');
   assert.match(records, /LockService\.getScriptLock\s*\(/, 'Visitor web-app persistence must use a script-wide lock');
   assert.match(records, /\.waitLock\s*\(\s*30000\s*\)/, 'Visitor persistence should wait for the script lock');
@@ -35,7 +35,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 }
 
 {
-  const security = read('VisitorSecurity.gs');
+  const security = read('VisitorSecurity.js');
   const factory = new Function('VISITOR_CFG', `${security}; return { safeSheetText_, visitorCleanStr_, visitorParsePost_ };`);
   const helpers = factory({ SECRET_PROP: 'VISITOR_GAS_SHARED_SECRET' });
   assert.equal(helpers.safeSheetText_('=FORMULA', 80), "'=FORMULA");
@@ -51,7 +51,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 }
 
 {
-  const config = read('VisitorConfig.gs');
+  const config = read('VisitorConfig.js');
   assert.match(config, /Photo ID/);
   assert.match(config, /Date of Birth/);
   assert.match(config, /Photo Captured At/);
@@ -68,13 +68,13 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 }
 
 {
-  const code = read('Code.gs');
+  const code = read('Code.js');
   assert.doesNotMatch(code, /updateVisitorStudentLink/, 'Visitor GAS should not expose student-link actions');
   assert.match(code, /upsertVisitorProfile/, 'Visitor GAS should expose profile upsert action');
 }
 
 {
-  const records = read('VisitorRecords.gs');
+  const records = read('VisitorRecords.js');
   assert.match(records, /'Date of Birth': safeSheetText_\(visit\.date_of_birth/);
   assert.match(records, /'Photo ID': safeSheetText_\(visit\.photo_id/);
   assert.match(records, /'Photo Captured At': visit\.photo_captured_at/);
@@ -85,7 +85,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 }
 
 {
-  const security = read('VisitorSecurity.gs');
+  const security = read('VisitorSecurity.js');
   assert.match(security, /date_of_birth: visitorCleanStr_\(v\.date_of_birth/);
   assert.match(security, /photo_id: visitorCleanStr_\(v\.photo_id/);
   assert.match(security, /function\s+visitorSanitizeProfile_/, 'Visitor GAS should sanitize Returning Parent profiles');
@@ -95,7 +95,7 @@ const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 }
 
 {
-  const history = read('VisitorHistory.gs');
+  const history = read('VisitorHistory.js');
   assert.match(history, /date_of_birth: visitorDateOnlyString_\(out\.date_of_birth\)/);
 }
 

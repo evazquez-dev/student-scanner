@@ -260,6 +260,7 @@ function showApp() {
 async function afterLoginBoot() {
   showApp();
   await loadSystemMode();
+  await loadEsasStatus();
   await loadExternalNavLinks();
   await loadAcademicRosterSettings();
   await loadViewAsStaffSettings();
@@ -441,6 +442,102 @@ btnToggleSystemMode?.addEventListener('click', async () => {
   }catch(e){
     if (systemModeOut) systemModeOut.textContent = `Mode change failed: ${e?.message || e}`;
     btnToggleSystemMode.disabled = false;
+  }
+});
+
+
+/* ===============================
+ * ESAS — EMERGENCY STUDENT ACCOUNTABILITY
+ * =============================== */
+let currentEsasStatus = null;
+const esasKind = document.getElementById('esasKind');
+const esasLabel = document.getElementById('esasLabel');
+const esasStatus = document.getElementById('esasStatus');
+const esasDetail = document.getElementById('esasDetail');
+const esasOut = document.getElementById('esasOut');
+const btnActivateEsas = document.getElementById('btnActivateEsas');
+const btnEndEsas = document.getElementById('btnEndEsas');
+
+function renderEsasAdmin(data){
+  currentEsasStatus = data || null;
+  const active = data?.active === true && data?.incident;
+  if (esasStatus) {
+    esasStatus.textContent = active
+      ? `🚨 ESAS ACTIVE — ${String(data.incident.kind || '').toUpperCase()}`
+      : 'ESAS INACTIVE';
+    esasStatus.style.color = active ? 'var(--warn)' : 'var(--ok)';
+  }
+  if (esasDetail) {
+    esasDetail.textContent = active
+      ? `${data.incident.label || 'Emergency'} • Started ${data.incident.started_at_iso || '—'} • ${data.incident.incident_id || ''}`
+      : 'No emergency accountability incident is active.';
+  }
+  if (btnActivateEsas) btnActivateEsas.disabled = !data?.ok || active || data?.can_manage !== true;
+  if (btnEndEsas) btnEndEsas.disabled = !data?.ok || !active || data?.can_manage !== true;
+  if (esasKind) esasKind.disabled = !!active;
+  if (esasLabel) esasLabel.disabled = !!active;
+  if (esasOut) esasOut.textContent = JSON.stringify(data || {}, null, 2);
+}
+
+async function loadEsasStatus(){
+  try{
+    const r = await adminFetch('/admin/esas/status', { method:'GET' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderEsasAdmin(j);
+    return j;
+  }catch(e){
+    if (esasStatus) esasStatus.textContent = 'ESAS STATUS UNAVAILABLE';
+    if (esasDetail) esasDetail.textContent = String(e?.message || e);
+    if (esasOut) esasOut.textContent = String(e?.message || e);
+    if (btnActivateEsas) btnActivateEsas.disabled = true;
+    if (btnEndEsas) btnEndEsas.disabled = true;
+    return null;
+  }
+}
+
+btnActivateEsas?.addEventListener('click', async () => {
+  const kind = String(esasKind?.value || '').trim().toLowerCase();
+  const label = String(esasLabel?.value || '').trim();
+  const typeLabel = kind === 'emergency' ? 'LIVE EMERGENCY' : 'DRILL';
+  const warning = kind === 'emergency'
+    ? `Activate ESAS as a ${typeLabel} right now? This is a LIVE control-plane action even if EagleNEST is in Practice Mode.`
+    : `Activate ESAS as a ${typeLabel} right now? This creates a live ESAS incident for testing/drill accountability.`;
+  if (!confirm(warning)) return;
+  btnActivateEsas.disabled = true;
+  try{
+    const r = await adminFetch('/admin/esas/activate', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({ kind, label })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    await loadEsasStatus();
+  }catch(e){
+    if (esasOut) esasOut.textContent = `ESAS activation failed: ${e?.message || e}`;
+    await loadEsasStatus();
+  }
+});
+
+btnEndEsas?.addEventListener('click', async () => {
+  const incidentId = String(currentEsasStatus?.incident?.incident_id || '').trim();
+  if (!incidentId) return;
+  const label = String(currentEsasStatus?.incident?.label || incidentId);
+  if (!confirm(`END the active ESAS incident “${label}”? Stage 1 will archive the incident lifecycle record.`)) return;
+  btnEndEsas.disabled = true;
+  try{
+    const r = await adminFetch('/admin/esas/end', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({ incident_id: incidentId })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    await loadEsasStatus();
+  }catch(e){
+    if (esasOut) esasOut.textContent = `ESAS end failed: ${e?.message || e}`;
+    await loadEsasStatus();
   }
 });
 

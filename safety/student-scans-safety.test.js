@@ -42,9 +42,9 @@ test('SAFETY: Live GAS scan query is selected only outside Practice Mode', () =>
   assert.match(service, /action: 'scans_query'/);
 });
 
-test('SAFETY: Legacy Student Scans blocks remain available as rollback fallback', () => {
-  assert.match(worker, /path === "\/admin\/roster_students"/);
-  assert.match(worker, /path === "\/admin\/scans_query"/);
+test('SAFETY: Legacy Student Scans route blocks stay removed after modular cleanup', () => {
+  assert.doesNotMatch(worker, /path === "\/admin\/roster_students"/);
+  assert.doesNotMatch(worker, /path === "\/admin\/scans_query"/);
   assert.match(frontend, /\/admin\/roster_students/);
   assert.match(frontend, /\/admin\/scans_query/);
 });

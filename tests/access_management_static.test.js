@@ -61,7 +61,7 @@ test('existing Roles & Access and Super Admin frontend endpoint contracts remain
   assert.match(adminUi, /\/admin\/staff_pull_roles/);
 });
 
-test('legacy access-management blocks remain physically available as dormant rollback fallback', () => {
+test('legacy access-management route blocks stay removed after modular cleanup', () => {
   for (const pathname of [
     '/admin/admin_role_allowlist',
     '/admin/visitor_desk_allowlist',
@@ -70,7 +70,7 @@ test('legacy access-management blocks remain physically available as dormant rol
     '/admin/hallway_group',
     '/admin/phone_pass_group'
   ]) {
-    assert.ok(worker.includes(`path === \\"${pathname}\\"`) || worker.includes(`path === "${pathname}"`) || worker.includes(pathname),
-      `legacy worker should still contain ${pathname} during bridge period`);
+    assert.ok(!worker.includes(`if (path === \"${pathname}\")`),
+      `legacy worker route block returned for ${pathname}`);
   }
 });

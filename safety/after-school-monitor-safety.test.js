@@ -37,7 +37,6 @@ test('SAFETY: After-School Monitor extraction stays read-only', () => {
   assert.doesNotMatch(service, /ROSTER\.put/);
 });
 
-test('SAFETY: legacy After-School Monitor remains physically present for rollback', () => {
-  assert.match(legacy, /path === "\/admin\/after_school_monitor"/);
-  assert.match(legacy, /afterSchoolMonitorRow_/);
+test('SAFETY: legacy After-School Monitor route stays removed after modular cleanup', () => {
+  assert.doesNotMatch(legacy, /path === "\/admin\/after_school_monitor"/);
 });

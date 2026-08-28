@@ -10,6 +10,8 @@ const incidents = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/
 const dow = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/services/dreamer-of-week.js'), 'utf8');
 const phonePassRoute = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/routes/phone-pass.js'), 'utf8');
 const phonePass = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/services/phone-pass.js'), 'utf8');
+const reflectionRoute = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/routes/reflection-hold.js'), 'utf8');
+const reflection = fs.readFileSync(path.join(root, 'cf-redcake/red-cake-77d5/src/services/reflection-hold.js'), 'utf8');
 
 // Shared operational state must be date/mode scoped. New movement workflows
 // depend on these helpers, so this is the central isolation boundary.
@@ -34,12 +36,12 @@ assert.match(dow, /dowOperationalKey\(modeInfo, DOW_HISTORY_COUNTS_KEY\)/);
 assert.match(dow, /dowOperationalKey\(modeInfo, `\$\{DOW_ARCHIVE_KEY_PREFIX\}\$\{band\}:\$\{cycle\.cycle_id\}`\)/);
 assert.match(dow, /fail_closed: true/);
 
-// Reflection Hold uses shared StudentLocation state for create/update/release.
+// Reflection Hold is modular and uses mode-scoped StudentLocation state for create/update/release.
 for (const route of ['confirm', 'update', 'release']) {
-  assert.match(worker, new RegExp(`path === "\\/admin\\/reflection_hold\\/${route}"`));
+  assert.match(reflectionRoute, new RegExp(`'/admin/reflection_hold/${route}'`));
 }
-assert.match(worker, /source: "after_school_reflection_hold_update"/);
-assert.match(worker, /source = mode === "cancel" \? "after_school_reflection_hold_cancel" : "after_school_reflection_hold_release"/);
+assert.match(reflection, /source: 'after_school_reflection_hold_update'/);
+assert.match(reflection, /source = mode === 'cancel' \? 'after_school_reflection_hold_cancel' : 'after_school_reflection_hold_release'/);
 
 // After-school manual movement reuses the mode-scoped location and log stack.
 assert.match(worker, /path === "\/admin\/after_school\/toggle"/);
