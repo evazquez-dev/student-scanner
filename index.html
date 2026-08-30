@@ -125,6 +125,20 @@
     .scans-pane{ max-height: 360px; overflow-y: auto; border: 1px solid #e5e9f2; border-radius: 8px; background: #fff; }
     .scans-pane thead th{ position: sticky; top: 0; background: #f7f9fc; z-index: 1; box-shadow: 0 1px 0 rgba(0,0,0,0.06); }
     #historyTbl td, #historyTbl th{ padding: 8px 10px; line-height: 1.2; }
+    #historyTbl .history-name-col{ width:45%; }
+    #historyTbl .history-status-col{ width:30%; }
+    #historyTbl .history-dest-col{ width:18%; display:none; white-space:nowrap; font-weight:700; }
+    #historyTbl .history-time-col{ width:25%; white-space:nowrap; }
+    #historyTbl.show-morning-dest .history-name-col{ width:38%; }
+    #historyTbl.show-morning-dest .history-status-col{ width:24%; }
+    #historyTbl.show-morning-dest .history-dest-col{ width:18%; display:table-cell; }
+    #historyTbl.show-morning-dest .history-time-col{ width:20%; }
+    @media (max-width: 700px) {
+      #historyTbl.show-morning-dest .history-time-col{ display:none; }
+      #historyTbl.show-morning-dest .history-name-col{ width:45%; }
+      #historyTbl.show-morning-dest .history-status-col{ width:30%; }
+      #historyTbl.show-morning-dest .history-dest-col{ width:25%; }
+    }
     .bad { color:#b00020; font-weight:600; }
     .queued { color:#8a5a00; font-weight:600; }
     .allowed-badge { color:#0a7c2f; font-weight:700; }
@@ -369,10 +383,10 @@
             <table id="historyTbl" aria-label="Scan history">
               <thead>
                 <tr>
-                  <th style="width:30%">Name</th>
-                  <th style="width:20%">Code</th>
-                  <th style="width:22%">Locker</th>
-                  <th style="width:28%">Time</th>
+                  <th class="history-name-col">Name</th>
+                  <th class="history-status-col">Locker</th>
+                  <th class="history-dest-col">Go To</th>
+                  <th class="history-time-col">Time</th>
                 </tr>
               </thead>
               <tbody id="historyBody"></tbody>
@@ -805,6 +819,17 @@
       }
     }
     return {};
+  }
+
+  function isDefaultMorningLocation(loc) {
+    const meta = getLocationMeta(loc);
+    return String(meta?.type || '').trim().toLowerCase() === 'morning' &&
+      String(meta?.mode || '').trim().toLowerCase() === 'default';
+  }
+
+  function morningDestinationRoomForDisplay_() {
+    if (!isDefaultMorningLocation(getLocation())) return '';
+    return String(window.__lastMorningDestinationRoom || '').trim();
   }
 
   /* ============================================================
@@ -1829,8 +1854,11 @@
   }
   function updateHeaderForLocation(){
     const loc = getLocation();
-    const col = historyHeaderCells[2];
+    const col = historyHeaderCells[1];
+    const table = document.getElementById('historyTbl');
     if (!col) return;
+
+    if (table) table.classList.toggle('show-morning-dest', isDefaultMorningLocation(loc));
 
     if (isTrackedOutIn(loc) || isBathroomLocation(loc)) col.textContent = 'In/Out';
     else if (isLunchLocation(loc)) col.textContent = 'Allowed?';
@@ -2132,10 +2160,10 @@
     const tr = document.createElement('tr');
     tr.dataset.seq = String(seq);
     tr.innerHTML =
-      `<td class="name"><em>…looking up…</em></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
+      `<td class="name history-name-col"><em>…looking up…</em></td>
+       <td class="history-status-col">—</td>
+       <td class="history-dest-col">—</td>
+       <td class="history-time-col">${fmtTime(when)}</td>`;
     historyBody.prepend(tr);
     trimHistory();
     return tr;
@@ -2143,6 +2171,8 @@
 
   function updateRowToSuccess(tr, {name, code, lockerNum, lockerColor, lunchValue, when}){
     const loc = getLocation();
+    const destinationRoom = morningDestinationRoomForDisplay_();
+    const destinationCell = destinationRoom ? esc(destinationRoom) : '—';
 
     if (window.__lastSearchFlag) tr.classList.add('flag-search'); else tr.classList.remove('flag-search');
 
@@ -2161,10 +2191,10 @@
         : '';
       tr.className = '';
       tr.innerHTML =
-        `<td class="name">${nameHtmlWithBadge(name)}</td>
-         <td class="code">${esc(code)}</td>
-         <td>${pill} ${allowBox}</td>
-         <td>${fmtTime(when)}</td>`;
+        `<td class="name history-name-col">${nameHtmlWithBadge(name)}</td>
+           <td class="history-status-col">${pill} ${allowBox}</td>
+         <td class="history-dest-col">${destinationCell}</td>
+         <td class="history-time-col">${fmtTime(when)}</td>`;
       return;
     }
 
@@ -2175,10 +2205,10 @@
         : `<span class="not-allowed-badge">❌ Not allowed</span>`;
       tr.className = '';
       tr.innerHTML =
-        `<td class="name">${nameHtml}</td>
-         <td class="code">${esc(code)}</td>
-         <td>${thirdCell}</td>
-         <td>${fmtTime(when)}</td>`;
+        `<td class="name history-name-col">${nameHtml}</td>
+           <td class="history-status-col">${thirdCell}</td>
+         <td class="history-dest-col">${destinationCell}</td>
+         <td class="history-time-col">${fmtTime(when)}</td>`;
       return;
     }
 
@@ -2195,10 +2225,10 @@
     
       tr.className = '';
       tr.innerHTML =
-        `<td class="name">${nameHtml}</td>
-         <td class="code">${esc(code)}</td>
-         <td>${thirdCell}</td>
-         <td>${fmtTime(when)}</td>`;
+        `<td class="name history-name-col">${nameHtml}</td>
+           <td class="history-status-col">${thirdCell}</td>
+         <td class="history-dest-col">${destinationCell}</td>
+         <td class="history-time-col">${fmtTime(when)}</td>`;
       return;
     }
 
@@ -2216,10 +2246,10 @@
 
     tr.className = '';
     tr.innerHTML =
-      `<td class="name">${nameHtml}</td>
-       <td class="code">${esc(code)}</td>
-       <td>${lockerHtml}</td>
-       <td>${fmtTime(when)}</td>`;
+      `<td class="name history-name-col">${nameHtml}</td>
+       <td class="history-status-col">${lockerHtml}</td>
+       <td class="history-dest-col">${destinationCell}</td>
+       <td class="history-time-col">${fmtTime(when)}</td>`;
   }
 
   function updateRowToNotFound(tr, code, when, error, reason){
@@ -2228,18 +2258,18 @@
       ? (reason === 'leading_zero_osis' ? 'Leading-zero OSIS — scan card.' : 'Digits only.')
       : 'Not found';
     tr.innerHTML =
-      `<td class="name"><span class="bad">${esc(msg)}</span></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
+      `<td class="name history-name-col"><span class="bad">${esc(msg)}</span></td>
+       <td class="history-status-col">—</td>
+       <td class="history-dest-col">—</td>
+       <td class="history-time-col">${fmtTime(when)}</td>`;
   }
   function updateRowToError(tr, code, when, err){
     beepBad();
     tr.innerHTML =
-      `<td class="name"><span class="bad">Lookup error</span></td>
-       <td class="code">${esc(code)}</td>
-       <td>—</td>
-       <td>${fmtTime(when)}</td>`;
+      `<td class="name history-name-col"><span class="bad">Lookup error</span></td>
+       <td class="history-status-col">—</td>
+       <td class="history-dest-col">—</td>
+       <td class="history-time-col">${fmtTime(when)}</td>`;
   }
   function trimHistory(){
     const loc = getLocation();
@@ -2356,6 +2386,8 @@
       window.__lastSearchFlag    = !!res.search;
       window.__lastRegentsPrep   = !!res.regents_prep;
       window.__lastAlertFlag     = !!res.alert;
+      window.__lastMorningDestinationRoom   = String(res.morning_destination_room || '').trim();
+      window.__lastMorningDestinationPeriod = String(res.morning_destination_period || '').trim();
 
       const loc     = getLocation() || '';
       const whenISO = when.toISOString();
@@ -2866,11 +2898,21 @@
       ? (allowed ? `<span class="allowed-badge">Allowed</span>` : `<span class="not-allowed-badge">Not allowed</span>`)
       : `Locker ${esc(displayNum || '—')} (${esc(displayColor || '—')})`;
 
+    const destinationRoom = morningDestinationRoomForDisplay_();
+    const destinationPeriod = isDefaultMorningLocation(loc)
+      ? String(window.__lastMorningDestinationPeriod || '').trim()
+      : '';
+    const destinationHtml = destinationRoom
+      ? `<div class="name" style="margin-top:10px; font-size:20px;">GO TO ROOM ${esc(destinationRoom)}</div>` +
+        (destinationPeriod ? `<div class="muted">Period ${esc(destinationPeriod)}</div>` : '')
+      : '';
+
     const nameHtml = nameHtmlWithBadge(name);
     resultEl.innerHTML =
       `<div class="ok">OK</div>
        <div class="name">${nameHtml}</div>
        <div class="code">${esc(code)} — ${extra}</div>
+       ${destinationHtml}
        <div class="muted">${fmtTime(when)}</div>`;
     setStatus('Ready. Scan next card…');
   }
