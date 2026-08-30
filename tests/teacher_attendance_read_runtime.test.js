@@ -161,8 +161,8 @@ test('meeting preview computes the same scheduled roster and attendance-code sem
   assert.equal(data.source, 'computed');
   assert.equal(data.scheduled_count, 2);
   assert.deepEqual(data.rows.map((row) => [row.osis, row.codeLetter, row.attendance_codeid]), [
-    ['111111111', 'L', '955'],
-    ['222222222', 'A', '951']
+    ['111111111', 'L', '1056'],
+    ['222222222', 'A', '1051']
   ]);
   assert.equal(data.rows[0].source, 'teacher');
 });
