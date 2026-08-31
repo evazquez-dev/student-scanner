@@ -532,6 +532,11 @@
   const HISTORY_VISIBLE_CLASS = 3;
   const HISTORY_VISIBLE_CLASS_LUNCH = 8;
 
+  // TEMPORARY Welcome Week support: Caf functions as a lunch kiosk
+  // during local Periods 7 and 8 even though they are not named LCH1/LCH2.
+  // Remove '7' and '8' after Welcome Week if normal lunch periods return to LCH1/LCH2.
+  const TEMP_CAF_LUNCH_PERIODS = new Set(['7', '8', 'LCH1', 'LCH2']);
+
   const SPECIAL_LOCATION = 'Senior Lunch (out-in)';
   const BATHROOM_PREFIX  = 'Bathroom (';
 
@@ -1066,9 +1071,17 @@
     const current = loc || getLocation();
     if (!isClassKiosk(current)) return false;
     const key = String(CURRENT_CLASS_PERIOD_KEY || '').trim().toUpperCase();
-    const isLunchPeriod = key === 'LCH1' || key === 'LCH2';
+    const isLunchPeriod = TEMP_CAF_LUNCH_PERIODS.has(key);
     const isCaf = String(current || '').toLowerCase().includes('caf');
     return isLunchPeriod && isCaf;
+  }
+  function isLunchCourseResponse(res) {
+    const course = String(
+      res?.current_course_section ||
+      res?.next_course_section ||
+      ''
+    ).trim().toUpperCase();
+    return course === 'LUNCH';
   }
   function superLunchReasonText(res){
     const reason = String(res?.superlunch_reason || '').trim().toLowerCase();
@@ -1863,9 +1876,10 @@
     if (isTrackedOutIn(loc) || isBathroomLocation(loc)) col.textContent = 'In/Out';
     else if (isLunchLocation(loc)) col.textContent = 'Allowed?';
     else if (isClassKiosk(loc)) {
-      // 🍽️ LUNCH POLISH: Caf during LCH1/LCH2 should read "Lunch" (not "Attendance")
+      // 🍽️ LUNCH POLISH: Caf during configured lunch UI periods should read
+      // "Lunch" instead of "Attendance". Welcome Week temporarily uses P7/P8.
       const key = String(CURRENT_CLASS_PERIOD_KEY || '').trim().toUpperCase();
-      const isLunchPeriod = (key === 'LCH1' || key === 'LCH2');
+      const isLunchPeriod = TEMP_CAF_LUNCH_PERIODS.has(key);
       const isCaf = String(loc || '').toLowerCase().includes('caf');
       col.textContent = (isLunchPeriod && isCaf) ? 'Lunch' : 'Attendance';
     }
@@ -2573,12 +2587,14 @@
         // Present in class and not currently out → open Out-of-Class modal
         if (isPresent && !wasOut) {
 
-          // 🍽️ LUNCH OVERRIDE (Caf during LCH1/LCH2):
-          // No "where are you going?" modal; repeat scans are ignored (but still logged).
-          const pNow = String((res && (res.current_period || res.next_period)) || '').trim().toUpperCase();
-          const isLunchPeriod = (pNow === 'LCH1' || pNow === 'LCH2');
+          // 🍽️ LUNCH OVERRIDE:
+          // At the Caf kiosk, a student whose actual schedule assignment is LUNCH
+          // can scan repeatedly without opening the "where are you going?" modal.
+          // Repeat scans are still logged. This works for temporary P7/P8 lunch
+          // without treating every student in those periods as a lunch student.
+          const isLunchStudent = isLunchCourseResponse(res);
           const isCaf = String(loc || '').toLowerCase().includes('caf');
-          if (isLunchPeriod && isCaf) {
+          if (isLunchStudent && isCaf) {
             const attendance = res.attendance || 'Present';
             const attSlug = String(attendance).toLowerCase();
             const allowedValue = `kiosk_ok_repeat:${attSlug}`;
