@@ -221,7 +221,7 @@
         <button data-action="edit" data-id="${esc(v.visit_id)}">Review/Edit</button>
         <button data-action="scan-id" data-id="${esc(v.visit_id)}">Scan / Verify ID</button>
         <button data-action="take-photo" data-id="${esc(v.visit_id)}">Take Visitor Photo</button>
-        <button class="primary" data-action="admit" data-id="${esc(v.visit_id)}">Admit & Print Badge</button>
+        <button class="primary" data-action="admit" data-id="${esc(v.visit_id)}">Admit & Auto-Print Badge</button>
         <button data-action="cancel" data-id="${esc(v.visit_id)}">Cancel</button>
         <button class="danger" data-action="deny" data-id="${esc(v.visit_id)}">Deny</button>
       </div></td>
@@ -259,6 +259,7 @@
     $('waitingUpdated').textContent = updated;
     $('activeUpdated').textContent = updated;
     renderSyncHealth();
+    renderPrintAgentHealth();
   }
 
   function renderSyncHealth() {
@@ -273,6 +274,32 @@
     }
     el.textContent = `Visitor log synchronization delayed - ${pending} record${pending === 1 ? '' : 's'} will retry automatically.`;
     el.classList.remove('ok');
+    el.classList.add('warn');
+  }
+
+  function renderPrintAgentHealth() {
+    const p = STATE.print_agent || {};
+    const el = $('printAgentStatus');
+    if (!el) return;
+    const queued = Number(p.queued_count || 0);
+    const failed = Number(p.failed_count || 0);
+    const agent = p.latest_agent || null;
+    const seenMs = Date.parse(String(agent?.last_seen_at || ''));
+    const online = !!agent && Number.isFinite(seenMs) && (Date.now() - seenMs) < 15000;
+    el.classList.remove('ok', 'warn');
+    if (!p.configured) {
+      el.textContent = 'Automatic badge printer: Worker secret not configured.';
+      el.classList.add('warn');
+      return;
+    }
+    if (online) {
+      const printer = agent.printer_name ? ` — ${agent.printer_name}` : '';
+      const queueText = queued ? ` — ${queued} queued` : '';
+      el.textContent = `Automatic badge printer: connected${printer}${queueText}`;
+      el.classList.add(failed ? 'warn' : 'ok');
+      return;
+    }
+    el.textContent = `Automatic badge printer: offline${queued ? ` — ${queued} badge${queued === 1 ? '' : 's'} queued` : ''}${failed ? ` — ${failed} failed` : ''}`;
     el.classList.add('warn');
   }
 
@@ -336,28 +363,17 @@
     let direct = !visitId && visitorForm.elements.direct_admit.checked;
     const directPhotoOverride = direct && window.confirm('Direct admission without a visitor photo requires an audited override. Continue without a photo?');
     if (direct && !directPhotoOverride) direct = false;
-    const reservedPrintWindow = direct ? reservePrintWindow() : null;
-    let printIssue = false;
     $('saveVisitorBtn').disabled = true;
     try {
       if (visitId) {
         await api('/admin/visitor/edit', { method: 'POST', body: { visit_id: visitId, patch } });
       } else {
-        const data = await api('/admin/visitor/staff_create', { method: 'POST', body: { visitor: patch, direct_admit: direct, photo_required_override: directPhotoOverride } });
-        if (direct && data.visit?.badge_checkout_token) {
-          try {
-            await printBadge(data.visit, false, reservedPrintWindow);
-          } catch {
-            printIssue = true;
-            setStatus('Visitor checked in, but the print window was blocked. Use Reprint Badge.', 'bad');
-          }
-        }
+        await api('/admin/visitor/staff_create', { method: 'POST', body: { visitor: patch, direct_admit: direct, photo_required_override: directPhotoOverride } });
       }
       visitorDialog.close();
       await refreshState(true);
-      if (!printIssue) setStatus('Visitor saved.', 'ok');
+      setStatus(direct ? 'Visitor checked in. Badge queued for automatic printing.' : 'Visitor saved.', 'ok');
     } catch (err) {
-      try { reservedPrintWindow?.close(); } catch {}
       setStatus(`Save failed: ${err?.message || err}`, 'bad');
     } finally {
       $('saveVisitorBtn').disabled = false;
@@ -568,22 +584,15 @@
   }
 
   async function admitVisit(v, opts = {}) {
-    if (!opts.skipConfirm && !window.confirm(`Admit ${fullName(v)} and print a badge?`)) return;
-    const reservedPrintWindow = reservePrintWindow();
+    if (!opts.skipConfirm && !window.confirm(`Admit ${fullName(v)}?`)) return;
     try {
       const data = await api('/admin/visitor/admit', { method: 'POST', body: { visit_id: v.visit_id } });
       await refreshState(true);
-      try {
-        await printBadge(data.visit, false, reservedPrintWindow);
-        if (data.returning_pass?.qr_text && data.profile) {
-          await printReturningPass(data.profile, data.returning_pass);
-        }
-        setStatus(data.already ? 'Visitor was already checked in. Badge opened for printing.' : 'Visitor checked in. Badge opened for printing.', 'ok');
-      } catch {
-        setStatus('Visitor checked in, but the print window was blocked. Use Reprint Badge.', 'bad');
+      if (data.returning_pass?.qr_text && data.profile) {
+        try { await printReturningPass(data.profile, data.returning_pass); } catch {}
       }
+      setStatus(data.already ? 'Visitor was already checked in.' : 'Visitor checked in. Badge queued for automatic printing.', 'ok');
     } catch (err) {
-      try { reservedPrintWindow?.close(); } catch {}
       if (String(err?.message || err) === 'photo_required') {
         setStatus('Visitor photo required before admission. Take a photo or record an override.', 'bad');
         openPhotoDialog(v, 'admit');
@@ -995,13 +1004,12 @@
     else if (action === 'replace-returning') replaceReturningPass(v);
     else if (action === 'revoke-returning') revokeReturningPass(v);
     else if (action === 'reprint') {
-      const reservedPrintWindow = reservePrintWindow();
       api('/admin/visitor/reprint', { method: 'POST', body: { visit_id: v.visit_id } })
-        .then((d) => printBadge(d.visit, true, reservedPrintWindow))
-        .catch((err) => {
-          try { reservedPrintWindow?.close(); } catch {}
-          setStatus(`Reprint failed: ${err?.message || err}`, 'bad');
-        });
+        .then(async () => {
+          await refreshState(true);
+          setStatus('Badge reprint queued for automatic printing.', 'ok');
+        })
+        .catch((err) => setStatus(`Reprint failed: ${err?.message || err}`, 'bad'));
     }
     else if (action === 'cancel' || action === 'deny') cancelOrDeny(v, action);
   }

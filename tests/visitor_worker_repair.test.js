@@ -761,6 +761,57 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     assert.equal(visits.size, 1);
   }
 
+  {
+    const state = new FakeState();
+    const instance = new mod.VisitorDeskDO(state, {});
+    await instance.ready;
+    const created = await doJson(instance, '/staff_create', {
+      actor_email: 'security@example.org',
+      direct_admit: true,
+      visitor: {
+        visitor_first_name: 'Auto',
+        visitor_last_name: 'Print',
+        date_of_birth: '1980-01-01',
+        visitor_type: 'school_guest',
+        purpose: 'meeting',
+        photo_required_override: true
+      }
+    });
+    assert.equal(created.data.ok, true);
+    assert.equal(created.data.print_job.status, 'queued');
+    const claim = await doJson(instance, '/print_agent_claim', {
+      agent_id: 'front-desk-test',
+      printer_name: 'Brother QL-820NWBc',
+      host_name: 'VISITOR-DESK',
+      version: 'test'
+    });
+    assert.equal(claim.data.ok, true);
+    assert.equal(claim.data.job.job_id, created.data.print_job.job_id);
+    assert.equal(claim.data.visit.badge_checkout_token.length > 10, true);
+    const done = await doJson(instance, '/print_agent_complete', {
+      job_id: claim.data.job.job_id,
+      agent_id: 'front-desk-test',
+      success: true,
+      printer_name: 'Brother QL-820NWBc'
+    });
+    assert.equal(done.data.ok, true);
+    assert.equal(done.data.job.status, 'sent');
+    const empty = await doJson(instance, '/print_agent_claim', { agent_id: 'front-desk-test' });
+    assert.equal(empty.data.job, null);
+
+    const reprint = await doJson(instance, '/reprint', { visit_id: created.data.visit.visit_id });
+    assert.equal(reprint.data.ok, true);
+    assert.equal(reprint.data.print_job.reprint, true);
+    assert.notEqual(reprint.data.print_job.job_id, created.data.print_job.job_id);
+  }
+
+  {
+    assert.match(workerSource, /VISITOR_PRINT_AGENT_TOKEN/, 'Worker should require a dedicated print-agent secret');
+    assert.match(workerSource, /\/visitor\/print-agent\/claim/, 'Worker should expose the print-agent claim route');
+    assert.match(workerSource, /\/visitor\/print-agent\/complete/, 'Worker should expose the print-agent completion route');
+    assert.match(workerSource, /\/visitor\/print-agent\/photo/, 'Worker should expose the token-scoped print-agent photo route');
+  }
+
   console.log('visitor_worker_repair tests passed');
 })().catch((err) => {
   console.error(err);

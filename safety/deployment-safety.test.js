@@ -351,6 +351,7 @@ test('SAFETY: force-live helper stays restricted to approved Visitor/control-pla
     const approved =
       /function\s+liveModeEnv_/.test(line)
       || /handleVisitorKioskRoute_/.test(line)
+      || /handleVisitorPrintAgentRoute_/.test(line)
       || /handleVisitorAdminRoute_/.test(line)
       || (line.includes('writeAudit(liveModeEnv_(env)') && around.includes('update_external_nav_links'))
       || (line.includes('const liveEnv = liveModeEnv_(env)') && approvedPushRoutes.some((route) => nearestPathBlock.includes(`path === "${route}"`)))
@@ -360,6 +361,7 @@ test('SAFETY: force-live helper stays restricted to approved Visitor/control-pla
   }
 
   assert.match(worker, /handleVisitorKioskRoute_\(req, liveModeEnv_\(env\), ctx, path\)/);
+  assert.match(worker, /handleVisitorPrintAgentRoute_\(req, liveModeEnv_\(env\), ctx, path\)/);
   assert.match(worker, /handleVisitorAdminRoute_\(req, liveModeEnv_\(env\), ctx, path\)/);
   assert.match(worker, /function operationalDoName_\(env, liveName, date = ""\)/);
   assert.match(worker, /function operationalKvKey_\(env, liveKey, date = ""\)/);

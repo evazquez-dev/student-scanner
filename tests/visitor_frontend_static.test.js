@@ -49,6 +49,17 @@ function sectionBetween(src, startNeedle, endNeedle) {
 }
 
 {
+  assert.match(deskHtml, /id="printAgentStatus"/, 'Visitor Desk should show automatic print-agent health');
+  assert.match(desk, /Admit & Auto-Print Badge/, 'Waiting visitor action should describe automatic badge printing');
+  assert.match(desk, /function\s+renderPrintAgentHealth\s*\(/, 'Visitor Desk should render print-agent connection and queue state');
+  const admitSection = sectionBetween(desk, 'async function admitVisit', 'function reservePrintWindow');
+  assert.doesNotMatch(admitSection, /printBadge\(|reservePrintWindow\(/, 'Admit should queue automatic printing rather than opening a browser print window');
+  const actionSection = sectionBetween(desk, "else if (action === 'reprint')", "else if (action === 'cancel'");
+  assert.match(actionSection, /Badge reprint queued for automatic printing/, 'Reprint should queue through the print appliance');
+  assert.doesNotMatch(actionSection, /reservePrintWindow|printBadge\(/, 'Reprint should not open browser print UI');
+}
+
+{
   const badgeSection = sectionBetween(desk, 'async function printBadge', 'async function checkoutVisit');
   assert.match(desk, /function\s+badgeVisitLine\s*\(/, 'Visitor Desk should centralize badge visit-line logic');
   assert.doesNotMatch(
