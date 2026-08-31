@@ -442,6 +442,37 @@ legend {
   background: linear-gradient(180deg, rgba(17, 24, 39, .96), rgba(31, 41, 55, .96));
 }
 
+.photoSilhouette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .72;
+}
+
+.photoSilhouette::before,
+.photoSilhouette::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, .22);
+  border: 3px solid rgba(255, 255, 255, .72);
+}
+
+.photoSilhouette::before {
+  top: 17%;
+  width: 24%;
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+}
+
+.photoSilhouette::after {
+  top: 38%;
+  width: 50%;
+  height: 35%;
+  border-radius: 48% 48% 18% 18% / 42% 42% 16% 16%;
+}
+
 .faceGuide {
   position: absolute;
   left: 18%;
@@ -454,9 +485,9 @@ legend {
   pointer-events: none;
 }
 
+.cameraFrame[data-photo-state="review"] .photoSilhouette,
 .cameraFrame[data-photo-state="review"] .faceGuide,
-.cameraFrame[data-photo-state="review"] .nativePhotoPrompt,
-.cameraFrame[data-photo-state="live"] .faceGuide {
+.cameraFrame[data-photo-state="review"] .nativePhotoPrompt {
   display: none;
 }
 
