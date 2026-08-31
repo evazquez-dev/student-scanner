@@ -53,6 +53,15 @@
       <p id="formIntro" class="lead"></p>
 
       <form id="visitorForm" class="visitorForm" autocomplete="off">
+        <section id="formPhotoPanel" class="formPhotoPanel" aria-labelledby="formPhotoTitle">
+          <div class="formPhotoCopy">
+            <strong id="formPhotoTitle"></strong>
+            <span id="formPhotoStatus" class="formPhotoStatus" aria-live="polite"></span>
+          </div>
+          <img id="formPhotoPreview" class="formPhotoPreview" alt="" hidden>
+          <button id="nextPhotoBtn" class="secondary" type="button"></button>
+        </section>
+
         <section class="idPrefillPanel" aria-labelledby="idPrefillToggleBtn">
           <p data-i18n="idPrefillIntro"></p>
           <button id="returningBadgeBtn" type="button" class="secondary returningBadgeBtn" data-i18n="scanPreviousBadge"></button>
@@ -117,7 +126,7 @@
 
         <div class="privacy" id="privacyNotice"></div>
         <div id="formStatus" class="status" aria-live="polite"></div>
-        <button id="nextPhotoBtn" class="primary submitBtn" type="button"></button>
+        <button id="submitBtn" class="primary submitBtn" type="button"></button>
       </form>
     </section>
 
@@ -158,7 +167,6 @@
         <div id="reviewDetails" class="reviewDetails"></div>
       </div>
       <div id="reviewStatus" class="status" aria-live="polite"></div>
-      <button id="submitBtn" class="primary submitBtn" type="button"></button>
     </section>
 
     <section id="thanksScreen" class="screen thanksScreen" hidden>

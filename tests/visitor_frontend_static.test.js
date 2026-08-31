@@ -111,8 +111,10 @@ function sectionBetween(src, startNeedle, endNeedle) {
 
 {
   assert.match(kioskHtml, /id="photoScreen"/, 'Kiosk should include visitor photo step');
-  assert.match(kioskHtml, /id="reviewScreen"/, 'Kiosk should include review step');
+  assert.match(kioskHtml, /id="nextPhotoBtn"[^>]+type="button"/, 'Kiosk form should expose a separate Take Photo button');
+  assert.match(kioskHtml, /id="submitBtn"[^>]+type="button"/, 'Kiosk form should expose a separate Submit button');
   assert.match(kioskHtml, /name="date_of_birth"[^>]+type="date"[^>]+required/, 'Kiosk should require date of birth');
+  assert.match(kioskHtml, /<form id="visitorForm"[\s\S]*id="formPhotoPanel"[\s\S]*id="idPrefillToggleBtn"[\s\S]*id="submitBtn"/, 'Take Photo should live independently inside the main form before Submit');
   assert.match(kioskHtml, /id="idPrefillToggleBtn"[^>]+aria-expanded="false"/, 'Initial kiosk DOM should show only the explicit Use ID to Fill Form action');
   assert.match(kioskHtml, /id="returningBadgeBtn"/, 'Initial kiosk DOM should offer Scan Previous Badge');
   assert.match(kioskHtml, /id="idPrefillActions"[^>]+hidden/, 'Initial kiosk DOM should hide State ID/IDNYC choices until Use ID is pressed');
@@ -164,9 +166,13 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(clearPhotoSection, /photoBlob\s*=\s*null/, 'Clearing photo should discard prior captured Blob state');
   assert.match(clearPhotoSection, /revokePhotoUrl\(\)/, 'Clearing photo should revoke prior object URL');
   assert.match(clearPhotoSection, /setPhotoCaptureState\('live'\)/, 'Clearing photo should return UI to live preview state');
+  const openPhotoSection = sectionBetween(kiosk, 'async function openPhotoStep()', 'function takePhoto()');
+  assert.match(openPhotoSection, /show\(photoScreen\)/, 'Take Photo should open the photo screen directly');
+  assert.doesNotMatch(openPhotoSection, /validateForm|missingRequired|formSubmitAttempted/, 'Take Photo must not require the visitor form to be completed first');
   const usePhotoSection = sectionBetween(kiosk, 'function usePhoto()', 'function handleKioskAuthFailure');
   assert.match(usePhotoSection, /if\s*\(!photoBlob\)/, 'Use Photo should require the existing captured Blob');
-  assert.doesNotMatch(usePhotoSection, /capturePortraitPhoto|getUserMedia|cameraPreview/, 'Use Photo must not recapture from a stopped video stream');
+  assert.match(usePhotoSection, /show\(formScreen\)/, 'Use Photo should return to the main form rather than forcing review/submission');
+  assert.doesNotMatch(usePhotoSection, /show\(reviewScreen\)|capturePortraitPhoto|getUserMedia|cameraPreview/, 'Use Photo must not force review or recapture from a stopped video stream');
   assert.match(kiosk, /date_of_birth:\s*Shared\.normalizeDateOfBirth/, 'Kiosk should normalize DOB into payload');
   assert.match(kiosk, /dobFuture/, 'Kiosk should reject future DOB');
   assert.match(kiosk, /aria-invalid/, 'Kiosk should mark invalid fields accessibly');
@@ -183,6 +189,10 @@ function sectionBetween(src, startNeedle, endNeedle) {
   const showIdChoiceSection = sectionBetween(kiosk, 'function showIdChoice()', 'function setIdScanFallbacks');
   assert.match(showIdChoiceSection, /setIdEntryMode\('id_choice'\)/, 'Use ID to Fill Form should show only ID type choices');
   assert.doesNotMatch(showIdChoiceSection, /configureIdScanPanel|createStateIdAutoScanner|idScanSession\.start|stateIdScanPanel\.hidden\s*=\s*false/, 'Use ID to Fill Form alone must not show or initialize the State ID scanner');
+  const submitSection = sectionBetween(kiosk, 'async function submitVisitor()', 'async function pairKiosk');
+  assert.match(submitSection, /const visitor = formPayload\(\)/, 'Submit should capture the current form separately from photo capture');
+  assert.match(submitSection, /updateFormPhotoState\(true\)/, 'Submit should flag a missing required photo on the form instead of navigating there automatically');
+  assert.doesNotMatch(submitSection, /show\(reviewScreen\)/, 'Submit should not require a separate review screen');
   const bootSection = sectionBetween(kiosk, 'function boot()', "window.addEventListener('DOMContentLoaded', boot);");
   assert.match(bootSection, /idPrefillToggleBtn\?\.addEventListener\('click',\s*showIdChoice\)/, 'Use ID action should enter ID choice mode');
   assert.match(bootSection, /setIdEntryMode\('manual'\)/, 'Kiosk boot should reset to manual ID-entry mode');

@@ -401,6 +401,68 @@ legend {
   font-size: 1.35rem;
 }
 
+.formPhotoPanel {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 14px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.formPhotoPanel.hasPhoto {
+  grid-template-columns: 1fr 82px auto;
+}
+
+.formPhotoPanel.invalidField {
+  border-color: var(--danger);
+  background: #fff1f2;
+}
+
+.formPhotoCopy {
+  display: grid;
+  gap: 5px;
+}
+
+.formPhotoCopy strong {
+  font-size: 1.08rem;
+}
+
+.formPhotoStatus {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.formPhotoStatus.ok {
+  color: var(--ok);
+}
+
+.formPhotoStatus.error {
+  color: var(--danger);
+}
+
+.formPhotoPreview {
+  width: 72px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+@media (max-width: 620px) {
+  .formPhotoPanel,
+  .formPhotoPanel.hasPhoto {
+    grid-template-columns: 1fr;
+  }
+
+  .formPhotoPreview {
+    width: 90px;
+    height: 112px;
+  }
+}
+
 .cameraPanel {
   display: grid;
   gap: 18px;

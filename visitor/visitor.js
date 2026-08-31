@@ -41,7 +41,9 @@
       dateOfBirth: 'Date of Birth',
       destination: 'Person or Department Being Visited',
       details: 'Additional Detail',
-      nextPhoto: 'Continue to Visitor Photo',
+      nextPhoto: 'Take Photo',
+      photoCaptured: 'Photo captured. You can retake it if needed.',
+      photoOptionalCurrent: 'Current saved photo can be used, or take a new photo.',
       back: 'Back',
       cancel: 'Cancel',
       privacy: 'Scanning an ID is optional and is used only to help fill in your name and date of birth. EagleNEST does not store the ID image, ID number, or raw barcode data. A current visitor photo is securely stored for up to 30 days for building security and then automatically deleted.',
@@ -136,7 +138,9 @@
       dateOfBirth: 'Fecha de nacimiento',
       destination: 'Persona o departamento que visita',
       details: 'Detalle adicional',
-      nextPhoto: 'Continuar a la foto',
+      nextPhoto: 'Tomar foto',
+      photoCaptured: 'Foto tomada. Puede volver a tomarla si es necesario.',
+      photoOptionalCurrent: 'Se puede usar la foto guardada actual, o puede tomar una foto nueva.',
       back: 'Atrás',
       cancel: 'Cancelar',
       privacy: 'Escanear una identificación es opcional y solo se usa para ayudar a completar su nombre y fecha de nacimiento. EagleNEST no guarda la imagen de la identificación, el número de identificación ni los datos originales del código de barras. Una foto actual del visitante se guarda de forma segura por hasta 30 días para la seguridad del edificio y luego se elimina automáticamente.',
@@ -253,6 +257,9 @@
   const idScanStatus = $('idScanStatus');
   const idScanFallbackActions = $('idScanFallbackActions');
   const validationSummary = $('validationSummary');
+  const formPhotoPanel = $('formPhotoPanel');
+  const formPhotoStatus = $('formPhotoStatus');
+  const formPhotoPreview = $('formPhotoPreview');
 
   let lang = 'en';
   let visitorType = '';
@@ -321,6 +328,8 @@
     $('cancelReturningBadgeBtn').textContent = strings.cancel;
     nextPhotoBtn.textContent = strings.nextPhoto;
     submitBtn.textContent = strings.submit;
+    $('formPhotoTitle').textContent = strings.photoTitle;
+    updateFormPhotoState();
     document.querySelectorAll('[data-i18n]').forEach((el) => {
       const key = el.getAttribute('data-i18n');
       el.textContent = strings[key] || '';
@@ -423,12 +432,39 @@
     if (!photoPreview.naturalWidth || !photoPreview.naturalHeight) throw new Error('photo_review_load_failed');
   }
 
+  function updateFormPhotoState(showRequiredError = false) {
+    if (!formPhotoPanel || !formPhotoStatus || !formPhotoPreview || !nextPhotoBtn) return;
+    const hasPhoto = !!(photoBlob && photoObjectUrl);
+    const canReuseProfilePhoto = !!(returningClaim && returningPhotoCurrent);
+    formPhotoPanel.classList.toggle('hasPhoto', hasPhoto);
+    formPhotoPanel.classList.toggle('invalidField', !!showRequiredError && !hasPhoto && !canReuseProfilePhoto);
+    formPhotoPreview.hidden = !hasPhoto;
+    if (hasPhoto) {
+      formPhotoPreview.src = photoObjectUrl;
+      formPhotoPreview.alt = T[lang].photoTitle;
+      formPhotoStatus.textContent = T[lang].photoCaptured;
+      formPhotoStatus.classList.add('ok');
+      formPhotoStatus.classList.remove('error');
+      nextPhotoBtn.textContent = T[lang].retake;
+      return;
+    }
+    formPhotoPreview.removeAttribute('src');
+    formPhotoPreview.alt = '';
+    formPhotoStatus.classList.remove('ok');
+    formPhotoStatus.classList.toggle('error', !!showRequiredError && !canReuseProfilePhoto);
+    formPhotoStatus.textContent = showRequiredError && !canReuseProfilePhoto
+      ? T[lang].photoRequired
+      : (canReuseProfilePhoto ? T[lang].photoOptionalCurrent : '');
+    nextPhotoBtn.textContent = T[lang].takePhoto;
+  }
+
   function clearPhoto() {
     photoBlob = null;
     revokePhotoUrl();
     if (nativePhotoInput) nativePhotoInput.value = '';
     photoPreview.removeAttribute('src');
     setPhotoCaptureState('live');
+    updateFormPhotoState();
   }
 
   function fieldWrapper(field) {
@@ -591,20 +627,7 @@
 
   async function openPhotoStep() {
     if (busy) return;
-    formSubmitAttempted = true;
-    if (!validateForm({ markAll: true })) {
-      return;
-    }
-    const visitor = formPayload();
-    pendingVisitorPayload = visitor;
-    setStatus(formStatus, '');
-    if (returningClaim && returningPhotoCurrent) {
-      clearPhoto();
-      renderReview(visitor);
-      setStatus(reviewStatus, T[lang].returningPhotoCurrent, true);
-      show(reviewScreen);
-      return;
-    }
+    setPhotoRequiredError(false);
     show(photoScreen);
     stopCamera();
     setPhotoCaptureState(photoBlob ? 'review' : 'live');
@@ -646,6 +669,7 @@
       nextUrl = '';
       setPhotoCaptureState('review');
       setPhotoRequiredError(false);
+      updateFormPhotoState();
     } catch (err) {
       if (nextUrl) {
         try { URL.revokeObjectURL(nextUrl); } catch {}
@@ -666,8 +690,8 @@
       return;
     }
     stopCamera();
-    renderReview(pendingVisitorPayload || formPayload());
-    show(reviewScreen);
+    updateFormPhotoState();
+    show(formScreen);
   }
 
   function applyIdPrefill(data, okMessage) {
@@ -861,6 +885,7 @@
     const input = visitorForm?.elements?.returning_opt_in;
     if (input) input.checked = false;
     updateReturningOptInVisibility();
+    updateFormPhotoState();
   }
 
   function clearReturningClaimForManualEntry() {
@@ -871,6 +896,7 @@
   function applyReturningProfile(profile, message, photoCurrent) {
     returningProfile = profile || null;
     returningPhotoCurrent = photoCurrent === true;
+    updateFormPhotoState();
     const data = {
       visitor_first_name: profile?.visitor_first_name || profile?.first_name || '',
       visitor_middle_name: profile?.visitor_middle_name || profile?.middle_name || '',
@@ -1121,7 +1147,7 @@
       show(setupScreen);
       return;
     }
-    const visitor = pendingVisitorPayload || formPayload();
+    const visitor = formPayload();
     if (missingRequired(visitor)) {
       show(formScreen);
       formSubmitAttempted = true;
@@ -1130,13 +1156,16 @@
     }
     const canReuseProfilePhoto = !!(returningClaim && returningPhotoCurrent);
     if (!photoBlob && !canReuseProfilePhoto) {
-      show(photoScreen);
-      setPhotoRequiredError(true, T[lang].photoRequired);
+      show(formScreen);
+      updateFormPhotoState(true);
+      try { formPhotoPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+      try { nextPhotoBtn?.focus({ preventScroll: true }); } catch {}
       return;
     }
     busy = true;
     submitBtn.disabled = true;
-    setStatus(reviewStatus, T[lang].submitting, true);
+    updateFormPhotoState(false);
+    setStatus(formStatus, T[lang].submitting, true);
     try {
       if (!pendingSubmissionId) pendingSubmissionId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
       const resp = await fetch(new URL('/visitor/kiosk/submit', API_BASE), {
@@ -1168,7 +1197,7 @@
         show(languageScreen);
       }, 7000);
     } catch {
-      setStatus(reviewStatus, T[lang].failed);
+      setStatus(formStatus, T[lang].failed);
     } finally {
       busy = false;
       submitBtn.disabled = false;
@@ -1246,11 +1275,11 @@
     });
     $('photoBackBtn').addEventListener('click', () => {
       stopCamera();
+      updateFormPhotoState();
       show(formScreen);
     });
     $('reviewBackBtn').addEventListener('click', () => {
-      show(photoScreen);
-      setPhotoCaptureState(photoBlob ? 'review' : 'live');
+      show(formScreen);
     });
     nextPhotoBtn.addEventListener('click', openPhotoStep);
     $('takePhotoBtn').addEventListener('click', takePhoto);
@@ -1343,7 +1372,7 @@
     submitBtn.addEventListener('click', submitVisitor);
     visitorForm.addEventListener('submit', (ev) => {
       ev.preventDefault();
-      openPhotoStep();
+      submitVisitor();
     });
     $('pairForm').addEventListener('submit', pairKiosk);
     document.addEventListener('visibilitychange', handleKioskVisibilityChange);
