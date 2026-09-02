@@ -33,11 +33,16 @@ test('SAFETY: Physical config cards cannot collide with student OSIS/RFID values
   assert.match(service, /rfid_cards_must_be_different/);
 });
 
-test('SAFETY: Either config card toggles only the current device binding and stays live system configuration', () => {
+test('SAFETY: Either config card opens a non-mutating menu and explicit actions affect only the current device binding', () => {
   assert.match(service, /DEVICE_BIND_PREFIX = 'bind:'/);
-  assert.match(service, /const action = existingLocation \? 'unlock' : 'lock'/);
+  assert.match(service, /requestedAction === 'menu'/);
+  assert.match(service, /changed: false/);
+  assert.match(service, /requestedAction === 'lock'/);
+  assert.match(service, /requestedAction === 'unlock'/);
+  assert.match(service, /requestedAction === 'change_location'/);
   assert.match(service, /env\.ROSTER\.delete\(bindKey\)/);
   assert.match(service, /env\.ROSTER\.put\(bindKey, location/);
+  assert.match(service, /env\.ROSTER\.put\(bindKey, target/);
   assert.match(service, /card_1/);
   assert.match(service, /card_2/);
   assert.match(service, /system_configuration: true/);
@@ -49,15 +54,23 @@ test('SAFETY: Kiosk consumes config cards before student lookup/log flow', () =>
   assert.match(kiosk, /if \(!data\?\.matched\) return false/);
   assert.match(kiosk, /if \(!matched\) original\(scanned\)/);
   assert.match(kiosk, /\/kiosk\/scanner_config_card/);
+  assert.match(kiosk, /config_action: 'menu'/);
+  assert.match(kiosk, /Change tablet location/);
+  assert.match(kiosk, /Display device information/);
+  assert.match(kiosk, /Retry unsynced scans/);
+  assert.match(kiosk, /Test RFID reader/);
+  assert.match(kiosk, /ACTIVE_CONFIG_CODE = raw/);
+  assert.doesNotMatch(kiosk, /localStorage\.setItem\([^\n]*ACTIVE_CONFIG_CODE/);
 });
 
-test('SAFETY: System Settings exposes two equivalent scanner toggle-card fields', () => {
+test('SAFETY: System Settings exposes two equivalent scanner configuration-menu card fields', () => {
   assert.match(adminBrand, /getElementById\('systemModeCard'\)/);
   assert.doesNotMatch(adminBrand, /resolveModuleKey\(\) !== 'admin'/);
   assert.match(adminBrand, /Scanner Config Card 1 RFID tag/);
   assert.match(adminBrand, /Scanner Config Card 2 RFID tag/);
   assert.match(adminBrand, /Both cards do the same thing/);
-  assert.match(adminBrand, /toggle scanner location lock/);
+  assert.match(adminBrand, /opens the authenticated Scanner Configuration menu/);
+  assert.match(adminBrand, /open Scanner Configuration menu/);
   assert.match(adminBrand, /\/admin\/scanner_config_cards/);
   assert.match(adminBrand, /rfid_already_assigned_to_student/);
 });

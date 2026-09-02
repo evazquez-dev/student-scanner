@@ -77,51 +77,61 @@ test('Scanner config cards reject same-card and student OSIS/RFID collisions', a
   assert.equal(result.collision.kind, 'osis');
 });
 
-test('Either configured card toggles the current device between locked and unlocked', async () => {
+test('Either configured card opens a non-mutating menu and explicit actions control only the current device', async () => {
   const mod = await service();
   const e = env({
     roster_v1: { rows: [] },
     scanner_config_cards_v1: { unlock_rfid: '111', lock_rfid: '222' }
   });
 
-  // Card 1 locks an unlocked scanner to its selected location.
+  // Merely scanning Card 1 opens the menu and must not mutate the binding.
   let result = await mod.applyScannerConfigCard(e, { code: '000111', device_id: 'device-a', location: '306' });
   assert.equal(result.ok, true);
   assert.equal(result.matched, true);
   assert.equal(result.card, 'card_1');
+  assert.equal(result.action, 'menu');
+  assert.equal(result.changed, false);
+  assert.equal(result.locked, false);
+  assert.equal(await e.ROSTER.get('bind:device-a'), null);
+
+  // Explicit lock binds the current device to its currently selected location.
+  result = await mod.applyScannerConfigCard(e, { code: '111', device_id: 'device-a', location: '306', config_action: 'lock' });
   assert.equal(result.action, 'lock');
   assert.equal(result.locked, true);
   assert.equal(await e.ROSTER.get('bind:device-a'), '306');
   let bindPut = e.ROSTER.puts.find((x) => x.key === 'bind:device-a');
   assert.equal(bindPut.options.expirationTtl, 60 * 60 * 24 * 365 * 5);
 
-  // Card 2 unlocks that same scanner because it is currently locked.
-  result = await mod.applyScannerConfigCard(e, { code: '222', device_id: 'device-a', location: '306' });
-  assert.equal(result.ok, true);
+  // Either card can authorize changing location. A locked scanner's binding
+  // moves with it rather than snapping back to the old room on reload.
+  result = await mod.applyScannerConfigCard(e, {
+    code: '222', device_id: 'device-a', location: '306', config_action: 'change_location', target_location: 'DEBUG: RFID raw'
+  });
   assert.equal(result.card, 'card_2');
-  assert.equal(result.action, 'unlock');
-  assert.equal(result.locked, false);
-  assert.equal(await e.ROSTER.get('bind:device-a'), null);
-
-  // Card 2 can also lock when the scanner is currently unlocked.
-  result = await mod.applyScannerConfigCard(e, { code: '222', device_id: 'device-a', location: '306' });
-  assert.equal(result.ok, true);
-  assert.equal(result.card, 'card_2');
-  assert.equal(result.action, 'lock');
+  assert.equal(result.action, 'change_location');
   assert.equal(result.locked, true);
-  assert.equal(await e.ROSTER.get('bind:device-a'), '306');
+  assert.equal(result.locked_location, 'DEBUG: RFID raw');
+  assert.equal(await e.ROSTER.get('bind:device-a'), 'DEBUG: RFID raw');
 
-  // And Card 1 can unlock when the scanner is currently locked.
-  result = await mod.applyScannerConfigCard(e, { code: '111', device_id: 'device-a', location: '306' });
-  assert.equal(result.ok, true);
-  assert.equal(result.card, 'card_1');
+  // Explicit unlock removes only the current device binding.
+  result = await mod.applyScannerConfigCard(e, {
+    code: '222', device_id: 'device-a', location: 'DEBUG: RFID raw', config_action: 'unlock'
+  });
   assert.equal(result.action, 'unlock');
   assert.equal(result.locked, false);
   assert.equal(await e.ROSTER.get('bind:device-a'), null);
   assert.ok(e.ROSTER.deletes.includes('bind:device-a'));
+
+  // While unlocked, changing location is local-only: no server binding is created.
+  result = await mod.applyScannerConfigCard(e, {
+    code: '111', device_id: 'device-a', location: 'DEBUG: RFID raw', config_action: 'change_location', target_location: 'Front Desk'
+  });
+  assert.equal(result.locked, false);
+  assert.equal(result.location, 'Front Desk');
+  assert.equal(await e.ROSTER.get('bind:device-a'), null);
 });
 
-test('Unmatched scans do not mutate device bindings and toggle lock requires a selected location', async () => {
+test('Unmatched scans do not mutate bindings and explicit lock requires a selected location', async () => {
   const mod = await service();
   const e = env({
     roster_v1: { rows: [] },
@@ -132,11 +142,16 @@ test('Unmatched scans do not mutate device bindings and toggle lock requires a s
   assert.equal(result.matched, false);
   assert.equal(await e.ROSTER.get('bind:device-a'), null);
 
-  result = await mod.applyScannerConfigCard(e, { code: '222', device_id: 'device-a', location: '' });
+  result = await mod.applyScannerConfigCard(e, { code: '222', device_id: 'device-a', location: '', config_action: 'lock' });
   assert.equal(result.matched, true);
   assert.equal(result.card, 'card_2');
   assert.equal(result.action, 'lock');
   assert.equal(result.status, 409);
   assert.equal(result.error, 'location_required_before_lock');
+  assert.equal(await e.ROSTER.get('bind:device-a'), null);
+
+  result = await mod.applyScannerConfigCard(e, { code: '222', device_id: 'device-a', location: '306', config_action: 'change_location', target_location: '' });
+  assert.equal(result.status, 400);
+  assert.equal(result.error, 'target_location_required');
   assert.equal(await e.ROSTER.get('bind:device-a'), null);
 });

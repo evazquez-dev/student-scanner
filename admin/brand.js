@@ -99,7 +99,7 @@
     card.innerHTML = `
       <h2>Scanner RFID Config Cards</h2>
       <div class="muted">
-        Configure up to two dedicated RFID cards for scanner setup. <strong>Both cards do the same thing:</strong> scanning either card toggles the current scanner's persistent location lock. If the scanner is locked, the card unlocks it while keeping its selected location. If it is unlocked and has a selected location, the card locks it to that location. These are live system configuration controls and remain active during Practice Mode.
+        Configure up to two dedicated RFID cards for scanner setup. <strong>Both cards do the same thing:</strong> scanning either card opens the authenticated Scanner Configuration menu on that tablet. The menu can change the tablet to any configured location, lock/unlock its current location, display device information, retry unsynced scans, refresh scanner data, test the RFID reader, and check for an app update. These are live device/system configuration controls and remain available during Practice Mode.
       </div>
       <div class="row" style="gap:12px; margin-top:12px;">
         <label class="col"><span class="muted">Scanner Config Card 1 RFID tag</span><input id="scannerUnlockRfid" type="text" inputmode="numeric" autocomplete="off" placeholder="RFID tag number"></label>
@@ -141,7 +141,7 @@
       const lines = [
         data?.unlock_rfid ? 'Config Card 1: configured' : 'Config Card 1: disabled',
         data?.lock_rfid ? 'Config Card 2: configured' : 'Config Card 2: disabled',
-        'Action: toggle scanner location lock'
+        'Action: open Scanner Configuration menu'
       ];
       if (data?.updated_at) lines.push(`Updated: ${data.updated_at}${data?.updated_by ? ` by ${data.updated_by}` : ''}`);
       out.textContent = lines.join('\n');

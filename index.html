@@ -2348,6 +2348,62 @@
       __SCAN_QUEUE_FLUSHING = false;
     }
   }
+  window.EAGLENEST_KIOSK_DEBUG = {
+    async getDiagnostics(){
+      let rows = [];
+      try { rows = await loadScanEventQueue(); } catch {}
+      const oldest = rows.length
+        ? rows.reduce((best, row) => {
+            const raw = String(row?.whenISO || row?.queued_at || '').trim();
+            if (!raw) return best;
+            return !best || raw < best ? raw : best;
+          }, '')
+        : '';
+      let swVersion = null;
+      try { swVersion = await getServiceWorkerVersion(); } catch {}
+      return {
+        device_id: DEVICE_ID,
+        location: getLocation() || '',
+        locked: !!IS_LOCATION_LOCKED,
+        pending_scan_count: rows.length,
+        oldest_pending_scan_at: oldest,
+        service_worker_version: swVersion || null,
+        clock_offset_ms: Number.isFinite(__SERVER_CLOCK_OFFSET_MS) ? Math.round(__SERVER_CLOCK_OFFSET_MS) : null,
+        clock_sample_age_ms: Number.isFinite(currentClockSampleAgeMs_()) ? Math.round(currentClockSampleAgeMs_()) : null,
+        clock_rtt_ms: Number.isFinite(__SERVER_CLOCK_RTT_MS) ? Math.round(__SERVER_CLOCK_RTT_MS) : null,
+        online: !!navigator.onLine
+      };
+    },
+    async retryPendingScans(){
+      const beforeRows = await loadScanEventQueue().catch(() => []);
+      let blocked = '';
+      if (!navigator.onLine) blocked = 'offline';
+      else if (CURRENT_CLASS_PENDING) blocked = 'class interaction pending';
+      if (!blocked) await flushScanEventQueue();
+      await refreshScanJournalHealth_();
+      const afterRows = await loadScanEventQueue().catch(() => []);
+      return { before: beforeRows.length, after: afterRows.length, blocked };
+    },
+    async refreshData(){
+      const locations = await apiGetLocations();
+      const roster = await apiRefreshRoster();
+      await checkDeviceLock();
+      await refreshScanJournalHealth_();
+      await refreshVersionPill();
+      updateLocationPill();
+      updateHistoryPaneForLocation();
+      try { await renderBathList(); } catch {}
+      return {
+        location_count: Array.isArray(locations) ? locations.length : 0,
+        roster_count: Number(roster?.counts?.osis || 0),
+        pending_scan_count: (await loadScanEventQueue().catch(() => [])).length,
+        locked: !!IS_LOCATION_LOCKED,
+        locked_location: IS_LOCATION_LOCKED ? (getLocation() || '') : '',
+        location: getLocation() || ''
+      };
+    }
+  };
+
   async function submitScanEvent(event){
     await upsertScanEventQueue(event); // durable before any network attempt
     try {
@@ -2782,7 +2838,11 @@
       if (!r.ok || !ct.includes('application/json')) return;
       const data = await r.json();
       if (data?.ok) applyServerClockSample_(data.server_time_iso, clockRequestStartedAt);
-      if (data.ok && data.locked && data.location) { IS_LOCATION_LOCKED = true; setLocation(data.location); }
+      if (data?.ok) {
+        IS_LOCATION_LOCKED = !!data.locked;
+        if (data.locked && data.location) setLocation(data.location);
+        updateLocationPill();
+      }
     } catch(_) {}
   }
   let __LAST_LOCK_RECHECK_MS = 0;

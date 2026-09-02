@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.7.0-2026-09-02'; // Phone Pass hardening verification checkpoint
+const VERSION = 'v20.8.0-2026-09-02'; // RFID config-card device menu checkpoint
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [
