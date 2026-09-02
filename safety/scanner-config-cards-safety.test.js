@@ -12,6 +12,9 @@ const service = read('cf-redcake/red-cake-77d5/src/services/scanner-config-cards
 const kiosk = read('student-scanner/brand.js');
 const adminBrand = read('student-scanner/admin/brand.js');
 
+const kioskIndex = read('student-scanner/index.html');
+const kioskSw = read('student-scanner/sw.js');
+
 test('SAFETY: Scanner config-card routes are intercepted before legacy fallback', () => {
   assert.match(index, /from '\.\/routes\/scanner-config-cards\.js'/);
   const routePos = index.indexOf('SCANNER_CONFIG_CARD_PATHS.has(path)');
@@ -73,4 +76,11 @@ test('SAFETY: System Settings exposes two equivalent scanner configuration-menu 
   assert.match(adminBrand, /open Scanner Configuration menu/);
   assert.match(adminBrand, /\/admin\/scanner_config_cards/);
   assert.match(adminBrand, /rfid_already_assigned_to_student/);
+});
+
+test('SAFETY: Config-card menu hook cannot be silently pinned to the prior cached brand.js', () => {
+  assert.match(kioskIndex, /brand\.js\?v=2026\.09\.02\.9/);
+  assert.match(kioskSw, /v20\.8\.1-2026-09-02/);
+  assert.match(kioskSw, /networkFirst\(req\)/);
+  assert.match(kioskSw, /fetch\(req, \{ cache: 'no-store' \}\)/);
 });

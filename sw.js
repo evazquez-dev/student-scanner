@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.8.0-2026-09-02'; // RFID config-card device menu checkpoint
+const VERSION = 'v20.8.1-2026-09-02'; // RFID config-card cache-skew hotfix
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [
@@ -51,8 +51,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Kiosk brand.js owns the config-card interception hook. Always prefer the
+  // network copy so a freshly deployed Worker cannot be paired with a stale
+  // cached brand.js from the previous service-worker generation.
+  if (url.origin === self.location.origin && /\/brand\.js$/.test(url.pathname)) {
+    event.respondWith(networkFirst(req));
+    return;
+  }
+
   event.respondWith(cacheFirst(req));
 });
+
+async function networkFirst(req) {
+  if (req.method !== 'GET') return fetch(req);
+  try {
+    const res = await fetch(req, { cache: 'no-store' });
+    if (res && res.ok) {
+      const cache = await caches.open(STATIC_CACHE);
+      await cache.put(req, res.clone());
+    }
+    return res;
+  } catch (err) {
+    const cached = await caches.match(req);
+    if (cached) return cached;
+    throw err;
+  }
+}
 
 async function cacheFirst(req) {
   // Only cache GETs
