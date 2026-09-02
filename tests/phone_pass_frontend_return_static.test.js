@@ -15,14 +15,14 @@ test('Phone Pass return actions are isolated in a helper and the original page l
   assert.doesNotMatch(mainJs, /phone-pass-return-action/);
 });
 
-test('Allowed by me rows expose Send to Return and become Return requested after the request', () => {
+test('Phone Pickup Confirmed rows expose student-centered return language after the request', () => {
   assert.match(helper, /function enhanceMineRows\(\)/);
-  assert.match(helper, /Send to Return/);
-  assert.match(helper, /Return requested ✓/);
+  assert.match(helper, /Send Student to Return Phone/);
+  assert.match(helper, /Student Sent to Return ✓/);
   assert.match(helper, /refreshPhonePassViews\(osis\)/);
 });
 
-test('Phones Out keeps Confirm Return separate and only adds request controls for authorized rows', () => {
+test('Phones Out keeps physical Student Returned Phone confirmation separate and only adds request controls for authorized rows', () => {
   assert.match(helper, /function canRequestActiveRow\(row\)/);
   assert.match(helper, /if\(isAdminLike\(\)\) return true/);
   assert.match(helper, /rowOwnerLocal\(row\) === emailLocal\(CAP\.email\)/);

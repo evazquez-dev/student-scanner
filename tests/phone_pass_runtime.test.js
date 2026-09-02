@@ -54,12 +54,36 @@ class FakeStudentLocationNamespace {
         if (url.pathname === '/all') {
           return new Response(JSON.stringify(Object.fromEntries(state.entries())), { status: 200, headers: { 'content-type': 'application/json' } });
         }
-        if (url.pathname === '/update' && String(init.method || 'GET').toUpperCase() === 'POST') {
-          const patch = JSON.parse(String(init.body || '{}'));
-          const osis = String(patch.osis || '');
+        if (url.pathname === '/phone_pass' && String(init.method || 'GET').toUpperCase() === 'POST') {
+          const body = JSON.parse(String(init.body || '{}'));
+          const osis = String(body.osis || '');
           const prev = state.get(osis) || {};
-          state.set(osis, { ...prev, ...patch, osis });
-          return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } });
+          const date = String(body.date || '');
+          const sameDay = prev.phone_state_date === date;
+          const action = String(body.action || '');
+          if (action === 'send_to_pickup') {
+            if (sameDay && prev.phone_out === true) return new Response(JSON.stringify({ ok:false, error:'phone_already_out_today' }), { status:409, headers:{'content-type':'application/json'} });
+            if (sameDay && prev.phone_pickup_requested === true) return new Response(JSON.stringify({ ok:true, already:true, phone_pickup_requested:true, phone_out:false, whenISO:prev.phone_pickup_requested_at }), { status:200, headers:{'content-type':'application/json'} });
+          }
+          if (action === 'pickup' && sameDay && prev.phone_out === true) {
+            return new Response(JSON.stringify({ ok:true, already:true, phone_out:true, phone_pickup_requested:false, whenISO:prev.phone_out_since }), { status:200, headers:{'content-type':'application/json'} });
+          }
+          if (action === 'send_to_return') {
+            if (!sameDay || prev.phone_out !== true) return new Response(JSON.stringify({ ok:false, error:'phone_not_out_today' }), { status:409, headers:{'content-type':'application/json'} });
+            if (prev.phone_return_requested === true) return new Response(JSON.stringify({ ok:true, already:true, phone_out:true, phone_return_requested:true, whenISO:prev.phone_return_requested_at }), { status:200, headers:{'content-type':'application/json'} });
+          }
+          if (action === 'return' && (!sameDay || prev.phone_out !== true)) {
+            if (sameDay && prev.phone_out === false && prev.phone_returned_at) return new Response(JSON.stringify({ ok:true, already:true, phone_out:false, phone_return_requested:false, whenISO:prev.phone_returned_at }), { status:200, headers:{'content-type':'application/json'} });
+            return new Response(JSON.stringify({ ok:false, error:'phone_not_out_today' }), { status:409, headers:{'content-type':'application/json'} });
+          }
+          const whenISO = String(body.whenISO || new Date().toISOString());
+          const next = { ...prev, osis, student_name: body.student_name || prev.student_name || '', phone_state_date:date, date };
+          if (action === 'send_to_pickup') Object.assign(next, { zone:'hallway', loc:'hallway', location_label:'Hallway', phone_out:false, phone_pickup_requested:true, phone_pickup_requested_at:whenISO, phone_pickup_requested_by_email:body.actor_email, phone_return_requested:false });
+          if (action === 'pickup') Object.assign(next, { zone:'hallway', loc:'cellphone_locker', location_label:'Cellphone Locker', phone_out:true, phone_out_since:whenISO, phone_out_by_email:body.actor_email, phone_pickup_requested:false, phone_return_requested:false });
+          if (action === 'send_to_return') Object.assign(next, { zone:'hallway', loc:'hallway', location_label:'Hallway', phone_return_requested:true, phone_return_requested_at:whenISO, phone_return_requested_by_email:body.actor_email });
+          if (action === 'return') Object.assign(next, { zone:'hallway', loc:'cellphone_locker', location_label:'Cellphone Locker', phone_out:false, phone_out_since:null, phone_out_by_email:null, phone_pickup_requested:false, phone_return_requested:false, phone_returned_at:whenISO });
+          state.set(osis, next);
+          return new Response(JSON.stringify({ ok:true, applied:true, already:false, whenISO, phone_out:next.phone_out===true, phone_pickup_requested:next.phone_pickup_requested===true, phone_return_requested:next.phone_return_requested===true, physical_applied:true }), { status:200, headers:{'content-type':'application/json'} });
         }
         return new Response('not_found', { status: 404 });
       }
@@ -175,23 +199,33 @@ async function json(response) {
   return response.json().catch(() => null);
 }
 
-test('Teacher Attendance can grant and request return without standalone Phone Pass grant access', async () => {
+test('Teacher Attendance sends student to pickup; physical pickup is confirmed separately before return request', async () => {
   const { handlePhonePassRequest } = await loadRoute();
   const env = makeEnv();
   const collector = ctxCollector();
 
   let response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
     method: 'POST',
-    body: { osis: '123456789', source: 'teacher_attendance' }
+    body: { osis: '123456789', source: 'teacher_attendance', date: todayNY(), room: '301', periodLocal: '1' }
   }), env, collector.ctx);
   assert.equal(response.status, 200);
   assert.equal((await json(response)).ok, true);
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_out, false);
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_pickup_requested, true);
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').zone, 'hallway');
+
+  // Physical phone handoff is a separate piece of evidence.
+  response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
+    method: 'POST', sid: 'super-sid', body: { osis: '123456789', source: 'phone_pass' }
+  }), env, collector.ctx);
+  assert.equal(response.status, 200);
   assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_out, true);
-  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_out_by_email, 'teacher@school.org');
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_pickup_requested, false);
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').loc, 'cellphone_locker');
 
   response = await handlePhonePassRequest(request('/admin/phone_pass/send_to_return', {
     method: 'POST',
-    body: { osis: '123456789', source: 'teacher_attendance' }
+    body: { osis: '123456789', source: 'teacher_attendance', date: todayNY(), room: '301', periodLocal: '1' }
   }), env, collector.ctx);
   assert.equal(response.status, 200);
   const sendBack = await json(response);
@@ -246,7 +280,10 @@ test('final Confirm Return remains Hallway/Ops-only', async () => {
   const collector = ctxCollector();
 
   await handlePhonePassRequest(request('/admin/phone_pass/grant', {
-    method: 'POST', body: { osis: '123456789', source: 'teacher_attendance' }
+    method: 'POST', body: { osis: '123456789', source: 'teacher_attendance', date: todayNY(), room: '301', periodLocal: '1' }
+  }), env, collector.ctx);
+  await handlePhonePassRequest(request('/admin/phone_pass/grant', {
+    method: 'POST', sid: 'super-sid', body: { osis: '123456789', source: 'phone_pass' }
   }), env, collector.ctx);
 
   let response = await handlePhonePassRequest(request('/admin/phone_pass/return', {
@@ -283,7 +320,7 @@ test('View-as blocks all Phone Pass mutations', async () => {
   const env = makeEnv({ viewAs: true });
   const collector = ctxCollector();
   const response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
-    method: 'POST', sid: 'super-sid', body: { osis: '123456789', source: 'teacher_attendance' }
+    method: 'POST', sid: 'super-sid', body: { osis: '123456789', source: 'teacher_attendance', date: todayNY(), room: '301', periodLocal: '1' }
   }), env, collector.ctx);
   assert.equal(response.status, 403);
   assert.equal((await json(response)).error, 'view_as_read_only');
@@ -296,17 +333,24 @@ test('Practice mode isolates state/logs and simulates return notifications', asy
   const date = todayNY();
 
   let response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
-    method: 'POST', body: { osis: '123456789', source: 'teacher_attendance' }
+    method: 'POST', body: { osis: '123456789', source: 'teacher_attendance', date: todayNY(), room: '301', periodLocal: '1' }
   }), env, collector.ctx);
   assert.equal(response.status, 200);
-  assert.equal(env.STUDENT_LOC.state(`PRACTICE:${date}:GLOBAL`, '123456789').phone_out, true);
+  assert.equal(env.STUDENT_LOC.state(`PRACTICE:${date}:GLOBAL`, '123456789').phone_pickup_requested, true);
+  assert.notEqual(env.STUDENT_LOC.state(`PRACTICE:${date}:GLOBAL`, '123456789').phone_out, true);
   assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789'), null);
   assert.equal(env.LOG_BUFFER.rows.at(-1).name, `PRACTICE:${date}:LOG:${date}`);
   assert.equal(env.LOG_BUFFER.rows.at(-1).row.practice, true);
   assert.ok(env.ROSTER.puts.some((put) => put.key.startsWith(`practice:v1:${date}:practice_record:scan:123456789:`)));
 
+  response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
+    method: 'POST', sid: 'super-sid', body: { osis: '123456789', source: 'phone_pass' }
+  }), env, collector.ctx);
+  assert.equal(response.status, 200);
+  assert.equal(env.STUDENT_LOC.state(`PRACTICE:${date}:GLOBAL`, '123456789').phone_out, true);
+
   response = await handlePhonePassRequest(request('/admin/phone_pass/send_to_return', {
-    method: 'POST', body: { osis: '123456789', source: 'teacher_attendance' }
+    method: 'POST', body: { osis: '123456789', source: 'teacher_attendance', date: todayNY(), room: '301', periodLocal: '1' }
   }), env, collector.ctx);
   const result = await json(response);
   assert.equal(response.status, 200);
@@ -314,4 +358,46 @@ test('Practice mode isolates state/logs and simulates return notifications', asy
     queued: false, simulated: true, skipped: false, reason: 'practice_mode'
   });
   assert.equal(collector.ctx ? true : false, true);
+});
+
+
+test('Phone Pass retries are idempotent and phone state date is independent from physical date', async () => {
+  const { handlePhonePassRequest } = await loadRoute();
+  const env = makeEnv({ teacherPhoneGrant: true });
+  const collector = ctxCollector();
+
+  let response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
+    method: 'POST', body: { osis: '123456789', source: 'phone_pass' }
+  }), env, collector.ctx);
+  assert.equal(response.status, 200);
+  const first = env.STUDENT_LOC.state('GLOBAL', '123456789');
+  const firstSince = first.phone_out_since;
+  assert.equal(first.phone_state_date, todayNY());
+
+  response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
+    method: 'POST', body: { osis: '123456789', source: 'phone_pass' }
+  }), env, collector.ctx);
+  assert.equal(response.status, 200);
+  const secondBody = await json(response);
+  assert.equal(secondBody.already, true);
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_out_since, firstSince);
+
+  const row = env.STUDENT_LOC.state('GLOBAL', '123456789');
+  row.date = '2099-01-01';
+  assert.equal(row.phone_state_date, todayNY());
+  const context = await handlePhonePassRequest(request('/admin/phone_pass/context?osis=123456789'), env, collector.ctx);
+  assert.equal((await json(context)).state.phone_out, true);
+});
+
+test('Teacher Attendance phone mutation fails closed when student is not in supplied room/period', async () => {
+  const { handlePhonePassRequest } = await loadRoute();
+  const env = makeEnv();
+  const collector = ctxCollector();
+  const response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
+    method:'POST',
+    body:{ osis:'123456789', source:'teacher_attendance', date:todayNY(), room:'999', periodLocal:'1' }
+  }), env, collector.ctx);
+  assert.equal(response.status, 403);
+  assert.equal((await json(response)).error, 'teacher_phone_student_not_in_context');
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789'), null);
 });

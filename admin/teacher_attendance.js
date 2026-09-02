@@ -105,6 +105,7 @@ let SECRET_PHONE_STATE = {
   loading: false,
   error: '',
   phoneOut: false,
+  pickupRequested: false,
   returnRequested: false,
   phoneOutSince: '',
   phoneOutByEmail: '',
@@ -362,6 +363,7 @@ function resetSecretPhoneState_(osis = ''){
     loading: false,
     error: '',
     phoneOut: false,
+    pickupRequested: false,
     returnRequested: false,
     phoneOutSince: '',
     phoneOutByEmail: '',
@@ -377,6 +379,7 @@ function applySecretPhoneState_(state, osis = ''){
     loading: false,
     error: '',
     phoneOut: st.phone_out === true,
+    pickupRequested: st.phone_pickup_requested === true,
     returnRequested: st.phone_return_requested === true,
     phoneOutSince: String(st.phone_out_since || ''),
     phoneOutByEmail: String(st.phone_out_by_email || ''),
@@ -469,17 +472,20 @@ function secretPhoneMenuHtml_(baseBtnStyle, subtle){
   }
 
   const status = ps.phoneOut
-    ? (ps.returnRequested ? '📱 Phone out • return requested' : '📱 Phone out')
-    : '📱 Phone in locker';
+    ? (ps.returnRequested ? '📱 Phone out • student sent to return' : '📱 Phone out')
+    : (ps.pickupRequested ? '📱 Student sent to pick up phone' : '📱 Phone in locker');
   const statusHtml = `<div style="${subtle}">${escapeHtml_(status)}</div>`;
 
   if (!ps.phoneOut) {
-    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="grant" style="${baseBtnStyle}font-weight:600;">Allow Phone Pickup</button>`;
+    if (ps.pickupRequested) {
+      return `${sep}${statusHtml}<button data-act="phone" data-phone-action="pickup_requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Pick Up Phone</button>`;
+    }
+    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="grant" style="${baseBtnStyle}font-weight:600;">Send Student to Pick Up Phone</button>`;
   }
   if (ps.returnRequested) {
-    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Return Requested</button>`;
+    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Return Phone</button>`;
   }
-  return `${sep}${statusHtml}<button data-act="phone" data-phone-action="send_back" style="${baseBtnStyle}font-weight:600;">Send Phone Back</button>`;
+  return `${sep}${statusHtml}<button data-act="phone" data-phone-action="send_back" style="${baseBtnStyle}font-weight:600;">Send Student to Return Phone</button>`;
 }
 
 async function performSecretPhoneAction_(action){
@@ -490,8 +496,8 @@ async function performSecretPhoneAction_(action){
   const act = String(action || '').trim();
   if (DEMO_MODE) {
     if (act === 'grant') {
-      applySecretPhoneState_({ phone_out: true, phone_out_since: new Date().toISOString(), phone_out_by_email: 'demo@local', phone_return_requested: false }, osis);
-      applyPhoneIndicatorState_(osis, true, false);
+      applySecretPhoneState_({ phone_out: false, phone_pickup_requested: true, phone_pickup_requested_at: new Date().toISOString(), phone_pickup_requested_by_email: 'demo@local', phone_return_requested: false }, osis);
+      applyPhoneIndicatorState_(osis, false, false);
       return { ok: true, demo: true };
     }
     if (act === 'send_back') {
@@ -568,7 +574,7 @@ function initSecretMenu(){
       try {
         await performSecretPhoneAction_(phoneAction);
         const nm = String(SECRET_MENU.student?.name || 'Student').trim() || 'Student';
-        setStatus(true, phoneAction === 'grant' ? `Phone pickup allowed for ${nm}` : `Phone return requested for ${nm}`);
+        setStatus(true, phoneAction === 'grant' ? `Student sent to pick up phone: ${nm}` : `Phone return requested for ${nm}`);
       } catch (err) {
         SECRET_PHONE_STATE.loading = false;
         SECRET_PHONE_STATE.error = err?.message || String(err);
@@ -832,7 +838,7 @@ function renderSecretMenu(){
 
     // Phone control uses the same live phone-pass state as the dedicated Phone Pass page.
     // Teachers may allow pickup or request that an already-out phone be sent back;
-    // Ops still performs the final Confirm Return step from Phone Pass.
+    // Ops still performs the final Student Returned Phone step from Phone Pass.
     body += secretPhoneMenuHtml_(baseBtnStyle, subtle);
   }
 
@@ -1230,8 +1236,46 @@ function initViewToggle(){
 function getSessionOutRec(osis){
   const key = String(osis || '').trim();
   if (!key) return null;
-  return LAST_SESSION_STATE?.students?.[key]?.out || null;
+
+  // The Worker owns effective ClassSession semantics. Prefer its normalized
+  // projection so every consumer agrees that "no first-in" means OUT since the
+  // scheduled bell. Keep the fallback for a rolling deploy against an older
+  // Worker.
+  const effective = LAST_SESSION_STATE?.effective_out_by_osis?.[key] || null;
+  if (effective) return effective;
+
+  const rec = LAST_SESSION_STATE?.students?.[key] || null;
+  if (!rec && LAST_SESSION_STATE?.effective_default_out) {
+    return LAST_SESSION_STATE.effective_default_out;
+  }
+  if (rec?.out?.isOut) return rec.out;
+  if (!rec?.firstInISO && LAST_SESSION_STATE?.default_out_since_iso) {
+    return { isOut:true, outSinceISO:LAST_SESSION_STATE.default_out_since_iso, reason:'period_start_no_in', derived:true };
+  }
+  return rec?.out || null;
 }
+function applyToggleResultToSessionState(state, osis, res){
+  if (!state || !osis || !res) return;
+  const key = String(osis || '').trim();
+  if (!key) return;
+  state.students = state.students || {};
+  state.students[key] = state.students[key] || { osis:key };
+  state.students[key].out = state.students[key].out || {};
+  state.students[key].out.isOut = !!res.isOut;
+  if (res.isOut && res.outSinceISO) state.students[key].out.outSinceISO = res.outSinceISO;
+  else delete state.students[key].out.outSinceISO;
+
+  state.effective_out_by_osis = state.effective_out_by_osis || {};
+  state.effective_out_by_osis[key] = {
+    isOut: !!res.isOut,
+    outSinceISO: res.isOut ? (res.outSinceISO || null) : null,
+    reason: res.isOut ? 'teacher_toggle' : '',
+    source: 'teacher',
+    byEmail: '',
+    derived: false
+  };
+}
+
 function isStudentOut(osis){
   const o = getSessionOutRec(osis);
   return !!(o && o.isOut);
@@ -1251,9 +1295,10 @@ function hasSessionFirstIn(osis){
   return !!getSessionFirstInISO(osis);
 }
 
-function zoneBlocksOutIn(zone){
-  const z = String(zone || '').trim().toLowerCase();
-  return (z === 'with_staff');
+function zoneBlocksOutIn(_zone){
+  // Holds/Staff Pull are obligations, not physical location. They never disable
+  // a teacher's explicit Out/In observation after attendance has been submitted.
+  return false;
 }
 // Organizer renderer: OUT first, then IN.
 function renderOutInOrganizer(){
@@ -1272,7 +1317,8 @@ function renderOutInOrganizer(){
 
   // Same gating as the table column
   const cur = String(CURRENT_PERIOD_LOCAL || '').trim();
-  const allowOutIn = !!cur && (String(period || '').trim() === cur);
+  const arrival = String(ARRIVAL_PERIOD_LOCAL || '').trim();
+  const allowOutIn = isOutInOpenPeriod(period);
 
   const merged = Array.isArray(lastMergedRows) ? lastMergedRows : [];
   const outs = [];
@@ -1290,7 +1336,9 @@ function renderOutInOrganizer(){
   if (outInHint){
     if (!allowOutIn) {
       outInHint.textContent =
-        `Out/In is only enabled for the CURRENT period.\nSelected: P${period || '—'} • Current: P${cur || '—'}\n(Buttons are disabled until you pick the current period.)`;
+        `Out/In is enabled only for the active period or the next Arrival Window.\nSelected: P${period || '—'} • Current: P${cur || '—'} • Arrival: P${arrival || '—'}`;
+    } else if (isArrivalPeriod(period)) {
+      outInHint.textContent = `Arrival Open for P${period}. Positive early check-ins may use Out/In after first-IN.`;
     } else {
       outInHint.textContent = `Out/In is enabled (current period P${cur}). OUT students appear first.`;
     }
@@ -1340,10 +1388,10 @@ function renderOutInOrganizer(){
       : (blocked
           ? 'Disabled while student is With Staff'
           : (!allowOutIn
-              ? 'Pick the current period to enable Out/In'
+              ? 'Pick the active period or Arrival Window to enable Out/In'
               : (!codeIsPL
                   ? 'Mark Present, Late, or Excused Late to enable Out/In'
-                  : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)')));
+                  : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk')));
 
     btn.addEventListener('click', async () => {
       if (btn.disabled) return;
@@ -1351,17 +1399,8 @@ function renderOutInOrganizer(){
       try{
         const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis });
 
-        // Keep shared session state updated
-        if (!LAST_SESSION_STATE) LAST_SESSION_STATE = { ok:true, students:{} };
-        if (!LAST_SESSION_STATE.students) LAST_SESSION_STATE.students = {};
-        LAST_SESSION_STATE.students[osis] = LAST_SESSION_STATE.students[osis] || { osis };
-        LAST_SESSION_STATE.students[osis].out = LAST_SESSION_STATE.students[osis].out || {};
-        LAST_SESSION_STATE.students[osis].out.isOut = !!res.isOut;
-        if (res.isOut && res.outSinceISO) {
-          LAST_SESSION_STATE.students[osis].out.outSinceISO = res.outSinceISO;
-        } else {
-          delete LAST_SESSION_STATE.students[osis].out.outSinceISO;
-        }
+        if (!LAST_SESSION_STATE) LAST_SESSION_STATE = { ok:true, students:{}, effective_out_by_osis:{} };
+        applyToggleResultToSessionState(LAST_SESSION_STATE, osis, res);
 
         // Update table row button too (if present)
         const ui = ROW_UI.get(osis);
@@ -1382,10 +1421,10 @@ function renderOutInOrganizer(){
             : (blocked
                 ? 'Disabled while student is With Staff'
                 : (!allowOutIn
-                    ? 'Pick the current period to enable Out/In'
+                    ? 'Pick the active period or Arrival Window to enable Out/In'
                     : (!codeIsPL
                         ? 'Mark Present, Late, or Excused Late to enable Out/In'
-                        : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)')));
+                        : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk')));
         }
 
         renderOutInOrganizer(); // reorder OUT/IN groups
@@ -1405,10 +1444,10 @@ function renderOutInOrganizer(){
           btn.title = blocked
             ? 'Disabled while student is With Staff'
             : (!allowOutIn
-                ? 'Pick the current period to enable Out/In'
+                ? 'Pick the active period or Arrival Window to enable Out/In'
                 : (!codeIsPL
                     ? 'Mark Present, Late, or Excused Late to enable Out/In'
-                    : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
+                    : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk'));
         }
       }
     });
@@ -1475,7 +1514,8 @@ const DEBUG = false;
 const debugEl = document.getElementById('debugLog');
 
 let IS_AUTHED = false;
-let CURRENT_PERIOD_LOCAL = ''; // updated by renderCurrentPeriod()
+let CURRENT_PERIOD_LOCAL = ''; // active period only
+let ARRIVAL_PERIOD_LOCAL = ''; // next period during passing/arrival window
 
 // ---------- After-school teacher view (room-only) ----------
 const MODE_KEY = 'teacher_att_mode_v1'; // 'class' | 'after_school'
@@ -1508,6 +1548,26 @@ function isAdvisorPeriod(p){
 
 function isLunchAdvisorUiPeriod(p){
   return LUNCH_ADVISOR_UI_PERIODS.has(periodKey(p));
+}
+
+function periodOptionFor(periodLocal){
+  const key = String(periodLocal || '').trim();
+  const items = Array.isArray(TEACHER_OPTS_CACHE?.period_options) ? TEACHER_OPTS_CACHE.period_options : [];
+  return items.find((item) => String(item?.value ?? '') === key) || null;
+}
+
+function periodPhaseFor(periodLocal){
+  return String(periodOptionFor(periodLocal)?.phase || '').trim().toLowerCase();
+}
+
+function isArrivalPeriod(periodLocal){
+  const p = String(periodLocal || '').trim();
+  return !!p && (p === String(ARRIVAL_PERIOD_LOCAL || '').trim() || periodPhaseFor(p) === 'arrival');
+}
+
+function isOutInOpenPeriod(periodLocal){
+  const p = String(periodLocal || '').trim();
+  return !!p && (p === String(CURRENT_PERIOD_LOCAL || '').trim() || isArrivalPeriod(p));
 }
 
 function resolveRoomForApi(periodLocal, pickedLabel){
@@ -2039,7 +2099,16 @@ async function exitAfterSchoolMode(){
         ? TEACHER_OPTS_CACHE.period_options
         : (TEACHER_OPTS_CACHE.periods || []);
 
-      const preferredPeriod = LAST_CLASS_PICK.period || String(TEACHER_OPTS_CACHE.current_period_local || '').trim() || '';
+      const remembered = String(LAST_CLASS_PICK.period || '').trim();
+      const rememberedOption = Array.isArray(periodItems)
+        ? periodItems.find((item) => String(item?.value ?? item ?? '').trim() === remembered)
+        : null;
+      const safeRemembered = rememberedOption && typeof rememberedOption === 'object' && rememberedOption.started === false
+        ? ''
+        : remembered;
+      const preferredPeriod = String(TEACHER_OPTS_CACHE.current_period_local || '').trim()
+        || String(TEACHER_OPTS_CACHE.arrival_period_local || '').trim()
+        || safeRemembered;
       fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
       applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE, LAST_CLASS_PICK.room || '');
     }
@@ -2088,7 +2157,13 @@ async function toggleClassSessionOutIn({ date, room, periodLocal, osis }){
   const r = await adminFetch('/admin/class_session/toggle', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ date, room, periodLocal, osis })
+    body: JSON.stringify({
+      date,
+      room,
+      periodLocal,
+      osis,
+      advisor: UI_LUNCH_ADVISOR_LABEL || ''
+    })
   });
   const data = await r.json().catch(()=>null);
   if(!r.ok || !data?.ok) {
@@ -2107,9 +2182,18 @@ async function populateDropdowns(){
   // ROOM: always blank on load (no default room)
   fillSelect(roomInput, opts.rooms || [], 'Select room…', '');
 
-  // PERIOD: always prefer Worker’s current periodLocal; fallback to savedPeriod
-  const preferredPeriod = String(opts.current_period_local || '').trim() || savedPeriod;
   const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
+  const savedOption = Array.isArray(periodItems)
+    ? periodItems.find((item) => String(item?.value ?? item ?? '').trim() === String(savedPeriod).trim())
+    : null;
+  const safeSavedPeriod = savedOption && typeof savedOption === 'object' && savedOption.started === false
+    ? ''
+    : savedPeriod;
+
+  // Prefer Active, then Arrival Open, then a still-editable saved period.
+  const preferredPeriod = String(opts.current_period_local || '').trim()
+    || String(opts.arrival_period_local || '').trim()
+    || safeSavedPeriod;
   fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
 }
 
@@ -2178,6 +2262,7 @@ function fillSelect(el, items, placeholder, preferredValue){
       const label = (item.label ?? item.text ?? value);
       opt.value = String(value);
       opt.textContent = String(label);
+      opt.disabled = item.disabled === true || item.started === false;
     } else {
       opt.value = String(item);
       opt.textContent = String(item);
@@ -2557,6 +2642,11 @@ function stageBulkCodeToSelected(){
     if (bulkCodeSelect) bulkCodeSelect.value = '';
     return;
   }
+  if (isArrivalPeriod(periodLocal) && codeLetter !== 'P'){
+    setErr('Arrival Window is Present-only. Late/Absent become available at the bell.');
+    if (bulkCodeSelect) bulkCodeSelect.value = '';
+    return;
+  }
 
   // Update local state + UI (same style as individual dropdown changes)
   const overrides = loadOverrides(date, room, periodLocal);
@@ -2610,7 +2700,7 @@ function stageBulkCodeToSelected(){
             ? 'Disabled while student is With Staff'
             : (!codeIsPL
                 ? 'Mark Present, Late, or Excused Late to enable Out/In'
-                : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)'));
+                : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk'));
     }
   }
 
@@ -2740,13 +2830,14 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   ROW_UI = new Map();
   ROW_DATA = new Map();
   CURRENT_OSIS_LIST = [];
+  LAST_SESSION_STATE = sessionState || LAST_SESSION_STATE;
   // restore selection for this view (survives auto-refresh)
   SELECTED_OSIS = loadSelection(date, room, period);
   updateBulkUI();
 
   // Only show Out/In for the current period (and only if current period is known)
   const cur = String(CURRENT_PERIOD_LOCAL || '').trim();
-  const allowOutIn = !!cur && (String(period || '').trim() === cur);
+  const allowOutIn = isOutInOpenPeriod(period);
   const showRpBadge = isLastScheduledPeriodLocal(period);
 
   // Collapse the Out/In column + hide header when not allowed
@@ -3026,7 +3117,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       const phoneBtn = document.createElement('button');
       phoneBtn.type = 'button';
       phoneBtn.className = 'btn btn-mini btn-primary';
-      phoneBtn.textContent = r.phoneReturnRequested ? 'Sent to Return' : 'Send to Return';
+      phoneBtn.textContent = r.phoneReturnRequested ? 'Student Sent to Return' : 'Send Student to Return Phone';
       phoneBtn.disabled = !!r.phoneReturnRequested;
       phoneBtn.title = r.phoneReturnRequested
         ? 'Phone return has already been requested'
@@ -3065,7 +3156,13 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
         if (c === 'E' && !specialOptions.includes(c)) specialOptions.push(c);
       }
     }
-    const selectOptions = r.systemLocked ? ['EL'] : ['P','L','A', ...specialOptions];
+    const arrivalMode = isArrivalPeriod(period);
+    const baselineCode = normalizeAttendanceCode(r.baseline || 'A') || 'A';
+    const selectOptions = r.systemLocked
+      ? ['EL']
+      : arrivalMode
+        ? Array.from(new Set([baselineCode, 'P']))
+        : ['P','L','A', ...specialOptions];
 
     for(const opt of selectOptions){
       const o = document.createElement('option');
@@ -3123,7 +3220,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
             ? 'Disabled while student is With Staff'
             : (!codeIsPL
                 ? 'Mark Present, Late, or Excused Late to enable Out/In'
-                : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
+                : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk');
         }
       }
       renderOutInOrganizer();
@@ -3153,8 +3250,9 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       c5.className = 'hide-sm';
 
       const sessRec = sessionState?.students ? sessionState.students[r.osis] : null;
-      const isOut = !!(sessRec?.out && sessRec.out.isOut);
-      const outSinceISO = sessRec?.out?.outSinceISO || null;
+      const effectiveOut = getSessionOutRec(r.osis);
+      const isOut = !!effectiveOut?.isOut;
+      const outSinceISO = effectiveOut?.outSinceISO || null;
 
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -3179,23 +3277,16 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           ? 'Disabled while student is With Staff'
           : (!codeIsPL
               ? 'Mark Present, Late, or Excused Late to enable Out/In'
-              : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
+              : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk');
       }
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
         try{
           const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis: r.osis });
-          if (!sessionState) sessionState = { ok:true, students:{} };
-          if (!sessionState.students) sessionState.students = {};
-          sessionState.students[r.osis] = sessionState.students[r.osis] || { osis: r.osis };
-          sessionState.students[r.osis].out = sessionState.students[r.osis].out || {};
-          sessionState.students[r.osis].out.isOut = !!res.isOut;
-          if (res.isOut && res.outSinceISO) {
-            sessionState.students[r.osis].out.outSinceISO = res.outSinceISO;
-          } else {
-            delete sessionState.students[r.osis].out.outSinceISO;
-          }
+          if (!sessionState) sessionState = { ok:true, students:{}, effective_out_by_osis:{} };
+          applyToggleResultToSessionState(sessionState, r.osis, res);
+          LAST_SESSION_STATE = sessionState;
 
           btn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
           btn.textContent = outBtnLabelFor(r.osis);
@@ -3216,7 +3307,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
               ? 'Disabled while student is With Staff'
               : (!codeIsPL
                   ? 'Mark Present, Late, or Excused Late to enable Out/In'
-                  : 'Needs first scan into the room (kiosk scan or Submit as Present/Late)');
+                  : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk');
           } else {
             btn.title = btn.dataset.toggleTitle || 'Toggle Out/In';
           }
@@ -3294,7 +3385,14 @@ async function submitChanges(){
     const r = await adminFetch('/admin/teacher_att/submit', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ date, room, periodLocal, whenType, changes })
+      body: JSON.stringify({
+        date,
+        room,
+        periodLocal,
+        whenType,
+        advisor: UI_LUNCH_ADVISOR_LABEL || '',
+        changes
+      })
     });
 
     const data = await r.json().catch(()=>null);
@@ -3302,18 +3400,40 @@ async function submitChanges(){
       throw new Error(data?.error || `submit HTTP ${r.status}`);
     }
 
-    // Clear local overrides for this bucket (they’ve been persisted server-side)
-    saveOverrides(date, room, periodLocal, {});
-    const msg =
-      data?.deferred
-        ? (data?.mode === 'past_pending_end'
-            ? 'Saved. This will be included when the period-end snapshot runs.'
-            : 'Saved. Will be included in the period-end snapshot.')
-        : (data?.gas?.ok
-            ? 'Saved. Updates sent (delta only).'
-            : (data?.gas ? 'Saved, but GAS push failed.' : 'Saved.'));
-    setStatus(true, msg);
+    const failedRows = Array.isArray(data?.rowResults)
+      ? data.rowResults.filter((row) => row && row.applied === false && row.osis)
+      : [];
+    const failedSet = new Set(failedRows.map((row) => String(row.osis || '').trim()).filter(Boolean));
+    const remainingOverrides = {};
+    for (const change of changes) {
+      const osis = String(change?.osis || '').trim();
+      if (osis && failedSet.has(osis)) remainingOverrides[osis] = normalizeAttendanceCode(change.codeLetter || 'A');
+    }
+    // Only successful rows are cleared. Any row the server rejected stays staged.
+    saveOverrides(date, room, periodLocal, remainingOverrides);
+
+    const failureMessage = failedRows.length
+      ? (() => {
+          const reasons = Array.from(new Set(failedRows.map((row) => String(row.error || 'not_applied'))));
+          return `${failedRows.length} change${failedRows.length === 1 ? '' : 's'} still need attention: ${reasons.join(', ')}`;
+        })()
+      : '';
+
+    const appliedCount = Number(data?.applied_count || 0);
+    const msg = failedRows.length
+      ? `Saved ${appliedCount}; ${failedRows.length} not applied.`
+      : data?.mode === 'arrival_window'
+        ? 'Present check-ins saved for the Arrival Window.'
+        : data?.deferred
+          ? (data?.mode === 'past_pending_end'
+              ? 'Saved. This will be included when the period-end snapshot runs.'
+              : 'Saved. Will be included in the period-end snapshot.')
+          : (data?.gas?.ok
+              ? 'Saved. PowerSchool update queued.'
+              : (data?.gas ? 'Saved, but the PowerSchool queue handoff failed.' : 'Saved.'));
+    setStatus(failedRows.length === 0, msg);
     await refreshOnce();
+    if (failureMessage) setErr(failureMessage);
   } catch (err) {
     emitTeacherFidelityEvent('teacher_attendance_submit_error', {
       success: false,
@@ -3556,22 +3676,23 @@ function renderCurrentPeriod(opts){
   if(!currentPeriodText) return;
 
   const cur = String(opts?.current_period_local || '').trim();
+  const arrival = String(opts?.arrival_period_local || '').trim();
   CURRENT_PERIOD_LOCAL = cur;
-  if(!cur){
-    currentPeriodText.textContent = 'Current: —';
-    renderChairReminder(opts);
-    return;
-  }
+  ARRIVAL_PERIOD_LOCAL = arrival;
 
-  // If Worker provides pretty labels (e.g., "4 (10:48 AM - 11:42 AM)"), use them
-  let label = cur;
   const po = opts?.period_options;
-  if(Array.isArray(po)){
-    const found = po.find(x => String(x?.value) === cur);
-    if(found?.label) label = String(found.label);
-  }
+  const pretty = (value) => {
+    let label = String(value || '');
+    if (Array.isArray(po)) {
+      const found = po.find(x => String(x?.value) === String(value || ''));
+      if (found?.label) label = String(found.label);
+    }
+    return label;
+  };
 
-  currentPeriodText.textContent = `Current: ${label}`;
+  if (cur) currentPeriodText.textContent = `Current: ${pretty(cur)}`;
+  else if (arrival) currentPeriodText.textContent = `Next: ${pretty(arrival)} — Arrival Open`;
+  else currentPeriodText.textContent = 'Current: —';
   renderChairReminder(opts);
 }
 
@@ -3607,6 +3728,18 @@ function renderChairReminder(opts = TEACHER_OPTS_CACHE){
   chairReminder.hidden = !isChairReminderActive(opts);
 }
 
+function syncPeriodOptionStates(opts){
+  if (!periodInput) return;
+  const items = Array.isArray(opts?.period_options) ? opts.period_options : [];
+  const byValue = new Map(items.map((item) => [String(item?.value ?? ''), item]));
+  for (const opt of Array.from(periodInput.options || [])) {
+    if (!opt.value) continue;
+    const item = byValue.get(String(opt.value));
+    if (!item) continue;
+    opt.disabled = item.disabled === true || item.started === false;
+  }
+}
+
 function startCurrentPeriodTicker(){
   if(CURRENT_PERIOD_TIMER) return;
 
@@ -3617,6 +3750,7 @@ function startCurrentPeriodTicker(){
       const opts = await fetchTeacherOptions();
       TEACHER_OPTS_CACHE = opts;
       renderCurrentPeriod(opts);
+      syncPeriodOptionStates(opts);
     }catch(_){}
 
     // Keep after-school eligibility + button in sync as the schedule shifts
@@ -3642,7 +3776,7 @@ async function bootDemoTeacherAttendance(){
 
   const urlRoom = (qs().get('room') || '').trim();
   const urlPeriod = (qs().get('period') || '').trim();
-  const preferredPeriod = urlPeriod || String(fixture.default_period || opts.current_period_local || '').trim();
+  const preferredPeriod = urlPeriod || String(fixture.default_period || opts.current_period_local || opts.arrival_period_local || '').trim();
   const preferredRoom = urlRoom || String(fixture.default_room || '').trim();
   const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
 

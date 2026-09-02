@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.3.0-2026-08-21'; // bump on each deploy
+const VERSION = 'v20.7.0-2026-09-02'; // Phone Pass hardening verification checkpoint
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [

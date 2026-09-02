@@ -85,3 +85,39 @@ test('Early Dismissal consumes extracted Phone Pass context directly', () => {
   assert.match(earlyDismissalRoute, /getPhonePassContext\(env, modeInfo,/);
   assert.doesNotMatch(earlyDismissalRoute, /baseWorker\.fetch\(new Request\(url\.toString\(\),[\s\S]{0,200}phone_pass\/context/);
 });
+
+
+test('Phone Pass state is atomic, date-independent, and physical-evidence ordered', () => {
+  assert.match(service, /https:\/\/student-loc\/phone_pass/);
+  assert.doesNotMatch(service, /https:\/\/student-loc\/update/);
+  assert.match(worker, /phone_state_date/);
+  assert.match(service, /phoneStateDate\(state\)/);
+  assert.match(worker, /physical_superseded/);
+  assert.match(worker, /locationEvidenceTimestamp_\(prev\)/);
+});
+
+test('Phone Pass Arrival Window and physical classroom return are ClassSession-owned', () => {
+  assert.match(service, /https:\/\/do\/phone_pass_event/);
+  assert.match(service, /phase: sched\.mode === 'transition' \? 'transition' : 'active'/);
+  assert.match(worker, /phonePassIntervals/);
+  assert.match(worker, /source: "phone_pass_interval"/);
+  assert.match(worker, /for \(const intervals of \[rec\.staffPullIntervals, rec\.phonePassIntervals\]\)/);
+});
+
+test('Teacher Attendance phone mutations validate authoritative current context and dynamic Supervised Lunch', () => {
+  assert.match(route, /validateTeacherPhonePassContext/);
+  assert.match(service, /loadSupervisedLunchAssignments/);
+  assert.match(service, /teacher_phone_student_not_in_context/);
+  assert.match(service, /\['in_class', 'transition'\]/);
+});
+
+test('Phone Pass grant authorization fails closed without an allowlist', () => {
+  assert.match(service, /return !!allow && allow\.has\(normalized\)/);
+});
+
+
+test('Teacher-facing phone indicators are gated by phone_state_date rather than physical state.date', () => {
+  assert.match(worker, /phone_state_date: s\.phone_state_date \|\| null/);
+  assert.match(worker, /String\(s\.phone_state_date \|\| ""\)\.trim\(\) === date && s\.phone_out === true/);
+  assert.match(worker, /String\(s\.phone_state_date \|\| ""\)\.trim\(\) === date && s\.phone_return_requested === true/);
+});

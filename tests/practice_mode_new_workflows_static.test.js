@@ -40,8 +40,10 @@ assert.match(dow, /fail_closed: true/);
 for (const route of ['confirm', 'update', 'release']) {
   assert.match(reflectionRoute, new RegExp(`'/admin/reflection_hold/${route}'`));
 }
-assert.match(reflection, /source: 'after_school_reflection_hold_update'/);
-assert.match(reflection, /source = mode === 'cancel' \? 'after_school_reflection_hold_cancel' : 'after_school_reflection_hold_release'/);
+assert.match(reflection, /action: 'update'/);
+assert.match(reflection, /action: mode/);
+assert.match(worker, /obligation_source: action === "confirm" \? "after_school_reflection_hold" : "after_school_reflection_hold_update"/);
+assert.match(worker, /obligation_source: action === "cancel" \? "after_school_reflection_hold_cancel" : "after_school_reflection_hold_release"/);
 
 // After-school manual movement reuses the mode-scoped location and log stack.
 assert.match(worker, /path === "\/admin\/after_school\/toggle"/);
@@ -54,15 +56,17 @@ for (const route of ['pull', 'release']) {
 }
 assert.match(worker, /source: "staff_pull"/);
 assert.match(worker, /source: "staff_release"/);
-assert.match(worker, /reason: "staff_release"/);
+assert.match(worker, /obligation_source: "staff_release"/);
+assert.match(worker, /open\.release_reason = "staff_release"/);
 
 // Phone Pass is modular; state, logs, audits and notifications remain Practice-scoped.
 for (const route of ['grant', 'send_to_return', 'return']) {
   assert.match(phonePassRoute, new RegExp(`'/admin/phone_pass/${route}'`));
 }
-assert.match(phonePass, /source: 'phone_pass_grant'/);
-assert.match(phonePass, /source: 'phone_pass_send_to_return'/);
-assert.match(phonePass, /source: 'phone_pass_return'/);
+assert.match(phonePass, /action = sentByTeacher \? 'send_to_pickup' : 'pickup'/);
+assert.match(phonePass, /source = sentByTeacher \? 'phone_pass_send_to_pickup' : 'phone_pass_pickup'/);
+assert.match(phonePass, /'phone_pass_send_to_return'/);
+assert.match(phonePass, /'phone_pass_return'/);
 assert.match(phonePass, /studentViewOperationalDoName\(modeInfo, 'GLOBAL'\)/);
 assert.match(phonePass, /studentViewOperationalDoName\(modeInfo, `LOG:\$\{date\}`/);
 assert.match(phonePass, /reason: 'practice_mode'/);

@@ -92,7 +92,13 @@ test('Every authoritative non-Visitor operational GAS project has a fail-closed 
 test('Standalone GAS operational write entrypoints check practice mode', () => {
   assert.match(read('Google Apps Script/clasp-projects/daily-attendance/PS_Integrate.js'), /function pushDailyFromSheet\(\)[\s\S]{0,350}mode\.practice/);
   assert.match(read('Google Apps Script/clasp-projects/daily-attendance/PS_Integrate.js'), /function adjustScanTimeForToday_\(payload\)[\s\S]{0,350}mode\.practice/);
-  assert.match(read('Google Apps Script/clasp-projects/ps-meeting-attendance/Code.js'), /function doPost\(e\)[\s\S]{0,1800}eagleNestSystemMode_/);
+  const meetingCode = read('Google Apps Script/clasp-projects/ps-meeting-attendance/Code.js');
+  const doPostStart = meetingCode.indexOf('function doPost(e)');
+  const doPostEnd = meetingCode.indexOf('\nfunction ', doPostStart + 1);
+  const doPost = meetingCode.slice(doPostStart, doPostEnd === -1 ? undefined : doPostEnd);
+  assert.notEqual(doPostStart, -1);
+  assert.match(doPost, /var systemMode = eagleNestSystemMode_\(\)/);
+  assert.match(doPost, /if \(!isReferenceSync && systemMode\.practice\)/);
   assert.match(read('Google Apps Script/clasp-projects/student-scanner-gas/Code.js'), /eagleNestSystemMode_/);
   assert.match(read('Google Apps Script/clasp-projects/behavioral-endpoint/Code.js'), /eagleNestSystemMode_/);
   assert.match(read('Google Apps Script/clasp-projects/fidelity-tracking/Code.js'), /eagleNestSystemMode_/);

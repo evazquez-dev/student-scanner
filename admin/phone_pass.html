@@ -388,7 +388,7 @@
     <!-- Login -->
     <section id="loginCard">
       <h2>Sign in</h2>
-      <p>Social workers only.</p>
+      <p>Authorized Phone Pass and Hallway/Ops staff.</p>
       <div id="g_id_signin"></div>
       <pre id="loginOut">Loading…</pre>
     </section>
@@ -397,7 +397,7 @@
     <div id="appShell">
       <header>
         <h1 data-brand-title>EagleNEST — Phone Pass</h1>
-        <div class="sub">Select a student, see their current room + next room, then Pull / Release.</div>
+        <div class="sub">Select a student, confirm phone pickup, request return, and confirm the physical return.</div>
 
         <div class="pill-row">
           <div class="pill">
@@ -459,18 +459,18 @@
             </div>
 
             <div style="display:flex; gap:0.6rem; margin-top:0.9rem;">
-              <button class="btn btn-primary" id="grantBtn" disabled>Allow Phone Pickup</button>
+              <button class="btn btn-primary" id="grantBtn" disabled>Student Picked Up Phone</button>
             </div>
           </div>
         </section>
 
         <section class="card" id="mineCard">
           <h2>
-            <span>Allowed by me</span>
+            <span>Phone Pickup Confirmed by Me</span>
             <span id="mineCount">0</span>
           </h2>
 
-          <div class="muted">Students you currently allowed to have a phone (Ops will return the phone to the locker).</div>
+          <div class="muted">Students whose phone pickup you confirmed. Use Send Student to Return Phone when they should bring it back.</div>
           <div class="list" id="mineList"></div>
         </section>
 

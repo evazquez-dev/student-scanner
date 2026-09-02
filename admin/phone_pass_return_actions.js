@@ -92,12 +92,12 @@
     button.className = 'btn btn-return-request phone-pass-return-action';
 
     if(isReturnRequested(row)){
-      button.textContent = 'Return requested ✓';
+      button.textContent = 'Student Sent to Return ✓';
       button.disabled = true;
       return button;
     }
 
-    button.textContent = 'Send to Return';
+    button.textContent = 'Send Student to Return Phone';
     button.addEventListener('click', async () => {
       button.disabled = true;
       try {

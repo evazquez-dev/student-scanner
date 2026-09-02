@@ -596,7 +596,7 @@ async function loadMine(){
     const since = s.phone_out_since ? `since ${fmtClock(s.phone_out_since)}` : '';
     const loc = s.cur_label ? `@ ${s.cur_label}` : (s.cur_loc ? `@ ${s.cur_loc}` : '');
     const requested = s.phone_return_requested
-      ? `sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
+      ? `student sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
       : '';
     sub.textContent = [since, loc, requested].filter(Boolean).join(' • ') || '—';
 
@@ -630,14 +630,15 @@ async function loadSelectedContext(){
 
   // Phone status
   const out = st?.phone_out === true;
+  const pickupRequested = st?.phone_pickup_requested === true;
   const since = st?.phone_out_since ? fmtClock(st.phone_out_since) : '';
   const by = allowedByLabel(st);
   const requested = st?.phone_return_requested === true
-    ? ` • sent to return${requestedByLabel(st) ? (' by ' + requestedByLabel(st)) : ''}`
+    ? ` • student sent to return${requestedByLabel(st) ? (' by ' + requestedByLabel(st)) : ''}`
     : '';
   phoneBox.textContent = out
-    ? `OUT — picked up ${since ? ('@ ' + since) : ''}${by ? (' • by ' + by) : ''}${requested}`
-    : 'IN — in locker';
+    ? `OUT — student picked up phone ${since ? ('@ ' + since) : ''}${by ? (' • confirmed by ' + by) : ''}${requested}`
+    : (pickupRequested ? 'PICKUP REQUESTED — student was sent to pick up phone' : 'IN — in locker');
 
   // Current location
   renderCurrentLocation(st);
@@ -657,7 +658,7 @@ async function grantPhone(osis){
   const r = await adminFetch('/admin/phone_pass/grant', {
     method:'POST',
     headers:{ 'content-type':'application/json' },
-    body: JSON.stringify({ osis, note })
+    body: JSON.stringify({ osis, note, source:'phone_pass' })
   });
   const data = await r.json().catch(()=>null);
   if(!r.ok || !data?.ok) throw new Error(data?.error || `phone_pass/grant HTTP ${r.status}`);
@@ -850,7 +851,7 @@ async function loadActive(){
     const since = s.phone_out_since ? `since ${fmtClock(s.phone_out_since)}` : '';
     const loc = s.cur_label ? `@ ${s.cur_label}` : (s.cur_loc ? `@ ${s.cur_loc}` : '');
     const requested = s.phone_return_requested
-      ? `sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
+      ? `student sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
       : '';
     sub.textContent = [by ? `allowed by ${by}` : '', since, loc, requested].filter(Boolean).join(' • ') || '—';
 
@@ -862,7 +863,7 @@ async function loadActive(){
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'btn btn-success';
-    btn.textContent = 'Confirm Return';
+    btn.textContent = 'Student Returned Phone';
     btn.addEventListener('click', async () => {
       btn.disabled = true;
       try{

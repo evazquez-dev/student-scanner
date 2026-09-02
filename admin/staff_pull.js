@@ -277,16 +277,35 @@ function isoToNycDate(iso){
   return `${y}-${m}-${d}`;
 }
 
+function physicalEvidenceISO(st){
+  return String(
+    st?.location_evidence_at ||
+    st?.last_scan_event_at ||
+    st?.updated_at ||
+    ''
+  ).trim();
+}
+
 function isStateFromToday(st){
   const today = nycDateISO();
+  const evidence = physicalEvidenceISO(st);
+  if (evidence) return isoToNycDate(evidence) === today;
 
+  // Legacy compatibility only. A modern obligation can advance state.date
+  // without creating physical evidence, so never use that date as proof.
+  const obligationSource = String(st?.obligation_source || '').trim();
+  if (obligationSource) return false;
   const d = String(st?.date || '').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d === today;
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && d === today;
+}
 
-  const u = String(st?.updated_at || '').trim();
-  if (u) return isoToNycDate(u) === today;
-
-  return false;
+function isStaffHoldToday(st){
+  const heldBy = String(st?.held_by_email || '').trim();
+  if (!heldBy) return false;
+  const since = String(st?.held_by_since || '').trim();
+  if (since) return isoToNycDate(since) === nycDateISO();
+  const d = String(st?.date || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && d === nycDateISO();
 }
 
 function zoneToChipClass(zone){
@@ -329,7 +348,8 @@ function renderCurrentLocation(st){
   // Capture "last known" from whatever we received, even if it's stale
   const lkLabel = String(st?.location_label || st?.loc || '').trim();
   const lkZone  = String(st?.zone || '').trim();
-  const lkTs    = st?.updated_at ? (fmtMDTimeNY(st.updated_at) || fmtDateTimeShort(st.updated_at)) : '';
+  const evidenceISO = physicalEvidenceISO(st);
+  const lkTs    = evidenceISO ? (fmtMDTimeNY(evidenceISO) || fmtDateTimeShort(evidenceISO)) : '';
   const lastKnownLine = (lkLabel || lkZone || lkTs)
     ? `Last known: ${lkLabel || '—'}${lkZone ? ` (${lkZone.replace(/_/g,' ')})` : ''}${lkTs ? ` • ${lkTs}` : ''}`
     : '';
@@ -338,11 +358,11 @@ function renderCurrentLocation(st){
   const zone  = (!st || !fromToday) ? 'off_campus' : String(st.zone || '');
   const label = (!st || !fromToday) ? 'Off Campus' : String(st.location_label || st.loc || '—');
 
-  const updatedText = st?.updated_at
+  const updatedText = evidenceISO
     ? ((!st || !fromToday)
-        ? `Last update: ${lkTs || fmtDateTimeShort(st.updated_at)}`
-        : `Updated: ${fmtClock(st.updated_at)}`)
-    : ((!st || !fromToday) ? '' : 'Updated: —');
+        ? `Last physical evidence: ${lkTs || fmtDateTimeShort(evidenceISO)}`
+        : `Physical evidence: ${fmtClock(evidenceISO)}`)
+    : ((!st || !fromToday) ? '' : 'Physical evidence: —');
 
   // Reset + base card
   curBox.innerHTML = '';
@@ -373,14 +393,19 @@ function renderCurrentLocation(st){
   const sub = document.createElement('div');
   sub.className = 'locSub';
 
+  const heldToday = isStaffHoldToday(st);
+  const heldBy = String(st?.held_by_title || st?.held_by_email || '').trim();
+  const heldSince = st?.held_by_since ? fmtClock(st.held_by_since) : '';
   if(!st || !fromToday){
-    sub.textContent = 'They have not entered the building today.';
+    const bits = [];
+    if (heldToday && heldBy) bits.push(`With: ${heldBy}`);
+    if (heldToday && heldSince) bits.push(`since ${heldSince}`);
+    bits.push('No confirmed physical-location evidence today.');
+    sub.textContent = bits.join(' • ');
   } else {
     const bits = [];
-    const heldBy = String(st.held_by_title || st.held_by_email || '').trim();
-    const heldSince = st.held_by_since ? fmtClock(st.held_by_since) : '';
-    if (heldBy) bits.push(`With: ${heldBy}`);
-    if (heldSince) bits.push(`since ${heldSince}`);
+    if (heldToday && heldBy) bits.push(`With: ${heldBy}`);
+    if (heldToday && heldSince) bits.push(`since ${heldSince}`);
     sub.textContent = bits.join(' • ') || '—';
   }
 
@@ -602,8 +627,8 @@ async function loadSelectedContext(){
 
   // Enable buttons
   pullBtn.disabled = false;
-  // Release is enabled if they're currently held
-  const heldBy = String((isTodayState ? st?.held_by_email : '') || '').toLowerCase();
+  // Hold ownership is independent from the physical-evidence clock.
+  const heldBy = String((isStaffHoldToday(st) ? st?.held_by_email : '') || '').toLowerCase();
   const me     = String(WHO?.email || '').toLowerCase();
   const role = String(WHO?.role || '');
   const isAdmin = role === 'admin' || role === 'super_admin';

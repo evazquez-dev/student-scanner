@@ -140,7 +140,11 @@
       #historyTbl.show-morning-dest .history-dest-col{ width:25%; }
     }
     .bad { color:#b00020; font-weight:600; }
-    .queued { color:#8a5a00; font-weight:600; }
+    .checking { color:#0b57d0; font-weight:700; }
+    .queued { color:#8a5a00; font-weight:700; }
+    .scan-state-dot{ display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor; margin-right:6px; vertical-align:1px; }
+    .scan-state-pulse{ animation:scanPulse 1s ease-in-out infinite; }
+    @keyframes scanPulse{ 0%,100%{opacity:.35} 50%{opacity:1} }
     .allowed-badge { color:#0a7c2f; font-weight:700; }
     .not-allowed-badge { color:#b00020; font-weight:700; }
     .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
@@ -353,6 +357,8 @@
       <span class="pill" id="batteryPill" style="margin-left:6px">🔋 --%</span>
       <span class="pill" id="netPill" style="margin-left:6px">Wi-Fi …</span>
       <span class="pill" id="swVersionPill" style="margin-left:6px">v?</span>
+      <span class="pill" id="syncPill" style="margin-left:6px" title="Local scan journal status">Synced</span>
+      <span class="pill" id="clockPill" style="margin-left:6px" title="Kiosk clock status">Clock …</span>
     </h1>
     <div class="muted">RFID keyboard-wedge or keypad: enter OSIS/RFID + Enter.</div>
 
@@ -540,7 +546,16 @@
   const SPECIAL_LOCATION = 'Senior Lunch (out-in)';
   const BATHROOM_PREFIX  = 'Bathroom (';
 
-  const QUEUE_KEY = 'scanQueueV1';
+  const LEGACY_QUEUE_KEY = 'scanEventJournalV2';
+  const QUEUE_DB_NAME = 'EagleNESTScanJournalV3';
+  const QUEUE_DB_VERSION = 1;
+  const QUEUE_STORE_NAME = 'events';
+  const QUEUE_STALE_WARN_MS = 72 * 60 * 60 * 1000; // warning threshold only; never auto-delete
+  const QUEUE_WARN_COUNT = 250; // health warning only; IndexedDB journal is not silently capped
+  let __SCAN_JOURNAL_DB_PROMISE = null
+  const SCAN_EVENT_ROWS = new Map();
+  let LATEST_SCAN_EVENT_ID = '';
+  let __SCAN_RESULT_FOREGROUND = true;
   const LOC_KEY   = 'scannerLocationV1';
   const OUT_KEY   = 'seniorOutV1';
   const BATH_KEY  = 'bathroomInV1';
@@ -575,6 +590,8 @@
   const outReasonButtons = Array.from(document.querySelectorAll('.out-reason-btn') || []);
 
   const swVersionPill = document.getElementById('swVersionPill');
+  const syncPill = document.getElementById('syncPill');
+  const clockPill = document.getElementById('clockPill');
   const ENABLE_CLASS_TIMEOUT_LOGS = false; // set true if you want per-student timeout logs at period change
 
   // Runtime state
@@ -727,6 +744,108 @@
   }
 
   let __KIOSK_HEARTBEAT_CFG = null;
+  let __SERVER_CLOCK_OFFSET_MS = 0;
+  let __SERVER_CLOCK_SAMPLE_AT_MS = 0;
+  let __SERVER_CLOCK_RTT_MS = 0;
+  const CLOCK_SKEW_WARN_MS = 2 * 60 * 1000;
+  const CLOCK_SAMPLE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // keep a trusted offset through a school-day outage
+  const SCAN_PERF_SAMPLE_MAX = 200;
+  const SCAN_PERF_SAMPLES = [];
+
+  function scanPerfPercentile_(values, pct){
+    const nums = (Array.isArray(values) ? values : [])
+      .map(Number)
+      .filter(Number.isFinite)
+      .sort((a,b) => a-b);
+    if (!nums.length) return null;
+    const pos = Math.min(nums.length - 1, Math.max(0, Math.ceil((Number(pct) || 0) * nums.length) - 1));
+    return Math.round(nums[pos]);
+  }
+
+  function recordScanPerformance_(event, data, clientRoundTripMs){
+    const worker = Number(data?.performance?.worker_total_ms);
+    const studentLoc = Number(data?.performance?.student_location_ms);
+    const classSession = Number(data?.performance?.class_session_ms);
+    const attendance = Number(data?.performance?.attendance_ms);
+    const logEnqueue = Number(data?.performance?.log_enqueue_ms);
+    SCAN_PERF_SAMPLES.push({
+      at_ms: Date.now(),
+      location: String(event?.location || ''),
+      action: String(data?.result?.action || ''),
+      client_rtt_ms: Number.isFinite(Number(clientRoundTripMs)) ? Math.max(0, Number(clientRoundTripMs)) : null,
+      worker_ms: Number.isFinite(worker) ? worker : null,
+      student_location_ms: Number.isFinite(studentLoc) ? studentLoc : null,
+      class_session_ms: Number.isFinite(classSession) ? classSession : null,
+      attendance_ms: Number.isFinite(attendance) ? attendance : null,
+      log_enqueue_ms: Number.isFinite(logEnqueue) ? logEnqueue : null
+    });
+    if (SCAN_PERF_SAMPLES.length > SCAN_PERF_SAMPLE_MAX) {
+      SCAN_PERF_SAMPLES.splice(0, SCAN_PERF_SAMPLES.length - SCAN_PERF_SAMPLE_MAX);
+    }
+  }
+
+  function scanPerfHeartbeatMeta_(){
+    const recentCutoff = Date.now() - 15 * 60 * 1000;
+    const rows = SCAN_PERF_SAMPLES.filter(x => Number(x?.at_ms) >= recentCutoff);
+    const vals = (key) => rows.map(x => x?.[key]).filter(Number.isFinite);
+    return {
+      scan_perf_count: rows.length,
+      scan_rtt_p50_ms: scanPerfPercentile_(vals('client_rtt_ms'), 0.50),
+      scan_rtt_p95_ms: scanPerfPercentile_(vals('client_rtt_ms'), 0.95),
+      worker_p50_ms: scanPerfPercentile_(vals('worker_ms'), 0.50),
+      worker_p95_ms: scanPerfPercentile_(vals('worker_ms'), 0.95),
+      student_location_p95_ms: scanPerfPercentile_(vals('student_location_ms'), 0.95),
+      class_session_p95_ms: scanPerfPercentile_(vals('class_session_ms'), 0.95),
+      attendance_p95_ms: scanPerfPercentile_(vals('attendance_ms'), 0.95),
+      log_enqueue_p95_ms: scanPerfPercentile_(vals('log_enqueue_ms'), 0.95),
+      scan_perf_window_min: 15,
+      scan_perf_last_action: rows.length ? String(rows[rows.length - 1]?.action || '') : ''
+    };
+  }
+
+  function applyServerClockSample_(serverISO, requestStartedAtMs){
+    const serverMs = Date.parse(String(serverISO || ''));
+    if (!Number.isFinite(serverMs)) return;
+    const receivedAt = Date.now();
+    const startedAt = Number(requestStartedAtMs);
+    const midpoint = Number.isFinite(startedAt) ? Math.round((startedAt + receivedAt) / 2) : receivedAt;
+    __SERVER_CLOCK_OFFSET_MS = serverMs - midpoint;
+    __SERVER_CLOCK_SAMPLE_AT_MS = receivedAt;
+    __SERVER_CLOCK_RTT_MS = Number.isFinite(startedAt) ? Math.max(0, receivedAt - startedAt) : 0;
+    refreshClockPill_();
+  }
+
+  function currentClockSampleAgeMs_(){
+    return __SERVER_CLOCK_SAMPLE_AT_MS ? Math.max(0, Date.now() - __SERVER_CLOCK_SAMPLE_AT_MS) : Infinity;
+  }
+
+  function canonicalScanWhenISO_(deviceDate){
+    const d = deviceDate instanceof Date ? deviceDate : new Date(deviceDate || Date.now());
+    if (currentClockSampleAgeMs_() <= CLOCK_SAMPLE_MAX_AGE_MS && Number.isFinite(__SERVER_CLOCK_OFFSET_MS)) {
+      return new Date(d.getTime() + __SERVER_CLOCK_OFFSET_MS).toISOString();
+    }
+    return d.toISOString();
+  }
+
+  function refreshClockPill_(){
+    if (!clockPill) return;
+    const age = currentClockSampleAgeMs_();
+    if (!Number.isFinite(age) || age === Infinity) {
+      clockPill.textContent = 'Clock ?';
+      clockPill.title = 'No recent server clock sample';
+      return;
+    }
+    const skew = Math.abs(__SERVER_CLOCK_OFFSET_MS);
+    const sec = Math.round(skew / 1000);
+    if (skew >= CLOCK_SKEW_WARN_MS) {
+      clockPill.textContent = `⚠ Clock ${Math.round(skew / 60000)}m`;
+      clockPill.title = `Device clock differs from EagleNEST by about ${sec}s. Scan timestamps are being corrected using the recent server sample.`;
+    } else {
+      clockPill.textContent = 'Clock OK';
+      clockPill.title = `Clock offset ${Math.round(__SERVER_CLOCK_OFFSET_MS)}ms; sample RTT ${Math.round(__SERVER_CLOCK_RTT_MS)}ms.`;
+    }
+  }
+
   let __KIOSK_HEARTBEAT_TIMER = null;
   let __KIOSK_HEARTBEAT_STOP_TIMER = null;
   let __KIOSK_HEARTBEAT_STOP_AT_MS = 0;
@@ -760,7 +879,12 @@
           visibility: document.visibilityState || '',
           current_period: CURRENT_CLASS_PERIOD_KEY || '',
           heartbeat_reason: String(__KIOSK_HEARTBEAT_CFG.reason || ''),
-          heartbeat_stop_local_min: __KIOSK_HEARTBEAT_CFG.stop_local_min ?? null
+          heartbeat_stop_local_min: __KIOSK_HEARTBEAT_CFG.stop_local_min ?? null,
+          clock_offset_ms: Number.isFinite(__SERVER_CLOCK_OFFSET_MS) ? Math.round(__SERVER_CLOCK_OFFSET_MS) : null,
+          clock_sample_age_ms: Number.isFinite(currentClockSampleAgeMs_()) ? Math.round(currentClockSampleAgeMs_()) : null,
+          clock_rtt_ms: Number.isFinite(__SERVER_CLOCK_RTT_MS) ? Math.round(__SERVER_CLOCK_RTT_MS) : null,
+          clock_skew_warning: Math.abs(__SERVER_CLOCK_OFFSET_MS) >= CLOCK_SKEW_WARN_MS,
+          ...scanPerfHeartbeatMeta_()
         }
       });
     };
@@ -1152,6 +1276,7 @@
 
   let __classPopupTimer = null;
   function showClassPopup(msg){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     const el = document.getElementById('classPopup');
     if (!el) return;
     el.textContent = msg;
@@ -1172,6 +1297,7 @@
   }
 
   function showClassRedirect(code, shouldRoom, when){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     beepBad();
     const msg = shouldRoom
       ? `You should be in ${esc(shouldRoom)}.`
@@ -1302,6 +1428,7 @@
     osc.start(t); osc.stop(t+dur+0.05);
   }
   function beepBad(){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     [
       { freq: 260, dur: 0.51, when: 0.00 },
       { freq: 220, dur: 0.51, when: 0.10 },
@@ -1310,6 +1437,7 @@
     ].forEach(p => beepOnce(p));
   }
     function beepGood(){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     [
       { freq: 260, dur: 0.51, when: 0.00 },
       { freq: 280, dur: 0.51, when: 0.10 },
@@ -1319,6 +1447,7 @@
   }
 
   function beepNeutralUp(){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     [
       { freq: 280, dur: 0.81, when: 0.00 },
       { freq: 340, dur: 0.81, when: 0.10 }
@@ -1326,10 +1455,17 @@
   }
 
   function beepNeutralDown(){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     [
       { freq: 340, dur: 0.81, when: 0.00 },
       { freq: 280, dur: 0.81, when: 0.10 }
     ].forEach(p => beepOnce(p));
+  }
+
+  function beepCardRead(){
+    // Deliberately tiny/neutral: this means only "card captured locally",
+    // never that the server accepted the scan or changed state.
+    try { beepOnce({ freq: 520, dur: 0.055, when: 0 }); } catch (_) {}
   }
 
   /* ============================================================
@@ -1684,31 +1820,24 @@
     if (!ctx) return;
     CURRENT_CLASS_PENDING = null;
 
-    const { row, code, when, res, osis, shouldRoom } = ctx;
-    const whenISO = when.toISOString();
-    const loc = getLocation() || '';
-
-    addClassOutEntry(osis, res.name || '', reason, when);
-
-    updateRowToSuccess(row, {
-      name: res.name,
-      code,
-      lockerNum: `OUT: ${reason}`,
-      lockerColor: shouldRoom || '',
-      when
-    });
-
-    showSuccess(res.name, code, `OUT: ${reason}`, shouldRoom || '', when);
-
-    await apiLog({
-      whenISO,
-      code,
-      source:'pwa',
-      resolved:res,
-      allowed:`class_out:${reason}`
-    });
-
-    setStatus('Student marked out of classroom.');
+    const event = { ...ctx.event, class_reason: String(reason || 'Other') };
+    setStatus('Saving destination…');
+    const sent = await submitScanEvent(event);
+    if (sent.queued) {
+      markRowQueued(ctx.row, ctx.code, ctx.when);
+      showQueuedScan_(event.event_id, ctx.res?.name || '', ctx.code, ctx.when);
+      resetInputSession();
+      PENDING_INPUT_METHOD = 'unknown';
+      return;
+    }
+    if (!sent.data?.found) {
+      updateRowToNotFound(ctx.row, ctx.code, ctx.when);
+      showNotFound(ctx.code, ctx.when);
+      resetInputSession();
+      PENDING_INPUT_METHOD = 'unknown';
+      return;
+    }
+    await renderAuthoritativeScanResult_({ ...ctx, event }, sent.data);
   }
 
   async function handleClassBackIn(ctx){
@@ -1742,17 +1871,43 @@
     setStatus('Student back in classroom.');
   }
 
+  async function cancelClassOutPrompt_(){
+    const ctx = CURRENT_CLASS_PENDING;
+    if (!ctx) return;
+    CURRENT_CLASS_PENDING = null;
+    closeOutModalForClass();
+
+    // A second card read is immutable even when the user decides not to send the
+    // student anywhere. Finalize the SAME event ID as a no-op instead of deleting it.
+    const event = { ...ctx.event, class_reason: '__CANCEL__' };
+    setStatus('Cancelling OUT action; keeping the card read in history…');
+    const sent = await submitScanEvent(event);
+    if (sent.queued) {
+      markRowQueued(ctx.row, ctx.code, ctx.when);
+      showQueuedScan_(event.event_id, ctx.res?.name || '', ctx.code, ctx.when);
+      return;
+    }
+    if (!sent.data?.found) {
+      updateRowToNotFound(ctx.row, ctx.code, ctx.when);
+      if (isLatestScanEvent_(event.event_id)) showNotFound(ctx.code, ctx.when);
+      return;
+    }
+    await renderAuthoritativeScanResult_({ ...ctx, event }, sent.data);
+  }
+
   if (outModalCancel) {
     outModalCancel.addEventListener('click', () => {
-      CURRENT_CLASS_PENDING = null;
-      closeOutModalForClass();
+      cancelClassOutPrompt_().catch(err => {
+        console.warn('class prompt cancel failed', err);
+      });
     });
   }
   if (outModal) {
     outModal.addEventListener('click', (ev) => {
       if (ev.target === outModal) {
-        CURRENT_CLASS_PENDING = null;
-        closeOutModalForClass();
+        cancelClassOutPrompt_().catch(err => {
+          console.warn('class prompt cancel failed', err);
+        });
       }
     });
   }
@@ -1931,7 +2086,7 @@
     const body = new URLSearchParams();
     body.set('action', 'manual_clear');
     body.set('location', location || '');
-    body.set('device_id', DEVICE_ID);
+    body.set('device_id', event.device_id || DEVICE_ID);
     body.set('items_json', JSON.stringify(items || []));
     const r = await fetch(API_BASE, { method:'POST', body });
     const ct = r.headers.get('content-type') || '';
@@ -1960,6 +2115,510 @@
       console.warn('rfid_debug send failed', err);
     }
   }
+  function makeScanEventId(){
+    try { if (crypto?.randomUUID) return crypto.randomUUID(); } catch (_) {}
+    return `evt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,12)}`;
+  }
+  function openScanJournalDb_(){
+    if (__SCAN_JOURNAL_DB_PROMISE) return __SCAN_JOURNAL_DB_PROMISE;
+    __SCAN_JOURNAL_DB_PROMISE = new Promise((resolve, reject) => {
+      if (!('indexedDB' in window)) {
+        reject(new Error('indexeddb_unavailable'));
+        return;
+      }
+      const req = indexedDB.open(QUEUE_DB_NAME, QUEUE_DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(QUEUE_STORE_NAME)) {
+          const store = db.createObjectStore(QUEUE_STORE_NAME, { keyPath:'event_id' });
+          store.createIndex('whenISO', 'whenISO', { unique:false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('indexeddb_open_failed'));
+      req.onblocked = () => reject(new Error('indexeddb_open_blocked'));
+    });
+    return __SCAN_JOURNAL_DB_PROMISE;
+  }
+
+  function legacyScanQueue_(){
+    try {
+      const rows = JSON.parse(localStorage.getItem(LEGACY_QUEUE_KEY) || '[]');
+      return Array.isArray(rows) ? rows.filter(x => x && x.event_id && x.code) : [];
+    } catch { return []; }
+  }
+
+  async function migrateLegacyScanEventQueue_(){
+    const legacy = legacyScanQueue_();
+    if (!legacy.length) return;
+    const db = await openScanJournalDb_();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(QUEUE_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(QUEUE_STORE_NAME);
+      legacy.forEach(row => store.put(row));
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error('scan_journal_migration_failed'));
+      tx.onabort = () => reject(tx.error || new Error('scan_journal_migration_aborted'));
+    });
+    try { localStorage.removeItem(LEGACY_QUEUE_KEY); } catch {}
+  }
+
+  async function loadScanEventQueue(){
+    try {
+      await migrateLegacyScanEventQueue_();
+      const db = await openScanJournalDb_();
+      const rows = await new Promise((resolve, reject) => {
+        const tx = db.transaction(QUEUE_STORE_NAME, 'readonly');
+        const req = tx.objectStore(QUEUE_STORE_NAME).getAll();
+        req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : []);
+        req.onerror = () => reject(req.error || new Error('scan_journal_read_failed'));
+      });
+      return rows
+        .filter(x => x && x.event_id && x.code)
+        .sort((a,b) => String(a.whenISO||a.queued_at||'').localeCompare(String(b.whenISO||b.queued_at||'')) || String(a.event_id).localeCompare(String(b.event_id)));
+    } catch (err) {
+      // Very old/locked-down browsers still retain scans rather than dropping them.
+      const rows = legacyScanQueue_();
+      return rows.sort((a,b) => String(a.whenISO||a.queued_at||'').localeCompare(String(b.whenISO||b.queued_at||'')) || String(a.event_id).localeCompare(String(b.event_id)));
+    }
+  }
+
+  async function upsertScanEventQueue(event){
+    const rec = { ...event, queued_at: event.queued_at || new Date().toISOString() };
+    try {
+      await migrateLegacyScanEventQueue_();
+      const db = await openScanJournalDb_();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(QUEUE_STORE_NAME, 'readwrite');
+        tx.objectStore(QUEUE_STORE_NAME).put(rec);
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error || new Error('scan_journal_write_failed'));
+        tx.onabort = () => reject(tx.error || new Error('scan_journal_write_aborted'));
+      });
+    } catch (err) {
+      // Fallback is intentionally uncapped and non-expiring. A quota failure is
+      // surfaced to the scan flow rather than silently discarding accepted cards.
+      const rows = legacyScanQueue_();
+      const idx = rows.findIndex(x => x.event_id === rec.event_id);
+      if (idx >= 0) rows[idx] = rec; else rows.push(rec);
+      localStorage.setItem(LEGACY_QUEUE_KEY, JSON.stringify(rows));
+    }
+    await refreshScanJournalHealth_();
+  }
+
+  async function removeScanEventFromQueue(eventId){
+    try {
+      await migrateLegacyScanEventQueue_();
+      const db = await openScanJournalDb_();
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(QUEUE_STORE_NAME, 'readwrite');
+        tx.objectStore(QUEUE_STORE_NAME).delete(String(eventId || ''));
+        tx.oncomplete = resolve;
+        tx.onerror = () => reject(tx.error || new Error('scan_journal_delete_failed'));
+        tx.onabort = () => reject(tx.error || new Error('scan_journal_delete_aborted'));
+      });
+    } catch {
+      const rows = legacyScanQueue_().filter(x => x.event_id !== eventId);
+      localStorage.setItem(LEGACY_QUEUE_KEY, JSON.stringify(rows));
+    }
+    await refreshScanJournalHealth_();
+  }
+
+  async function refreshScanJournalHealth_(){
+    if (!syncPill) return;
+    let rows = [];
+    try { rows = await loadScanEventQueue(); } catch {}
+    const count = rows.length;
+    if (!count) {
+      syncPill.textContent = 'Synced';
+      syncPill.title = 'No unsynced physical scan events';
+      return;
+    }
+    const oldestMs = rows.reduce((min, row) => {
+      const t = Date.parse(String(row?.whenISO || row?.queued_at || ''));
+      return Number.isFinite(t) ? Math.min(min, t) : min;
+    }, Infinity);
+    const ageMs = Number.isFinite(oldestMs) ? Math.max(0, Date.now() - oldestMs) : 0;
+    const stale = ageMs >= QUEUE_STALE_WARN_MS;
+    const large = count >= QUEUE_WARN_COUNT;
+    syncPill.textContent = `${stale || large ? '⚠ ' : ''}Unsynced ${count}${stale ? ' (old)' : ''}`;
+    syncPill.title = stale
+      ? `${count} unsynced scan event(s); oldest is over 72 hours old. Events are retained until acknowledged.`
+      : large
+        ? `${count} unsynced scan event(s). Large backlog; events are retained until acknowledged.`
+        : `${count} unsynced physical scan event(s) saved on this kiosk.`;
+  }
+
+  async function apiScanEvent(event){
+    const perfStartedAt = (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+    const body = new URLSearchParams();
+    body.set('action', 'scan_event');
+    body.set('event_id', event.event_id);
+    body.set('code', event.code || '');
+    body.set('osis_hint', event.osis_hint || '');
+    body.set('whenISO', event.whenISO || new Date().toISOString());
+    body.set('device_whenISO', event.device_whenISO || '');
+    body.set('clock_offset_ms', event.clock_offset_ms != null && Number.isFinite(Number(event.clock_offset_ms)) ? String(event.clock_offset_ms) : '');
+    body.set('clock_sample_age_ms', event.clock_sample_age_ms != null && Number.isFinite(Number(event.clock_sample_age_ms)) ? String(event.clock_sample_age_ms) : '');
+    body.set('device_id', event.device_id || DEVICE_ID);
+    body.set('location', event.location || '');
+    body.set('input_method', event.input_method || 'unknown');
+    if (event.class_reason) body.set('class_reason', event.class_reason);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    try {
+      const r = await fetch(API_BASE, { method:'POST', body, signal:controller.signal });
+      const ct = r.headers.get('content-type') || '';
+      const text = await r.text();
+      if (!ct.includes('application/json')) throw new Error(`scan_event_non_json_${r.status}`);
+      let data = null;
+      try { data = JSON.parse(text); } catch { data = null; }
+      if (!r.ok || !data?.ok) throw new Error(data?.error || `scan_event_http_${r.status}`);
+      const perfEndedAt = (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+      const clientRoundTripMs = Math.max(0, perfEndedAt - perfStartedAt);
+      data.performance = {
+        ...(data.performance || {}),
+        client_round_trip_ms: Math.round(clientRoundTripMs)
+      };
+      recordScanPerformance_(event, data, clientRoundTripMs);
+      return data;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  let __SCAN_QUEUE_FLUSHING = false;
+  async function flushScanEventQueue(){
+    if (__SCAN_QUEUE_FLUSHING || !navigator.onLine || CURRENT_CLASS_PENDING) return;
+    __SCAN_QUEUE_FLUSHING = true;
+    try {
+      const rows = await loadScanEventQueue();
+      for (const event of rows) {
+        try {
+          // A card read captured before this kiosk had a valid location remains
+          // visible in the journal, but is not guessed/rebound later.
+          if (!String(event.location || '').trim()) continue;
+          const data = await apiScanEvent(event);
+          if (!data?.ok) break;
+
+          // A second class scan is a two-step interaction: the immutable card
+          // event is retained until a destination/reason completes it. If an
+          // offline event reaches this point later, surface that one required
+          // interaction instead of guessing a destination in the background.
+          const when = new Date(event.whenISO || Date.now());
+          let row = scanRowForEvent_(event.event_id);
+
+          if (data?.result?.action === 'class_needs_reason') {
+            const sameLocation = String(event.location||'') === String(getLocation()||'');
+            if (!sameLocation) {
+              // An old interactive prompt must not block a kiosk that has since
+              // been reassigned. Finalize the immutable card read as cancelled.
+              const cancelEvent = { ...event, class_reason:'__CANCEL__' };
+              await upsertScanEventQueue(cancelEvent);
+              const cancelData = await apiScanEvent(cancelEvent);
+              if (!cancelData?.ok || cancelData?.result?.action === 'class_needs_reason') break;
+              await removeScanEventFromQueue(event.event_id);
+              if (row) {
+                await renderAuthoritativeScanResult_({ row, code:event.code, when, res:cancelData.resolved || {}, event:cancelEvent, backgroundReplay:true }, cancelData);
+              }
+              continue;
+            }
+            if (!document.hidden && !CURRENT_CLASS_PENDING) {
+              if (!row) {
+                row = pushPendingRow(event.event_id, event.code, when);
+                registerScanRow_(event.event_id, row);
+              }
+              await renderAuthoritativeScanResult_({ row, code:event.code, when, res:data.resolved || {}, event, backgroundReplay:true }, data);
+            }
+            break;
+          }
+
+          await removeScanEventFromQueue(event.event_id);
+          applyResolvedScanContext_(data.resolved || {});
+          applyAuthoritativeLocalState_(data, event);
+          if (row) {
+            await renderAuthoritativeScanResult_({ row, code:event.code, when, res:data.resolved || {}, event, backgroundReplay:true }, data);
+          }
+        } catch {
+          // Preserve chronological replay. A later event may supersede an older
+          // one server-side, but we never intentionally reorder the journal.
+          break;
+        }
+      }
+    } finally {
+      __SCAN_QUEUE_FLUSHING = false;
+    }
+  }
+  async function submitScanEvent(event){
+    await upsertScanEventQueue(event); // durable before any network attempt
+    try {
+      const data = await apiScanEvent(event);
+      if (data?.result?.action !== 'class_needs_reason') {
+        await removeScanEventFromQueue(event.event_id);
+      }
+      return { queued:false, data };
+    } catch (error) {
+      return { queued:true, error };
+    }
+  }
+  function isLatestScanEvent_(eventId){
+    return !!eventId && String(eventId) === String(LATEST_SCAN_EVENT_ID || '');
+  }
+  function registerScanRow_(eventId, row){
+    if (!eventId || !row) return;
+    row.dataset.eventId = String(eventId);
+    SCAN_EVENT_ROWS.set(String(eventId), row);
+  }
+  function scanRowForEvent_(eventId){
+    const row = SCAN_EVENT_ROWS.get(String(eventId || '')) || null;
+    if (row && row.isConnected) return row;
+    if (eventId) SCAN_EVENT_ROWS.delete(String(eventId));
+    return null;
+  }
+  function showCardReadChecking_(eventId, code, when){
+    LATEST_SCAN_EVENT_ID = String(eventId || '');
+    beepCardRead();
+    resultEl.innerHTML =
+      `<div class="checking">CARD READ — CHECKING…</div>
+       <div class="code">${esc(code || '')}</div>
+       <div class="muted">${fmtTime(when)} — waiting for EagleNEST confirmation</div>`;
+    setStatus('Card captured. Ready for the next scan while this one confirms…');
+  }
+  function showQueuedScan_(eventId, name, code, when){
+    if (!isLatestScanEvent_(eventId)) return;
+    const who = name ? `<div class="name">${nameHtmlWithBadge(name)}</div>` : '';
+    resultEl.innerHTML =
+      `<div class="queued">SAVED LOCALLY — SYNCING</div>
+       ${who}
+       <div class="code">${esc(code || '')} — pending server validation</div>
+       <div class="muted">${fmtTime(when)} — retrying silently</div>`;
+    setStatus('Scan saved on this kiosk. EagleNEST will validate it automatically when the connection recovers.');
+  }
+  function friendlyDeniedDetail_(action, result, resolved){
+    const reason = String(result?.denial_reason || result?.detail || '').trim().toLowerCase();
+    if (reason === 'late_return_penalty') return 'LATE RETURN';
+    if (reason === 'not_scheduled_caf') return 'NOT CAF';
+    if (reason === 'not_scheduled_gym') return 'NOT IN GYM';
+    if (reason === 'not_flagged') return 'NOT AUTHORIZED';
+    if (reason === 'hold_active') return String(result?.detail || 'HOLD ACTIVE').toUpperCase();
+    if (action === 'superlunch_denied') return superLunchReasonText(resolved || {}).replace(/^NOT AUTHORIZED$/,'NOT AUTHORIZED');
+    return String(result?.detail || '').trim();
+  }
+  function applyAuthoritativeLocalState_(data, event){
+    const result = data?.result || {};
+    const resolved = data?.resolved || {};
+    const action = String(result.action || '').trim();
+    const osis = String(resolved.osis || event?.osis_hint || '').trim();
+    const when = new Date(event?.whenISO || Date.now());
+    if (!osis) return;
+
+    if (action === 'class_first' || action === 'class_repeat') {
+      if (!CLASS_PRESENT[osis]) CLASS_PRESENT[osis] = { firstIn:when.getTime(), lastIn:when.getTime() };
+      else CLASS_PRESENT[osis].lastIn = when.getTime();
+      if (CURRENT_CLASS_PERIOD_KEY) {
+        const bucket = classBucketKeyFor(CURRENT_CLASS_PERIOD_KEY);
+        const list = getClassPresentList(bucket);
+        if (!list.includes(osis)) { list.push(osis); setClassPresentList(bucket, list); }
+      }
+      if (OUT_OF_CLASS[osis]) clearClassOutEntry(osis);
+    } else if (action === 'class_back') {
+      clearClassOutEntry(osis);
+      if (CLASS_PRESENT[osis]) CLASS_PRESENT[osis].lastIn = when.getTime();
+    } else if (action === 'class_out') {
+      addClassOutEntry(osis, resolved.name || '', String(result.reason || event?.class_reason || 'Other'), when);
+    } else if (action === 'senior_out' || action === 'gym_out') {
+      addOut(osis, resolved.name || '', when);
+      renderOutList();
+    } else if (action === 'senior_in' || action === 'gym_in') {
+      removeOut(osis);
+      renderOutList();
+    } else if (action === 'bathroom_in' || action === 'bathroom_out' || action === 'bathroom_full' || action === 'bathroom_conflict') {
+      renderBathList().catch(()=>{});
+    }
+  }
+  function applyResolvedScanContext_(resolved){
+    const res = resolved || {};
+    window.__lastLunchValue = res.lunch || '';
+    window.__lastAllowedSenior = Object.prototype.hasOwnProperty.call(res, 'senior_outin_can_out')
+      ? !!res.senior_outin_can_out
+      : !!res.allowed_senior;
+    window.__lastSearchFlag = !!res.search;
+    window.__lastRegentsPrep = !!res.regents_prep;
+    window.__lastAlertFlag = !!res.alert;
+    window.__lastMorningDestinationRoom = String(res.morning_destination_room || '').trim();
+    window.__lastMorningDestinationPeriod = String(res.morning_destination_period || '').trim();
+    maybeResetClassStateForPeriod(res);
+  }
+  async function renderAuthoritativeScanResult_(ctx, data){
+    const { row, code, when, res, event } = ctx;
+    const previousFeedbackMode = __SCAN_RESULT_FOREGROUND;
+    __SCAN_RESULT_FOREGROUND = !ctx.backgroundReplay && isLatestScanEvent_(event?.event_id);
+    const result = data?.result || {};
+    const resolved = data?.resolved || res || {};
+    const action = String(result.action || '').trim();
+    const osis = String(resolved.osis || res?.osis || event.osis_hint || '').trim();
+    const shouldRoom = String(resolved.kiosk_should_room || result.detail || res?.kiosk_should_room || res?.class_now || '').trim();
+    applyResolvedScanContext_(resolved);
+
+    if (action === 'class_needs_reason') {
+      CURRENT_CLASS_PENDING = { row, code, when, res: resolved, osis, shouldRoom, event };
+      row.innerHTML =
+        `<td class="name">${nameHtmlWithBadge(resolved.name || res?.name || '')}</td>
+         <td class="code">${esc(code)}</td>
+         <td>Waiting for reason…</td>
+         <td>${fmtTime(when)}</td>`;
+      openOutModalForClass(CURRENT_CLASS_PENDING);
+      setStatus('Select a destination for this student.');
+      __SCAN_RESULT_FOREGROUND = previousFeedbackMode;
+      return;
+    }
+
+    if (action === 'class_first' || action === 'class_repeat') {
+      if (osis) {
+        if (!CLASS_PRESENT[osis]) CLASS_PRESENT[osis] = { firstIn: when.getTime(), lastIn: when.getTime() };
+        else CLASS_PRESENT[osis].lastIn = when.getTime();
+        if (CURRENT_CLASS_PERIOD_KEY) {
+          const bucket = classBucketKeyFor(CURRENT_CLASS_PERIOD_KEY);
+          const list = getClassPresentList(bucket);
+          if (!list.includes(osis)) { list.push(osis); setClassPresentList(bucket, list); }
+        }
+      }
+      if (OUT_OF_CLASS[osis]) clearClassOutEntry(osis);
+      beepGood();
+      updateRowToSuccess(row, { name: resolved.name, code, lockerNum: result.label || 'Present', lockerColor: shouldRoom, when });
+      showSuccess(resolved.name, code, result.label || 'Present', shouldRoom, when);
+    } else if (action === 'class_back') {
+      const elapsed = formatElapsed(Number(result.elapsed_ms || 0));
+      clearClassOutEntry(osis);
+      if (CLASS_PRESENT[osis]) CLASS_PRESENT[osis].lastIn = when.getTime();
+      beepNeutralUp();
+      updateRowToSuccess(row, { name: resolved.name, code, lockerNum: result.label || `BACK (${elapsed})`, lockerColor: shouldRoom, when });
+      showSuccess(resolved.name, code, result.label || `BACK (${elapsed})`, shouldRoom, when);
+    } else if (action === 'class_out') {
+      const reason = String(result.reason || event.class_reason || 'Other');
+      addClassOutEntry(osis, resolved.name || '', reason, when);
+      beepNeutralUp();
+      updateRowToSuccess(row, { name: resolved.name, code, lockerNum: result.label || `OUT: ${reason}`, lockerColor: shouldRoom, when });
+      showSuccess(resolved.name, code, result.label || `OUT: ${reason}`, shouldRoom, when);
+    } else if (action === 'class_denied' || action === 'class_unknown') {
+      beepBad();
+      const wrongRoomLabel = result.label || (action === 'class_denied' ? 'WRONG ROOM — RECORDED HERE' : 'NOT ALLOWED');
+      const wrongRoomDetail = result.detail || (shouldRoom ? `Expected ${shouldRoom}` : 'No scheduled class here');
+      updateRowToSuccess(row, { name: resolved.name, code, lockerNum:wrongRoomLabel, lockerColor:wrongRoomDetail, when });
+      showSuccess(resolved.name, code, wrongRoomLabel, wrongRoomDetail, when);
+    } else if (action === 'after_school_wrong_room') {
+      beepBad();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || 'WRONG ROOM — RECORDED HERE', lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, result.label || 'WRONG ROOM — RECORDED HERE', result.detail || '', when);
+    } else if (action === 'after_school_in' || action === 'after_school_out') {
+      if (action === 'after_school_out') beepNeutralUp(); else beepGood();
+      updateRowToSuccess(row, { name: resolved.name, code, lockerNum:result.label || (action === 'after_school_out' ? 'Off Campus' : 'After School'), lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, result.label || '', result.detail || '', when);
+    } else if (action === 'after_school_denied' || action.endsWith('_denied_hold')) {
+      beepBad();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || 'DENIED', lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, result.label || 'DENIED', result.detail || '', when);
+    } else if (action === 'varied_in' || action === 'varied_out') {
+      if (action === 'varied_out') beepNeutralUp(); else beepGood();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || (action === 'varied_out'?'OUT':'IN'), lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, result.label || '', result.detail || '', when);
+    } else if (action === 'senior_in' || action === 'senior_out' || action === 'gym_in' || action === 'gym_out') {
+      const isOut = action.endsWith('_out');
+      if (isOut) addOut(osis, resolved.name || '', when); else removeOut(osis);
+      renderOutList();
+      if (isOut) beepNeutralUp(); else beepGood();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:isOut?'OUT':'IN', lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, isOut?'OUT':'IN', result.detail || '', when);
+    } else if (action === 'senior_denied' || action === 'gym_denied') {
+      const detail = friendlyDeniedDetail_(action, result, resolved);
+      beepBad();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:'NOT ALLOWED', lockerColor:detail, when });
+      showSuccess(resolved.name, code, detail ? `NOT ALLOWED (${detail})` : 'NOT ALLOWED', '', when);
+    } else if (action === 'superlunch_allowed' || action === 'superlunch_denied') {
+      const allowed = action === 'superlunch_allowed';
+      const detail = allowed ? superLunchReasonText(resolved) : friendlyDeniedDetail_(action, result, resolved);
+      if (allowed) beepGood(); else beepBad();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:allowed?'ALLOWED':'NOT ALLOWED', lockerColor:detail, when });
+      showSuccess(resolved.name, code, allowed?'ALLOWED':'NOT ALLOWED', detail, when);
+    } else if (action === 'bathroom_in' || action === 'bathroom_out') {
+      if (action === 'bathroom_in') beepGood(); else beepNeutralUp();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:action === 'bathroom_in'?'IN':'OUT', lockerColor:'', when });
+      showSuccess(resolved.name, code, action === 'bathroom_in'?'IN':'OUT', '', when);
+      renderBathList().catch(()=>{});
+    } else if (action === 'bathroom_full' || action === 'bathroom_conflict') {
+      beepBad();
+      const bathroomDeniedLabel = result.label || (action === 'bathroom_full' ? 'NOT ALLOWED — HALLWAY' : 'NOT ALLOWED');
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:bathroomDeniedLabel, lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, bathroomDeniedLabel, result.detail || '', when);
+      renderBathList().catch(()=>{});
+    } else if (action === 'lunch_allowed' || action === 'lunch_denied') {
+      const allowed = action === 'lunch_allowed';
+      if (!allowed) beepBad(); else beepGood();
+      const lunchLabel = result.label || (allowed ? 'ALLOWED' : 'NOT ALLOWED — HALLWAY');
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:lunchLabel, lockerColor:String(result.detail || resolved.lunch || ''), lunchValue:resolved.lunch || '', when });
+      showSuccess(resolved.name, code, lunchLabel, String(result.detail || resolved.lunch || ''), when);
+    } else if (action === 'test_scan') {
+      beepNeutralUp();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || 'TEST — NO STATE CHANGE', lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, result.label || 'TEST — NO STATE CHANGE', result.detail || '', when);
+    } else if (action === 'unconfigured_scan') {
+      beepBad();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || 'SCANNER NOT CONFIGURED', lockerColor:'NO STATE CHANGE', when });
+      showSuccess(resolved.name, code, result.label || 'SCANNER NOT CONFIGURED', 'NO STATE CHANGE', when);
+    } else if (action === 'morning_in' || action === 'default_scan') {
+      beepGood();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || '', lockerColor:result.detail || '', when });
+      showSuccess(resolved.name, code, result.label || '', result.detail || '', when);
+    } else if (action === 'class_cancelled') {
+      beepNeutralUp();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:'CANCELLED', lockerColor:'Card read kept — no OUT action', when });
+      showSuccess(resolved.name, code, 'CANCELLED', 'Card read kept — no OUT action', when);
+    } else if (action === 'superseded' || action === 'class_superseded') {
+      beepNeutralUp();
+      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:'SYNCED', lockerColor:'Older event — live state unchanged', when });
+      showSuccess(resolved.name, code, 'SYNCED', 'Older event — live state unchanged', when);
+    } else {
+      beepGood();
+      updateRowToSuccess(row, { name:resolved.name || res?.name, code, lockerNum:result.label || '', lockerColor:result.detail || '', when });
+      showSuccess(resolved.name || res?.name, code, result.label || '', result.detail || '', when);
+    }
+    if (__SCAN_RESULT_FOREGROUND) setStatus('Ready. Scan next card…');
+    __SCAN_RESULT_FOREGROUND = previousFeedbackMode;
+  }
+  async function processAuthoritativeScan_(ctx){
+    const event = ctx.event;
+    const sent = await submitScanEvent(event);
+    if (sent.queued) {
+      markRowQueued(ctx.row, ctx.code, ctx.when);
+      showQueuedScan_(event.event_id, ctx.res?.name || '', ctx.code, ctx.when);
+      return true;
+    }
+    if (!sent.data?.found) {
+      emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
+        ctx.code, 'not_found', 'Student not found'
+      ));
+      updateRowToNotFound(ctx.row, ctx.code, ctx.when);
+      if (isLatestScanEvent_(event.event_id)) showNotFound(ctx.code, ctx.when);
+      return true;
+    }
+    const resolved = sent.data.resolved || {};
+    emitKioskFidelityEvent('kiosk_scan_success', {
+      osis: String(resolved.osis || ctx.code).trim(),
+      raw_code: String(ctx.rawScanned || ctx.code).trim(),
+      input_method: event.input_method || 'unknown',
+      success: true,
+      metadata: {
+        allowed: String(sent.data?.result?.allowed || '').trim(),
+        current_period: String(resolved.current_period || resolved.next_period || '').trim(),
+        class_now: String(resolved.class_now || '').trim(),
+        kiosk_mode: String(resolved.kiosk_mode || '').trim(),
+        scan_event_id: event.event_id
+      }
+    });
+    await renderAuthoritativeScanResult_({ ...ctx, res:resolved }, sent.data);
+    return true;
+  }
+
+
   async function apiLog(entry) {
     const whenISO = entry.whenISO || new Date().toISOString();
     const loc     = getLocation() || '';
@@ -2056,6 +2715,7 @@
 
   async function apiGetLocations(){
     try{
+      const clockRequestStartedAt = Date.now();
       const r = await fetch(API_BASE, {
         method:'POST',
         body: new URLSearchParams({ action:'locations' })
@@ -2067,6 +2727,7 @@
         const data = JSON.parse(text);
       
         if (data && data.ok) {
+          applyServerClockSample_(data.server_time_iso, clockRequestStartedAt);
           if (data.kiosk_heartbeat && typeof data.kiosk_heartbeat === 'object') {
             __KIOSK_HEARTBEAT_CFG = data.kiosk_heartbeat;
           } else {
@@ -2115,10 +2776,12 @@
   }
   async function checkDeviceLock(){
     try{
+      const clockRequestStartedAt = Date.now();
       const r = await fetch(API_BASE, { method:'POST', body: new URLSearchParams({ action:'device_location', device_id: DEVICE_ID }) });
       const ct = r.headers.get('content-type')||'';
       if (!r.ok || !ct.includes('application/json')) return;
       const data = await r.json();
+      if (data?.ok) applyServerClockSample_(data.server_time_iso, clockRequestStartedAt);
       if (data.ok && data.locked && data.location) { IS_LOCATION_LOCKED = true; setLocation(data.location); }
     } catch(_) {}
   }
@@ -2174,8 +2837,8 @@
     const tr = document.createElement('tr');
     tr.dataset.seq = String(seq);
     tr.innerHTML =
-      `<td class="name history-name-col"><em>…looking up…</em></td>
-       <td class="history-status-col">—</td>
+      `<td class="name history-name-col"><span class="checking"><span class="scan-state-dot scan-state-pulse"></span>Card read</span></td>
+       <td class="history-status-col"><span class="checking">Checking…</span></td>
        <td class="history-dest-col">—</td>
        <td class="history-time-col">${fmtTime(when)}</td>`;
     historyBody.prepend(tr);
@@ -2267,7 +2930,6 @@
   }
 
   function updateRowToNotFound(tr, code, when, error, reason){
-    beepBad();
     const msg = error === 'invalid_input'
       ? (reason === 'leading_zero_osis' ? 'Leading-zero OSIS — scan card.' : 'Digits only.')
       : 'Not found';
@@ -2278,7 +2940,6 @@
        <td class="history-time-col">${fmtTime(when)}</td>`;
   }
   function updateRowToError(tr, code, when, err){
-    beepBad();
     tr.innerHTML =
       `<td class="name history-name-col"><span class="bad">Lookup error</span></td>
        <td class="history-status-col">—</td>
@@ -2317,14 +2978,23 @@
     if (!norm) return { ok:false, reason:'all_zeros', norm:'' };
     return { ok:true, norm };
   }
-  function markRowQueued(tr){
-    const first = tr.querySelector('.name');
-    if (first) first.innerHTML = '<span class="queued">Queued (offline)</span>';
+  function markRowQueued(tr, code, when){
+    tr.className = '';
+    tr.innerHTML =
+      `<td class="name history-name-col"><span class="queued"><span class="scan-state-dot scan-state-pulse"></span>Saved locally</span></td>
+       <td class="history-status-col"><span class="queued">Syncing…</span></td>
+       <td class="history-dest-col">—</td>
+       <td class="history-time-col">${fmtTime(when || new Date())}</td>`;
   }
 
   async function onScanAsync(scanned){
     const when = new Date();
-    await selfHealLockedDeviceModeOnScan_();
+    const inputMethod = PENDING_INPUT_METHOD || 'unknown';
+    // Snapshot/reset the wedge state immediately so the next physical card can
+    // start while this event is still being confirmed in the background.
+    resetInputSession();
+    PENDING_INPUT_METHOD = 'unknown';
+
     const v = normalizeForLookup(scanned);
     if (!v.ok){
       emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
@@ -2340,505 +3010,74 @@
          <div class="muted">${fmtTime(when)}</div>`;
       clearManualInput();
       setStatus('Ready.');
-      resetInputSession();
-      PENDING_INPUT_METHOD = 'unknown';
       return;
     }
 
     const code = v.norm;
-    const row  = pushPendingRow(Date.now(), code, when);
+    const eventId = makeScanEventId();
+    const loc = getLocation() || '';
+    const event = {
+      event_id: eventId,
+      code,
+      osis_hint: '',
+      whenISO: canonicalScanWhenISO_(when),
+      device_whenISO: when.toISOString(),
+      clock_offset_ms: currentClockSampleAgeMs_() <= CLOCK_SAMPLE_MAX_AGE_MS ? Math.round(__SERVER_CLOCK_OFFSET_MS) : null,
+      clock_sample_age_ms: Number.isFinite(currentClockSampleAgeMs_()) ? Math.round(currentClockSampleAgeMs_()) : null,
+      device_id: DEVICE_ID,
+      location: loc,
+      input_method: inputMethod
+    };
 
-    if (!navigator.onLine){
-      emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
-        code,
-        'offline',
-        'Offline (not recorded)'
-      ));
-      // No offline queue — fail fast so we never replay stale scans later.
-      try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
-      updateRowToError(row, code, when, new Error('Offline (not recorded)'));
-      showOffline(code, when);
-      setStatus('Offline — NOT recorded');
-      resetInputSession();
-      PENDING_INPUT_METHOD = 'unknown';
+    const row = pushPendingRow(eventId, code, when);
+    registerScanRow_(eventId, row);
+    showCardReadChecking_(eventId, code, when);
+    clearManualInput();
+
+    // Persist the immutable card read BEFORE any awaited network/self-healing
+    // work. If durable local storage fails, fail closed rather than sending a
+    // scan we cannot safely replay with the same ID/timestamp.
+    try {
+      await upsertScanEventQueue(event);
+    } catch (err) {
+      const localErr = new Error('Local scan journal failed — scan was not sent');
+      localErr.cause = err;
+      updateRowToError(row, code, when, localErr);
+      if (isLatestScanEvent_(eventId)) showError(localErr, code, when);
       return;
     }
 
+    // Refresh lock/location metadata for FUTURE scans without changing this
+    // already-snapshotted event or delaying its durable save.
+    selfHealLockedDeviceModeOnScan_().catch(()=>{});
+
+    if (!loc) {
+      markRowQueued(row, code, when);
+      if (isLatestScanEvent_(eventId)) {
+        resultEl.innerHTML =
+          `<div class="queued">SAVED LOCALLY — LOCATION NEEDED</div>
+           <div class="code">${esc(code)}</div>
+           <div class="muted">${fmtTime(when)} — configure this kiosk; this card read will not be rebound automatically</div>`;
+        setStatus('Card read retained locally. Configure the kiosk location; no server state was changed.');
+      }
+      return;
+    }
+
+    // One request path for every scanner mode. The server resolves the card and
+    // is the sole authority for interpretation/state; offline events stay queued.
     try {
-      const res = await apiLookup(code);
-
-      if (!res.found){
-        emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
-          code,
-          res.error || res.reason || 'not_found',
-          res.error || res.reason || 'Student not found'
-        ));
-        updateRowToNotFound(row, code, when, res.error, res.reason);
-        showNotFound(code, when);
-        resetInputSession();
-        PENDING_INPUT_METHOD = 'unknown';
-        return;
-      }
-
-      emitKioskFidelityEvent('kiosk_scan_success', {
-        osis: String(res.osis || code).trim(),
-        raw_code: String(scanned || code).trim(),
-        input_method: PENDING_INPUT_METHOD || 'unknown',
-        success: true,
-        metadata: {
-          allowed: String(res.allowed || '').trim(),
-          current_period: String(res.current_period || res.next_period || '').trim(),
-          class_now: String(res.class_now || '').trim(),
-          kiosk_mode: String(res.kiosk_mode || '').trim()
-        }
-      });
-
-      window.__lastLunchValue    = res.lunch || '';
-      window.__lastAllowedSenior = (res && Object.prototype.hasOwnProperty.call(res, 'senior_outin_can_out'))
-        ? !!res.senior_outin_can_out
-        : !!res.allowed_senior;
-      window.__lastSearchFlag    = !!res.search;
-      window.__lastRegentsPrep   = !!res.regents_prep;
-      window.__lastAlertFlag     = !!res.alert;
-      window.__lastMorningDestinationRoom   = String(res.morning_destination_room || '').trim();
-      window.__lastMorningDestinationPeriod = String(res.morning_destination_period || '').trim();
-
-      const loc     = getLocation() || '';
-      const whenISO = when.toISOString();
-
-      // 🔔 Auto-reset per period for class kiosks
-      maybeResetClassStateForPeriod(res);
-
-      // ---- VARIED FRONT ENTRANCE (building IN/OUT toggle) ----
-      if (isVariedEntranceLocation(loc)) {
-        const nextAction = String(res.varied_next_action || 'in').toLowerCase();
-        const allowed = res.varied_allowed !== false;
-
-        if (!allowed) {
-          const reason = String(res.varied_denial_reason || '').toLowerCase() === 'no_schedule'
-            ? 'NO SCHEDULE'
-            : '';
-          beepBad();
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: reason, when });
-          showSuccess(res.name, code, 'NOT ALLOWED', reason, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
-          setStatus('Denied: student has no schedule.');
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-
-        const isOut = nextAction === 'out';
-        const label = isOut ? 'OUT' : 'IN';
-        const detail = isOut ? 'Off Campus' : 'Hallway';
-        if (isOut) beepNeutralUp();
-        else beepGood();
-        updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: detail, when });
-        showSuccess(res.name, code, label, detail, when);
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(isOut ? 'varied_out' : 'varied_in') });
-        setStatus('Ready. Scan next card…');
-        resetInputSession();
-        PENDING_INPUT_METHOD = 'unknown';
-        return;
-      }
-
-      // ---- CLASS KIOSK LOGIC ----
-      if (isClassKiosk(loc)) {
-        const kioskMode    = res.kiosk_mode || 'none';
-        const kioskAllowed = !!res.kiosk_allowed;
-        const shouldRoom   = res.kiosk_should_room || res.class_now || '';
-
-        // No schedule context → treat as NOT ALLOWED in class kiosks
-        if (!kioskMode || kioskMode === 'none') {
-          const attendance = 'Not allowed';
-          updateRowToSuccess(row, {
-            name: res.name,
-            code,
-            lockerNum: attendance,
-            lockerColor: shouldRoom,
-            when
-          });
-          showClassPopup(
-            shouldRoom
-              ? `You should be in ${shouldRoom} right now.`
-              : 'This EagleNEST kiosk is only for your scheduled class period.'
-          );
-          showClassRedirect(code, shouldRoom, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_unknown' });
-          setStatus('Ready. Scan next card…');
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-
-        // ✅ AFTER SCHOOL MODE: everyone is allowed; treat this as a room check-in
-        if (String(kioskMode).toLowerCase() === 'after_school') {
-          // After school isn't a "class session" (no OUT modal, no period buckets)
-          resetClassSessionState();
-          try { closeOutModalForClass(); } catch (_) {}
-
-          // Force after-school theme (even though this is a class scanner)
-          document.body.setAttribute('data-theme', 'after_school');
-
-          const label = `After School — ${loc}`;
-          beepGood();
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: '', when });
-          showSuccess(res.name, code, label, '', when);
-
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'after_school_in' });
-          setStatus('Ready. Scan next card…');
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        } else {
-          // If we were previously in after-school theme, restore the normal class theme
-          document.body.setAttribute('data-theme', 'class');
-        }
-
-        // Not allowed in this room
-        if (!kioskAllowed) {
-          const attendance = 'Not allowed';
-          updateRowToSuccess(row, {
-            name: res.name,
-            code,
-            lockerNum: attendance,
-            lockerColor: shouldRoom,
-            when
-          });
-
-          showClassPopup(
-            shouldRoom
-              ? `You should be in ${shouldRoom} right now.`
-              : 'You should be in a different class right now.'
-          );
-          showClassRedirect(code, shouldRoom, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'kiosk_denied' });
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-
-        noteClassActivity();
-        const osis = String(res.osis || '').trim();
-
-        // If worker tells us this student is currently OUT (from teacher page), mirror it locally
-        if (res && res.session_out && res.session_out.isOut && res.session_out.outSinceISO) {
-          if (!OUT_OF_CLASS[osis]) {
-            addClassOutEntry(
-              osis,
-              res.name || '',
-              res.session_out.reason || 'Teacher',
-              new Date(res.session_out.outSinceISO)
-            );
-          }
-        } else {
-          // If server says not out, clear locally (optional; comment out if you prefer "local-only" history)
-          if (OUT_OF_CLASS[osis]) {
-            clearClassOutEntry(osis);
-          }
-        }
-
-        // If server knows first-in, set present
-        if (res && res.session_firstInISO && !CLASS_PRESENT[osis]) {
-          const ms = Date.parse(res.session_firstInISO);
-          if (ms) CLASS_PRESENT[osis] = { firstIn: ms, lastIn: ms };
-        }
-
-        const wasOut = !!OUT_OF_CLASS[osis];
-        const isPresent = !!CLASS_PRESENT[osis];
-
-        // First allowed scan of period → take attendance, mark present
-        if (!isPresent && !wasOut) {
-          const attendance = res.attendance || 'Present';
-          const attSlug = String(attendance).toLowerCase();
-          const allowedValue = `kiosk_ok_first:${attSlug}`;
-
-          beepGood();
-          CLASS_PRESENT[osis] = {
-            firstIn: Date.now(),
-            lastIn: Date.now()
-          };
-        
-          // 🔒 Persist “present this period” in localStorage
-          if (CURRENT_CLASS_PERIOD_KEY) {
-            const bucket = classBucketKeyFor(CURRENT_CLASS_PERIOD_KEY);
-            const list   = getClassPresentList(bucket);
-            if (!list.includes(osis)) {
-              list.push(osis);
-              setClassPresentList(bucket, list);
-            }
-          }
-        
-          updateRowToSuccess(row, {
-            name: res.name,
-            code,
-            lockerNum: attendance,
-            lockerColor: shouldRoom,
-            when
-          });
-          showSuccess(res.name, code, attendance, shouldRoom, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed: allowedValue });
-          setStatus('Ready. Scan next card…');
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-
-        // Present in class and not currently out → open Out-of-Class modal
-        if (isPresent && !wasOut) {
-
-          // 🍽️ LUNCH OVERRIDE:
-          // At the Caf kiosk, a student whose actual schedule assignment is LUNCH
-          // can scan repeatedly without opening the "where are you going?" modal.
-          // Repeat scans are still logged. This works for temporary P7/P8 lunch
-          // without treating every student in those periods as a lunch student.
-          const isLunchStudent = isLunchCourseResponse(res);
-          const isCaf = String(loc || '').toLowerCase().includes('caf');
-          if (isLunchStudent && isCaf) {
-            const attendance = res.attendance || 'Present';
-            const attSlug = String(attendance).toLowerCase();
-            const allowedValue = `kiosk_ok_repeat:${attSlug}`;
-
-            // Optional: touch lastIn (doesn't change the "present" state)
-            if (CLASS_PRESENT[osis]) CLASS_PRESENT[osis].lastIn = Date.now();
-
-            beepNeutralUp();
-            updateRowToSuccess(row, {
-              name: res.name,
-              code,
-              lockerNum: attendance,
-              lockerColor: shouldRoom,
-              when
-            });
-            showSuccess(res.name, code, attendance, shouldRoom, when);
-            apiLog({ whenISO, code, source:'pwa', resolved:res, allowed: allowedValue });
-            setStatus('Ready. Scan next card…');
-            resetInputSession();
-            PENDING_INPUT_METHOD = 'unknown';
-            return;
-          }
-
-          beepNeutralDown();
-          CURRENT_CLASS_PENDING = { row, code, when, res, osis, shouldRoom };
-          row.innerHTML =
-            `<td class="name">${nameHtmlWithBadge(res.name)}</td>
-             <td class="code">${esc(code)}</td>
-             <td>Waiting for reason…</td>
-             <td>${fmtTime(when)}</td>`;
-          openOutModalForClass(CURRENT_CLASS_PENDING);
-          setStatus('Select a destination for this student.');
-          return;
-        }
-
-        // Currently out; scanning again → back in
-        if (wasOut) {
-          beepNeutralUp();
-          const ctx = { row, code, when, res, osis, shouldRoom };
-          await handleClassBackIn(ctx);
-          return;
-        }
-      }
-
-      // ---- AFTER SCHOOL EXIT (Front Entrance) ----
-      if (!!res.after_school_mode && isFrontEntranceLocation(loc)) {
-        const rpGateOn = !!res.regents_prep_exit_gate;
-        const isRegentsPrep = !!res.regents_prep;
-        const afterSchoolStartMin = Number(res.after_school_start_min);
-        const nowLocal = new Date(when);
-        const nowMin = (nowLocal.getHours() * 60) + nowLocal.getMinutes();
-        const denyRpExit =
-          rpGateOn &&
-          isRegentsPrep &&
-          Number.isFinite(afterSchoolStartMin) &&
-          nowMin >= afterSchoolStartMin &&
-          nowMin < (afterSchoolStartMin + 40);
-        const denyActiveHoldExit = !!res.after_school_exit_blocked;
-
-        if (denyActiveHoldExit) {
-          const label = 'DENIED EXIT';
-          const reason = String(res.after_school_exit_block_reason || 'Hold active').trim() || 'Hold active';
-          beepBad();
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: reason, when });
-          showSuccess(res.name, code, label, reason, when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
-          setStatus(`Denied: ${reason}.`);
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-
-        if (denyRpExit) {
-          const label = 'DENIED EXIT';
-          beepBad();
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: 'Regents Prep', when });
-          showSuccess(res.name, code, label, 'Regents Prep', when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
-          setStatus('Denied: Regents Prep students cannot dismiss from Front Entrance during the first 40 minutes of after-school.');
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-
-        const label = 'Off Campus (after school)';
-        beepNeutralUp();
-        updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: '', when });
-        showSuccess(res.name, code, label, '', when);
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'after_school_out' });
-        setStatus('Ready. Scan next card…');
-        resetInputSession();
-        PENDING_INPUT_METHOD = 'unknown';
-        return;
-      }
-
-      // Senior Lunch / Gym Class (toggle OUT/IN)
-      if (isTrackedOutIn()){
-        const osis          = String(res.osis || '').trim();
-        const gymMode       = isGymOutIn(loc);
-        const canOut        = gymMode ? !!res.gym_outin_can_out : !!res.senior_outin_can_out;
-        const wasOut        = gymMode ? !!res.gym_outin_was_out : !!res.senior_outin_was_out;
-        const denialReason  = String(gymMode ? (res.gym_outin_denial_reason || '') : (res.senior_outin_denial_reason || '')).trim();
-
-        if (!wasOut && !canOut){
-          let deniedText = 'NOT ALLOWED';
-          if (denialReason === 'late_return_penalty') deniedText = 'NOT ALLOWED (LATE RETURN)';
-          if (denialReason === 'not_scheduled_caf') deniedText = 'NOT ALLOWED (NOT CAF)';
-          if (denialReason === 'not_scheduled_gym') deniedText = 'NOT ALLOWED (NOT IN GYM)';
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
-          showSuccess(res.name, code, deniedText, '', when);
-          beepBad();
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'not_allowed' });
-          setStatus('Ready. Scan next card…');
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-
-        if (wasOut) removeOut(osis); else addOut(osis, res.name || '', when);
-        renderOutList();
-
-        const statusText = wasOut ? 'IN' : 'OUT';
-        updateRowToSuccess(row, { name: res.name, code, lockerNum: statusText, lockerColor: '', when });
-        showSuccess(res.name, code, statusText, '', when);
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(wasOut ? 'in' : 'out') });
-        setStatus('Ready. Scan next card…');
-        resetInputSession();
-        PENDING_INPUT_METHOD = 'unknown';
-        return;
-      }
-
-      if (isSuperLunchGate(loc)) {
-        const canUpstairs = !!res.superlunch_can_upstairs;
-        const detail = superLunchReasonText(res);
-        const label = canUpstairs ? 'ALLOWED' : 'NOT ALLOWED';
-        updateRowToSuccess(row, { name: res.name, code, lockerNum: label, lockerColor: detail, when });
-        showSuccess(res.name, code, label, detail, when);
-        if (canUpstairs) beepGood();
-        else beepBad();
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:(canUpstairs ? 'superlunch_allowed' : 'not_allowed') });
-        setStatus('Ready. Scan next card…');
-        resetInputSession();
-        PENDING_INPUT_METHOD = 'unknown';
-        return;
-      }
-
-      // Bathroom IN/OUT with per-gender capacity (GLOBAL)
-      if (isBathroomLocation(loc)) {
-        const osis = String(res.osis || '').trim();
-        const sex  = (String(res.sex || '').toUpperCase() === 'F') ? 'F' : 'M';
-
-        // Pull the latest global state for THIS bathroom
-        const state = await refreshBathState(true);
-        const list  = (sex === 'F') ? (state?.rowsF ?? []) : (state?.rowsM ?? []);
-        const cap   = (sex === 'F') ? (state?.capF ?? BATHROOM_CAPACITY_DEFAULT) : (state?.capM ?? BATHROOM_CAPACITY_DEFAULT);
-
-        const wasIn = list.some(x => x.osis === osis);
-
-        if (wasIn) {
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'OUT', lockerColor: '', when });
-          showSuccess(res.name, code, 'OUT', '', when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'out' });
-
-          // refresh after the worker updates the live location
-          await sleep(300);
-          await renderBathList();
-          await sleep(900);
-          await renderBathList();
-
-          setStatus('Ready. Scan next card…');
-          return;
-        } else {
-          if (list.length >= cap) {
-            beepBad();
-            updateRowToSuccess(row, { name: res.name, code, lockerNum: 'NOT ALLOWED', lockerColor: '', when });
-            showSuccess(res.name, code, 'NOT ALLOWED', '', when);
-            apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`full_${sex}` });
-            setStatus(`Capacity full (${list.length}/${cap}) — please wait`);
-            resetInputSession();
-            PENDING_INPUT_METHOD = 'unknown';
-            return;
-          }
-
-          updateRowToSuccess(row, { name: res.name, code, lockerNum: 'IN', lockerColor: '', when });
-          showSuccess(res.name, code, 'IN', '', when);
-          apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:`in_${sex}` });
-
-          await sleep(300);
-          await renderBathList();
-          await sleep(900);
-          await renderBathList();
-
-          setStatus('Ready. Scan next card…');
-          resetInputSession();
-          PENDING_INPUT_METHOD = 'unknown';
-          return;
-        }
-      }
-
-      // Lunch check
-      if (isLunchLocation(loc)){
-        const allowed = isAllowedForLunch(loc, res.lunch || '');
-        updateRowToSuccess(row, { name: res.name, code, lockerNum:'', lockerColor:'', lunchValue:res.lunch||'', when });
-        showSuccess(res.name, code, '', '', when);
-        if (!allowed) beepBad();
-        apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:String(allowed) });
-        setStatus('Ready. Scan next card…');
-        resetInputSession();
-        PENDING_INPUT_METHOD = 'unknown';
-        return;
-      }
-
-      // Default (Locker)
-      const displayNum   = (res.locker_number_effective ?? res.locker_number) || '';
-      const displayColor = (res.locker_color_effective  ?? res.locker_color)  || '';
-
-      updateRowToSuccess(row, { name: res.name, code, lockerNum: displayNum, lockerColor: displayColor, when });
-      showSuccess(res.name, code, displayNum, displayColor, when);
-      apiLog({ whenISO, code, source:'pwa', resolved:res, allowed:'' });
-      setStatus('Ready. Scan next card…');
-      resetInputSession();
-      PENDING_INPUT_METHOD = 'unknown';
-
+      await processAuthoritativeScan_({ row, code, when, res:{}, event, rawScanned:scanned });
     } catch (err) {
+      // Unexpected client/render failure only. Network failures are converted to
+      // queued events inside submitScanEvent(), so they do not land here.
       emitKioskFidelityEvent('kiosk_scan_error', buildKioskErrorMeta_(
-        code,
-        err?.name === 'AbortError' ? 'lookup_timeout' : 'lookup_error',
-        err?.message || String(err)
+        code, 'scan_event_error', err?.message || String(err)
       ));
-      if (!navigator.onLine || err.name === 'AbortError'){
-        // No offline queue — fail fast so we never replay stale scans later.
-        try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
-        updateRowToError(row, code, when, err);
-        showOffline(code, when, err);
-        setStatus('Offline — NOT recorded');
-      } else {
-        updateRowToError(row, code, when, err);
-        showError(err, code, when);
-      }
-    } finally {
-      resetInputSession();
-      PENDING_INPUT_METHOD = 'unknown';
+      updateRowToError(row, code, when, err);
+      if (isLatestScanEvent_(eventId)) showError(err, code, when);
     }
   }
+
   function onScan(scanned){
     if (IS_REFRESHING) { beepBad(); setStatus('Updating roster… wait…'); return; }
     onScanAsync(scanned);
@@ -2848,6 +3087,7 @@
    * RESULT PANEL RENDER
    * ============================================================ */
   function showSuccess(name, code, lockerNum, lockerColor, when){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     const loc = getLocation();
 
     if (isSeniorOutIn() || isBathroomLocation(loc)) {
@@ -2934,6 +3174,7 @@
   }
 
   function showNotFound(code, when){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     beepBad();
     resultEl.innerHTML =
       `<div class="err">Not found</div>
@@ -2942,6 +3183,7 @@
     setStatus('Ready.');
   }
   function showError(err, code, when){
+    if (!__SCAN_RESULT_FOREGROUND) return;
     beepBad();
     resultEl.innerHTML =
       `<div class="err">Lookup error</div>
@@ -2951,13 +3193,18 @@
   }
 
   /* ============================================================
-   * QUEUE (no queue)
+   * DURABLE SCAN EVENT JOURNAL
    * ============================================================ */
-  // Offline queueing is intentionally DISABLED.
-  // Older builds queued scans in localStorage (QUEUE_KEY) and replayed them later,
-  // which caused out-of-date scans (previous days) to be applied.
-  // We also clear any legacy queue left on the device.
-  try { localStorage.removeItem(QUEUE_KEY); } catch (_) {}
+  // Every accepted physical card read enters the local durable journal before
+  // networking. Replays preserve the original event ID, occurrence timestamp,
+  // device, location, and input method.
+  refreshScanJournalHealth_().catch(()=>{});
+  flushScanEventQueue().catch(()=>{});
+  setInterval(() => flushScanEventQueue().catch(()=>{}), 4000);
+  window.addEventListener('online', () => flushScanEventQueue().catch(()=>{}));
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) flushScanEventQueue().catch(()=>{});
+  });
 
   function showOffline(code, when, err){
     beepBad();
