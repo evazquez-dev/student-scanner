@@ -87,7 +87,7 @@
     return null;
   }
 
-  function dateCandidate(value) {
+  function dateCandidate(value, options = {}) {
     const line = cleanLine(value).toUpperCase();
     const m = line.match(/(?:[0-9OQDILSZGB|]{1,4}\s*[\/\.\-]\s*[0-9OQDILSZGB|]{1,2}\s*[\/\.\-]\s*[0-9OQDILSZGB|]{2,4}|[0-9OQDILSZGB|]{8})/);
     if (!m) return { value: '', found: false, shape: '', corrected: false, rejection: 'no_candidate' };
@@ -105,8 +105,37 @@
     if (!normalized) return { value: '', found: true, shape, corrected: corrected !== comparable, rejection: 'invalid_calendar' };
     const today = new Date();
     const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    if (normalized > todayIso) return { value: '', found: true, shape, corrected: corrected !== comparable, rejection: 'future_date' };
+    if (normalized > todayIso && options.allowFuture !== true) return { value: '', found: true, shape, corrected: corrected !== comparable, rejection: 'future_date' };
     return { value: normalized, found: true, shape, corrected: corrected !== comparable, rejection: '' };
+  }
+
+  function gapYears(olderIso, newerIso) {
+    const older = String(olderIso || '');
+    const newer = String(newerIso || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(older) || !/^\d{4}-\d{2}-\d{2}$/.test(newer) || older >= newer) return -1;
+    const [oy, om, od] = older.split('-').map(Number);
+    const [ny, nm, nd] = newer.split('-').map(Number);
+    let years = ny - oy;
+    if (nm < om || (nm === om && nd < od)) years -= 1;
+    return years;
+  }
+
+  function clusteredBirthExpirationDates(lines, expirationIndex) {
+    const dates = [];
+    for (let i = expirationIndex + 1; i < lines.length && i <= expirationIndex + 4; i += 1) {
+      if (LABEL_ONLY.test(lines[i]) || LABEL_PREFIX.test(lines[i])) break;
+      const candidate = dateCandidate(lines[i], { allowFuture: true });
+      if (candidate.value) dates.push(candidate);
+    }
+    if (dates.length !== 2) return { value: '', dateCount: dates.length, rejection: dates.length ? 'ambiguous_date_cluster' : 'no_cluster_dates' };
+    const ordered = dates.slice().sort((a, b) => String(a.value).localeCompare(String(b.value)));
+    const older = ordered[0];
+    const newer = ordered[1];
+    const years = gapYears(older.value, newer.value);
+    const today = new Date();
+    const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (years < 10 || older.value > todayIso) return { value: '', dateCount: 2, gapYears: years, rejection: 'ambiguous_date_cluster' };
+    return { ...older, dateCount: 2, gapYears: years, rejection: '' };
   }
 
   function findDob(lines) {
@@ -118,7 +147,14 @@
       let observed = same.found ? same : null;
       let blocked = false;
       for (let j = i + 1; j < lines.length && j <= i + 2; j += 1) {
-        if (LABEL_ONLY.test(lines[j]) || LABEL_PREFIX.test(lines[j])) { blocked = true; break; }
+        if (LABEL_ONLY.test(lines[j]) || LABEL_PREFIX.test(lines[j])) {
+          if (/^(?:EXPIRATION\s*DATE|EXPIRES?)/i.test(lines[j])) {
+            const cluster = clusteredBirthExpirationDates(lines, j);
+            if (cluster.value) return { ...cluster, anchored: true, fuzzyAnchor: label.fuzzy === true, clustered: true };
+            return { value: '', anchored: true, fuzzyAnchor: label.fuzzy === true, found: false, shape: '', corrected: false, rejection: cluster.rejection || 'blocked_by_label', clustered: true, dateCount: cluster.dateCount || 0, gapYears: cluster.gapYears == null ? -1 : cluster.gapYears };
+          }
+          blocked = true; break;
+        }
         const next = dateCandidate(lines[j]);
         if (!observed && next.found) observed = next;
         if (next.value) return { ...next, anchored: true, fuzzyAnchor: label.fuzzy === true };
@@ -240,6 +276,9 @@
         dobCandidateShape: String(dob.shape || ''),
         dobCandidateCorrected: dob.corrected === true,
         dobRejection: String(dob.rejection || ''),
+        dobClustered: dob.clustered === true,
+        dobClusterDateCount: Number(dob.dateCount || 0),
+        dobClusterGapYears: Number.isFinite(Number(dob.gapYears)) ? Number(dob.gapYears) : -1,
         idNumberLabelSeenAndRejected: rejectedIdNumberLabel
       }
     };

@@ -27,7 +27,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Raw scanned ID data and images are not saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-14'/, 'Scanner Lab should expose Build 14');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-15'/, 'Scanner Lab should expose Build 15');
 }
 
 function asciiBytes(text) {
@@ -710,6 +710,26 @@ function syntheticMultiAamvaResult(subfiles, options) {
   assert.equal(ocrDamagedDob.data.date_of_birth, '1988-03-16');
   assert.equal(ocrDamagedDob.diagnostics.dobAnchorFuzzy, true);
   assert.equal(ocrDamagedDob.diagnostics.dobCandidateCorrected, true);
+}
+
+
+{
+  const labelsFirst = IdnycDiag.analyze([
+    'NYC IDENTIFICATION CARD',
+    'ID NUMBER',
+    'NAME',
+    'SAMPLE',
+    'WENDY S',
+    'DATE OF BIRTH',
+    'EXPIRATION DATE',
+    '03/16/1988',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(labelsFirst.ok, true, 'Lab parser should recover labels-first DOB/expiration OCR ordering');
+  assert.equal(labelsFirst.data.date_of_birth, '1988-03-16');
+  assert.equal(labelsFirst.diagnostics.dobClustered, true);
+  assert.equal(labelsFirst.diagnostics.dobClusterDateCount, 2);
+  assert.equal(labelsFirst.diagnostics.dobClusterGapYears, 43);
 }
 
 {

@@ -465,6 +465,54 @@ function assertNoForbidden(obj) {
   assert.equal(parsed.diagnostics.birth_anchor_fuzzy, true);
 }
 
+
+{
+  // Tesseract can emit IDNYC labels before their values. This mirrors the
+  // safe diagnostic sequence observed in production: NAME -> name -> junk ->
+  // name -> BIRTH -> EXPIRATION -> DOB value -> expiration value.
+  const parsed = Shared.parseIdnycOcrText([
+    'ID NUMBER',
+    '1234 567890 1234',
+    'NAME',
+    'SAMPLE',
+    '*',
+    'WENDY S',
+    'DATE OF BIRTH',
+    'EXPIRATION DATE',
+    '03/16/1988',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.data.visitor_first_name, 'WENDY');
+  assert.equal(parsed.data.visitor_middle_name, 'S');
+  assert.equal(parsed.data.visitor_last_name, 'SAMPLE');
+  assert.equal(parsed.data.date_of_birth, '1988-03-16');
+  assert.equal(parsed.diagnostics.name_strategy, 'name_label_two_line');
+  assert.equal(parsed.diagnostics.birth_strategy, 'birth_expiration_cluster_older_date');
+  assert.equal(parsed.diagnostics.birth_cluster_date_count, 2);
+  assert.equal(parsed.diagnostics.birth_cluster_gap_years, 43);
+  assert.equal(parsed.diagnostics.birth_rejection, '');
+  assert.equal(parsed.diagnostics.date_candidate_count, 2);
+}
+
+{
+  // Never choose an older date from a labels-first cluster unless it is
+  // clearly old enough to be a DOB relative to the second date.
+  const parsed = Shared.parseIdnycOcrText([
+    'NAME',
+    'SAMPLE',
+    '*',
+    'WENDY S',
+    'DATE OF BIRTH',
+    'EXPIRATION DATE',
+    '03/16/2024',
+    '03/16/2029'
+  ].join('\n'));
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.data.date_of_birth, '');
+  assert.equal(parsed.diagnostics.birth_rejection, 'ambiguous_date_cluster');
+}
+
 {
   // If OCR drops NAME entirely, the two name lines immediately before the
   // anchored birth block are still a sufficiently constrained IDNYC layout.

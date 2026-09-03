@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-09-03-14';
+  const LAB_BUILD = '2026-09-03-15';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -1575,6 +1575,8 @@
       birth_candidate_shape: String(d.birth_candidate_shape || '').slice(0, 16),
       birth_candidate_corrected: d.birth_candidate_corrected === true,
       birth_rejection: String(d.birth_rejection || '').slice(0, 40),
+      birth_cluster_date_count: Number(d.birth_cluster_date_count || 0) || 0,
+      birth_cluster_gap_years: Number.isFinite(Number(d.birth_cluster_gap_years)) ? Number(d.birth_cluster_gap_years) : -1,
       date_candidate_count: Number(d.date_candidate_count || 0) || 0,
       labels: d.labels || {},
       parsed_fields: d.parsed_fields || {},
@@ -1643,6 +1645,8 @@
       `Production DOB candidate shape: ${idnyc.productionParsed?.diagnostics?.birth_candidate_shape || '-'}`,
       `Production DOB OCR correction used: ${yesNo(!!idnyc.productionParsed?.diagnostics?.birth_candidate_corrected)}`,
       `Production DOB rejection: ${idnyc.productionParsed?.diagnostics?.birth_rejection || '-'}`,
+      `Production DOB cluster dates: ${Number(idnyc.productionParsed?.diagnostics?.birth_cluster_date_count || 0)}`,
+      `Production DOB cluster gap years: ${Number.isFinite(Number(idnyc.productionParsed?.diagnostics?.birth_cluster_gap_years)) ? Number(idnyc.productionParsed.diagnostics.birth_cluster_gap_years) : -1}`,
       `Production first name found: ${yesNo(prod.first)}`,
       `Production middle name found: ${yesNo(prod.middle)}`,
       `Production last name found: ${yesNo(prod.last)}`,
@@ -2752,7 +2756,7 @@
   }
 
   function bindEvents() {
-    setText('buildLabel', `Scanner Lab HTML: 2026-09-03-14 · JS: ${LAB_BUILD}`);
+    setText('buildLabel', `Scanner Lab HTML: 2026-09-03-15 · JS: ${LAB_BUILD}`);
     renderDecodeOptions();
     $$('.tab').forEach((tab) => {
       tab.addEventListener('click', () => selectTab(tab.dataset.tab));

@@ -522,8 +522,10 @@
           if (after.length || info.type !== 'name') break;
           continue;
         }
+        // OCR sometimes inserts a decorative/garbled non-name line between the
+        // surname and given-name lines. Keep scanning within the tight NAME
+        // window until another recognized field label appears.
         if (idnycNameCandidate(line)) after.push(line);
-        else if (after.length) break;
       }
 
       // Current IDNYC layout: NAME, then surname, then given name + optional middle.
@@ -565,7 +567,7 @@
     return { first: '', middle: '', last: '', strategy: 'none', anchorFound: false, candidateCount: 0 };
   }
 
-  function idnycOcrDateCandidate(value) {
+  function idnycOcrDateCandidate(value, options = {}) {
     const line = idnycAsciiUpper(value);
     if (!line) return { value: '', found: false, shape: '', corrected: false, rejection: 'no_candidate' };
 
@@ -593,7 +595,7 @@
     if (!normalized) {
       return { value: '', found: true, shape, corrected: correctedToken !== comparableRaw, rejection: 'invalid_calendar' };
     }
-    if (isFutureDate(normalized)) {
+    if (isFutureDate(normalized) && options.allowFuture !== true) {
       return { value: '', found: true, shape, corrected: correctedToken !== comparableRaw, rejection: 'future_date' };
     }
     return { value: normalized, found: true, shape, corrected: correctedToken !== comparableRaw, rejection: '' };
@@ -602,6 +604,46 @@
   function idnycDateToken(value) {
     const candidate = idnycOcrDateCandidate(value);
     return candidate.value ? candidate.value : '';
+  }
+
+  function idnycDateGapYears(olderIso, newerIso) {
+    const older = validIsoDate(olderIso);
+    const newer = validIsoDate(newerIso);
+    if (!older || !newer || older >= newer) return -1;
+    const [oy, om, od] = older.split('-').map(Number);
+    const [ny, nm, nd] = newer.split('-').map(Number);
+    let years = ny - oy;
+    if (nm < om || (nm === om && nd < od)) years -= 1;
+    return years;
+  }
+
+  function idnycBirthExpirationCluster(lines, expirationIndex) {
+    const dates = [];
+    for (let i = expirationIndex + 1; i < lines.length && i <= expirationIndex + 4; i += 1) {
+      const info = idnycLabelInfo(lines[i]);
+      if (info) break;
+      const candidate = idnycOcrDateCandidate(lines[i], { allowFuture: true });
+      if (candidate.value) dates.push(candidate);
+    }
+    if (dates.length !== 2) {
+      return { value: '', dateCount: dates.length, rejection: dates.length ? 'ambiguous_date_cluster' : 'no_cluster_dates' };
+    }
+    const ordered = dates.slice().sort((a, b) => String(a.value).localeCompare(String(b.value)));
+    const older = ordered[0];
+    const newer = ordered[1];
+    const gapYears = idnycDateGapYears(older.value, newer.value);
+    if (gapYears < 10 || isFutureDate(older.value)) {
+      return { value: '', dateCount: 2, gapYears, rejection: 'ambiguous_date_cluster' };
+    }
+    return {
+      value: older.value,
+      candidateFound: true,
+      candidateShape: older.shape,
+      candidateCorrected: older.corrected,
+      dateCount: 2,
+      gapYears,
+      rejection: ''
+    };
   }
 
   function findIdnycBirthDate(lines) {
@@ -625,11 +667,30 @@
 
       let observed = sameLine.found ? sameLine : null;
       let blockedBy = '';
+      let directRejection = '';
       for (let j = i + 1; j < lines.length && j <= i + 2; j += 1) {
         const nextInfo = idnycLabelInfo(lines[j]);
         if (nextInfo) {
           blockedBy = nextInfo.type;
-          break; // Never walk through EXPIRATION/ISSUANCE to steal their dates.
+          if (nextInfo.type === 'expiration') {
+            const cluster = idnycBirthExpirationCluster(lines, j);
+            if (cluster.value) {
+              return {
+                value: cluster.value,
+                anchorFound: true,
+                strategy: 'birth_expiration_cluster_older_date',
+                candidateFound: true,
+                candidateShape: cluster.candidateShape || '',
+                candidateCorrected: cluster.candidateCorrected === true,
+                rejection: '',
+                fuzzyAnchor: info.fuzzy === true,
+                clusterDateCount: cluster.dateCount || 0,
+                clusterGapYears: cluster.gapYears == null ? -1 : cluster.gapYears
+              };
+            }
+            if (cluster.rejection) directRejection = cluster.rejection;
+          }
+          break; // Never assign a date across an unrelated field label.
         }
         const candidate = idnycOcrDateCandidate(lines[j]);
         if (!observed && candidate.found) observed = candidate;
@@ -653,7 +714,7 @@
         candidateFound: !!observed,
         candidateShape: observed?.shape || '',
         candidateCorrected: observed?.corrected === true,
-        rejection: observed?.rejection || (blockedBy ? `blocked_by_${blockedBy}` : 'no_candidate'),
+        rejection: directRejection || observed?.rejection || (blockedBy ? `blocked_by_${blockedBy}` : 'no_candidate'),
         fuzzyAnchor: info.fuzzy === true
       };
     }
@@ -672,7 +733,7 @@
   function classifyIdnycSafeLine(line) {
     const info = idnycLabelInfo(line);
     if (info) return info.type.toUpperCase();
-    if (idnycDateToken(line)) return 'DATE_VALUE';
+    if (idnycOcrDateCandidate(line, { allowFuture: true }).value) return 'DATE_VALUE';
     if (/^\d[\d\s#\-./]+$/.test(cleanText(line, 180))) return 'NUMERIC';
     if (idnycNameCandidate(line)) return 'ALPHA_CANDIDATE';
     return 'OTHER';
@@ -693,7 +754,7 @@
       const info = idnycLabelInfo(line);
       if (info && Object.prototype.hasOwnProperty.call(labels, info.type)) labels[info.type] = true;
     }
-    const dateCandidateCount = lines.reduce((count, line) => count + (idnycDateToken(line) ? 1 : 0), 0);
+    const dateCandidateCount = lines.reduce((count, line) => count + (idnycOcrDateCandidate(line, { allowFuture: true }).value ? 1 : 0), 0);
     const data = {
       visitor_first_name: cleanText(name.first, 80),
       visitor_middle_name: cleanText(name.middle, 80),
@@ -715,6 +776,8 @@
       birth_candidate_shape: String(birth.candidateShape || ''),
       birth_candidate_corrected: birth.candidateCorrected === true,
       birth_rejection: String(birth.rejection || ''),
+      birth_cluster_date_count: Number(birth.clusterDateCount || 0),
+      birth_cluster_gap_years: Number.isFinite(Number(birth.clusterGapYears)) ? Number(birth.clusterGapYears) : -1,
       date_candidate_count: dateCandidateCount,
       labels,
       parsed_fields: {

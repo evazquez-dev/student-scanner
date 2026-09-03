@@ -1073,6 +1073,8 @@
       birth_candidate_shape: String(d.birth_candidate_shape || '').slice(0, 16),
       birth_candidate_corrected: d.birth_candidate_corrected === true,
       birth_rejection: String(d.birth_rejection || '').slice(0, 40),
+      birth_cluster_date_count: Number(d.birth_cluster_date_count || 0) || 0,
+      birth_cluster_gap_years: Number.isFinite(Number(d.birth_cluster_gap_years)) ? Number(d.birth_cluster_gap_years) : -1,
       date_candidate_count: Number(d.date_candidate_count || 0) || 0,
       labels: d.labels || {},
       parsed_fields: d.parsed_fields || {},

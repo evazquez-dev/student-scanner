@@ -924,6 +924,8 @@
       d?.birth_anchor_fuzzy ? 'fuzzy anchor' : '',
       d?.birth_candidate_found ? `candidate ${d.birth_candidate_shape || 'shape?'}` : 'no date-shaped candidate',
       d?.birth_candidate_corrected ? 'OCR digit correction used' : '',
+      Number(d?.birth_cluster_date_count || 0) ? `cluster dates ${Number(d.birth_cluster_date_count)}` : '',
+      Number(d?.birth_cluster_gap_years) >= 0 ? `cluster gap ${Number(d.birth_cluster_gap_years)}y` : '',
       d?.birth_rejection ? `rejection ${d.birth_rejection}` : ''
     ].filter(Boolean).join(' · ');
     return `<tr>

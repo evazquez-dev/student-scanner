@@ -902,6 +902,8 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
         birth_candidate_shape: 'DD/DD/DDDD',
         birth_candidate_corrected: true,
         birth_rejection: 'invalid_calendar',
+        birth_cluster_date_count: 2,
+        birth_cluster_gap_years: 43,
         date_candidate_count: 2,
         labels: { name: false, birth: true, expiration: true, evil: true },
         parsed_fields: { first_name: false, last_name: false, birth_date: false },
@@ -921,6 +923,8 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     assert.equal(diag.birth_candidate_shape, 'DD/DD/DDDD');
     assert.equal(diag.birth_candidate_corrected, true);
     assert.equal(diag.birth_rejection, 'invalid_calendar');
+    assert.equal(diag.birth_cluster_date_count, 2);
+    assert.equal(diag.birth_cluster_gap_years, 43);
     assert.equal(diag.line_classes.includes('LEAK_ME'), false);
     const serialized = JSON.stringify(diag);
     assert.equal(serialized.includes('JANE'), false);
