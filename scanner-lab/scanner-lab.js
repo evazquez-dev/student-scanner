@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-09-03-13';
+  const LAB_BUILD = '2026-09-03-14';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -17,6 +17,7 @@
     catch { return `${location.origin}/`; }
   })();
   const VISITOR_KIOSK_CRED_KEY = 'envisit_kiosk_credential_v1';
+  let labDiagnosticsCredential = '';
 
   const $ = (id) => document.getElementById(id);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -1507,7 +1508,42 @@
   }
 
   function pairedVisitorKioskCredential() {
+    if (labDiagnosticsCredential) return labDiagnosticsCredential;
     try { return String(localStorage.getItem(VISITOR_KIOSK_CRED_KEY) || '').trim(); } catch { return ''; }
+  }
+
+  async function pairLabDiagnostics() {
+    const input = $('idnycLabPairCode');
+    const code = String(input?.value || '').replace(/\D+/g, '').slice(0, 6);
+    if (code.length !== 6) {
+      setText('idnycLabPairStatus', 'Enter the 6-digit code from Visitor Desk');
+      return false;
+    }
+    setText('idnycLabPairStatus', 'Pairing diagnostics session...');
+    try {
+      const resp = await fetch(new URL('/visitor/kiosk/pair', API_BASE), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ code, label: 'Scanner Lab Diagnostics', diagnostics_only: true })
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok || data?.ok !== true || !data?.kiosk_credential || data?.diagnostics_only !== true) {
+        throw new Error(String(data?.error || `HTTP ${resp.status}`));
+      }
+      labDiagnosticsCredential = String(data.kiosk_credential || '').trim();
+      if (input) input.value = '';
+      const expires = data?.expires_at ? ` until ${new Date(data.expires_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
+      setText('idnycLabPairStatus', `Paired for diagnostics only${expires}`);
+      idnyc.diagnosticDelivery = 'Diagnostics session paired — run OCR to store a record';
+      setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
+      if (idnyc.file && idnyc.productionRun) await sendLabSafeIdnycDiagnostic('production');
+      return true;
+    } catch (err) {
+      labDiagnosticsCredential = '';
+      setText('idnycLabPairStatus', `Pairing failed — ${err?.message || err}`);
+      return false;
+    }
   }
 
   function labSafeDiagnosticPayload(kind) {
@@ -1570,7 +1606,11 @@
         return true;
       }
       const detail = String(data?.error || (resp.ok ? 'Worker did not confirm storage' : `HTTP ${resp.status}`));
-      idnyc.diagnosticDelivery = `Not stored — ${detail}`;
+      if (detail === 'kiosk_forbidden' && !labDiagnosticsCredential) {
+        idnyc.diagnosticDelivery = 'Not stored — kiosk credential is stale here; pair Lab Diagnostics below';
+      } else {
+        idnyc.diagnosticDelivery = `Not stored — ${detail}`;
+      }
       setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
       return false;
     } catch {
@@ -1669,6 +1709,7 @@
     setText('idnycTextDetector', yesNo(!!window.TextDetector));
     setText('idnycStatus', 'Idle');
     setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
+    setText('idnycLabPairStatus', labDiagnosticsCredential ? 'Paired for diagnostics only' : 'Not paired for this Lab session');
     setError('idnycError', '');
     renderIdnycResult('prod');
     renderIdnycResult('tess');
@@ -2711,7 +2752,7 @@
   }
 
   function bindEvents() {
-    setText('buildLabel', `Scanner Lab HTML: 2026-08-14-9 · JS: ${LAB_BUILD}`);
+    setText('buildLabel', `Scanner Lab HTML: 2026-09-03-14 · JS: ${LAB_BUILD}`);
     renderDecodeOptions();
     $$('.tab').forEach((tab) => {
       tab.addEventListener('click', () => selectTab(tab.dataset.tab));
@@ -2763,6 +2804,10 @@
     $('showIdnycParsedBtn')?.addEventListener('click', toggleIdnycParsed);
     $('showIdnycOcrBtn')?.addEventListener('click', toggleIdnycOcr);
     $('copyIdnycDiagnosticsBtn')?.addEventListener('click', copySafeIdnycDiagnostics);
+    $('pairIdnycLabDiagnosticsBtn')?.addEventListener('click', pairLabDiagnostics);
+    $('idnycLabPairCode')?.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); pairLabDiagnostics(); }
+    });
     $('showCropToolBtn')?.addEventListener('click', () => setCropToolVisible(true));
     $('decodeCropBtn')?.addEventListener('click', decodeManualCrop);
     $$('.cropPreset').forEach((button) => {

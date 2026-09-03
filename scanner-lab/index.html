@@ -14,7 +14,7 @@
       <h1>EagleNEST Scanner Lab</h1>
       <p class="subtitle">iPad Camera + PDF417 Test</p>
     </div>
-    <div class="build" id="buildLabel">Scanner Lab HTML: 2026-09-03-13 · JS: loading</div>
+    <div class="build" id="buildLabel">Scanner Lab HTML: 2026-09-03-14 · JS: loading</div>
   </header>
 
   <main>
@@ -575,6 +575,17 @@
       <input id="idnycUploadInput" type="file" accept="image/*" hidden>
       <input id="idnycPhotoInput" type="file" accept="image/*" capture="environment" hidden>
 
+      <section class="resultPanel">
+        <h3>Visitor Desk Diagnostics Pairing</h3>
+        <p class="helper">If diagnostics report <code>kiosk_forbidden</code>, generate a pairing code from Visitor Desk and enter it here. This creates a diagnostics-only credential for this Lab session; it cannot submit or check out visitors and expires automatically.</p>
+        <div class="actions">
+          <label for="idnycLabPairCode">6-digit code</label>
+          <input id="idnycLabPairCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="123456">
+          <button type="button" id="pairIdnycLabDiagnosticsBtn" class="secondary">Pair Lab Diagnostics</button>
+        </div>
+        <p class="helper"><strong>Status:</strong> <span id="idnycLabPairStatus">Not paired for this Lab session</span></p>
+      </section>
+
       <div class="photoGrid">
         <div class="photoPreviewBox">
           <img id="idnycPreview" alt="Temporary IDNYC photo preview" hidden>
@@ -618,7 +629,7 @@
 
       <section class="resultPanel">
         <h3>Lab Layout-Aware Parser Candidate</h3>
-        <p class="helper">Build 13 uses a layout-aware lab parser for the actual IDNYC NAME layout: surname on the first line under NAME, then given name plus optional middle initial/name on the next line. It explicitly rejects labels such as ID NUMBER. Production Visitor code is unchanged.</p>
+        <p class="helper">Build 14 uses a layout-aware lab parser for the actual IDNYC NAME layout: surname on the first line under NAME, then given name plus optional middle initial/name on the next line. It explicitly rejects labels such as ID NUMBER. Production Visitor code is unchanged.</p>
         <dl class="fieldList">
           <div><dt>Production OCR candidate parser</dt><dd id="idnycLabProdParser">NO</dd></div>
           <div><dt>NAME anchor found</dt><dd id="idnycLabProdNameAnchor">NO</dd></div>
@@ -764,10 +775,10 @@
     </section>
   </main>
 
-  <script src="../visitor/visitor_shared.js?v=20260903-13"></script>
-  <script src="../visitor/id_scan_adapters.js?v=20260903-13"></script>
+  <script src="../visitor/visitor_shared.js?v=20260903-14"></script>
+  <script src="../visitor/id_scan_adapters.js?v=20260903-14"></script>
   <script src="./aamva_diagnostics.js?v=20260814-10"></script>
-  <script src="./idnyc_diagnostics.js?v=20260903-13"></script>
-  <script src="./scanner-lab.js?v=20260903-13"></script>
+  <script src="./idnyc_diagnostics.js?v=20260903-14"></script>
+  <script src="./scanner-lab.js?v=20260903-14"></script>
 </body>
 </html>

@@ -805,6 +805,49 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     assert.notEqual(reprint.data.print_job.job_id, created.data.print_job.job_id);
   }
 
+
+  {
+    // Scanner Lab pairing must be diagnostics-only, short-lived, invisible from
+    // the normal paired-kiosk list, and unusable for visitor mutations.
+    const state = new FakeState();
+    const instance = new mod.VisitorDeskDO(state, {});
+    await instance.ready;
+    const code = await doJson(instance, '/create_pair_code', { actor_email: 'security@example.org', label: 'Lab Diagnostics' });
+    const pair = await doJson(instance, '/pair', {
+      code: code.data.code,
+      label: 'Scanner Lab Diagnostics',
+      ip: '192.0.2.46',
+      diagnostics_only: true
+    });
+    assert.equal(pair.data.ok, true);
+    assert.equal(pair.data.diagnostics_only, true);
+    assert.match(String(pair.data.expires_at || ''), /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(await instance._findKioskByCredential(pair.data.kiosk_credential), null);
+    assert.equal((await instance._findKioskByCredential(pair.data.kiosk_credential, { allowDiagnosticsOnly: true }))?.diagnostics_only, true);
+
+    const listedKiosks = await doJson(instance, '/kiosks');
+    assert.equal(listedKiosks.data.kiosks.length, 0);
+
+    const rejectedSubmit = await doJson(instance, '/submit', {
+      kiosk_credential: pair.data.kiosk_credential,
+      visitor: {
+        visitor_first_name: 'Should',
+        visitor_last_name: 'Fail',
+        date_of_birth: '1980-01-01',
+        visitor_type: 'school_guest',
+        purpose: 'test'
+      }
+    });
+    assert.equal(rejectedSubmit.data.ok, false);
+    assert.equal(rejectedSubmit.data.error, 'kiosk_forbidden');
+
+    const diag = await doJson(instance, '/idnyc_diagnostic', {
+      kiosk_credential: pair.data.kiosk_credential,
+      diagnostic: { source: 'scanner_lab_production', parser_success: false }
+    });
+    assert.equal(diag.data.ok, true);
+  }
+
   {
     // Regression: the kiosk diagnostics route must not be swallowed by the
     // badge-checkout route before it reaches the diagnostics Durable Object API.
@@ -812,7 +855,7 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     const instance = new mod.VisitorDeskDO(state, {});
     await instance.ready;
     const code = await doJson(instance, '/create_pair_code', { actor_email: 'security@example.org', label: 'Lab iPad' });
-    const pair = await doJson(instance, '/pair', { code: code.data.code, label: 'Lab iPad', ip: '192.0.2.45' });
+    const pair = await doJson(instance, '/pair', { code: code.data.code, label: 'Lab iPad', ip: '192.0.2.45', diagnostics_only: true });
     const env = { VISITOR_DESK_DO: doStub(instance) };
     const resp = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/idnyc_diagnostics', {
       method: 'POST',

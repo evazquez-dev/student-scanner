@@ -27,7 +27,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Raw scanned ID data and images are not saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-13'/, 'Scanner Lab should expose Build 13');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-14'/, 'Scanner Lab should expose Build 14');
 }
 
 function asciiBytes(text) {
@@ -327,6 +327,8 @@ function syntheticMultiAamvaResult(subfiles, options) {
   assert.match(labHtml, /meta name="api-base" content="https:\/\/red-cake-77d5\.evazquez-3e0\.workers\.dev\/"/, 'Scanner Lab may know only the public Worker base used for safe diagnostics');
   assert.match(labJs, /new URL\('\/visitor\/kiosk\/idnyc_diagnostics', API_BASE\)/, 'Scanner Lab may send privacy-safe NYCID diagnostics through the paired kiosk route');
   assert.match(labJs, /localStorage\.getItem\(VISITOR_KIOSK_CRED_KEY\)/, 'Scanner Lab may read the existing Visitor Kiosk credential');
+  assert.match(labJs, /diagnostics_only:\s*true/, 'Scanner Lab should request a diagnostics-only temporary pairing credential');
+  assert.match(labJs, /labDiagnosticsCredential/, 'Scanner Lab should keep diagnostics pairing in memory only');
   assert.doesNotMatch(labJs, /localStorage\.(?:setItem|removeItem|clear)\(/, 'Scanner Lab must not persist or mutate scan data in localStorage');
   assert.doesNotMatch(labSource, /sessionStorage|indexedDB|caches\.open/i, 'Scanner Lab must not persist scan data in browser stores');
   assert.doesNotMatch(labSource, /console\.log|console\.debug|console\.info/i, 'Scanner Lab must not log decoded payloads');
@@ -729,6 +731,8 @@ function syntheticMultiAamvaResult(subfiles, options) {
   assert.match(labJs, /IdnycDiag\?\.analyze/, 'IDNYC Lab should compare a lab-only parser against production without changing Visitor parsing');
   assert.match(labHtml, /ID NUMBER label rejected/, 'IDNYC Lab should expose safe label-rejection diagnostics');
   assert.match(labHtml, /id="idnycDiagnosticDelivery"/, 'IDNYC Lab should show whether safe diagnostics reached Visitor Desk');
+  assert.match(labHtml, /id="idnycLabPairCode"/, 'IDNYC Lab should expose a temporary diagnostics pairing-code field');
+  assert.match(labHtml, /id="pairIdnycLabDiagnosticsBtn"/, 'IDNYC Lab should expose a diagnostics pairing action');
   assert.match(labHtml, /id="idnycProdDobRejection"/, 'IDNYC Lab should expose safe production DOB rejection diagnostics');
   assert.match(labJs, /data\?\.ok === true && data\?\.diagnostic_id/, 'Lab must confirm Worker storage before claiming diagnostics were stored');
   assert.match(labJs, /cacheMethod:\s*'none'/, 'Forced Tesseract lab path must disable OCR cache storage');
