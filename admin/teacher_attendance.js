@@ -1396,6 +1396,8 @@ function renderOutInOrganizer(){
     btn.addEventListener('click', async () => {
       if (btn.disabled) return;
       btn.disabled = true;
+      const beforeLabel = btn.textContent;
+      btn.textContent = 'Saving…';
       try{
         const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis });
 
@@ -1428,6 +1430,8 @@ function renderOutInOrganizer(){
         }
 
         renderOutInOrganizer(); // reorder OUT/IN groups
+        setErr('');
+        setStatus(true, `${r?.name || osis} marked ${res.isOut ? 'OUT' : 'IN'}${res.historical_closeout ? ' (period closeout)' : ''}.`);
       } catch(e){
         setErr(e?.message || String(e));
         setStatus(false, 'Error');
@@ -1449,6 +1453,7 @@ function renderOutInOrganizer(){
                     ? 'Mark Present, Late, or Excused Late to enable Out/In'
                     : 'Submit Present/Late/Excused Late first, or have the student scan the classroom kiosk'));
         }
+        if (btn.textContent === 'Saving…') btn.textContent = beforeLabel;
       }
     });
 
@@ -2155,6 +2160,27 @@ async function fetchClassSessionState(date, room, periodLocal){
   return data;
 }
 
+function classSessionToggleErrorMessage_(data, status){
+  const code = String(data?.error || "").trim();
+  if (code === "student_not_in_selected_roster") {
+    return "This student is no longer in the selected room/period roster. Refresh the page and try again.";
+  }
+  if (code === "no_first_in") {
+    return "The server has no first-IN record for this student. Refresh or submit Present/Late first.";
+  }
+  if (code === "class_session_toggle_not_open") {
+    const reason = String(data?.closeout_reason || "").trim();
+    if (reason === "closeout_grace_expired") {
+      return "This class is closed for Out/In changes; the 10-minute return closeout window has ended.";
+    }
+    if (reason === "not_currently_out") {
+      return "No change was made because the student is no longer marked OUT for this class.";
+    }
+    return "This period is not open for this Out/In change.";
+  }
+  return code || `class_session/toggle HTTP ${status}`;
+}
+
 async function toggleClassSessionOutIn({ date, room, periodLocal, osis }){
   if (DEMO_MODE) {
     const key = demoPreviewKey(room, periodLocal);
@@ -2183,7 +2209,16 @@ async function toggleClassSessionOutIn({ date, room, periodLocal, osis }){
   });
   const data = await r.json().catch(()=>null);
   if(!r.ok || !data?.ok) {
-    throw new Error(data?.error || `class_session/toggle HTTP ${r.status}`);
+    const err = new Error(classSessionToggleErrorMessage_(data, r.status));
+    err.code = String(data?.error || "");
+    err.detail = data || null;
+    throw err;
+  }
+  if (data?.superseded) {
+    const err = new Error("No change was made because a newer class movement already exists. Refresh the page to see the latest state.");
+    err.code = "class_session_toggle_superseded";
+    err.detail = data;
+    throw err;
   }
   return data;
 }
@@ -3298,6 +3333,8 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
 
       btn.addEventListener('click', async () => {
         btn.disabled = true;
+        const beforeLabel = btn.textContent;
+        btn.textContent = 'Saving…';
         try{
           const res = await toggleClassSessionOutIn({ date, room, periodLocal: period, osis: r.osis });
           if (!sessionState) sessionState = { ok:true, students:{}, effective_out_by_osis:{} };
@@ -3311,6 +3348,12 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           btn.dataset.toggleTitle = (res.isOut && res.outSinceISO) ? `Out since ${res.outSinceISO}` : 'Toggle Out/In';
           btn.title = btn.dataset.toggleTitle;
           renderOutInOrganizer();
+          setErr('');
+          setStatus(true, `${r.name || r.osis} marked ${res.isOut ? 'OUT' : 'IN'}${res.historical_closeout ? ' (period closeout)' : ''}.`);
+        } catch(e) {
+          setErr(e?.message || String(e));
+          setStatus(false, 'Out/In change failed');
+          btn.textContent = beforeLabel;
         } finally {
           // stay disabled unless Present/Late, first-in exists, and student is not With Staff
           const codeIsPL = isClassPresenceCode(r.chosen);
@@ -3327,6 +3370,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           } else {
             btn.title = btn.dataset.toggleTitle || 'Toggle Out/In';
           }
+          if (btn.textContent === 'Saving…') btn.textContent = beforeLabel;
         }
       });
 

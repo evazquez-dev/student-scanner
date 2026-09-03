@@ -57,11 +57,18 @@ test('advisor UI labels resolve to physical attendance buckets for reads and wri
   assert.match(teacherRead, /attendanceRows\.push\(\.\.\.legacyQuery\.rows\)/);
 });
 
-test('Teacher ClassSession toggle is server-gated to today and active-or-arrival periods', () => {
+test('Teacher ClassSession toggle is server-gated with safe post-bell IN-only closeout', () => {
   assert.match(worker, /class_session_toggle_today_only/);
-  assert.match(worker, /phase !== "active" && phase !== "arrival"/);
+  assert.match(worker, /TEACHER_CLASS_SESSION_CLOSEOUT_GRACE_MIN = 10/);
+  assert.match(worker, /teacherClassSessionTogglePolicy_/);
+  assert.match(worker, /historicalCloseout \? "https:\/\/do\/set" : "https:\/\/do\/toggle"/);
+  assert.match(worker, /isOut: false/);
+  assert.match(worker, /if \(!togglePolicy\.historicalCloseout\)/);
   assert.match(worker, /class_session_toggle_not_open/);
   assert.match(worker, /student_not_in_selected_roster/);
+  assert.match(teacher, /classSessionToggleErrorMessage_/);
+  assert.match(teacher, /Saving…/);
+  assert.match(teacher, /Out\/In change failed/);
 });
 
 test('table and organizer consume the same effective ClassSession projection', () => {
