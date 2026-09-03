@@ -14,7 +14,7 @@
       <h1>EagleNEST Scanner Lab</h1>
       <p class="subtitle">iPad Camera + PDF417 Test</p>
     </div>
-    <div class="build" id="buildLabel">Scanner Lab HTML: 2026-09-03-12 · JS: loading</div>
+    <div class="build" id="buildLabel">Scanner Lab HTML: 2026-09-03-13 · JS: loading</div>
   </header>
 
   <main>
@@ -609,18 +609,26 @@
           <div><dt>Middle name found</dt><dd id="idnycProdMiddleFound">NO</dd></div>
           <div><dt>Last name found</dt><dd id="idnycProdLastFound">NO</dd></div>
           <div><dt>DOB found</dt><dd id="idnycProdDobFound">NO</dd></div>
+          <div><dt>DOB anchor found</dt><dd id="idnycProdDobAnchor">NO</dd></div>
+          <div><dt>DOB candidate shape</dt><dd id="idnycProdDobShape">-</dd></div>
+          <div><dt>DOB OCR correction used</dt><dd id="idnycProdDobCorrected">NO</dd></div>
+          <div><dt>DOB rejection</dt><dd id="idnycProdDobRejection">-</dd></div>
         </dl>
       </section>
 
       <section class="resultPanel">
         <h3>Lab Layout-Aware Parser Candidate</h3>
-        <p class="helper">Build 12 uses a layout-aware lab parser for the actual IDNYC NAME layout: surname on the first line under NAME, then given name plus optional middle initial/name on the next line. It explicitly rejects labels such as ID NUMBER. Production Visitor code is unchanged.</p>
+        <p class="helper">Build 13 uses a layout-aware lab parser for the actual IDNYC NAME layout: surname on the first line under NAME, then given name plus optional middle initial/name on the next line. It explicitly rejects labels such as ID NUMBER. Production Visitor code is unchanged.</p>
         <dl class="fieldList">
           <div><dt>Production OCR candidate parser</dt><dd id="idnycLabProdParser">NO</dd></div>
           <div><dt>NAME anchor found</dt><dd id="idnycLabProdNameAnchor">NO</dd></div>
           <div><dt>Name lines found</dt><dd id="idnycLabProdNameLines">0</dd></div>
           <div><dt>ID NUMBER label rejected</dt><dd id="idnycLabProdRejectedIdNumber">NO</dd></div>
           <div><dt>DOB found</dt><dd id="idnycLabProdDobFound">NO</dd></div>
+          <div><dt>DOB anchor found</dt><dd id="idnycLabProdDobAnchor">NO</dd></div>
+          <div><dt>DOB candidate shape</dt><dd id="idnycLabProdDobShape">-</dd></div>
+          <div><dt>DOB OCR correction used</dt><dd id="idnycLabProdDobCorrected">NO</dd></div>
+          <div><dt>DOB rejection</dt><dd id="idnycLabProdDobRejection">-</dd></div>
           <div><dt>Parser strategy</dt><dd id="idnycLabProdStrategy">-</dd></div>
         </dl>
       </section>
@@ -638,6 +646,10 @@
           <div><dt>Middle name found</dt><dd id="idnycTessMiddleFound">NO</dd></div>
           <div><dt>Last name found</dt><dd id="idnycTessLastFound">NO</dd></div>
           <div><dt>DOB found</dt><dd id="idnycTessDobFound">NO</dd></div>
+          <div><dt>DOB anchor found</dt><dd id="idnycTessDobAnchor">NO</dd></div>
+          <div><dt>DOB candidate shape</dt><dd id="idnycTessDobShape">-</dd></div>
+          <div><dt>DOB OCR correction used</dt><dd id="idnycTessDobCorrected">NO</dd></div>
+          <div><dt>DOB rejection</dt><dd id="idnycTessDobRejection">-</dd></div>
         </dl>
       </section>
 
@@ -752,10 +764,10 @@
     </section>
   </main>
 
-  <script src="../visitor/visitor_shared.js?v=20260903-12"></script>
-  <script src="../visitor/id_scan_adapters.js?v=20260903-12"></script>
+  <script src="../visitor/visitor_shared.js?v=20260903-13"></script>
+  <script src="../visitor/id_scan_adapters.js?v=20260903-13"></script>
   <script src="./aamva_diagnostics.js?v=20260814-10"></script>
-  <script src="./idnyc_diagnostics.js?v=20260903-12"></script>
-  <script src="./scanner-lab.js?v=20260903-12"></script>
+  <script src="./idnyc_diagnostics.js?v=20260903-13"></script>
+  <script src="./scanner-lab.js?v=20260903-13"></script>
 </body>
 </html>

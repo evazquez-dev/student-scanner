@@ -889,6 +889,10 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
   }
 
   {
+    assert.match(workerSource, /\/visitor\/kiosk\/badge_checkout" \|\| path === "\/visitor\/kiosk\/idnyc_diagnostics"/, 'Top-level Worker dispatch must route NYCID diagnostics into the Visitor kiosk handler');
+  }
+
+  {
     assert.match(workerSource, /VISITOR_PRINT_AGENT_TOKEN/, 'Worker should require a dedicated print-agent secret');
     assert.match(workerSource, /\/visitor\/print-agent\/claim/, 'Worker should expose the print-agent claim route');
     assert.match(workerSource, /\/visitor\/print-agent\/complete/, 'Worker should expose the print-agent completion route');

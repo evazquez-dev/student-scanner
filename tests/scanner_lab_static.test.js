@@ -27,7 +27,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Raw scanned ID data and images are not saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-12'/, 'Scanner Lab should expose Build 12');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-13'/, 'Scanner Lab should expose Build 13');
 }
 
 function asciiBytes(text) {
@@ -729,6 +729,8 @@ function syntheticMultiAamvaResult(subfiles, options) {
   assert.match(labJs, /IdnycDiag\?\.analyze/, 'IDNYC Lab should compare a lab-only parser against production without changing Visitor parsing');
   assert.match(labHtml, /ID NUMBER label rejected/, 'IDNYC Lab should expose safe label-rejection diagnostics');
   assert.match(labHtml, /id="idnycDiagnosticDelivery"/, 'IDNYC Lab should show whether safe diagnostics reached Visitor Desk');
+  assert.match(labHtml, /id="idnycProdDobRejection"/, 'IDNYC Lab should expose safe production DOB rejection diagnostics');
+  assert.match(labJs, /data\?\.ok === true && data\?\.diagnostic_id/, 'Lab must confirm Worker storage before claiming diagnostics were stored');
   assert.match(labJs, /cacheMethod:\s*'none'/, 'Forced Tesseract lab path must disable OCR cache storage');
   assert.match(labJs, /PII\/raw OCR included: NO/, 'Safe IDNYC diagnostics should explicitly exclude PII/raw OCR');
   const safeReportSection = sectionBetween(labJs, 'function buildSafeIdnycReport', 'function updateSafeIdnycReport');

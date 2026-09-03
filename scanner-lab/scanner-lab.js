@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-09-03-12';
+  const LAB_BUILD = '2026-09-03-13';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -1482,6 +1482,11 @@
     setText(`${prefix}MiddleFound`, yesNo(presence.middle));
     setText(`${prefix}LastFound`, yesNo(presence.last));
     setText(`${prefix}DobFound`, yesNo(presence.dob));
+    const diag = parsed?.diagnostics || {};
+    setText(`${prefix}DobAnchor`, yesNo(!!diag.birth_anchor_found));
+    setText(`${prefix}DobShape`, diag.birth_candidate_shape || '-');
+    setText(`${prefix}DobCorrected`, yesNo(!!diag.birth_candidate_corrected));
+    setText(`${prefix}DobRejection`, diag.birth_rejection || '-');
     renderIdnycPrivateFields();
     renderIdnycRawText();
   }
@@ -1494,6 +1499,10 @@
     setText('idnycLabProdNameLines', Number(diag.nameCandidateCount || 0));
     setText('idnycLabProdRejectedIdNumber', yesNo(!!diag.idNumberLabelSeenAndRejected));
     setText('idnycLabProdDobFound', yesNo(!!diag.dobFound));
+    setText('idnycLabProdDobAnchor', yesNo(!!diag.dobAnchored));
+    setText('idnycLabProdDobShape', diag.dobCandidateShape || '-');
+    setText('idnycLabProdDobCorrected', yesNo(!!diag.dobCandidateCorrected));
+    setText('idnycLabProdDobRejection', diag.dobRejection || '-');
     setText('idnycLabProdStrategy', diag.nameStrategy || '-');
   }
 
@@ -1553,12 +1562,15 @@
         cache: 'no-store',
         body: JSON.stringify({ diagnostic: labSafeDiagnosticPayload(kind) })
       });
-      if (resp.ok) {
-        idnyc.diagnosticDelivery = `Sent to Visitor Desk (${kind})`;
+      const data = await resp.json().catch(() => null);
+      if (resp.ok && data?.ok === true && data?.diagnostic_id) {
+        const shortId = String(data.diagnostic_id).slice(-10);
+        idnyc.diagnosticDelivery = `Stored in Visitor Desk (${kind}) · ${shortId}`;
         setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
         return true;
       }
-      idnyc.diagnosticDelivery = `Not stored — Worker returned HTTP ${resp.status}`;
+      const detail = String(data?.error || (resp.ok ? 'Worker did not confirm storage' : `HTTP ${resp.status}`));
+      idnyc.diagnosticDelivery = `Not stored — ${detail}`;
       setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
       return false;
     } catch {
