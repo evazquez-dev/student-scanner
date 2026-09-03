@@ -961,6 +961,17 @@
     return String(window.__lastMorningDestinationRoom || '').trim();
   }
 
+  function morningDestinationPeriodLabelForDisplay_(periodId) {
+    const period = String(periodId || '').trim();
+    const upper = period.toUpperCase();
+    if (!period) return '';
+    if (upper === 'ADV') return 'Advisory';
+    if (upper === 'FM1' || upper === 'FM2') return 'Family Meeting';
+    if (upper === 'LCH1' || upper === 'LCH2') return 'Lunch';
+    if (/^\d+$/.test(period)) return `Period ${period}`;
+    return period;
+  }
+
   /* ============================================================
    * SMALL HELPERS
    * ============================================================ */
@@ -3218,9 +3229,10 @@
     const destinationPeriod = isDefaultMorningLocation(loc)
       ? String(window.__lastMorningDestinationPeriod || '').trim()
       : '';
+    const destinationPeriodLabel = morningDestinationPeriodLabelForDisplay_(destinationPeriod);
     const destinationHtml = destinationRoom
       ? `<div class="name" style="margin-top:10px; font-size:20px;">GO TO ROOM ${esc(destinationRoom)}</div>` +
-        (destinationPeriod ? `<div class="muted">Period ${esc(destinationPeriod)}</div>` : '')
+        (destinationPeriodLabel ? `<div class="muted">${esc(destinationPeriodLabel)}</div>` : '')
       : '';
 
     const nameHtml = nameHtmlWithBadge(name);
