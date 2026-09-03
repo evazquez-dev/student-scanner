@@ -426,6 +426,45 @@ function assertNoForbidden(obj) {
   assert.equal(parsed.diagnostics.birth_anchor_found, true);
 }
 
+
+{
+  // OCR commonly confuses letters and digits inside the DOB itself. Correct
+  // those substitutions only inside the anchored birth-date window.
+  const parsed = Shared.parseIdnycOcrText([
+    'ID NUMBER',
+    'NAME',
+    'SAMPLE',
+    'WENDY S',
+    'DATE 0F B1RTH',
+    'O3 . 16 . 19B8',
+    'EXPIRATION DATE',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.data.date_of_birth, '1988-03-16');
+  assert.equal(parsed.diagnostics.birth_candidate_found, true);
+  assert.equal(parsed.diagnostics.birth_candidate_shape, 'DD/DD/DDDD');
+  assert.equal(parsed.diagnostics.birth_candidate_corrected, true);
+  assert.equal(parsed.diagnostics.birth_rejection, '');
+}
+
+{
+  // A tightly fuzzy DATE OF BIRTH label is allowed, but it still must own a
+  // valid nearby date and may never cross the expiration label.
+  const parsed = Shared.parseIdnycOcrText([
+    'NAME',
+    'SAMPLE',
+    'WENDY S',
+    'DATF OF BIRTH',
+    '03 / 16 / 1988',
+    'EXPIRATION DATE',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.data.date_of_birth, '1988-03-16');
+  assert.equal(parsed.diagnostics.birth_anchor_fuzzy, true);
+}
+
 {
   // If OCR drops NAME entirely, the two name lines immediately before the
   // anchored birth block are still a sufficiently constrained IDNYC layout.

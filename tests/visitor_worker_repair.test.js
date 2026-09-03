@@ -806,6 +806,37 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
   }
 
   {
+    // Regression: the kiosk diagnostics route must not be swallowed by the
+    // badge-checkout route before it reaches the diagnostics Durable Object API.
+    const state = new FakeState();
+    const instance = new mod.VisitorDeskDO(state, {});
+    await instance.ready;
+    const code = await doJson(instance, '/create_pair_code', { actor_email: 'security@example.org', label: 'Lab iPad' });
+    const pair = await doJson(instance, '/pair', { code: code.data.code, label: 'Lab iPad', ip: '192.0.2.45' });
+    const env = { VISITOR_DESK_DO: doStub(instance) };
+    const resp = await mod.handleVisitorKioskRoute_(new Request('https://worker.example/visitor/kiosk/idnyc_diagnostics', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-visitor-kiosk': pair.data.kiosk_credential },
+      body: JSON.stringify({ diagnostic: {
+        source: 'scanner_lab_production',
+        ocr_engine: 'tesseract',
+        parser_success: false,
+        birth_anchor_found: true,
+        birth_candidate_found: true,
+        birth_candidate_shape: 'DD/DD/DDDD',
+        birth_candidate_corrected: true,
+        birth_rejection: 'invalid_calendar'
+      } })
+    }), env, ctx(), '/visitor/kiosk/idnyc_diagnostics');
+    const data = await resp.json();
+    assert.equal(resp.status, 200);
+    assert.equal(data.ok, true);
+    const listed = await doJson(instance, '/idnyc_diagnostics?limit=10');
+    assert.equal(listed.data.diagnostics.length, 1);
+    assert.equal(listed.data.diagnostics[0].birth_candidate_shape, 'DD/DD/DDDD');
+  }
+
+  {
     const state = new FakeState();
     const instance = new mod.VisitorDeskDO(state, {});
     await instance.ready;
@@ -823,6 +854,11 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
         name_strategy: 'none',
         birth_anchor_found: true,
         birth_strategy: 'birth_anchor_no_date',
+        birth_anchor_fuzzy: true,
+        birth_candidate_found: true,
+        birth_candidate_shape: 'DD/DD/DDDD',
+        birth_candidate_corrected: true,
+        birth_rejection: 'invalid_calendar',
         date_candidate_count: 2,
         labels: { name: false, birth: true, expiration: true, evil: true },
         parsed_fields: { first_name: false, last_name: false, birth_date: false },
@@ -839,6 +875,9 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
     const diag = listed.data.diagnostics[0];
     assert.equal(diag.labels.birth, true);
     assert.equal(diag.labels.expiration, true);
+    assert.equal(diag.birth_candidate_shape, 'DD/DD/DDDD');
+    assert.equal(diag.birth_candidate_corrected, true);
+    assert.equal(diag.birth_rejection, 'invalid_calendar');
     assert.equal(diag.line_classes.includes('LEAK_ME'), false);
     const serialized = JSON.stringify(diag);
     assert.equal(serialized.includes('JANE'), false);

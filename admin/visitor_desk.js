@@ -920,11 +920,17 @@
     ].join(' · ');
     const sequence = Array.isArray(d?.line_classes) && d.line_classes.length ? d.line_classes.join(' › ') : '-';
     const dims = d?.image_width && d?.image_height ? `${d.image_width}×${d.image_height}` : '-';
+    const birthDetail = [
+      d?.birth_anchor_fuzzy ? 'fuzzy anchor' : '',
+      d?.birth_candidate_found ? `candidate ${d.birth_candidate_shape || 'shape?'}` : 'no date-shaped candidate',
+      d?.birth_candidate_corrected ? 'OCR digit correction used' : '',
+      d?.birth_rejection ? `rejection ${d.birth_rejection}` : ''
+    ].filter(Boolean).join(' · ');
     return `<tr>
       <td><strong>${esc(fmtDT(d?.created_at))}</strong><div>${esc(d?.source || '-')}</div><div class="muted">Kiosk ${esc(d?.kiosk_id || '-')}</div>${d?.lab_build ? `<div class="muted">Lab ${esc(d.lab_build)}</div>` : ''}</td>
       <td><strong>${esc(d?.ocr_engine || 'unknown')}</strong><div>${esc(String(d?.ocr_duration_ms || 0))} ms · ${esc(String(d?.text_length || 0))} chars · ${esc(String(d?.line_count || 0))} lines</div><div class="muted">${esc(dims)} · TextDetector ${d?.text_detector_available ? 'available' : 'not available'} · usable ${d?.text_usable ? 'yes' : 'no'}</div></td>
       <td><div>${esc(labelBits)}</div><div class="muted">Name candidates ${esc(String(d?.name_candidate_count || 0))} · date candidates ${esc(String(d?.date_candidate_count || 0))}</div><div class="diagnosticSequence">${esc(sequence)}</div></td>
-      <td>${yesNoPill(d?.parser_success === true, 'Parsed', 'Incomplete')}<div>${esc(fieldBits)}</div><div class="muted">Name: ${esc(d?.name_strategy || 'none')} · Birth: ${esc(d?.birth_strategy || 'none')}</div><div class="muted">NAME anchor ${d?.name_anchor_found ? 'yes' : 'no'} · Birth anchor ${d?.birth_anchor_found ? 'yes' : 'no'}</div></td>
+      <td>${yesNoPill(d?.parser_success === true, 'Parsed', 'Incomplete')}<div>${esc(fieldBits)}</div><div class="muted">Name: ${esc(d?.name_strategy || 'none')} · Birth: ${esc(d?.birth_strategy || 'none')}</div><div class="muted">NAME anchor ${d?.name_anchor_found ? 'yes' : 'no'} · Birth anchor ${d?.birth_anchor_found ? 'yes' : 'no'}</div>${birthDetail ? `<div class="muted">${esc(birthDetail)}</div>` : ''}</td>
     </tr>`;
   }
 

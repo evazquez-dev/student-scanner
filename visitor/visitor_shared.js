@@ -407,6 +407,31 @@
       .toUpperCase();
   }
 
+  function idnycEditDistanceWithin(a, b, maxDistance) {
+    const left = String(a || '');
+    const right = String(b || '');
+    const max = Math.max(0, Number(maxDistance || 0));
+    if (Math.abs(left.length - right.length) > max) return false;
+    let prev = Array.from({ length: right.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= left.length; i += 1) {
+      const next = [i];
+      let rowMin = next[0];
+      for (let j = 1; j <= right.length; j += 1) {
+        const cost = left[i - 1] === right[j - 1] ? 0 : 1;
+        const value = Math.min(
+          prev[j] + 1,
+          next[j - 1] + 1,
+          prev[j - 1] + cost
+        );
+        next[j] = value;
+        if (value < rowMin) rowMin = value;
+      }
+      if (rowMin > max) return false;
+      prev = next;
+    }
+    return prev[right.length] <= max;
+  }
+
   function idnycLabelInfo(value) {
     const raw = idnycAsciiUpper(value);
     if (!raw) return null;
@@ -425,7 +450,7 @@
     ];
     for (const [type, re] of defs) {
       const m = raw.match(re);
-      if (m) return { type, tail: cleanText(m[1] || '', 140) };
+      if (m) return { type, tail: cleanText(m[1] || '', 140), fuzzy: false };
     }
     const compact = raw.replace(/[^A-Z0-9]/g, '');
     const compactOnly = {
@@ -438,7 +463,15 @@
       HEIGHT: 'height', GENDER: 'sex', SEX: 'sex', EYECOLOR: 'eyes', ORGANDONOR: 'organ_donor',
       NYCIDENTIFICATIONCARD: 'title', IDNYC: 'title'
     };
-    return compactOnly[compact] ? { type: compactOnly[compact], tail: '' } : null;
+    if (compactOnly[compact]) return { type: compactOnly[compact], tail: '', fuzzy: false };
+
+    // OCR can damage one or two characters in "DATE OF BIRTH" while preserving
+    // the overall label. Accept a very tight fuzzy match only for the birth
+    // anchor; this never supplies a date value by itself.
+    if (compact.length >= 9 && compact.length <= 13 && idnycEditDistanceWithin(compact, 'DATEOFBIRTH', 2)) {
+      return { type: 'birth', tail: '', fuzzy: true };
+    }
+    return null;
   }
 
   function idnycNameCandidate(value) {
@@ -532,27 +565,108 @@
     return { first: '', middle: '', last: '', strategy: 'none', anchorFound: false, candidateCount: 0 };
   }
 
+  function idnycOcrDateCandidate(value) {
+    const line = idnycAsciiUpper(value);
+    if (!line) return { value: '', found: false, shape: '', corrected: false, rejection: 'no_candidate' };
+
+    // Restrict OCR substitutions to date-shaped tokens. We never rewrite
+    // arbitrary prose into numbers.
+    const tokenMatch = line.match(/(?:[0-9OQDILSZGB|]{1,4}\s*[\/\.\-]\s*[0-9OQDILSZGB|]{1,2}\s*[\/\.\-]\s*[0-9OQDILSZGB|]{2,4}|[0-9OQDILSZGB|]{8})/);
+    if (!tokenMatch) return { value: '', found: false, shape: '', corrected: false, rejection: 'no_candidate' };
+
+    const rawToken = String(tokenMatch[0] || '');
+    const shape = rawToken
+      .replace(/[0-9OQDILSZGB|]/gi, 'D')
+      .replace(/\s+/g, '')
+      .replace(/\./g, '/')
+      .replace(/-/g, '/')
+      .slice(0, 16);
+    const comparableRaw = rawToken.toUpperCase().replace(/\s+/g, '').replace(/[\.\-]/g, '/');
+    const correctedToken = comparableRaw
+      .replace(/[OQD]/g, '0')
+      .replace(/[IL|]/g, '1')
+      .replace(/Z/g, '2')
+      .replace(/S/g, '5')
+      .replace(/G/g, '6')
+      .replace(/B/g, '8');
+    const normalized = normalizeDateOfBirth(correctedToken);
+    if (!normalized) {
+      return { value: '', found: true, shape, corrected: correctedToken !== comparableRaw, rejection: 'invalid_calendar' };
+    }
+    if (isFutureDate(normalized)) {
+      return { value: '', found: true, shape, corrected: correctedToken !== comparableRaw, rejection: 'future_date' };
+    }
+    return { value: normalized, found: true, shape, corrected: correctedToken !== comparableRaw, rejection: '' };
+  }
+
   function idnycDateToken(value) {
-    const line = cleanText(value, 180);
-    const m = line.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{8})\b/);
-    return m ? String(m[1] || '') : '';
+    const candidate = idnycOcrDateCandidate(value);
+    return candidate.value ? candidate.value : '';
   }
 
   function findIdnycBirthDate(lines) {
     for (let i = 0; i < lines.length; i += 1) {
       const info = idnycLabelInfo(lines[i]);
       if (info?.type !== 'birth') continue;
-      const sameLine = idnycDateToken(info.tail || '');
-      if (sameLine) return { value: normalizeDateOfBirth(sameLine), anchorFound: true, strategy: 'birth_same_line' };
+
+      const sameLine = idnycOcrDateCandidate(info.tail || '');
+      if (sameLine.value) {
+        return {
+          value: sameLine.value,
+          anchorFound: true,
+          strategy: 'birth_same_line',
+          candidateFound: true,
+          candidateShape: sameLine.shape,
+          candidateCorrected: sameLine.corrected,
+          rejection: '',
+          fuzzyAnchor: info.fuzzy === true
+        };
+      }
+
+      let observed = sameLine.found ? sameLine : null;
+      let blockedBy = '';
       for (let j = i + 1; j < lines.length && j <= i + 2; j += 1) {
         const nextInfo = idnycLabelInfo(lines[j]);
-        if (nextInfo) break; // Never walk through EXPIRATION/ISSUANCE to steal their dates.
-        const token = idnycDateToken(lines[j]);
-        if (token) return { value: normalizeDateOfBirth(token), anchorFound: true, strategy: 'birth_next_line' };
+        if (nextInfo) {
+          blockedBy = nextInfo.type;
+          break; // Never walk through EXPIRATION/ISSUANCE to steal their dates.
+        }
+        const candidate = idnycOcrDateCandidate(lines[j]);
+        if (!observed && candidate.found) observed = candidate;
+        if (candidate.value) {
+          return {
+            value: candidate.value,
+            anchorFound: true,
+            strategy: 'birth_next_line',
+            candidateFound: true,
+            candidateShape: candidate.shape,
+            candidateCorrected: candidate.corrected,
+            rejection: '',
+            fuzzyAnchor: info.fuzzy === true
+          };
+        }
       }
-      return { value: '', anchorFound: true, strategy: 'birth_anchor_no_date' };
+      return {
+        value: '',
+        anchorFound: true,
+        strategy: 'birth_anchor_no_date',
+        candidateFound: !!observed,
+        candidateShape: observed?.shape || '',
+        candidateCorrected: observed?.corrected === true,
+        rejection: observed?.rejection || (blockedBy ? `blocked_by_${blockedBy}` : 'no_candidate'),
+        fuzzyAnchor: info.fuzzy === true
+      };
     }
-    return { value: '', anchorFound: false, strategy: 'no_birth_anchor' };
+    return {
+      value: '',
+      anchorFound: false,
+      strategy: 'no_birth_anchor',
+      candidateFound: false,
+      candidateShape: '',
+      candidateCorrected: false,
+      rejection: 'no_birth_anchor',
+      fuzzyAnchor: false
+    };
   }
 
   function classifyIdnycSafeLine(line) {
@@ -596,6 +710,11 @@
       name_candidate_count: Number(name.candidateCount || 0),
       birth_anchor_found: birth.anchorFound === true,
       birth_strategy: String(birth.strategy || 'none'),
+      birth_anchor_fuzzy: birth.fuzzyAnchor === true,
+      birth_candidate_found: birth.candidateFound === true,
+      birth_candidate_shape: String(birth.candidateShape || ''),
+      birth_candidate_corrected: birth.candidateCorrected === true,
+      birth_rejection: String(birth.rejection || ''),
       date_candidate_count: dateCandidateCount,
       labels,
       parsed_fields: {

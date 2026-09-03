@@ -27,7 +27,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Raw scanned ID data and images are not saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-11'/, 'Scanner Lab should expose Build 11');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-12'/, 'Scanner Lab should expose Build 12');
 }
 
 function asciiBytes(text) {
@@ -693,6 +693,24 @@ function syntheticMultiAamvaResult(subfiles, options) {
 }
 
 {
+  const ocrDamagedDob = IdnycDiag.analyze([
+    'NYC IDENTIFICATION CARD',
+    'ID NUMBER',
+    'NAME',
+    'SAMPLE',
+    'WENDY S',
+    'DATF OF BIRTH',
+    'O3 . 16 . 19B8',
+    'EXPIRATION DATE',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(ocrDamagedDob.ok, true, 'Lab parser should recover a DOB with common OCR substitutions');
+  assert.equal(ocrDamagedDob.data.date_of_birth, '1988-03-16');
+  assert.equal(ocrDamagedDob.diagnostics.dobAnchorFuzzy, true);
+  assert.equal(ocrDamagedDob.diagnostics.dobCandidateCorrected, true);
+}
+
+{
   const badLabelOnly = IdnycDiag.analyze('NYC IDENTIFICATION CARD\nID NUMBER\nNAME\nDATE OF BIRTH 12/24/2001');
   assert.equal(badLabelOnly.ok, false, 'Labels alone must not produce a false-success name');
   assert.notEqual(badLabelOnly.data.visitor_first_name, 'ID');
@@ -710,6 +728,7 @@ function syntheticMultiAamvaResult(subfiles, options) {
   assert.match(labHtml, /idnyc_diagnostics\.js/, 'IDNYC Lab should load the lab-only layout-aware parser');
   assert.match(labJs, /IdnycDiag\?\.analyze/, 'IDNYC Lab should compare a lab-only parser against production without changing Visitor parsing');
   assert.match(labHtml, /ID NUMBER label rejected/, 'IDNYC Lab should expose safe label-rejection diagnostics');
+  assert.match(labHtml, /id="idnycDiagnosticDelivery"/, 'IDNYC Lab should show whether safe diagnostics reached Visitor Desk');
   assert.match(labJs, /cacheMethod:\s*'none'/, 'Forced Tesseract lab path must disable OCR cache storage');
   assert.match(labJs, /PII\/raw OCR included: NO/, 'Safe IDNYC diagnostics should explicitly exclude PII/raw OCR');
   const safeReportSection = sectionBetween(labJs, 'function buildSafeIdnycReport', 'function updateSafeIdnycReport');

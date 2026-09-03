@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-09-03-11';
+  const LAB_BUILD = '2026-09-03-12';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -158,7 +158,8 @@
     tesseractParsed: null,
     tesseractLabParsed: null,
     tesseractMs: 0,
-    tesseractRun: false
+    tesseractRun: false,
+    diagnosticDelivery: 'Not attempted'
   };
 
   let idnycParsedVisible = false;
@@ -1524,6 +1525,11 @@
       name_candidate_count: Number(d.name_candidate_count || 0) || 0,
       birth_anchor_found: d.birth_anchor_found === true,
       birth_strategy: String(d.birth_strategy || 'none').slice(0, 50),
+      birth_anchor_fuzzy: d.birth_anchor_fuzzy === true,
+      birth_candidate_found: d.birth_candidate_found === true,
+      birth_candidate_shape: String(d.birth_candidate_shape || '').slice(0, 16),
+      birth_candidate_corrected: d.birth_candidate_corrected === true,
+      birth_rejection: String(d.birth_rejection || '').slice(0, 40),
       date_candidate_count: Number(d.date_candidate_count || 0) || 0,
       labels: d.labels || {},
       parsed_fields: d.parsed_fields || {},
@@ -1534,7 +1540,12 @@
 
   async function sendLabSafeIdnycDiagnostic(kind) {
     const cred = pairedVisitorKioskCredential();
-    if (!cred || !idnyc.file) return false;
+    if (!idnyc.file) return false;
+    if (!cred) {
+      idnyc.diagnosticDelivery = 'Not sent — this browser is not paired as a Visitor Kiosk';
+      setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
+      return false;
+    }
     try {
       const resp = await fetch(new URL('/visitor/kiosk/idnyc_diagnostics', API_BASE), {
         method: 'POST',
@@ -1542,8 +1553,17 @@
         cache: 'no-store',
         body: JSON.stringify({ diagnostic: labSafeDiagnosticPayload(kind) })
       });
-      return resp.ok;
+      if (resp.ok) {
+        idnyc.diagnosticDelivery = `Sent to Visitor Desk (${kind})`;
+        setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
+        return true;
+      }
+      idnyc.diagnosticDelivery = `Not stored — Worker returned HTTP ${resp.status}`;
+      setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
+      return false;
     } catch {
+      idnyc.diagnosticDelivery = 'Not stored — network error';
+      setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
       return false;
     }
   }
@@ -1566,6 +1586,11 @@
       `Production OCR text length: ${idnyc.productionText.length}`,
       `Production text looks usable: ${yesNo(!!(idnyc.productionText && IdScan?.looksLikeUsableIdnycText?.(idnyc.productionText)))}`,
       `Production parser success: ${yesNo(!!idnyc.productionParsed?.ok)}`,
+      `Admin diagnostics delivery: ${idnyc.diagnosticDelivery || 'Not attempted'}`,
+      `Production DOB anchor: ${yesNo(!!idnyc.productionParsed?.diagnostics?.birth_anchor_found)}`,
+      `Production DOB candidate shape: ${idnyc.productionParsed?.diagnostics?.birth_candidate_shape || '-'}`,
+      `Production DOB OCR correction used: ${yesNo(!!idnyc.productionParsed?.diagnostics?.birth_candidate_corrected)}`,
+      `Production DOB rejection: ${idnyc.productionParsed?.diagnostics?.birth_rejection || '-'}`,
       `Production first name found: ${yesNo(prod.first)}`,
       `Production middle name found: ${yesNo(prod.middle)}`,
       `Production last name found: ${yesNo(prod.last)}`,
@@ -1619,6 +1644,7 @@
     idnyc.tesseractLabParsed = null;
     idnyc.tesseractMs = 0;
     idnyc.tesseractRun = false;
+    idnyc.diagnosticDelivery = 'Not attempted';
     idnycParsedVisible = false;
     idnycOcrVisible = false;
     setText('idnycSource', '-');
@@ -1630,6 +1656,7 @@
     setText('idnycContrast', '-');
     setText('idnycTextDetector', yesNo(!!window.TextDetector));
     setText('idnycStatus', 'Idle');
+    setText('idnycDiagnosticDelivery', idnyc.diagnosticDelivery);
     setError('idnycError', '');
     renderIdnycResult('prod');
     renderIdnycResult('tess');
