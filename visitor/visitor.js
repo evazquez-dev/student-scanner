@@ -84,6 +84,8 @@
       idnycTooMuchGlare: 'Too much glare',
       idnycReading: 'Reading ID...',
       idnycCaptured: 'Captured',
+      idnycNameFound: 'Name found. Checking date of birth...',
+      idnycReadingAnother: 'Reading another snapshot...',
       idnycFound: 'We found the following information. Please confirm it is correct.',
       idnycUnreadable: "We couldn't read all of the information. Please complete the highlighted fields.",
       cameraUnavailableManual: 'Camera is unavailable. You can still enter your information manually.',
@@ -181,6 +183,8 @@
       idnycTooMuchGlare: 'Hay demasiado reflejo',
       idnycReading: 'Leyendo identificación...',
       idnycCaptured: 'Capturada',
+      idnycNameFound: 'Nombre encontrado. Buscando la fecha de nacimiento...',
+      idnycReadingAnother: 'Leyendo otra imagen...',
       idnycFound: 'Encontramos la siguiente información. Confirme que sea correcta.',
       idnycUnreadable: 'No pudimos leer toda la información. Complete los campos resaltados.',
       cameraUnavailableManual: 'La cámara no está disponible. Aun puede ingresar la información manualmente.',
@@ -275,6 +279,7 @@
   let idEntryMode = 'manual';
   let idScanMode = '';
   let idScanSession = null;
+  let idnycLiveSession = null;
   let returningClaim = '';
   let returningCheckoutClaim = '';
   let returningPhotoCurrent = false;
@@ -787,7 +792,8 @@
       return strings.stateIdPlaceBarcode;
     }
     if (state === 'camera_starting') return strings.cameraStarting;
-    if (state === 'capturing') return strings.idnycCaptured;
+    if (state === 'partial') return detail?.foundName && !detail?.foundDob ? strings.idnycNameFound : strings.idnycReadingAnother;
+    if (state === 'capturing') return Number(detail?.attempt || 1) > 1 ? strings.idnycReadingAnother : strings.idnycCaptured;
     if (state === 'ocr_loading' || state === 'ocr_processing') return strings.idnycReading;
     if (state === 'failed') return detail?.reason === 'camera_unavailable' ? strings.cameraUnavailableManual : strings.idnycUnreadable;
     if (hint === 'moveCloser') return strings.idnycMoveCloser;
@@ -823,6 +829,8 @@
   }
 
   function closeStateIdScan(options = {}) {
+    if (idnycLiveSession) idnycLiveSession.cancelled = true;
+    idnycLiveSession = null;
     stopIdScanSession();
     idScanMode = '';
     if (!options.preserveReturningCheckin) {
@@ -1048,6 +1056,98 @@
     }
   }
 
+  function newIdnycLiveSession() {
+    let suffix = '';
+    try { suffix = crypto?.randomUUID?.().replace(/-/g, '').slice(0, 12) || ''; } catch {}
+    if (!suffix) suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`.slice(0, 16);
+    return {
+      session_id: `live_${suffix}`,
+      started_at_ms: Date.now(),
+      attempts: 0,
+      name_score: -1,
+      birth_score: -1,
+      data: { visitor_first_name: '', visitor_middle_name: '', visitor_last_name: '', date_of_birth: '' },
+      cancelled: false
+    };
+  }
+
+  function idnycAggregateComplete(data) {
+    const d = data || {};
+    return !!(d.visitor_first_name && d.visitor_last_name && Shared.normalizeDateOfBirth(d.date_of_birth));
+  }
+
+  function mergeIdnycLiveAttempt(session, parsed, meta) {
+    if (!session || !parsed) return session?.data || {};
+    const data = parsed.data || {};
+    const diag = parsed.diagnostics || {};
+    const structure = Math.max(0, Number(meta?.structure_score || 0) || 0);
+    session.attempts = Math.max(session.attempts, Number(meta?.attempt || 0) || (session.attempts + 1));
+
+    const first = Shared.cleanText(data.visitor_first_name, 80);
+    const middle = Shared.cleanText(data.visitor_middle_name, 80);
+    const last = Shared.cleanText(data.visitor_last_name, 100);
+    if (first && last) {
+      const strategyBonus = /two_line|tail_plus_given/i.test(String(diag.name_strategy || '')) ? 8 : 0;
+      const nameScore = structure + (diag.name_anchor_found ? 12 : 0) + strategyBonus + (middle ? 2 : 0);
+      if (nameScore > session.name_score) {
+        const sameName = session.data.visitor_first_name === first && session.data.visitor_last_name === last;
+        session.data.visitor_first_name = first;
+        session.data.visitor_middle_name = middle || (sameName ? session.data.visitor_middle_name : '');
+        session.data.visitor_last_name = last;
+        session.name_score = nameScore;
+      }
+    }
+
+    const dob = Shared.normalizeDateOfBirth(data.date_of_birth);
+    if (dob && !Shared.isFutureDate(dob)) {
+      const birthScore = structure + (diag.birth_anchor_found ? 12 : 0) + (diag.birth_strategy && diag.birth_strategy !== 'none' ? 8 : 0);
+      if (birthScore > session.birth_score) {
+        session.data.date_of_birth = dob;
+        session.birth_score = birthScore;
+      }
+    }
+    return session.data;
+  }
+
+  function applyIdnycLivePartial(data) {
+    const d = data || {};
+    const els = visitorForm.elements;
+    if (d.visitor_first_name) {
+      els.visitor_first_name.value = d.visitor_first_name;
+      touchedFields.add('visitor_first_name');
+      setFieldError('visitor_first_name', '');
+    }
+    if (d.visitor_first_name && d.visitor_last_name && Object.prototype.hasOwnProperty.call(d, 'visitor_middle_name')) {
+      els.visitor_middle_name.value = d.visitor_middle_name || '';
+    }
+    if (d.visitor_last_name) {
+      els.visitor_last_name.value = d.visitor_last_name;
+      touchedFields.add('visitor_last_name');
+      setFieldError('visitor_last_name', '');
+    }
+    const dob = Shared.normalizeDateOfBirth(d.date_of_birth);
+    if (dob) {
+      els.date_of_birth.value = dob;
+      touchedFields.add('date_of_birth');
+      setFieldError('date_of_birth', '');
+    }
+  }
+
+  function finalizeIdnycLiveSession(reason) {
+    const session = idnycLiveSession;
+    if (!session || session.cancelled) return;
+    const data = { ...(session.data || {}) };
+    const complete = idnycAggregateComplete(data);
+    idnycLiveSession = null;
+    closeStateIdScan();
+    if (hasIdPrefillData(data)) {
+      applyIdPrefill(data, complete ? T[lang].idnycFound : T[lang].idnycUnreadable);
+      return;
+    }
+    setStatus(formStatus, T[lang].idnycUnreadable);
+    validateForm({ markAll: true, focus: false });
+  }
+
   function idnycSafeDiagnosticPayload(parsed, meta) {
     const d = parsed?.diagnostics || {};
     return {
@@ -1057,6 +1157,16 @@
       ocr_pass_count: Math.max(0, Math.min(5, Number(meta?.pass_count || 0) || 0)),
       ocr_structure_score: Math.max(0, Math.min(100, Number(meta?.structure_score || 0) || 0)),
       ocr_duration_ms: Math.max(0, Math.min(120000, Number(meta?.duration_ms || 0) || 0)),
+      capture_session_id: String(meta?.capture_session_id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48),
+      capture_attempt: Math.max(0, Math.min(10, Number(meta?.capture_attempt || 0) || 0)),
+      capture_max: Math.max(0, Math.min(10, Number(meta?.capture_max || 0) || 0)),
+      session_elapsed_ms: Math.max(0, Math.min(120000, Number(meta?.session_elapsed_ms || 0) || 0)),
+      aggregate_fields: {
+        first_name: meta?.aggregate_fields?.first_name === true,
+        middle_name: meta?.aggregate_fields?.middle_name === true,
+        last_name: meta?.aggregate_fields?.last_name === true,
+        birth_date: meta?.aggregate_fields?.birth_date === true
+      },
       file_type: String(meta?.file_type || '').slice(0, 40),
       file_size: Math.max(0, Math.min(10 * 1024 * 1024, Number(meta?.file_size || 0) || 0)),
       image_width: Math.max(0, Math.min(10000, Number(meta?.width || 0) || 0)),
@@ -1120,14 +1230,28 @@
   }
 
   async function runIdnycOcr(blob, captureMeta) {
+    const session = idnycLiveSession;
+    if (!session || session.cancelled) return { complete: true };
     try {
       if (!IdScan?.recognizeIdnycImageDetailed && !IdScan?.recognizeIdnycImage) throw new Error('ocr_unavailable');
-      updateIdScanStatus('ocr_processing');
+      updateIdScanStatus('ocr_processing', captureMeta || {});
       const result = IdScan?.recognizeIdnycImageDetailed
         ? await IdScan.recognizeIdnycImageDetailed(blob)
         : { text: await IdScan.recognizeIdnycImage(blob), engine: 'unknown', duration_ms: 0, text_detector_available: !!window.TextDetector };
-      let text = String(result?.text || '');
-      applyIdnycOcrText(text, {
+      if (idnycLiveSession !== session || session.cancelled) return { complete: true };
+      let rawText = String(result?.text || '');
+      const parsed = Shared.parseIdnycOcrText(rawText);
+      const aggregate = mergeIdnycLiveAttempt(session, parsed, {
+        structure_score: result?.structure_score || 0,
+        attempt: captureMeta?.attempt || 0
+      });
+      const aggregateFields = {
+        first_name: !!aggregate.visitor_first_name,
+        middle_name: !!aggregate.visitor_middle_name,
+        last_name: !!aggregate.visitor_last_name,
+        birth_date: !!Shared.normalizeDateOfBirth(aggregate.date_of_birth)
+      };
+      submitIdnycSafeDiagnostic(parsed, {
         source: 'kiosk_auto_capture',
         engine: result?.engine || 'unknown',
         variant: result?.variant || '',
@@ -1135,16 +1259,39 @@
         structure_score: result?.structure_score || 0,
         duration_ms: result?.duration_ms || 0,
         text_detector_available: result?.text_detector_available === true,
+        text_usable: !!(rawText && IdScan?.looksLikeUsableIdnycText?.(rawText)),
         file_type: blob?.type || '',
         file_size: blob?.size || 0,
         width: captureMeta?.width || 0,
-        height: captureMeta?.height || 0
+        height: captureMeta?.height || 0,
+        capture_session_id: session.session_id,
+        capture_attempt: captureMeta?.attempt || session.attempts,
+        capture_max: captureMeta?.maxCaptures || IdScan.IDNYC_LIVE_MAX_CAPTURES || 3,
+        session_elapsed_ms: Date.now() - session.started_at_ms,
+        aggregate_fields: aggregateFields
       });
-      text = '';
+      rawText = '';
+      applyIdnycLivePartial(aggregate);
+      const complete = idnycAggregateComplete(aggregate);
+      if (!complete) {
+        updateIdScanStatus('partial', {
+          foundName: aggregateFields.first_name && aggregateFields.last_name,
+          foundDob: aggregateFields.birth_date,
+          attempt: captureMeta?.attempt || session.attempts,
+          maxCaptures: captureMeta?.maxCaptures || IdScan.IDNYC_LIVE_MAX_CAPTURES || 3
+        });
+      }
+      return { complete };
     } catch {
-      closeStateIdScan();
-      setStatus(formStatus, T[lang].idnycUnreadable);
-      validateForm({ markAll: true, focus: false });
+      if (idnycLiveSession === session && !session.cancelled) {
+        updateIdScanStatus('partial', {
+          foundName: !!(session.data.visitor_first_name && session.data.visitor_last_name),
+          foundDob: !!Shared.normalizeDateOfBirth(session.data.date_of_birth),
+          attempt: captureMeta?.attempt || session.attempts,
+          maxCaptures: captureMeta?.maxCaptures || IdScan.IDNYC_LIVE_MAX_CAPTURES || 3
+        });
+      }
+      return { complete: false };
     }
   }
 
@@ -1155,11 +1302,20 @@
       showIdScanFallbacks(T[lang].cameraUnavailableManual);
       return;
     }
+    idnycLiveSession = newIdnycLiveSession();
     idScanSession = IdScan.createIdnycAutoCapture({
       video: idScanVideo,
+      maxCaptures: IdScan.IDNYC_LIVE_MAX_CAPTURES || 3,
+      timeoutMs: IdScan.IDNYC_LIVE_TIMEOUT_MS || 26000,
       onState: updateIdScanStatus,
       onCapture: runIdnycOcr,
-      onFailure: () => showIdScanFallbacks(T[lang].cameraUnavailableManual)
+      onComplete: () => finalizeIdnycLiveSession('complete'),
+      onTimeout: (detail) => finalizeIdnycLiveSession(detail?.reason || 'timeout'),
+      onFailure: () => {
+        const hasPartial = hasIdPrefillData(idnycLiveSession?.data || {});
+        if (hasPartial) finalizeIdnycLiveSession('camera_failure');
+        else showIdScanFallbacks(T[lang].cameraUnavailableManual);
+      }
     });
     await idScanSession.start();
   }

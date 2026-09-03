@@ -59,6 +59,9 @@
   const IDNYC_ANALYZE_INTERVAL_MS = 180;
   const IDNYC_STABLE_FRAMES = 4;
   const IDNYC_STABLE_MS = 650;
+  const IDNYC_LIVE_MAX_CAPTURES = 3;
+  const IDNYC_LIVE_TIMEOUT_MS = 26000;
+  const IDNYC_CAPTURE_COOLDOWN_MS = 450;
 
   const scriptPromises = new Map();
   let zxingReadyPromise = null;
@@ -868,52 +871,130 @@
   function createIdnycAutoCapture(options) {
     const opts = options || {};
     const video = opts.video;
+    const maxCaptures = Math.max(1, Math.min(5, Number(opts.maxCaptures || IDNYC_LIVE_MAX_CAPTURES) || IDNYC_LIVE_MAX_CAPTURES));
+    const timeoutMs = Math.max(5000, Math.min(60000, Number(opts.timeoutMs || IDNYC_LIVE_TIMEOUT_MS) || IDNYC_LIVE_TIMEOUT_MS));
     let stream = null;
     let scheduler = null;
+    let timeoutHandle = null;
     let active = false;
     let stableFrames = 0;
     let stableStartedAt = 0;
     let previousMetrics = null;
     let capturing = false;
+    let finishing = false;
+    let timedOut = false;
+    let startedAt = 0;
+    let captureCount = 0;
+    let cooldownUntil = 0;
 
     function state(name, detail) {
       try { opts.onState?.(name, detail || {}); } catch {}
     }
 
-    function stop() {
-      active = false;
+    function elapsedMs() {
+      return startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+    }
+
+    function resetStability() {
+      stableFrames = 0;
+      stableStartedAt = 0;
+      previousMetrics = null;
+    }
+
+    function haltCamera() {
       scheduler?.stop();
       scheduler = null;
       stopStream(stream, video);
       stream = null;
-      stableFrames = 0;
-      stableStartedAt = 0;
-      previousMetrics = null;
+    }
+
+    function stop() {
+      active = false;
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+      timeoutHandle = null;
+      haltCamera();
+      resetStability();
       capturing = false;
     }
 
+    function finish(kind, detail = {}) {
+      if (finishing) return;
+      finishing = true;
+      const info = {
+        captureCount,
+        maxCaptures,
+        elapsedMs: elapsedMs(),
+        reason: detail.reason || kind
+      };
+      stop();
+      if (kind === 'complete') {
+        try { opts.onComplete?.(info); } catch {}
+      } else {
+        try { opts.onTimeout?.(info); } catch {}
+      }
+    }
+
+    function markTimedOut() {
+      if (finishing || timedOut) return;
+      timedOut = true;
+      active = false;
+      haltCamera();
+      if (!capturing) finish('timeout', { reason: 'timeout' });
+    }
+
     async function captureGoodFrame(canvas) {
-      if (capturing || !active || !canvas || canvasLooksEmptyBlack(canvas)) return;
+      if (capturing || !active || finishing || !canvas || canvasLooksEmptyBlack(canvas)) return;
       capturing = true;
-      state('capturing');
+      const attempt = captureCount + 1;
+      state('capturing', { attempt, maxCaptures, elapsedMs: elapsedMs() });
       try {
         const blob = await canvasToBlob(canvas, 'image/jpeg', 0.88);
         if (!blob || blob.size <= 0) throw new Error('idnyc_capture_failed');
-        stop();
-        opts.onCapture?.(blob, { width: Number(canvas.width || 0), height: Number(canvas.height || 0), source: 'auto_capture' });
-      } catch {
+        captureCount = attempt;
+        const outcome = await opts.onCapture?.(blob, {
+          width: Number(canvas.width || 0),
+          height: Number(canvas.height || 0),
+          source: 'auto_capture',
+          attempt,
+          maxCaptures,
+          elapsedMs: elapsedMs()
+        });
+        if (finishing) return;
+        if (outcome?.complete === true) {
+          finish('complete', { reason: 'complete' });
+          return;
+        }
+        if (timedOut) {
+          finish('timeout', { reason: 'timeout' });
+          return;
+        }
+        if (captureCount >= maxCaptures) {
+          finish('timeout', { reason: 'max_captures' });
+          return;
+        }
+        if (!active) return;
         capturing = false;
-        state('positioning', { hint: 'holdSteady' });
+        resetStability();
+        cooldownUntil = Date.now() + IDNYC_CAPTURE_COOLDOWN_MS;
+        state('positioning', { hint: 'holdSteady', attempt: captureCount + 1, maxCaptures, elapsedMs: elapsedMs() });
+      } catch {
+        if (timedOut) {
+          finish('timeout', { reason: 'timeout' });
+          return;
+        }
+        capturing = false;
+        resetStability();
+        cooldownUntil = Date.now() + IDNYC_CAPTURE_COOLDOWN_MS;
+        state('positioning', { hint: 'holdSteady', attempt: captureCount + 1, maxCaptures, elapsedMs: elapsedMs() });
       }
     }
 
     async function analyzeFrame() {
-      if (!active || capturing) return;
+      if (!active || capturing || finishing || Date.now() < cooldownUntil) return;
       const canvas = drawVideoGuideCanvas(video, 'idnyc');
       if (!canvas) {
-        stableFrames = 0;
-        previousMetrics = null;
-        state('positioning', { hint: 'centerCard' });
+        resetStability();
+        state('positioning', { hint: 'centerCard', attempt: captureCount + 1, maxCaptures, elapsedMs: elapsedMs() });
         return;
       }
       const metrics = frameQuality(canvas);
@@ -922,7 +1003,7 @@
       if (!metrics.ok) {
         stableFrames = 0;
         stableStartedAt = 0;
-        state('positioning', { hint: metrics.reason });
+        state('positioning', { hint: metrics.reason, attempt: captureCount + 1, maxCaptures, elapsedMs: elapsedMs() });
         return;
       }
       if (stable) {
@@ -933,16 +1014,18 @@
         stableStartedAt = Date.now();
       }
       const stableMs = Date.now() - stableStartedAt;
-      state('stable', { stableFrames, stableMs, hint: 'holdSteady' });
+      state('stable', { stableFrames, stableMs, hint: 'holdSteady', attempt: captureCount + 1, maxCaptures, elapsedMs: elapsedMs() });
       if (stableFrames >= IDNYC_STABLE_FRAMES && stableMs >= IDNYC_STABLE_MS) {
         await captureGoodFrame(canvas);
       }
     }
 
     async function start() {
-      if (active) return;
+      if (active || finishing) return;
       active = true;
-      state('camera_starting');
+      startedAt = Date.now();
+      timeoutHandle = setTimeout(markTimedOut, timeoutMs);
+      state('camera_starting', { attempt: 1, maxCaptures, elapsedMs: 0 });
       try {
         stream = await startRearCamera(video);
         if (!active) {
@@ -950,11 +1033,12 @@
           stream = null;
           return;
         }
-        state('positioning', { hint: 'centerCard' });
+        state('positioning', { hint: 'centerCard', attempt: 1, maxCaptures, elapsedMs: elapsedMs() });
         scheduler = createFrameScheduler(video, analyzeFrame, IDNYC_ANALYZE_INTERVAL_MS);
         scheduler.start();
       } catch {
         stop();
+        finishing = true;
         state('failed', { reason: 'camera_unavailable' });
         opts.onFailure?.('camera_unavailable');
       }
@@ -1171,6 +1255,8 @@
     IDNYC_ANALYZE_INTERVAL_MS,
     IDNYC_STABLE_FRAMES,
     IDNYC_STABLE_MS,
+    IDNYC_LIVE_MAX_CAPTURES,
+    IDNYC_LIVE_TIMEOUT_MS,
     assetUrl,
     zxingReaderJsUrl,
     zxingReaderWasmUrl,
