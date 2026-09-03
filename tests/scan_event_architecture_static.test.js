@@ -117,6 +117,21 @@ test('physical classroom routing uses one supervised-lunch-aware effective room 
   assert.doesNotMatch(handler, /resolved\.current_period = resolved\.current_period \|\| periodId/);
 });
 
+test('first correct-room evidence outranks pre-first-IN OUT state in ClassSessionDO', () => {
+  const classDoEvent = between(
+    worker,
+    'if (path === "/scan_event" && req.method === "POST")',
+    'if (path === "/mark_first_in" && req.method === "POST")'
+  );
+  const firstInPos = classDoEvent.indexOf('if (!rec.firstInISO)');
+  const backPos = classDoEvent.indexOf('if (rec.out?.isOut)');
+  assert.ok(firstInPos >= 0, 'missing first-IN branch');
+  assert.ok(backPos >= 0, 'missing BACK branch');
+  assert.ok(firstInPos < backPos, 'first-IN must be resolved before BACK');
+  assert.match(classDoEvent, /cleared_pre_first_out/);
+  assert.match(classDoEvent, /rec\.out\.isOut = false/);
+});
+
 test('after-school first-home choice is made inside StudentLocationDO and canceled class prompts are finalized', () => {
   const locationDoEvent = between(worker, 'if (path === "/scan_event")', 'if (path === "/update")');
   assert.match(locationDoEvent, /mode === "after_school_class"/);

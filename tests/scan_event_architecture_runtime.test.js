@@ -100,6 +100,47 @@ test('ClassSessionDO makes the second class scan a two-step event and finalizes 
   assert.equal(duplicate.json.result.action, 'class_out');
 });
 
+
+test('wrong-room OUT before first arrival is cleared by the first correct-room scan and cannot remain derived OUT from the bell', async () => {
+  const { ClassSessionDO, effectiveClassSessionOut_ } = await loadWorker();
+  const state = mockState();
+  const obj = new ClassSessionDO(state, {});
+
+  // Mirrors Juliet: Period starts, wrong-room evidence arrives first, so the
+  // scheduled class is OUT from the bell even though firstInISO does not exist.
+  let r = await doPost(obj, '/physical_evidence', {
+    osis:'juliet',
+    expected:false,
+    whenISO:'2026-09-03T14:03:29.000Z',
+    defaultOutSinceISO:'2026-09-03T14:01:00.000Z',
+    reason:'class_denied',
+    source:'scan_evidence'
+  });
+  assert.equal(r.json.isOut, true);
+  assert.equal(r.json.outSinceISO, '2026-09-03T14:01:00.000Z');
+  assert.equal(r.json.firstInISO, null);
+
+  // First valid scheduled-room scan must be FIRST, not BACK.
+  r = await doPost(obj, '/scan_event', {
+    osis:'juliet',
+    event_id:'juliet-room-206',
+    whenISO:'2026-09-03T14:06:37.000Z'
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.result.action, 'class_first');
+  assert.equal(r.json.result.cleared_pre_first_out, true);
+
+  const raw = await state.storage.get('state');
+  const rec = raw.students.juliet;
+  assert.equal(rec.firstInISO, '2026-09-03T14:06:37.000Z');
+  assert.equal(rec.out.isOut, false);
+  assert.equal(rec.out.outSinceISO, undefined);
+
+  const effective = effectiveClassSessionOut_(rec, '2026-09-03T14:01:00.000Z');
+  assert.equal(effective.isOut, false);
+  assert.equal(effective.derived, false);
+});
+
 test('LogBufferDO queues a stable log_id exactly once across retries', async () => {
   const { LogBufferDO } = await loadWorker();
   const state = mockState();
@@ -131,6 +172,37 @@ test('Bathroom state self-heals when a newer physical scan is at a different bat
   assert.equal(saved.zone, 'bathroom');
   assert.equal(saved.loc, 'Bathroom (Second Floor)');
   assert.equal(saved.bathroom_visits, 2);
+});
+
+test('ClassSession read repairs legacy expected-room evidence that was missing firstInISO', async () => {
+  const { ClassSessionDO, effectiveClassSessionOut_ } = await loadWorker();
+  const state = mockState();
+  await state.storage.put('state', {
+    v:1,
+    updatedAtISO:new Date().toISOString(),
+    students:{
+      juliet:{
+        osis:'juliet',
+        lastExpectedPhysicalEvidenceISO:'2026-09-03T14:06:37.000Z',
+        out:{ isOut:false, source:'scan_event' },
+        lastEventISO:'2026-09-03T14:06:37.000Z'
+      }
+    }
+  });
+  const obj = new ClassSessionDO(state, {});
+
+  const response = await obj.fetch(new Request('https://do/state'));
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.students.juliet.firstInISO, '2026-09-03T14:06:37.000Z');
+  assert.equal(body.students.juliet.firstInSource, 'legacy_expected_physical_repair');
+
+  const effective = effectiveClassSessionOut_(body.students.juliet, '2026-09-03T14:01:00.000Z');
+  assert.equal(effective.isOut, false);
+  assert.equal(effective.derived, false);
+
+  const persisted = await state.storage.get('state');
+  assert.equal(persisted.students.juliet.firstInISO, '2026-09-03T14:06:37.000Z');
 });
 
 test('ClassSession OUT clock starts once and later away evidence does not reset it', async () => {
