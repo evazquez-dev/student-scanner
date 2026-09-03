@@ -42,7 +42,19 @@ test('Teacher Attendance submit validates authoritative class membership', () =>
   assert.match(worker, /student_not_in_selected_roster/);
   assert.match(worker, /advisorLabel/);
   assert.match(worker, /getSupervisedLunchAssignmentsForTeacher_/);
-  assert.match(teacher, /advisor: UI_LUNCH_ADVISOR_LABEL/);
+  assert.match(teacher, /advisor: selectedAdvisorLabelForApi\(periodLocal\)/);
+});
+
+test('advisor UI labels resolve to physical attendance buckets for reads and writes', () => {
+  assert.match(teacherRead, /function buildAdvisorUiMaps/);
+  assert.match(teacherRead, /advisor_to_room: advisorMaps\.advisor_to_room/);
+  assert.match(teacher, /TEACHER_OPTS_CACHE\?\.advisor_to_room/);
+  assert.match(teacher, /function selectedAdvisorLabelForApi/);
+  assert.match(teacher, /const advisor = selectedAdvisorLabelForApi\(period\)/);
+  assert.match(worker, /const physicalRoom = String\(CLASSES_MEM\?\.classes/);
+  assert.match(worker, /matchedPhysicalRoom/);
+  assert.match(teacherRead, /legacyRoom = advisorLabel/);
+  assert.match(teacherRead, /attendanceRows\.push\(\.\.\.legacyQuery\.rows\)/);
 });
 
 test('Teacher ClassSession toggle is server-gated to today and active-or-arrival periods', () => {

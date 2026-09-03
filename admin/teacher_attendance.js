@@ -1535,7 +1535,8 @@ let TEACHER_OPTS_CACHE = null;
 
 const roomLabelEl = document.querySelector('label[for="roomInput"]');
 
-// For lunch periods we keep the picked advisor label so we can display it.
+// Advisor names are UI labels. Backend attendance/ClassSession buckets always use physical rooms.
+let UI_ADVISOR_LABEL = '';
 let UI_LUNCH_ADVISOR_LABEL = '';
 
 function periodKey(p){
@@ -1573,18 +1574,33 @@ function isOutInOpenPeriod(periodLocal){
 function resolveRoomForApi(periodLocal, pickedLabel){
   const p = periodKey(periodLocal);
   const picked = String(pickedLabel||'').trim();
+  UI_ADVISOR_LABEL = '';
   UI_LUNCH_ADVISOR_LABEL = '';
 
   if (!picked) return '';
+
+  if (isAdvisorPeriod(p)) {
+    UI_ADVISOR_LABEL = picked;
+    const map = TEACHER_OPTS_CACHE?.advisor_to_room?.[p] || {};
+    // Fail closed instead of silently using the advisor label as an AttendanceDO room bucket.
+    return String(map?.[picked] || '').trim();
+  }
 
   if (isLunchAdvisorUiPeriod(p)) {
     UI_LUNCH_ADVISOR_LABEL = picked;
     const map = TEACHER_OPTS_CACHE?.lunch_advisor_to_room?.[p] || {};
     const resolved = String(map?.[picked] || '').trim();
-    return resolved || picked; // fallback if map missing
+    return resolved || picked; // existing lunch fallback
   }
 
   return picked;
+}
+
+function selectedAdvisorLabelForApi(periodLocal){
+  const p = periodKey(periodLocal);
+  if (isAdvisorPeriod(p)) return String(UI_ADVISOR_LABEL || '').trim();
+  if (isLunchAdvisorUiPeriod(p)) return String(UI_LUNCH_ADVISOR_LABEL || '').trim();
+  return '';
 }
 
 function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
@@ -2162,7 +2178,7 @@ async function toggleClassSessionOutIn({ date, room, periodLocal, osis }){
       room,
       periodLocal,
       osis,
-      advisor: UI_LUNCH_ADVISOR_LABEL || ''
+      advisor: selectedAdvisorLabelForApi(periodLocal)
     })
   });
   const data = await r.json().catch(()=>null);
@@ -3322,10 +3338,10 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     lastMergedRows.push(r);
   }
 
-  const roomDisplay =
-    (isLunchAdvisorUiPeriod(period) && UI_LUNCH_ADVISOR_LABEL)
-      ? (UI_LUNCH_ADVISOR_LABEL === room ? UI_LUNCH_ADVISOR_LABEL : `${UI_LUNCH_ADVISOR_LABEL} (${room})`)
-      : room;
+  const advisorDisplay = selectedAdvisorLabelForApi(period);
+  const roomDisplay = advisorDisplay
+    ? (advisorDisplay === room ? advisorDisplay : `${advisorDisplay} (${room})`)
+    : room;
 
   subtitleRight.textContent =
     `${roomDisplay} • P${period} • ${whenType} • ${merged.length} students` +
@@ -3390,7 +3406,7 @@ async function submitChanges(){
         room,
         periodLocal,
         whenType,
-        advisor: UI_LUNCH_ADVISOR_LABEL || '',
+        advisor: selectedAdvisorLabelForApi(periodLocal),
         changes
       })
     });
@@ -3587,8 +3603,8 @@ async function refreshClassOnce(){
   tickRefreshLabel();
   setStatus(true, 'Loading…');
 
-  // For lunch advisor views, pass the advisor label so the Worker can filter students correctly
-  const advisor = UI_LUNCH_ADVISOR_LABEL ? String(UI_LUNCH_ADVISOR_LABEL).trim() : '';
+  // Advisor/FM and lunch views pass the UI label separately while room stays physical.
+  const advisor = selectedAdvisorLabelForApi(period);
 
   const [snap, snapView, computed] = await Promise.all([
     fetchRosterSnapshotMap(),

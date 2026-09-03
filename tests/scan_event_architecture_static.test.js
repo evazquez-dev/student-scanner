@@ -109,7 +109,12 @@ test('physical classroom routing uses one supervised-lunch-aware effective room 
   assert.match(kiosk, /effectivePhysicalScheduleSlotForOsis_/);
   assert.match(kiosk, /const nextSlot = effectiveSlot\(nextId\)/);
   assert.match(kiosk, /shouldRoom:\s*nextRoom/);
+  assert.match(kiosk, /course:\s*slot\?\.course/);
   assert.doesNotMatch(kiosk, /perStudent\[nextId\]/);
+
+  const handler = between(worker, 'async function handleAuthoritativeScanEvent_', '__name(handleAuthoritativeScanEvent_');
+  assert.match(handler, /applyEffectiveKioskContextToResolved_\(resolved, kioskInfo\)/);
+  assert.doesNotMatch(handler, /resolved\.current_period = resolved\.current_period \|\| periodId/);
 });
 
 test('after-school first-home choice is made inside StudentLocationDO and canceled class prompts are finalized', () => {

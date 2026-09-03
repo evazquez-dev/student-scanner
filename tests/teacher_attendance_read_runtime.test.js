@@ -30,7 +30,7 @@ class FakeKV {
 }
 
 class FakeAttendanceNamespace {
-  constructor(rows = []) { this.rows = rows; this.names = []; }
+  constructor(rows = []) { this.rows = rows; this.names = []; this.queries = []; }
   idFromName(name) { this.names.push(String(name)); return String(name); }
   get(name) {
     const self = this;
@@ -38,6 +38,11 @@ class FakeAttendanceNamespace {
       async fetch(input) {
         const url = new URL(typeof input === 'string' ? input : input.url);
         if (url.pathname === '/query') {
+          self.queries.push({
+            date: url.searchParams.get('date') || '',
+            period: url.searchParams.get('period') || '',
+            room: url.searchParams.get('room') || ''
+          });
           return new Response(JSON.stringify({ ok: true, rows: self.rows }), { status: 200, headers: { 'content-type': 'application/json' } });
         }
         return new Response('not_found', { status: 404 });
@@ -91,8 +96,8 @@ function seed({ practice = false } = {}) {
     },
     student_classes_v1: {
       classes: {
-        '111111111': { '1': '301', '2': '302', FM1: 'Advisory Alpha' },
-        '222222222': { '1': '301', FM1: 'Advisory Alpha' }
+        '111111111': { '1': '301', '2': '302', FM1: '310' },
+        '222222222': { '1': '301', FM1: '310' }
       },
       courses: {
         '111111111': { '1': 'ENG100.1', '2': 'SCI100.1', FM1: 'Advisory Alpha' },
@@ -102,6 +107,7 @@ function seed({ practice = false } = {}) {
     locs_v1: { locations: [
       { name: '302', type: 'class' },
       { name: '301', type: 'class' },
+      { name: '310', type: 'class' },
       { name: 'Hallway', type: 'hallway' }
     ] },
     att_cfg_v1: { chairs_reminder_enabled: true, webapp_schedule_mode: 'special' }
@@ -140,13 +146,14 @@ test('Teacher Attendance options are served by the modular read route with perio
   assert.equal(response.status, 200);
   const data = await json(response);
   assert.equal(data.ok, true);
-  assert.deepEqual(data.rooms, ['301', '302']);
+  assert.deepEqual(data.rooms, ['301', '302', '310']);
   assert.deepEqual(data.periods, ['1', '2']);
   assert.deepEqual(data.local_only_periods, ['2']);
   assert.equal(data.period_map_ts, 12345);
   assert.equal(data.current_period_local, '1');
   assert.equal(data.last_period_local, '2');
   assert.deepEqual(data.advisors_by_period.FM1, ['Advisory Alpha']);
+  assert.equal(data.advisor_to_room.FM1['Advisory Alpha'], '310');
   assert.equal(data.chairs_reminder_enabled, true);
 });
 
@@ -165,6 +172,33 @@ test('meeting preview computes the same scheduled roster and attendance-code sem
     ['222222222', 'A', '1051']
   ]);
   assert.equal(data.rows[0].source, 'teacher');
+});
+
+test('advisor preview uses the physical room bucket while filtering the roster by advisor label', async () => {
+  const { handleTeacherAttendanceReadRequest } = await loadRoute();
+  const env = makeEnv();
+  const date = todayNY();
+  const response = await handleTeacherAttendanceReadRequest(request(`/admin/meeting/preview?date=${date}&room=310&period=FM1&advisor=Advisory%20Alpha&when=end&force_compute=1`), env, {});
+  assert.equal(response.status, 200);
+  const data = await json(response);
+  assert.equal(data.ok, true);
+  assert.equal(data.scheduled_count, 2);
+  assert.deepEqual(env.ATTENDANCE_DO.queries.slice(-2), [
+    { date, period: 'FM1', room: '310' },
+    { date, period: 'FM1', room: 'Advisory Alpha' }
+  ]);
+});
+
+test('advisor preview also resolves a physical room correctly without an advisor label for scheduled processing', async () => {
+  const { handleTeacherAttendanceReadRequest } = await loadRoute();
+  const env = makeEnv();
+  const date = todayNY();
+  const response = await handleTeacherAttendanceReadRequest(request(`/admin/meeting/preview?date=${date}&room=310&period=FM1&when=end&force_compute=1`), env, {});
+  assert.equal(response.status, 200);
+  const data = await json(response);
+  assert.equal(data.ok, true);
+  assert.equal(data.scheduled_count, 2);
+  assert.deepEqual(env.ATTENDANCE_DO.queries.at(-1), { date, period: 'FM1', room: '310' });
 });
 
 test('ClassSession state reads use Practice-isolated DO names and preserve the existing state payload', async () => {

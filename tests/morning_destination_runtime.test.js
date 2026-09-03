@@ -21,7 +21,7 @@ function envFixture(){
   };
   const classes = {
     classes:{
-      '1001':{ 'ADV':'405', '1':'211', '2':'316' },
+      '1001':{ 'ADV':'310', '1':'211', '2':'316' },
       '1002':{ '1':'212', '2':'317' }
     },
     courses:{
@@ -56,7 +56,7 @@ test('before the first bell, morning guidance skips roomless Period 0 and sends 
   assert.equal(cls, null);
   const destination = await morningDestinationForOsis_(env, '1001', cls, now);
   assert.equal(destination.periodId, 'ADV');
-  assert.equal(destination.room, '405');
+  assert.equal(destination.room, '310');
   assert.equal(destination.reason, 'next_assigned_period');
 });
 
@@ -70,7 +70,7 @@ test('while roomless Period 0 is active, morning guidance still advances to Advi
   assert.equal(cls.room, null);
   const destination = await morningDestinationForOsis_(env, '1001', cls, now);
   assert.equal(destination.periodId, 'ADV');
-  assert.equal(destination.room, '405');
+  assert.equal(destination.room, '310');
   assert.equal(destination.reason, 'next_assigned_period');
 });
 
@@ -83,7 +83,7 @@ test('while Advisory is active, morning guidance stays on the Advisory room', as
   assert.equal(cls.periodId, 'ADV');
   const destination = await morningDestinationForOsis_(env, '1001', cls, now);
   assert.equal(destination.periodId, 'ADV');
-  assert.equal(destination.room, '405');
+  assert.equal(destination.room, '310');
   assert.equal(destination.reason, 'active_period');
 });
 
@@ -96,4 +96,31 @@ test('a student without Advisory skips it and receives the next assigned period 
   assert.equal(destination.periodId, '1');
   assert.equal(destination.room, '212');
   assert.equal(destination.reason, 'next_assigned_period');
+});
+
+
+test('7:45 Room 310 Advisory scan overwrites stale Period 0 response metadata with effective ADV context', async () => {
+  const { kioskAccessForOsis, applyEffectiveKioskContextToResolved_ } = await loadWorkerFresh();
+  const env = envFixture();
+  const now = 7 * 60 + 45;
+
+  const kioskInfo = await kioskAccessForOsis(env, '1001', '310', 30, now, '2026-09-03');
+  assert.equal(kioskInfo.mode, 'in_class');
+  assert.equal(kioskInfo.allowed, true);
+  assert.equal(kioskInfo.periodLocal, 'ADV');
+  assert.equal(kioskInfo.shouldRoom, '310');
+  assert.equal(kioskInfo.course, 'Advisory');
+
+  const resolved = {
+    current_period: '0',
+    current_room: null,
+    current_course_section: null,
+    class_now: 'Period 0'
+  };
+  applyEffectiveKioskContextToResolved_(resolved, kioskInfo);
+
+  assert.equal(resolved.current_period, 'ADV');
+  assert.equal(resolved.current_room, '310');
+  assert.equal(resolved.current_course_section, 'Advisory');
+  assert.equal(resolved.class_now, '310');
 });
