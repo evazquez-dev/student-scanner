@@ -27,7 +27,7 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
   assert.match(labHtml, /Raw scanned ID data and images are not saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-15'/, 'Scanner Lab should expose Build 15');
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-16'/, 'Scanner Lab should expose Build 16');
 }
 
 function asciiBytes(text) {
@@ -745,6 +745,12 @@ function syntheticMultiAamvaResult(subfiles, options) {
   assert.doesNotMatch(labHtml, /id="idnycUploadInput"[^>]+capture=/, 'Existing-image upload must not force the camera');
   assert.match(labHtml, /id="idnycPhotoInput"[^>]+capture="environment"/, 'IDNYC lab should also allow rear-camera capture');
   assert.match(labJs, /IdScan\.recognizeIdnycImage\(idnyc\.file\)/, 'IDNYC lab production test should call the production OCR adapter');
+  assert.match(adapter, /function\s+idnycTesseractEnsemble/, 'Production IDNYC OCR should use a multi-pass Tesseract ensemble');
+  assert.match(adapter, /center_card_contrast/, 'IDNYC OCR ensemble should include a centered-card contrast pass');
+  assert.match(adapter, /full_contrast/, 'IDNYC OCR ensemble should include a full-frame contrast pass');
+  assert.match(adapter, /idnycOcrStructureScore/, 'IDNYC OCR ensemble should rank passes by safe card structure');
+  assert.match(labHtml, /id="idnycProdVariant"/, 'IDNYC Lab should show the selected OCR variant');
+  assert.match(labHtml, /id="idnycProdPasses"/, 'IDNYC Lab should show OCR pass count');
   assert.match(labJs, /Shared\.parseIdnycOcrText/, 'IDNYC lab should parse OCR through the production parser');
   assert.match(labJs, /forceTesseractIdnyc/, 'IDNYC lab should support a forced-Tesseract comparison');
   assert.match(labHtml, /idnyc_diagnostics\.js/, 'IDNYC Lab should load the lab-only layout-aware parser');

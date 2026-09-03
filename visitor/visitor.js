@@ -1053,6 +1053,9 @@
     return {
       source: String(meta?.source || 'visitor_kiosk').slice(0, 40),
       ocr_engine: String(meta?.engine || 'unknown').slice(0, 30),
+      ocr_variant: String(meta?.variant || '').slice(0, 40),
+      ocr_pass_count: Math.max(0, Math.min(5, Number(meta?.pass_count || 0) || 0)),
+      ocr_structure_score: Math.max(0, Math.min(100, Number(meta?.structure_score || 0) || 0)),
       ocr_duration_ms: Math.max(0, Math.min(120000, Number(meta?.duration_ms || 0) || 0)),
       file_type: String(meta?.file_type || '').slice(0, 40),
       file_size: Math.max(0, Math.min(10 * 1024 * 1024, Number(meta?.file_size || 0) || 0)),
@@ -1127,6 +1130,9 @@
       applyIdnycOcrText(text, {
         source: 'kiosk_auto_capture',
         engine: result?.engine || 'unknown',
+        variant: result?.variant || '',
+        pass_count: result?.pass_count || 0,
+        structure_score: result?.structure_score || 0,
         duration_ms: result?.duration_ms || 0,
         text_detector_available: result?.text_detector_available === true,
         file_type: blob?.type || '',
@@ -1171,6 +1177,9 @@
       applyIdnycOcrText(text, {
         source: 'kiosk_photo_fallback',
         engine: result?.engine || 'unknown',
+        variant: result?.variant || '',
+        pass_count: result?.pass_count || 0,
+        structure_score: result?.structure_score || 0,
         duration_ms: result?.duration_ms || 0,
         text_detector_available: result?.text_detector_available === true,
         file_type: file.type || '',

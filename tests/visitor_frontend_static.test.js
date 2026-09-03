@@ -271,12 +271,12 @@ function sectionBetween(src, startNeedle, endNeedle) {
   assert.match(idScan, /metricsStable/, 'IDNYC capture should require stability before OCR');
   const idnycAutoSection = sectionBetween(idScan, 'function createIdnycAutoCapture', 'async function readTextWithTextDetector');
   assert.doesNotMatch(idnycAutoSection, /readTextWithTesseract|recognizeIdnycImage/, 'IDNYC OCR must not run continuously on live frames');
-  const tesseractSection = sectionBetween(idScan, 'async function readTextWithTesseract', 'async function recognizeIdnycImage');
-  assert.match(tesseractSection, /workerPath:\s*assetUrl\(`vendor\/tesseract\.js\/\$\{VERSIONS\.tesseract\}\/worker\.min\.js`\)/, 'Tesseract worker should be loaded locally');
-  assert.match(tesseractSection, /corePath:\s*assetUrl\(`vendor\/tesseract\.js-core\/\$\{VERSIONS\.tesseractCore\}\/tesseract-core-lstm\.wasm\.js`\)/, 'Tesseract core should be loaded locally');
-  assert.match(tesseractSection, /langPath:\s*assetUrl\(`vendor\/tesseract\.js-data\/eng\/\$\{VERSIONS\.tesseractEngData\}`\)/, 'Tesseract language data should be loaded locally');
-  assert.match(tesseractSection, /cacheMethod:\s*'none'/, 'OCR should not store ID-specific OCR data in browser caches');
-  assert.doesNotMatch(tesseractSection, /https?:\/\//, 'OCR adapter must not point to external OCR assets');
+  const tesseractWorkerSection = sectionBetween(idScan, 'async function createIdnycTesseractWorker', 'async function readTextWithTesseract');
+  assert.match(tesseractWorkerSection, /workerPath:\s*assetUrl\(`vendor\/tesseract\.js\/\$\{VERSIONS\.tesseract\}\/worker\.min\.js`\)/, 'Tesseract worker should be loaded locally');
+  assert.match(tesseractWorkerSection, /corePath:\s*assetUrl\(`vendor\/tesseract\.js-core\/\$\{VERSIONS\.tesseractCore\}\/tesseract-core-lstm\.wasm\.js`\)/, 'Tesseract core should be loaded locally');
+  assert.match(tesseractWorkerSection, /langPath:\s*assetUrl\(`vendor\/tesseract\.js-data\/eng\/\$\{VERSIONS\.tesseractEngData\}`\)/, 'Tesseract language data should be loaded locally');
+  assert.match(tesseractWorkerSection, /cacheMethod:\s*'none'/, 'OCR should not store ID-specific OCR data in browser caches');
+  assert.doesNotMatch(tesseractWorkerSection, /https?:\/\//, 'OCR adapter must not point to external OCR assets');
   assert.match(idScan, /TextDetector/, 'IDNYC path may use local browser text detection as a fast first pass');
   assert.match(idScan, /looksLikeUsableIdnycText/, 'TextDetector fast pass should require usable IDNYC text before skipping OCR fallback');
   assert.match(idScan, /readTextWithTesseract/, 'IDNYC path must include bundled local OCR fallback');

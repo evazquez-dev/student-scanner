@@ -221,6 +221,19 @@ function assertNoForbidden(obj) {
   assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nDOB 01/02/1990'), true);
   assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nEXPIRATION DATE\n01/02/2031'), false);
   assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nDATE OF BIRTH\nunreadable\nEXPIRATION DATE\n01/02/2031'), false);
+  const strongScore = IdScan.idnycOcrStructureScore([
+    'ID NUMBER',
+    'NAME',
+    'SAMPLE',
+    'WENDY S',
+    'DATE OF BIRTH',
+    'EXPIRATION DATE',
+    '03/16/1988',
+    '03/16/2031'
+  ].join('\n'));
+  const weakScore = IdScan.idnycOcrStructureScore('random text\n12345\nnoise');
+  assert.equal(strongScore > weakScore, true);
+  assert.equal(strongScore >= 22, true);
 }
 
 {

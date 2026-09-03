@@ -1021,27 +1021,114 @@
     return tesseractReadyPromise;
   }
 
-  async function readTextWithTesseract(blob) {
+  function idnycOcrStructureScore(text) {
+    const raw = String(text || '');
+    if (!raw.trim()) return 0;
+    const lines = raw.replace(/\r/g, '\n').split('\n').map((line) => String(line || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+    let score = 0;
+    if (lines.some((line) => /^(?:N\s*A\s*M\s*E|N4ME|NANE|NAMF|NOMBRE)\b/i.test(line))) score += 7;
+    if (lines.some((line) => /^(?:D[O0]B|D\.?\s*[O0]\.?\s*B\.?|DATE\s*[O0]F\s*B[I1]RTH|FECHA\s+DE\s+NACIMIENTO)\b/i.test(line))) score += 7;
+    if (lines.some((line) => /^(?:EXPIRATION\s*DATE|EXPIRAT[I1][O0]N\s*DATE|EXPIRES?|EXP\.?\s*DATE)\b/i.test(line))) score += 4;
+    if (lines.some((line) => /^(?:ID\s*(?:NUMBER|NUM8ER|N[O0]\.?|#))\b/i.test(line))) score += 3;
+    if (lines.some((line) => /^(?:NYC\s*IDENTIFICATION\s*CARD|IDNYC)\b/i.test(line))) score += 2;
+    const dateLike = /(?:[0-9OQDILSZGB|]{1,4}\s*[\/\.\-]\s*[0-9OQDILSZGB|]{1,2}\s*[\/\.\-]\s*[0-9OQDILSZGB|]{2,4}|[0-9OQDILSZGB|]{8})/i;
+    const dateCount = lines.reduce((n, line) => n + (dateLike.test(line) ? 1 : 0), 0);
+    score += Math.min(6, dateCount * 3);
+    const alphaCount = lines.reduce((n, line) => {
+      const cleaned = line.replace(/[^A-Za-z .,'’\-]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (cleaned.length < 2 || cleaned.length > 80) return n;
+      if (/IDNYC|NEW YORK|CARD|DATE|BIRTH|ADDRESS|HEIGHT|EYES|SEX|EXPIR|ISSU|NUMBER/i.test(cleaned)) return n;
+      return /^[A-Za-z][A-Za-z .,'’\-]+$/.test(cleaned) ? n + 1 : n;
+    }, 0);
+    score += Math.min(4, alphaCount);
+    if (looksLikeUsableIdnycText(raw)) score += 6;
+    return score;
+  }
+
+  async function createIdnycTesseractWorker() {
     const tesseract = await prepareTesseract();
+    const worker = await tesseract.createWorker('eng', 1, {
+      workerPath: assetUrl(`vendor/tesseract.js/${VERSIONS.tesseract}/worker.min.js`),
+      corePath: assetUrl(`vendor/tesseract.js-core/${VERSIONS.tesseractCore}/tesseract-core-lstm.wasm.js`),
+      langPath: assetUrl(`vendor/tesseract.js-data/eng/${VERSIONS.tesseractEngData}`),
+      cacheMethod: 'none',
+      gzip: true,
+      workerBlobURL: true,
+      logger: function () {}
+    });
+    if (typeof worker.setParameters === 'function') {
+      await worker.setParameters({
+        tessedit_pageseg_mode: tesseract.PSM?.SPARSE_TEXT || '11',
+        user_defined_dpi: '300'
+      });
+    }
+    return worker;
+  }
+
+  async function readTextWithTesseract(blob) {
     let worker = null;
     try {
-      worker = await tesseract.createWorker('eng', 1, {
-        workerPath: assetUrl(`vendor/tesseract.js/${VERSIONS.tesseract}/worker.min.js`),
-        corePath: assetUrl(`vendor/tesseract.js-core/${VERSIONS.tesseractCore}/tesseract-core-lstm.wasm.js`),
-        langPath: assetUrl(`vendor/tesseract.js-data/eng/${VERSIONS.tesseractEngData}`),
-        cacheMethod: 'none',
-        gzip: true,
-        workerBlobURL: true,
-        logger: function () {}
-      });
-      if (typeof worker.setParameters === 'function') {
-        await worker.setParameters({
-          tessedit_pageseg_mode: tesseract.PSM?.SPARSE_TEXT || '11',
-          user_defined_dpi: '300'
-        });
-      }
+      worker = await createIdnycTesseractWorker();
       const result = await worker.recognize(blob);
       return String(result?.data?.text || '');
+    } finally {
+      try { await worker?.terminate?.(); } catch {}
+    }
+  }
+
+  function idnycCenteredCardCropCanvas(source) {
+    if (!source?.width || !source?.height || typeof document === 'undefined') return null;
+    const cardAspect = 1.586;
+    const sw = Math.max(1, Math.round(source.width * 0.94));
+    const sh = Math.max(1, Math.min(source.height, Math.round(sw / cardAspect)));
+    const sx = Math.max(0, Math.round((source.width - sw) / 2));
+    const sy = Math.max(0, Math.round((source.height - sh) / 2));
+    const outW = 1800;
+    const outH = Math.max(1, Math.round(outW / cardAspect));
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, outW, outH);
+    ctx.drawImage(source, sx, sy, sw, sh, 0, 0, outW, outH);
+    return canvasLooksEmptyBlack(canvas) ? null : canvas;
+  }
+
+  async function idnycTesseractEnsemble(blob) {
+    const worker = await createIdnycTesseractWorker();
+    const candidates = [];
+    try {
+      async function run(input, variant) {
+        const result = await worker.recognize(input);
+        const text = String(result?.data?.text || '');
+        const score = idnycOcrStructureScore(text);
+        candidates.push({ text, variant, score });
+        return { text, variant, score };
+      }
+
+      let best = await run(blob, 'original');
+      if (best.score >= 22) return { ...best, pass_count: 1 };
+
+      let source = null;
+      try { source = await imageBlobToCanvas(blob); } catch {}
+      if (source) {
+        const crop = idnycCenteredCardCropCanvas(source);
+        if (crop) {
+          const cropContrast = processedCanvas(crop, 'contrast');
+          const cropBlob = await canvasToBlob(cropContrast, 'image/jpeg', 0.92);
+          const candidate = await run(cropBlob, 'center_card_contrast');
+          if (candidate.score > best.score) best = candidate;
+          if (best.score >= 22) return { ...best, pass_count: candidates.length };
+        }
+
+        const fullContrast = processedCanvas(source, 'contrast');
+        const fullBlob = await canvasToBlob(fullContrast, 'image/jpeg', 0.92);
+        const candidate = await run(fullBlob, 'full_contrast');
+        if (candidate.score > best.score) best = candidate;
+      }
+      return { ...best, pass_count: candidates.length };
     } finally {
       try { await worker?.terminate?.(); } catch {}
     }
@@ -1052,11 +1139,19 @@
     const started = Date.now();
     let text = await readTextWithTextDetector(blob);
     if (looksLikeUsableIdnycText(text)) {
-      return { text, engine: 'text_detector', duration_ms: Date.now() - started, text_detector_available: !!root.TextDetector };
+      return { text, engine: 'text_detector', variant: 'text_detector', pass_count: 1, structure_score: idnycOcrStructureScore(text), duration_ms: Date.now() - started, text_detector_available: !!root.TextDetector };
     }
     text = '';
-    text = await readTextWithTesseract(blob);
-    return { text, engine: 'tesseract', duration_ms: Date.now() - started, text_detector_available: !!root.TextDetector };
+    const ensemble = await idnycTesseractEnsemble(blob);
+    return {
+      text: ensemble.text,
+      engine: 'tesseract',
+      variant: ensemble.variant || 'original',
+      pass_count: Number(ensemble.pass_count || 1),
+      structure_score: Number(ensemble.score || 0),
+      duration_ms: Date.now() - started,
+      text_detector_available: !!root.TextDetector
+    };
   }
 
   async function recognizeIdnycImage(blob) {
@@ -1099,6 +1194,7 @@
     createIdnycAutoCapture,
     frameQuality,
     looksLikeUsableIdnycText,
+    idnycOcrStructureScore,
     recognizeIdnycImage,
     recognizeIdnycImageDetailed
   };

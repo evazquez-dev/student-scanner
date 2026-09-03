@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-09-03-15';
+  const LAB_BUILD = '2026-09-03-16';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -151,6 +151,9 @@
     dimensions: '-',
     productionText: '',
     productionEngine: 'unknown',
+    productionVariant: '-',
+    productionPassCount: 0,
+    productionStructureScore: 0,
     productionParsed: null,
     productionLabParsed: null,
     productionMs: 0,
@@ -1476,6 +1479,11 @@
     const presence = parsedPresence(parsed);
     setText(`${prefix}Run`, yesNo(ran));
     setText(`${prefix}Ms`, ran ? `${Math.round(ms)} ms` : '-');
+    if (isProd) {
+      setText('idnycProdVariant', idnyc.productionVariant || '-');
+      setText('idnycProdPasses', Number(idnyc.productionPassCount || 0));
+      setText('idnycProdStructureScore', Number(idnyc.productionStructureScore || 0));
+    }
     setText(`${prefix}TextLength`, text.length);
     setText(`${prefix}Usable`, yesNo(!!(text && IdScan?.looksLikeUsableIdnycText?.(text))));
     setText(`${prefix}Parser`, yesNo(!!parsed?.ok));
@@ -1555,6 +1563,9 @@
     return {
       source: isProd ? 'scanner_lab_production' : 'scanner_lab_forced_tesseract',
       ocr_engine: isProd ? String(idnyc.productionEngine || 'production_path') : 'forced_tesseract',
+      ocr_variant: isProd ? String(idnyc.productionVariant || '').slice(0, 40) : 'forced_original',
+      ocr_pass_count: isProd ? Number(idnyc.productionPassCount || 0) : 1,
+      ocr_structure_score: isProd ? Number(idnyc.productionStructureScore || 0) : Number(IdScan?.idnycOcrStructureScore?.(text) || 0),
       ocr_duration_ms: Math.max(0, Math.round(ms || 0)),
       file_type: String(idnyc.file?.type || '').slice(0, 40),
       file_size: Number(idnyc.file?.size || 0) || 0,
@@ -1637,6 +1648,9 @@
       `Production OCR run: ${yesNo(idnyc.productionRun)}`,
       `Production OCR duration: ${idnyc.productionRun ? `${Math.round(idnyc.productionMs)} ms` : '-'}`,
       `Production OCR engine: ${idnyc.productionRun ? (idnyc.productionEngine || 'unknown') : '-'}`,
+      `Production OCR variant: ${idnyc.productionRun ? (idnyc.productionVariant || '-') : '-'}`,
+      `Production OCR passes: ${idnyc.productionRun ? Number(idnyc.productionPassCount || 0) : 0}`,
+      `Production OCR structure score: ${idnyc.productionRun ? Number(idnyc.productionStructureScore || 0) : 0}`,
       `Production OCR text length: ${idnyc.productionText.length}`,
       `Production text looks usable: ${yesNo(!!(idnyc.productionText && IdScan?.looksLikeUsableIdnycText?.(idnyc.productionText)))}`,
       `Production parser success: ${yesNo(!!idnyc.productionParsed?.ok)}`,
@@ -1691,6 +1705,9 @@
     idnyc.dimensions = '-';
     idnyc.productionText = '';
     idnyc.productionEngine = 'unknown';
+    idnyc.productionVariant = '-';
+    idnyc.productionPassCount = 0;
+    idnyc.productionStructureScore = 0;
     idnyc.productionParsed = null;
     idnyc.productionLabParsed = null;
     idnyc.productionMs = 0;
@@ -1736,6 +1753,9 @@
       idnyc.productionMs = performance.now() - started;
       idnyc.productionText = String(result?.text || '');
       idnyc.productionEngine = String(result?.engine || 'production_path');
+      idnyc.productionVariant = String(result?.variant || 'original');
+      idnyc.productionPassCount = Number(result?.pass_count || 1);
+      idnyc.productionStructureScore = Number(result?.structure_score || 0);
       idnyc.productionParsed = Shared.parseIdnycOcrText(idnyc.productionText);
       idnyc.productionLabParsed = IdnycDiag?.analyze ? IdnycDiag.analyze(idnyc.productionText) : null;
       idnyc.productionRun = true;
@@ -2756,7 +2776,7 @@
   }
 
   function bindEvents() {
-    setText('buildLabel', `Scanner Lab HTML: 2026-09-03-15 · JS: ${LAB_BUILD}`);
+    setText('buildLabel', `Scanner Lab HTML: 2026-09-03-16 · JS: ${LAB_BUILD}`);
     renderDecodeOptions();
     $$('.tab').forEach((tab) => {
       tab.addEventListener('click', () => selectTab(tab.dataset.tab));
