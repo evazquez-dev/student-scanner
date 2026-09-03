@@ -45,11 +45,21 @@
   }
 
   function findDob(lines) {
-    const joined = lines.join('\n');
-    const anchored = joined.match(/\b(?:DOB|D\.O\.B\.?|DATE\s+OF\s+BIRTH|FECHA\s+DE\s+NACIMIENTO)\b[^0-9]*(\d{1,2}[\/-]\d{1,2}[\/-]\d{4}|\d{4}-\d{2}-\d{2})/i);
-    if (anchored) return { value: normalizeDob(anchored[1]), anchored: true };
-    const loose = joined.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{4}|\d{4}-\d{2}-\d{2})\b/);
-    return { value: loose ? normalizeDob(loose[1]) : '', anchored: false };
+    const label = /^(?:DOB|D[. ]?O[. ]?B\.?|D0B|DATE\s+[O0]F\s+B[I1]RTH|FECHA\s+DE\s+NACIMIENTO)\b\s*[:\-]?\s*(.*)$/i;
+    const date = /\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{4}|\d{4}-\d{2}-\d{2})\b/;
+    for (let i = 0; i < lines.length; i += 1) {
+      const m = lines[i].match(label);
+      if (!m) continue;
+      const same = String(m[1] || '').match(date);
+      if (same) return { value: normalizeDob(same[1]), anchored: true };
+      for (let j = i + 1; j < lines.length && j <= i + 2; j += 1) {
+        if (LABEL_ONLY.test(lines[j]) || LABEL_PREFIX.test(lines[j])) break;
+        const next = lines[j].match(date);
+        if (next) return { value: normalizeDob(next[1]), anchored: true };
+      }
+      return { value: '', anchored: true };
+    }
+    return { value: '', anchored: false };
   }
 
   function isNameCandidate(line) {

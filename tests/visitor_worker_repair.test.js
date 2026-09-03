@@ -806,6 +806,50 @@ async function pairedKioskVisit(mod, instance, visitor = {}) {
   }
 
   {
+    const state = new FakeState();
+    const instance = new mod.VisitorDeskDO(state, {});
+    await instance.ready;
+    const code = await doJson(instance, '/create_pair_code', { actor_email: 'security@example.org', label: 'iPad' });
+    const pair = await doJson(instance, '/pair', { code: code.data.code, label: 'iPad', ip: '192.0.2.44' });
+    const saved = await doJson(instance, '/idnyc_diagnostic', {
+      kiosk_credential: pair.data.kiosk_credential,
+      diagnostic: {
+        source: 'scanner_lab_production',
+        ocr_engine: 'tesseract',
+        text_length: 140,
+        line_count: 11,
+        parser_success: false,
+        name_anchor_found: false,
+        name_strategy: 'none',
+        birth_anchor_found: true,
+        birth_strategy: 'birth_anchor_no_date',
+        date_candidate_count: 2,
+        labels: { name: false, birth: true, expiration: true, evil: true },
+        parsed_fields: { first_name: false, last_name: false, birth_date: false },
+        line_classes: ['TITLE', 'ID_NUMBER', 'ALPHA_CANDIDATE', 'DATE_VALUE', 'LEAK_ME'],
+        raw_ocr_text: 'JANE DOE 01/02/1980',
+        visitor_first_name: 'JANE',
+        date_of_birth: '1980-01-02'
+      }
+    });
+    assert.equal(saved.data.ok, true);
+    const listed = await doJson(instance, '/idnyc_diagnostics?limit=10');
+    assert.equal(listed.data.ok, true);
+    assert.equal(listed.data.diagnostics.length, 1);
+    const diag = listed.data.diagnostics[0];
+    assert.equal(diag.labels.birth, true);
+    assert.equal(diag.labels.expiration, true);
+    assert.equal(diag.line_classes.includes('LEAK_ME'), false);
+    const serialized = JSON.stringify(diag);
+    assert.equal(serialized.includes('JANE'), false);
+    assert.equal(serialized.includes('1980-01-02'), false);
+    assert.equal(serialized.includes('raw_ocr_text'), false);
+    const cleared = await doJson(instance, '/idnyc_diagnostics_clear', {});
+    assert.equal(cleared.data.ok, true);
+    assert.equal(cleared.data.deleted, 1);
+  }
+
+  {
     assert.match(workerSource, /VISITOR_PRINT_AGENT_TOKEN/, 'Worker should require a dedicated print-agent secret');
     assert.match(workerSource, /\/visitor\/print-agent\/claim/, 'Worker should expose the print-agent claim route');
     assert.match(workerSource, /\/visitor\/print-agent\/complete/, 'Worker should expose the print-agent completion route');

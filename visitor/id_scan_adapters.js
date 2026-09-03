@@ -900,7 +900,7 @@
         const blob = await canvasToBlob(canvas, 'image/jpeg', 0.88);
         if (!blob || blob.size <= 0) throw new Error('idnyc_capture_failed');
         stop();
-        opts.onCapture?.(blob);
+        opts.onCapture?.(blob, { width: Number(canvas.width || 0), height: Number(canvas.height || 0), source: 'auto_capture' });
       } catch {
         capturing = false;
         state('positioning', { hint: 'holdSteady' });
@@ -981,14 +981,34 @@
   function looksLikeUsableIdnycText(text) {
     const raw = String(text || '');
     if (!raw.trim()) return false;
-    const hasDob = /(?:DOB|DATE OF BIRTH|FECHA DE NACIMIENTO|\d{1,2}[/-]\d{1,2}[/-]\d{4})/i.test(raw);
-    const hasNameLine = raw.split(/\r?\n/).some((line) => {
+    const lines = raw.replace(/\r/g, '\n').split('\n').map((line) => String(line || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const birthLabel = /^(?:D[O0]B|D\.?\s*[O0]\.?\s*B\.?|DATE\s*[O0]F\s*B[I1]RTH|FECHA\s+DE\s+NACIMIENTO)\b\s*[:\-]?\s*(.*)$/i;
+    const blockingLabel = /^(?:EXPIRATION\s*DATE|EXPIRES?|ISSUANCE\s*DATE|ISSUED|ID\s*(?:NUMBER|NO\.?|#)|NAME|NOMBRE|ADDRESS|DIRECCI[ÓO]N|HEIGHT|EYE\s*COLOR|GENDER|SEX)\b/i;
+    const dateToken = /\b(?:\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{8})\b/;
+    let hasAnchoredBirthDate = false;
+    for (let i = 0; i < lines.length; i += 1) {
+      const match = lines[i].match(birthLabel);
+      if (!match) continue;
+      if (dateToken.test(String(match[1] || ''))) {
+        hasAnchoredBirthDate = true;
+        break;
+      }
+      for (let j = i + 1; j < lines.length && j <= i + 2; j += 1) {
+        if (blockingLabel.test(lines[j])) break;
+        if (dateToken.test(lines[j])) {
+          hasAnchoredBirthDate = true;
+          break;
+        }
+      }
+      break;
+    }
+    const hasNameLine = lines.some((line) => {
       const cleaned = line.replace(/[^A-Za-z .'-]/g, ' ').replace(/\s+/g, ' ').trim();
       if (cleaned.length < 4 || cleaned.length > 60) return false;
-      if (/IDNYC|NEW YORK|CARD|DATE|BIRTH|ADDRESS|HEIGHT|EYES|SEX/i.test(cleaned)) return false;
+      if (/IDNYC|NEW YORK|CARD|DATE|BIRTH|ADDRESS|HEIGHT|EYES|SEX|EXPIR|ISSU/i.test(cleaned)) return false;
       return /^[A-Za-z][A-Za-z .'-]+$/.test(cleaned) && cleaned.split(/\s+/).length <= 5;
     });
-    return hasDob && hasNameLine;
+    return hasAnchoredBirthDate && hasNameLine;
   }
 
   async function prepareTesseract() {
@@ -1027,15 +1047,21 @@
     }
   }
 
-  async function recognizeIdnycImage(blob) {
+  async function recognizeIdnycImageDetailed(blob) {
     if (!blob || !String(blob.type || '').toLowerCase().startsWith('image/')) throw new Error('idnyc_image_required');
+    const started = Date.now();
     let text = await readTextWithTextDetector(blob);
     if (looksLikeUsableIdnycText(text)) {
-      return text;
+      return { text, engine: 'text_detector', duration_ms: Date.now() - started, text_detector_available: !!root.TextDetector };
     }
     text = '';
     text = await readTextWithTesseract(blob);
-    return text;
+    return { text, engine: 'tesseract', duration_ms: Date.now() - started, text_detector_available: !!root.TextDetector };
+  }
+
+  async function recognizeIdnycImage(blob) {
+    const result = await recognizeIdnycImageDetailed(blob);
+    return result.text;
   }
 
   return {
@@ -1073,6 +1099,7 @@
     createIdnycAutoCapture,
     frameQuality,
     looksLikeUsableIdnycText,
-    recognizeIdnycImage
+    recognizeIdnycImage,
+    recognizeIdnycImageDetailed
   };
 });

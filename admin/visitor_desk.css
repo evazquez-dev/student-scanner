@@ -245,3 +245,14 @@ label.check input { width: auto; }
   table { min-width: 0; font-size: 10pt; }
   th, td { border-bottom: 1px solid #999; }
 }
+
+.wideDialog { width: min(1280px, calc(100vw - 28px)); }
+.diagnosticsTable { min-width: 1040px; }
+.diagnosticsTable td { line-height: 1.45; }
+.diagnosticSequence {
+  margin-top: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .74rem;
+  color: var(--muted);
+  word-break: break-word;
+}

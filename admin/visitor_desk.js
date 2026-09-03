@@ -35,6 +35,7 @@
   const checkoutDialog = $('checkoutDialog');
   const emergencyDialog = $('emergencyDialog');
   const returningProfileDialog = $('returningProfileDialog');
+  const idnycDiagnosticsDialog = $('idnycDiagnosticsDialog');
 
   let ACCESS = null;
   let STATE = { waiting: [], active: [], counts: {} };
@@ -897,6 +898,69 @@
     }
   }
 
+  function yesNoPill(value, yesText = 'Yes', noText = 'No') {
+    return value ? `<span class="pill ok">${esc(yesText)}</span>` : `<span class="pill warn">${esc(noText)}</span>`;
+  }
+
+  function renderIdnycDiagnosticRow(d) {
+    const labels = d?.labels || {};
+    const fields = d?.parsed_fields || {};
+    const labelBits = [
+      `NAME ${labels.name ? 'Y' : 'N'}`,
+      `BIRTH ${labels.birth ? 'Y' : 'N'}`,
+      `EXP ${labels.expiration ? 'Y' : 'N'}`,
+      `ISSUE ${labels.issuance ? 'Y' : 'N'}`,
+      `ID# ${labels.id_number ? 'Y' : 'N'}`
+    ].join(' · ');
+    const fieldBits = [
+      `First ${fields.first_name ? 'Y' : 'N'}`,
+      `Middle ${fields.middle_name ? 'Y' : 'N'}`,
+      `Last ${fields.last_name ? 'Y' : 'N'}`,
+      `Birth ${fields.birth_date ? 'Y' : 'N'}`
+    ].join(' · ');
+    const sequence = Array.isArray(d?.line_classes) && d.line_classes.length ? d.line_classes.join(' › ') : '-';
+    const dims = d?.image_width && d?.image_height ? `${d.image_width}×${d.image_height}` : '-';
+    return `<tr>
+      <td><strong>${esc(fmtDT(d?.created_at))}</strong><div>${esc(d?.source || '-')}</div><div class="muted">Kiosk ${esc(d?.kiosk_id || '-')}</div>${d?.lab_build ? `<div class="muted">Lab ${esc(d.lab_build)}</div>` : ''}</td>
+      <td><strong>${esc(d?.ocr_engine || 'unknown')}</strong><div>${esc(String(d?.ocr_duration_ms || 0))} ms · ${esc(String(d?.text_length || 0))} chars · ${esc(String(d?.line_count || 0))} lines</div><div class="muted">${esc(dims)} · TextDetector ${d?.text_detector_available ? 'available' : 'not available'} · usable ${d?.text_usable ? 'yes' : 'no'}</div></td>
+      <td><div>${esc(labelBits)}</div><div class="muted">Name candidates ${esc(String(d?.name_candidate_count || 0))} · date candidates ${esc(String(d?.date_candidate_count || 0))}</div><div class="diagnosticSequence">${esc(sequence)}</div></td>
+      <td>${yesNoPill(d?.parser_success === true, 'Parsed', 'Incomplete')}<div>${esc(fieldBits)}</div><div class="muted">Name: ${esc(d?.name_strategy || 'none')} · Birth: ${esc(d?.birth_strategy || 'none')}</div><div class="muted">NAME anchor ${d?.name_anchor_found ? 'yes' : 'no'} · Birth anchor ${d?.birth_anchor_found ? 'yes' : 'no'}</div></td>
+    </tr>`;
+  }
+
+  async function loadIdnycDiagnostics() {
+    const body = $('idnycDiagnosticsBody');
+    const status = $('idnycDiagnosticsStatus');
+    status.textContent = 'Loading safe diagnostics...';
+    try {
+      const data = await api('/admin/visitor/idnyc_diagnostics?limit=100');
+      const rows = Array.isArray(data.diagnostics) ? data.diagnostics : [];
+      body.innerHTML = rows.length ? rows.map(renderIdnycDiagnosticRow).join('') : '<tr><td colspan="4" class="muted">No NYCID diagnostic attempts have been received yet.</td></tr>';
+      status.textContent = `${rows.length} safe diagnostic record${rows.length === 1 ? '' : 's'} loaded.`;
+    } catch (err) {
+      body.innerHTML = '<tr><td colspan="4" class="muted">Unable to load diagnostics.</td></tr>';
+      status.textContent = `Diagnostics failed: ${err?.message || err}`;
+    }
+  }
+
+  async function openIdnycDiagnostics() {
+    idnycDiagnosticsDialog.showModal();
+    await loadIdnycDiagnostics();
+  }
+
+  async function clearIdnycDiagnostics() {
+    if (!window.confirm('Clear all stored safe NYCID diagnostics?')) return;
+    const status = $('idnycDiagnosticsStatus');
+    status.textContent = 'Clearing...';
+    try {
+      const data = await api('/admin/visitor/idnyc_diagnostics_clear', { method: 'POST', body: {} });
+      status.textContent = `Cleared ${Number(data.deleted || 0)} diagnostic record${Number(data.deleted || 0) === 1 ? '' : 's'}.`;
+      await loadIdnycDiagnostics();
+    } catch (err) {
+      status.textContent = `Clear failed: ${err?.message || err}`;
+    }
+  }
+
   async function searchReturningProfiles() {
     const query = Shared.cleanText($('returningProfileSearch').value, 120);
     const results = $('returningProfileResults');
@@ -1086,6 +1150,9 @@
     $('emergencyBtn').addEventListener('click', loadEmergency);
     $('printEmergencyBtn').addEventListener('click', () => window.print());
     $('pairBtn').addEventListener('click', openPairDialog);
+    $('idnycDiagnosticsBtn').addEventListener('click', openIdnycDiagnostics);
+    $('refreshIdnycDiagnosticsBtn').addEventListener('click', loadIdnycDiagnostics);
+    $('clearIdnycDiagnosticsBtn').addEventListener('click', clearIdnycDiagnostics);
     $('returningProfilesBtn').addEventListener('click', openReturningProfiles);
     $('returningProfileSearchBtn').addEventListener('click', searchReturningProfiles);
     $('returningProfileSearch').addEventListener('keydown', (ev) => {

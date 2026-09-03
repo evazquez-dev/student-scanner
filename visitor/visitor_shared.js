@@ -397,13 +397,53 @@
     return { first: parts[0], middle: parts.slice(1, -1).join(' '), last: parts[parts.length - 1] };
   }
 
-  const IDNYC_LABEL_ONLY = /^(?:NYC\s+IDENTIFICATION\s+CARD|ID\s*(?:NUMBER|NO\.?|#)|NAME|NOMBRE|ISSUANCE\s+DATE|ISSUED|EXPIRATION\s+DATE|EXPIRES?|ORGAN\s+DONOR|EYE\s+COLOR|HEIGHT|GENDER|SEX|DATE\s+OF\s+BIRTH|DOB|D\.O\.B\.?|FECHA\s+DE\s+NACIMIENTO|ADDRESS|DIRECCI[ÓO]N)$/i;
-  const IDNYC_LABEL_PREFIX = /^(?:NYC\s+IDENTIFICATION\s+CARD|ID\s*(?:NUMBER|NO\.?|#)|ISSUANCE\s+DATE|ISSUED|EXPIRATION\s+DATE|EXPIRES?|ORGAN\s+DONOR|EYE\s+COLOR|HEIGHT|GENDER|SEX|DATE\s+OF\s+BIRTH|DOB|D\.O\.B\.?|FECHA\s+DE\s+NACIMIENTO|ADDRESS|DIRECCI[ÓO]N)\b/i;
-  const IDNYC_NAME_ANCHOR = /^(?:NAME|NOMBRE)\b\s*[:\-]?\s*(.*)$/i;
+  const IDNYC_LABEL_ONLY = /^(?:NYC\s+IDENTIFICATION\s+CARD|IDNYC|ID\s*(?:NUMBER|NO\.?|#)|NAME|NOMBRE|ISSUANCE\s+DATE|ISSUED|EXPIRATION\s+DATE|EXPIRES?|ORGAN\s+DONOR|EYE\s+COLOR|HEIGHT|GENDER|SEX|DATE\s+OF\s+BIRTH|DOB|D\.O\.B\.?|FECHA\s+DE\s+NACIMIENTO|ADDRESS|DIRECCI[ÓO]N)$/i;
+  const IDNYC_LABEL_PREFIX = /^(?:NYC\s+IDENTIFICATION\s+CARD|IDNYC|ID\s*(?:NUMBER|NO\.?|#)|ISSUANCE\s+DATE|ISSUED|EXPIRATION\s+DATE|EXPIRES?|ORGAN\s+DONOR|EYE\s+COLOR|HEIGHT|GENDER|SEX|DATE\s+OF\s+BIRTH|DOB|D\.O\.B\.?|FECHA\s+DE\s+NACIMIENTO|ADDRESS|DIRECCI[ÓO]N)\b/i;
+
+  function idnycAsciiUpper(value) {
+    return cleanText(value, 180)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase();
+  }
+
+  function idnycLabelInfo(value) {
+    const raw = idnycAsciiUpper(value);
+    if (!raw) return null;
+    const defs = [
+      ['title', /^(?:NYC\s*IDENTIFICATION\s*CARD|IDNYC)\b\s*[:\-]?\s*(.*)$/i],
+      ['id_number', /^(?:ID\s*(?:NUMBER|NUM8ER|N[O0]\.?|#))\b\s*[:\-]?\s*(.*)$/i],
+      ['name', /^(?:N\s*A\s*M\s*E|N4ME|NANE|NAMF|NOMBRE)\b\s*[:\-]?\s*(.*)$/i],
+      ['birth', /^(?:D[O0]B|D\.?\s*[O0]\.?\s*B\.?|DATE\s*[O0]F\s*B[I1]RTH|FECHA\s*DE\s*NACIMIENTO)\b\s*[:\-]?\s*(.*)$/i],
+      ['expiration', /^(?:EXPIRATION\s*DATE|EXPIRAT[I1][O0]N\s*DATE|EXPIRES?|EXP\.?\s*DATE)\b\s*[:\-]?\s*(.*)$/i],
+      ['issuance', /^(?:ISSUANCE\s*DATE|ISSUED|ISSUE\s*DATE)\b\s*[:\-]?\s*(.*)$/i],
+      ['address', /^(?:ADDRESS|DIRECCI[O0]N)\b\s*[:\-]?\s*(.*)$/i],
+      ['sex', /^(?:GENDER|SEX)\b\s*[:\-]?\s*(.*)$/i],
+      ['eyes', /^(?:EYE\s*COLOR|EYES?)\b\s*[:\-]?\s*(.*)$/i],
+      ['height', /^(?:HEIGHT)\b\s*[:\-]?\s*(.*)$/i],
+      ['organ_donor', /^(?:ORGAN\s*DONOR)\b\s*[:\-]?\s*(.*)$/i]
+    ];
+    for (const [type, re] of defs) {
+      const m = raw.match(re);
+      if (m) return { type, tail: cleanText(m[1] || '', 140) };
+    }
+    const compact = raw.replace(/[^A-Z0-9]/g, '');
+    const compactOnly = {
+      NAME: 'name', N4ME: 'name', NANE: 'name', NAMF: 'name', NOMBRE: 'name',
+      DOB: 'birth', D0B: 'birth', DATEOFBIRTH: 'birth', DATE0FBIRTH: 'birth', DATEOFB1RTH: 'birth', DATE0FB1RTH: 'birth', FECHADENACIMIENTO: 'birth',
+      EXPIRATIONDATE: 'expiration', EXPIRAT10NDATE: 'expiration', EXPIRES: 'expiration',
+      ISSUANCEDATE: 'issuance', ISSUED: 'issuance', ISSUEDATE: 'issuance',
+      IDNUMBER: 'id_number', IDNUM8ER: 'id_number', IDNO: 'id_number',
+      ADDRESS: 'address', DIRECCION: 'address',
+      HEIGHT: 'height', GENDER: 'sex', SEX: 'sex', EYECOLOR: 'eyes', ORGANDONOR: 'organ_donor',
+      NYCIDENTIFICATIONCARD: 'title', IDNYC: 'title'
+    };
+    return compactOnly[compact] ? { type: compactOnly[compact], tail: '' } : null;
+  }
 
   function idnycNameCandidate(value) {
     const line = cleanText(value, 100);
-    if (!line || IDNYC_LABEL_ONLY.test(line) || IDNYC_LABEL_PREFIX.test(line)) return false;
+    if (!line || idnycLabelInfo(line) || IDNYC_LABEL_ONLY.test(line) || IDNYC_LABEL_PREFIX.test(line)) return false;
     if (/\d/.test(line)) return false;
     if (line.length < 2 || line.length > 80) return false;
     if (!/[A-Za-zÀ-ÖØ-öø-ÿ]/.test(line)) return false;
@@ -433,42 +473,95 @@
     let anchorIndex = -1;
     let anchorTail = '';
     for (let i = 0; i < lines.length; i += 1) {
-      const match = lines[i].match(IDNYC_NAME_ANCHOR);
-      if (!match) continue;
+      const info = idnycLabelInfo(lines[i]);
+      if (info?.type !== 'name') continue;
       anchorIndex = i;
-      anchorTail = cleanText(match[1] || '', 100);
+      anchorTail = cleanText(info.tail || '', 100);
       break;
     }
-    if (anchorIndex < 0) return { first: '', middle: '', last: '' };
 
     const after = [];
-    for (let i = anchorIndex + 1; i < lines.length && i <= anchorIndex + 6 && after.length < 3; i += 1) {
-      const line = lines[i];
-      if (IDNYC_LABEL_ONLY.test(line) || IDNYC_LABEL_PREFIX.test(line)) {
-        if (after.length) break;
-        continue;
+    if (anchorIndex >= 0) {
+      for (let i = anchorIndex + 1; i < lines.length && i <= anchorIndex + 6 && after.length < 3; i += 1) {
+        const line = lines[i];
+        const info = idnycLabelInfo(line);
+        if (info) {
+          if (after.length || info.type !== 'name') break;
+          continue;
+        }
+        if (idnycNameCandidate(line)) after.push(line);
+        else if (after.length) break;
       }
-      if (idnycNameCandidate(line)) after.push(line);
+
+      // Current IDNYC layout: NAME, then surname, then given name + optional middle.
+      if (anchorTail && idnycNameCandidate(anchorTail) && after.length >= 1) {
+        const given = parseIdnycGivenLine(after[0]);
+        return { first: given.first, middle: given.middle, last: anchorTail, strategy: 'name_tail_plus_given', anchorFound: true, candidateCount: after.length + 1 };
+      }
+      if (!anchorTail && after.length >= 2) {
+        const given = parseIdnycGivenLine(after[1]);
+        return { first: given.first, middle: given.middle, last: after[0], strategy: 'name_label_two_line', anchorFound: true, candidateCount: after.length };
+      }
+      if (anchorTail && idnycNameCandidate(anchorTail) && after.length === 0) {
+        return { ...splitPersonName(anchorTail), strategy: 'name_single_line', anchorFound: true, candidateCount: 1 };
+      }
+      return { first: '', middle: '', last: '', strategy: 'name_anchor_insufficient', anchorFound: true, candidateCount: after.length + (anchorTail ? 1 : 0) };
     }
 
-    // Current IDNYC layout: NAME, then surname on one line, followed by
-    // given name and optional middle name/initial on the next line.
-    if (anchorTail && idnycNameCandidate(anchorTail) && after.length >= 1) {
-      const given = parseIdnycGivenLine(after[0]);
-      return { first: given.first, middle: given.middle, last: anchorTail };
+    // OCR sometimes drops the NAME label completely. On IDNYC the two name
+    // lines immediately precede the birth-date block, so accept exactly that
+    // strongly constrained layout instead of guessing from arbitrary text.
+    let birthIndex = -1;
+    for (let i = 0; i < lines.length; i += 1) {
+      if (idnycLabelInfo(lines[i])?.type === 'birth') { birthIndex = i; break; }
     }
-    if (!anchorTail && after.length >= 2) {
-      const given = parseIdnycGivenLine(after[1]);
-      return { first: given.first, middle: given.middle, last: after[0] };
+    if (birthIndex > 1) {
+      const preceding = [];
+      for (let i = birthIndex - 1; i >= 0 && i >= birthIndex - 4 && preceding.length < 2; i -= 1) {
+        const line = lines[i];
+        if (idnycLabelInfo(line)) break;
+        if (idnycNameCandidate(line)) preceding.push(line);
+        else if (preceding.length) break;
+      }
+      if (preceding.length >= 2) {
+        const given = parseIdnycGivenLine(preceding[0]);
+        return { first: given.first, middle: given.middle, last: preceding[1], strategy: 'two_lines_before_birth', anchorFound: false, candidateCount: 2 };
+      }
     }
 
-    // Preserve the older OCR form "NAME: FIRST MIDDLE LAST" when the
-    // entire name appears on the NAME line and no second name line exists.
-    if (anchorTail && idnycNameCandidate(anchorTail) && after.length === 0) {
-      return splitPersonName(anchorTail);
-    }
+    return { first: '', middle: '', last: '', strategy: 'none', anchorFound: false, candidateCount: 0 };
+  }
 
-    return { first: '', middle: '', last: '' };
+  function idnycDateToken(value) {
+    const line = cleanText(value, 180);
+    const m = line.match(/\b(\d{1,2}[\/-]\d{1,2}[\/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{8})\b/);
+    return m ? String(m[1] || '') : '';
+  }
+
+  function findIdnycBirthDate(lines) {
+    for (let i = 0; i < lines.length; i += 1) {
+      const info = idnycLabelInfo(lines[i]);
+      if (info?.type !== 'birth') continue;
+      const sameLine = idnycDateToken(info.tail || '');
+      if (sameLine) return { value: normalizeDateOfBirth(sameLine), anchorFound: true, strategy: 'birth_same_line' };
+      for (let j = i + 1; j < lines.length && j <= i + 2; j += 1) {
+        const nextInfo = idnycLabelInfo(lines[j]);
+        if (nextInfo) break; // Never walk through EXPIRATION/ISSUANCE to steal their dates.
+        const token = idnycDateToken(lines[j]);
+        if (token) return { value: normalizeDateOfBirth(token), anchorFound: true, strategy: 'birth_next_line' };
+      }
+      return { value: '', anchorFound: true, strategy: 'birth_anchor_no_date' };
+    }
+    return { value: '', anchorFound: false, strategy: 'no_birth_anchor' };
+  }
+
+  function classifyIdnycSafeLine(line) {
+    const info = idnycLabelInfo(line);
+    if (info) return info.type.toUpperCase();
+    if (idnycDateToken(line)) return 'DATE_VALUE';
+    if (/^\d[\d\s#\-./]+$/.test(cleanText(line, 180))) return 'NUMERIC';
+    if (idnycNameCandidate(line)) return 'ALPHA_CANDIDATE';
+    return 'OTHER';
   }
 
   function parseIdnycOcrText(text) {
@@ -478,30 +571,42 @@
       .split('\n')
       .map((line) => cleanText(line, 180))
       .filter(Boolean);
-    const joined = lines.join('\n');
-    const dobMatch = joined.match(/\b(?:DOB|D\.O\.B\.|DATE OF BIRTH|FECHA DE NACIMIENTO)\b[^0-9]*(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{8})/i)
-      || joined.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{8})\b/);
-    let dob = '';
-    if (dobMatch) {
-      const rawDob = String(dobMatch[1] || '');
-      const parts = rawDob.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
-      dob = parts
-        ? validIsoDate(`${parts[3]}-${String(parts[1]).padStart(2, '0')}-${String(parts[2]).padStart(2, '0')}`)
-        : normalizeDateOfBirth(rawDob);
-    }
 
-    // IDNYC OCR is intentionally layout-aware. Do not fall back to the
-    // first uppercase-looking line: labels such as "ID NUMBER" can look
-    // like a person's name and caused incorrect production prefills.
     const name = parseIdnycAnchoredName(lines);
+    const birth = findIdnycBirthDate(lines);
+    const labels = { title: false, id_number: false, name: false, birth: false, expiration: false, issuance: false, address: false };
+    for (const line of lines) {
+      const info = idnycLabelInfo(line);
+      if (info && Object.prototype.hasOwnProperty.call(labels, info.type)) labels[info.type] = true;
+    }
+    const dateCandidateCount = lines.reduce((count, line) => count + (idnycDateToken(line) ? 1 : 0), 0);
     const data = {
       visitor_first_name: cleanText(name.first, 80),
       visitor_middle_name: cleanText(name.middle, 80),
       visitor_last_name: cleanText(name.last, 100),
-      date_of_birth: dob
+      date_of_birth: cleanText(birth.value, 10)
     };
     const ok = !!(data.visitor_first_name && data.visitor_last_name && data.date_of_birth);
-    return { ok, data: redactForbidden(data), error: ok ? '' : 'idnyc_fields_missing' };
+    const diagnostics = {
+      text_length: rawText.length,
+      line_count: lines.length,
+      parser_success: ok,
+      name_anchor_found: name.anchorFound === true,
+      name_strategy: String(name.strategy || 'none'),
+      name_candidate_count: Number(name.candidateCount || 0),
+      birth_anchor_found: birth.anchorFound === true,
+      birth_strategy: String(birth.strategy || 'none'),
+      date_candidate_count: dateCandidateCount,
+      labels,
+      parsed_fields: {
+        first_name: !!data.visitor_first_name,
+        middle_name: !!data.visitor_middle_name,
+        last_name: !!data.visitor_last_name,
+        birth_date: !!data.date_of_birth
+      },
+      line_classes: lines.slice(0, 24).map(classifyIdnycSafeLine)
+    };
+    return { ok, data: redactForbidden(data), diagnostics, error: ok ? '' : 'idnyc_fields_missing' };
   }
 
   function parseVisitorBadgeScan(value) {

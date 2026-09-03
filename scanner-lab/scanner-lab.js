@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LAB_BUILD = '2026-08-14-10';
+  const LAB_BUILD = '2026-09-03-11';
   const SELFTEST_TEXT = 'EAGLENEST-PDF417-SELFTEST-12345';
   const SELFTEST_FIXTURE = './fixtures/pdf417-selftest.png';
   const LIVE_SCAN_INTERVAL_MS = 240;
@@ -11,6 +11,12 @@
   const IdScan = window.EagleNestVisitorIdScan;
   const AamvaDiag = window.EagleNestScannerLabAamva;
   const IdnycDiag = window.EagleNestScannerLabIdnyc;
+  const API_BASE = (() => {
+    const raw = (document.querySelector('meta[name="api-base"]')?.content || location.origin).trim();
+    try { return new URL(raw).toString().replace(/\/+$/, '/') || `${location.origin}/`; }
+    catch { return `${location.origin}/`; }
+  })();
+  const VISITOR_KIOSK_CRED_KEY = 'envisit_kiosk_credential_v1';
 
   const $ = (id) => document.getElementById(id);
   const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -143,6 +149,7 @@
     source: '-',
     dimensions: '-',
     productionText: '',
+    productionEngine: 'unknown',
     productionParsed: null,
     productionLabParsed: null,
     productionMs: 0,
@@ -1489,6 +1496,58 @@
     setText('idnycLabProdStrategy', diag.nameStrategy || '-');
   }
 
+  function pairedVisitorKioskCredential() {
+    try { return String(localStorage.getItem(VISITOR_KIOSK_CRED_KEY) || '').trim(); } catch { return ''; }
+  }
+
+  function labSafeDiagnosticPayload(kind) {
+    const isProd = kind === 'production';
+    const parsed = isProd ? idnyc.productionParsed : idnyc.tesseractParsed;
+    const text = isProd ? idnyc.productionText : idnyc.tesseractText;
+    const ms = isProd ? idnyc.productionMs : idnyc.tesseractMs;
+    const d = parsed?.diagnostics || {};
+    return {
+      source: isProd ? 'scanner_lab_production' : 'scanner_lab_forced_tesseract',
+      ocr_engine: isProd ? String(idnyc.productionEngine || 'production_path') : 'forced_tesseract',
+      ocr_duration_ms: Math.max(0, Math.round(ms || 0)),
+      file_type: String(idnyc.file?.type || '').slice(0, 40),
+      file_size: Number(idnyc.file?.size || 0) || 0,
+      image_width: Number(String(idnyc.dimensions || '').split('x')[0] || 0) || 0,
+      image_height: Number(String(idnyc.dimensions || '').split('x')[1] || 0) || 0,
+      text_detector_available: !!window.TextDetector,
+      text_usable: !!(text && IdScan?.looksLikeUsableIdnycText?.(text)),
+      text_length: Number(d.text_length || text.length || 0) || 0,
+      line_count: Number(d.line_count || 0) || 0,
+      parser_success: parsed?.ok === true,
+      name_anchor_found: d.name_anchor_found === true,
+      name_strategy: String(d.name_strategy || 'none').slice(0, 50),
+      name_candidate_count: Number(d.name_candidate_count || 0) || 0,
+      birth_anchor_found: d.birth_anchor_found === true,
+      birth_strategy: String(d.birth_strategy || 'none').slice(0, 50),
+      date_candidate_count: Number(d.date_candidate_count || 0) || 0,
+      labels: d.labels || {},
+      parsed_fields: d.parsed_fields || {},
+      line_classes: Array.isArray(d.line_classes) ? d.line_classes.slice(0, 24) : [],
+      lab_build: LAB_BUILD
+    };
+  }
+
+  async function sendLabSafeIdnycDiagnostic(kind) {
+    const cred = pairedVisitorKioskCredential();
+    if (!cred || !idnyc.file) return false;
+    try {
+      const resp = await fetch(new URL('/visitor/kiosk/idnyc_diagnostics', API_BASE), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-visitor-kiosk': cred },
+        cache: 'no-store',
+        body: JSON.stringify({ diagnostic: labSafeDiagnosticPayload(kind) })
+      });
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }
+
   function buildSafeIdnycReport() {
     if (!idnyc.file) return 'Select an IDNYC image first.';
     const prod = parsedPresence(idnyc.productionParsed);
@@ -1503,6 +1562,7 @@
       `TextDetector available: ${yesNo(!!window.TextDetector)}`,
       `Production OCR run: ${yesNo(idnyc.productionRun)}`,
       `Production OCR duration: ${idnyc.productionRun ? `${Math.round(idnyc.productionMs)} ms` : '-'}`,
+      `Production OCR engine: ${idnyc.productionRun ? (idnyc.productionEngine || 'unknown') : '-'}`,
       `Production OCR text length: ${idnyc.productionText.length}`,
       `Production text looks usable: ${yesNo(!!(idnyc.productionText && IdScan?.looksLikeUsableIdnycText?.(idnyc.productionText)))}`,
       `Production parser success: ${yesNo(!!idnyc.productionParsed?.ok)}`,
@@ -1549,6 +1609,7 @@
     idnyc.source = '-';
     idnyc.dimensions = '-';
     idnyc.productionText = '';
+    idnyc.productionEngine = 'unknown';
     idnyc.productionParsed = null;
     idnyc.productionLabParsed = null;
     idnyc.productionMs = 0;
@@ -1585,9 +1646,12 @@
     setText('idnycStatus', 'Running production OCR path...');
     const started = performance.now();
     try {
-      const text = await IdScan.recognizeIdnycImage(idnyc.file);
+      const result = IdScan?.recognizeIdnycImageDetailed
+        ? await IdScan.recognizeIdnycImageDetailed(idnyc.file)
+        : { text: await IdScan.recognizeIdnycImage(idnyc.file), engine: 'production_path' };
       idnyc.productionMs = performance.now() - started;
-      idnyc.productionText = String(text || '');
+      idnyc.productionText = String(result?.text || '');
+      idnyc.productionEngine = String(result?.engine || 'production_path');
       idnyc.productionParsed = Shared.parseIdnycOcrText(idnyc.productionText);
       idnyc.productionLabParsed = IdnycDiag?.analyze ? IdnycDiag.analyze(idnyc.productionText) : null;
       idnyc.productionRun = true;
@@ -1604,6 +1668,7 @@
       renderIdnycResult('prod');
       renderIdnycLabCandidate();
       updateSafeIdnycReport();
+      sendLabSafeIdnycDiagnostic('production');
     }
   }
 
@@ -1690,6 +1755,7 @@
     } finally {
       renderIdnycResult('tess');
       updateSafeIdnycReport();
+      sendLabSafeIdnycDiagnostic('tesseract');
     }
   }
 

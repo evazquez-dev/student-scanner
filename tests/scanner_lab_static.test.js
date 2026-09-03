@@ -26,8 +26,8 @@ const labSource = [labHtml, labCss, labJs, labAamvaDiagJs].join('\n');
 {
   assert.match(labHtml, /EagleNEST Scanner Lab/);
   assert.match(labHtml, /iPad Camera \+ PDF417 Test/);
-  assert.match(labHtml, /Nothing scanned on this page is saved or uploaded/);
-  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-08-14-10'/, 'Scanner Lab should expose Build 10');
+  assert.match(labHtml, /Raw scanned ID data and images are not saved or uploaded/);
+  assert.match(labJs, /LAB_BUILD\s*=\s*'2026-09-03-11'/, 'Scanner Lab should expose Build 11');
 }
 
 function asciiBytes(text) {
@@ -322,11 +322,17 @@ function syntheticMultiAamvaResult(subfiles, options) {
 }
 
 {
-  assert.doesNotMatch(labSource, /XMLHttpRequest|sendBeacon|analytics|gtag|dataLayer/i, 'Scanner Lab must not make backend or analytics calls');
-  assert.doesNotMatch(labSource, /workers\.dev|script\.google\.com|\/admin\/|\/visitor\/kiosk|VisitorDeskDO|VISITOR_PHOTOS|R2Bucket|GAS_URL|GAS_ENDPOINT/i, 'Scanner Lab must not call EagleNEST backend systems');
-  assert.doesNotMatch(labSource, /localStorage|sessionStorage|indexedDB|caches\.open/i, 'Scanner Lab must not persist scan data locally');
+  assert.doesNotMatch(labSource, /XMLHttpRequest|sendBeacon|analytics|gtag|dataLayer/i, 'Scanner Lab must not use analytics or alternate upload transports');
+  assert.doesNotMatch(labSource, /script\.google\.com|\/admin\/|VisitorDeskDO|VISITOR_PHOTOS|R2Bucket|GAS_URL|GAS_ENDPOINT/i, 'Scanner Lab must not call privileged EagleNEST backend systems');
+  assert.match(labHtml, /meta name="api-base" content="https:\/\/red-cake-77d5\.evazquez-3e0\.workers\.dev\/"/, 'Scanner Lab may know only the public Worker base used for safe diagnostics');
+  assert.match(labJs, /new URL\('\/visitor\/kiosk\/idnyc_diagnostics', API_BASE\)/, 'Scanner Lab may send privacy-safe NYCID diagnostics through the paired kiosk route');
+  assert.match(labJs, /localStorage\.getItem\(VISITOR_KIOSK_CRED_KEY\)/, 'Scanner Lab may read the existing Visitor Kiosk credential');
+  assert.doesNotMatch(labJs, /localStorage\.(?:setItem|removeItem|clear)\(/, 'Scanner Lab must not persist or mutate scan data in localStorage');
+  assert.doesNotMatch(labSource, /sessionStorage|indexedDB|caches\.open/i, 'Scanner Lab must not persist scan data in browser stores');
   assert.doesNotMatch(labSource, /console\.log|console\.debug|console\.info/i, 'Scanner Lab must not log decoded payloads');
-  assert.match(labJs, /fetch\(SELFTEST_FIXTURE,\s*\{\s*cache:\s*'no-store'\s*\}\)/, 'Scanner Lab may fetch only its static self-test fixture');
+  assert.match(labJs, /fetch\(SELFTEST_FIXTURE,\s*\{\s*cache:\s*'no-store'\s*\}\)/, 'Scanner Lab may fetch its static self-test fixture');
+  const safeDiagSection = sectionBetween(labJs, 'function labSafeDiagnosticPayload', 'async function sendLabSafeIdnycDiagnostic');
+  assert.doesNotMatch(safeDiagSection, /raw_ocr_text\s*:|ocr_text\s*:|visitor_first_name\s*:|visitor_last_name\s*:|date_of_birth\s*:|id_number_value\s*:/i, 'Safe diagnostic payload must not contain OCR text or identity values');
 }
 
 {

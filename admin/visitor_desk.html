@@ -51,6 +51,7 @@
           <button id="returningProfilesBtn" type="button">Returning Parent Passes</button>
           <button id="emergencyBtn" type="button">Who Is In The Building?</button>
           <button id="pairBtn" type="button">Pair Visitor Kiosk</button>
+          <button id="idnycDiagnosticsBtn" type="button">NYCID Diagnostics</button>
           <button id="refreshBtn" type="button">Refresh</button>
         </div>
         <div class="kpis">
@@ -147,6 +148,34 @@
       </section>
     </main>
   </div>
+
+  <dialog id="idnycDiagnosticsDialog" class="wideDialog">
+    <div class="sectionHead">
+      <div>
+        <h2>Safe NYCID Diagnostics</h2>
+        <div class="muted">No raw OCR text, names, birth-date values, ID numbers, addresses, or ID images are stored here. Records expire after 7 days.</div>
+      </div>
+      <div class="actions">
+        <button id="refreshIdnycDiagnosticsBtn" type="button">Refresh</button>
+        <button id="clearIdnycDiagnosticsBtn" class="danger" type="button">Clear</button>
+        <button type="button" data-close-dialog>Close</button>
+      </div>
+    </div>
+    <div id="idnycDiagnosticsStatus" class="status"></div>
+    <div class="tableWrap diagnosticsTableWrap">
+      <table class="diagnosticsTable">
+        <thead>
+          <tr>
+            <th>When / Source</th>
+            <th>OCR</th>
+            <th>Recognized Structure</th>
+            <th>Parser Result</th>
+          </tr>
+        </thead>
+        <tbody id="idnycDiagnosticsBody"><tr><td colspan="4" class="muted">Open or refresh to load diagnostics.</td></tr></tbody>
+      </table>
+    </div>
+  </dialog>
 
   <dialog id="visitorDialog">
     <form id="visitorForm" method="dialog">

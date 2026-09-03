@@ -219,6 +219,8 @@ function assertNoForbidden(obj) {
   assert.equal(IdScan.STATE_ID_REQUIRED_MATCHES, 2);
   assert.equal(IdScan.looksLikeUsableIdnycText('DOB 01/02/1990'), false);
   assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nDOB 01/02/1990'), true);
+  assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nEXPIRATION DATE\n01/02/2031'), false);
+  assert.equal(IdScan.looksLikeUsableIdnycText('JANE Q DOE\nDATE OF BIRTH\nunreadable\nEXPIRATION DATE\n01/02/2031'), false);
 }
 
 {
@@ -383,6 +385,63 @@ function assertNoForbidden(obj) {
   const parsed = Shared.parseIdnycOcrText('IDNYC\nunclear text only');
   assert.equal(parsed.ok, false);
   assert.equal(parsed.data.date_of_birth || '', '');
+}
+
+{
+  // Never steal the expiration date when the birth-date label is present but
+  // its value is unreadable/missing.
+  const parsed = Shared.parseIdnycOcrText([
+    'NYC IDENTIFICATION CARD',
+    'NAME',
+    'SAMPLE',
+    'WENDY S',
+    'DATE OF BIRTH',
+    'unreadable',
+    'EXPIRATION DATE',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(parsed.ok, false);
+  assert.equal(parsed.data.date_of_birth, '');
+  assert.equal(parsed.diagnostics.birth_anchor_found, true);
+  assert.equal(parsed.diagnostics.birth_strategy, 'birth_anchor_no_date');
+}
+
+{
+  // Common OCR substitutions in labels should still anchor the parser.
+  const parsed = Shared.parseIdnycOcrText([
+    'ID NUMBER',
+    'N4ME',
+    'SAMPLE',
+    'WENDY S',
+    'DATE 0F B1RTH',
+    '03/16/1988',
+    'EXPIRATION DATE',
+    '03/16/2031'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.data.visitor_first_name, 'WENDY');
+  assert.equal(parsed.data.visitor_last_name, 'SAMPLE');
+  assert.equal(parsed.data.date_of_birth, '1988-03-16');
+  assert.equal(parsed.diagnostics.name_anchor_found, true);
+  assert.equal(parsed.diagnostics.birth_anchor_found, true);
+}
+
+{
+  // If OCR drops NAME entirely, the two name lines immediately before the
+  // anchored birth block are still a sufficiently constrained IDNYC layout.
+  const parsed = Shared.parseIdnycOcrText([
+    'ID NUMBER',
+    '1234 567890 1234',
+    'SAMPLE',
+    'WENDY S',
+    'DATE OF BIRTH',
+    '03/16/1988'
+  ].join('\n'));
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.data.visitor_first_name, 'WENDY');
+  assert.equal(parsed.data.visitor_middle_name, 'S');
+  assert.equal(parsed.data.visitor_last_name, 'SAMPLE');
+  assert.equal(parsed.diagnostics.name_strategy, 'two_lines_before_birth');
 }
 
 console.log('visitor_shared tests passed');

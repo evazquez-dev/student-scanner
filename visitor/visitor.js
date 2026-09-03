@@ -1048,10 +1048,57 @@
     }
   }
 
-  function applyIdnycOcrText(text) {
+  function idnycSafeDiagnosticPayload(parsed, meta) {
+    const d = parsed?.diagnostics || {};
+    return {
+      source: String(meta?.source || 'visitor_kiosk').slice(0, 40),
+      ocr_engine: String(meta?.engine || 'unknown').slice(0, 30),
+      ocr_duration_ms: Math.max(0, Math.min(120000, Number(meta?.duration_ms || 0) || 0)),
+      file_type: String(meta?.file_type || '').slice(0, 40),
+      file_size: Math.max(0, Math.min(10 * 1024 * 1024, Number(meta?.file_size || 0) || 0)),
+      image_width: Math.max(0, Math.min(10000, Number(meta?.width || 0) || 0)),
+      image_height: Math.max(0, Math.min(10000, Number(meta?.height || 0) || 0)),
+      text_detector_available: meta?.text_detector_available === true,
+      text_usable: meta?.text_usable === true,
+      text_length: Number(d.text_length || 0) || 0,
+      line_count: Number(d.line_count || 0) || 0,
+      parser_success: parsed?.ok === true,
+      name_anchor_found: d.name_anchor_found === true,
+      name_strategy: String(d.name_strategy || 'none').slice(0, 50),
+      name_candidate_count: Number(d.name_candidate_count || 0) || 0,
+      birth_anchor_found: d.birth_anchor_found === true,
+      birth_strategy: String(d.birth_strategy || 'none').slice(0, 50),
+      date_candidate_count: Number(d.date_candidate_count || 0) || 0,
+      labels: d.labels || {},
+      parsed_fields: d.parsed_fields || {},
+      line_classes: Array.isArray(d.line_classes) ? d.line_classes.slice(0, 24) : []
+    };
+  }
+
+  async function submitIdnycSafeDiagnostic(parsed, meta) {
+    const cred = credential();
+    if (!cred) return;
+    try {
+      await fetch(new URL('/visitor/kiosk/idnyc_diagnostics', API_BASE), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-visitor-kiosk': cred
+        },
+        cache: 'no-store',
+        body: JSON.stringify({ diagnostic: idnycSafeDiagnosticPayload(parsed, meta) })
+      });
+    } catch {
+      // Diagnostics are best-effort and must never block visitor check-in.
+    }
+  }
+
+  function applyIdnycOcrText(text, meta) {
     let rawText = String(text || '');
     const parsed = Shared.parseIdnycOcrText(rawText);
+    const diagMeta = { ...(meta || {}), text_usable: !!(rawText && IdScan?.looksLikeUsableIdnycText?.(rawText)) };
     rawText = '';
+    submitIdnycSafeDiagnostic(parsed, diagMeta);
     closeStateIdScan();
     if (hasIdPrefillData(parsed.data)) {
       applyIdPrefill(parsed.data || {}, parsed.ok ? T[lang].idnycFound : T[lang].idnycUnreadable);
@@ -1062,12 +1109,24 @@
     }
   }
 
-  async function runIdnycOcr(blob) {
+  async function runIdnycOcr(blob, captureMeta) {
     try {
-      if (!IdScan?.recognizeIdnycImage) throw new Error('ocr_unavailable');
+      if (!IdScan?.recognizeIdnycImageDetailed && !IdScan?.recognizeIdnycImage) throw new Error('ocr_unavailable');
       updateIdScanStatus('ocr_processing');
-      let text = await IdScan.recognizeIdnycImage(blob);
-      applyIdnycOcrText(text);
+      const result = IdScan?.recognizeIdnycImageDetailed
+        ? await IdScan.recognizeIdnycImageDetailed(blob)
+        : { text: await IdScan.recognizeIdnycImage(blob), engine: 'unknown', duration_ms: 0, text_detector_available: !!window.TextDetector };
+      let text = String(result?.text || '');
+      applyIdnycOcrText(text, {
+        source: 'kiosk_auto_capture',
+        engine: result?.engine || 'unknown',
+        duration_ms: result?.duration_ms || 0,
+        text_detector_available: result?.text_detector_available === true,
+        file_type: blob?.type || '',
+        file_size: blob?.size || 0,
+        width: captureMeta?.width || 0,
+        height: captureMeta?.height || 0
+      });
       text = '';
     } catch {
       closeStateIdScan();
@@ -1098,8 +1157,18 @@
     try {
       if (!String(file.type || '').toLowerCase().startsWith('image/')) throw new Error('idnyc_image_invalid');
       updateIdScanStatus('ocr_processing');
-      let text = await IdScan.recognizeIdnycImage(file);
-      applyIdnycOcrText(text);
+      const result = IdScan?.recognizeIdnycImageDetailed
+        ? await IdScan.recognizeIdnycImageDetailed(file)
+        : { text: await IdScan.recognizeIdnycImage(file), engine: 'unknown', duration_ms: 0, text_detector_available: !!window.TextDetector };
+      let text = String(result?.text || '');
+      applyIdnycOcrText(text, {
+        source: 'kiosk_photo_fallback',
+        engine: result?.engine || 'unknown',
+        duration_ms: result?.duration_ms || 0,
+        text_detector_available: result?.text_detector_available === true,
+        file_type: file.type || '',
+        file_size: file.size || 0
+      });
       text = '';
     } catch {
       showIdScanFallbacks(T[lang].idnycUnreadable);

@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
   <meta name="robots" content="noindex,nofollow">
   <title>EagleNEST Scanner Lab</title>
   <link rel="stylesheet" href="./scanner-lab.css?v=20260814-10">
@@ -13,14 +14,14 @@
       <h1>EagleNEST Scanner Lab</h1>
       <p class="subtitle">iPad Camera + PDF417 Test</p>
     </div>
-    <div class="build" id="buildLabel">Scanner Lab HTML: 2026-08-14-10 · JS: loading</div>
+    <div class="build" id="buildLabel">Scanner Lab HTML: 2026-09-03-11 · JS: loading</div>
   </header>
 
   <main>
     <section class="notice">
-      <strong>Testing only.</strong> Nothing scanned on this page is saved or uploaded.
+      <strong>Testing only.</strong> Raw scanned ID data and images are not saved or uploaded.
       <br>
-      For testing, use a test/sample ID where possible. Scanned information remains only on this device and is cleared when you leave or refresh this page.
+      If this device is paired as a Visitor Kiosk, privacy-safe NYCID diagnostics (OCR/parser metadata only, never OCR text or identity fields) may be sent to Visitor Desk for troubleshooting. Test results remain only on this device and are cleared when you leave or refresh this page.
       <div class="noticeActions">
         <button type="button" id="clearAllResultsBtn" class="secondary">Clear All Test Results</button>
       </div>
@@ -750,10 +751,10 @@
     </section>
   </main>
 
-  <script src="../visitor/visitor_shared.js?v=20260814-10"></script>
-  <script src="../visitor/id_scan_adapters.js?v=20260814-10"></script>
+  <script src="../visitor/visitor_shared.js?v=20260903-11"></script>
+  <script src="../visitor/id_scan_adapters.js?v=20260903-11"></script>
   <script src="./aamva_diagnostics.js?v=20260814-10"></script>
-  <script src="./idnyc_diagnostics.js?v=20260814-10"></script>
-  <script src="./scanner-lab.js?v=20260814-10"></script>
+  <script src="./idnyc_diagnostics.js?v=20260903-11"></script>
+  <script src="./scanner-lab.js?v=20260903-11"></script>
 </body>
 </html>
