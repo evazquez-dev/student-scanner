@@ -580,25 +580,33 @@
         </div>
       </section>
 
-      <section class="tableWrap" hidden data-live-only>
-        <table>
-          <thead>
-            <tr>
-              <th>Device</th>
-              <th>Room</th>
-              <th>Trust</th>
-              <th>First / Last</th>
-              <th>Scans</th>
-              <th>Unique</th>
-              <th>Manual</th>
-              <th>Errors</th>
-              <th>Mismatches</th>
-              <th>Periods</th>
-              <th>Flags</th>
-            </tr>
-          </thead>
-          <tbody id="deviceTbody"></tbody>
-        </table>
+      <section class="card" id="kioskHealthCard">
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+          <div>
+            <h2>Kiosk Health / Devices</h2>
+            <div id="kioskHealthSummary" class="small">Loading live kiosk heartbeats…</div>
+          </div>
+          <button id="kioskHealthRefreshBtn" class="btn" type="button">Refresh Devices</button>
+        </div>
+        <div class="tableWrap" style="margin-top:.8rem; box-shadow:none;">
+          <table style="min-width:1180px;">
+            <thead>
+              <tr>
+                <th>Device</th>
+                <th>Location</th>
+                <th>Last Seen</th>
+                <th>Version</th>
+                <th>Version Status</th>
+                <th>Online</th>
+                <th>Pending</th>
+                <th>Clock</th>
+                <th>Scans</th>
+                <th>Flags</th>
+              </tr>
+            </thead>
+            <tbody id="deviceTbody"></tbody>
+          </table>
+        </div>
       </section>
 
       <div id="errorBox" class="errorBox"></div>
@@ -615,6 +623,6 @@
     </main>
   </div>
 
-  <script src="./fidelity.js?v=20260528-historical-only"></script>
+  <script src="./fidelity.js?v=20260904-kiosk-health"></script>
 </body>
 </html>

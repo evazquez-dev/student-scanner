@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.8.1-2026-09-02'; // RFID config-card cache-skew hotfix
+const VERSION = 'v20.9.0-2026-09-04'; // wrong-room redirect + kiosk health reporting
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [

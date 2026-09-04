@@ -80,7 +80,7 @@ test('SAFETY: System Settings exposes two equivalent scanner configuration-menu 
 
 test('SAFETY: Config-card menu hook cannot be silently pinned to the prior cached brand.js', () => {
   assert.match(kioskIndex, /brand\.js\?v=2026\.09\.02\.9/);
-  assert.match(kioskSw, /v20\.8\.1-2026-09-02/);
+  assert.match(kioskSw, /v20\.9\.0-2026-09-04/);
   assert.match(kioskSw, /networkFirst\(req\)/);
   assert.match(kioskSw, /fetch\(req, \{ cache: 'no-store' \}\)/);
 });

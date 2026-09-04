@@ -49,6 +49,8 @@ const openWorkflowDetailsBody = document.getElementById('openWorkflowDetailsBody
 const lowTrustBody = document.getElementById('lowTrustBody');
 const inBuildingNoEntranceBody = document.getElementById('inBuildingNoEntranceBody');
 const deviceTbody = document.getElementById('deviceTbody');
+const kioskHealthSummary = document.getElementById('kioskHealthSummary');
+const kioskHealthRefreshBtn = document.getElementById('kioskHealthRefreshBtn');
 const errorBox = document.getElementById('errorBox');
 const busyOverlay = document.getElementById('busyOverlay');
 const busyTitle = document.getElementById('busyTitle');
@@ -57,6 +59,8 @@ let dashboardBusy = false;
 let dashboardBusyButton = null;
 let demoFixturePromise = null;
 let googleIdentityScriptPromise = null;
+let currentExpectedKioskSwVersion = '';
+let kioskHealthRefreshTimer = null;
 
 function getStoredAdminSessionSid() {
   try {
@@ -1106,6 +1110,143 @@ async function demoRangeForDates(start = '', end = '') {
   return data;
 }
 
+async function fetchExpectedKioskSwVersion(force = false) {
+  if (currentExpectedKioskSwVersion && !force) return currentExpectedKioskSwVersion;
+  const u = new URL('../sw.js', window.location.href);
+  u.searchParams.set('kiosk_health_check', String(Date.now()));
+  const r = await fetch(u, { method:'GET', cache:'no-store' });
+  if (!r.ok) return currentExpectedKioskSwVersion || '';
+  const text = await r.text();
+  const match = text.match(/const\s+VERSION\s*=\s*['"]([^'"]+)['"]/);
+  currentExpectedKioskSwVersion = match ? String(match[1] || '').trim() : '';
+  return currentExpectedKioskSwVersion;
+}
+
+function renderKioskHealth(devices = [], health = {}) {
+  if (!deviceTbody) return;
+  const rows = Array.isArray(devices) ? devices.slice() : [];
+  const expected = String(health.expected_service_worker_version || currentExpectedKioskSwVersion || '').trim();
+  const staleAfter = Number(health.stale_after_minutes || 20);
+
+  const versionState = (row) => {
+    const reported = String(row.service_worker_version || '').trim();
+    if (!reported) return ['Not reporting', 'warn'];
+    if (!expected) return ['Reported', 'info'];
+    return reported === expected ? ['Current', 'info'] : ['Old / mismatch', 'bad'];
+  };
+
+  rows.sort((a, b) =>
+    Number(a.active_now === true) - Number(b.active_now === true) ||
+    String(a.last_bound_location || a.last_reported_location || '').localeCompare(
+      String(b.last_bound_location || b.last_reported_location || ''),
+      undefined,
+      { numeric:true, sensitivity:'base' }
+    )
+  );
+
+  const current = expected ? rows.filter(r => String(r.service_worker_version || '').trim() === expected).length : 0;
+  const old = expected ? rows.filter(r => {
+    const v = String(r.service_worker_version || '').trim();
+    return v && v !== expected;
+  }).length : 0;
+  const missing = rows.filter(r => !String(r.service_worker_version || '').trim()).length;
+  const stale = rows.filter(r => r.active_now === false).length;
+  const pending = rows.filter(r => Number(r.pending_scan_count || 0) > 0).length;
+
+  if (kioskHealthSummary) {
+    kioskHealthSummary.textContent = [
+      `${rows.length} device${rows.length === 1 ? '' : 's'}`,
+      expected ? `expected ${expected}` : 'expected version unavailable',
+      expected ? `${current} current` : '',
+      old ? `${old} old/mismatch` : '',
+      missing ? `${missing} not reporting version` : '',
+      stale ? `${stale} stale >${staleAfter}m` : '',
+      pending ? `${pending} with pending scans` : ''
+    ].filter(Boolean).join(' • ');
+  }
+
+  const clockText = (row) => {
+    const n = Number(row.clock_offset_ms);
+    if (!Number.isFinite(n)) return '—';
+    const sign = n > 0 ? '+' : '';
+    return Math.abs(n) >= 1000 ? `${sign}${(n / 1000).toFixed(1)}s` : `${sign}${Math.round(n)}ms`;
+  };
+
+  deviceTbody.innerHTML = rows.length ? rows.map(row => {
+    const [versionLabel, versionClass] = versionState(row);
+    const flags = Array.isArray(row.flags) ? row.flags : [];
+    const lastSeen = row.last_heartbeat_at_iso || row.last_seen_at_iso || '';
+    const age = Number(row.last_seen_minutes_ago);
+    const ageText = Number.isFinite(age) ? (age < 1 ? 'just now' : `${Math.round(age)}m ago`) : '—';
+    const online = row.active_now === false
+      ? '<span class="chip bad">Stale</span>'
+      : row.online === false
+        ? '<span class="chip bad">Offline</span>'
+        : row.online === true
+          ? '<span class="chip info">Online</span>'
+          : '<span class="chip warn">Unknown</span>';
+    const pendingCount = Number(row.pending_scan_count || 0);
+    return `
+      <tr>
+        <td><div class="mono">${esc(row.device_id || '')}</div><div class="muted">${row.kiosk_locked === true ? 'Locked' : row.kiosk_locked === false ? 'Unlocked' : ''}</div></td>
+        <td><div>${esc(row.last_bound_location || row.last_reported_location || '—')}</div><div class="muted">${esc(row.current_period ? `Period ${row.current_period}` : '')}</div></td>
+        <td><div>${esc(fmtDateTime(lastSeen))}</div><div class="muted">${esc(ageText)}</div></td>
+        <td><div class="mono">${esc(row.service_worker_version || '—')}</div><div class="muted">${expected ? `Expected: ${esc(expected)}` : ''}</div></td>
+        <td><span class="chip ${versionClass}">${esc(versionLabel)}</span></td>
+        <td>${online}<div class="muted">${esc(row.visibility || '')}</div></td>
+        <td><div>${esc(pendingCount)}</div><div class="muted">${pendingCount && row.oldest_pending_scan_at ? `Oldest ${fmtDateTime(row.oldest_pending_scan_at)}` : ''}</div></td>
+        <td><span class="chip ${row.clock_skew_warning ? 'bad' : 'info'}">${esc(clockText(row))}</span><div class="muted">${row.clock_skew_warning ? 'Skew warning' : ''}</div></td>
+        <td><div>${esc(row.scan_success_count || 0)} success</div><div class="muted">${esc(row.heartbeat_count || 0)} heartbeat</div></td>
+        <td><div class="chips">${flags.length ? flags.map(flag => `<span class="chip ${/offline|stale|error|mismatch|clock/i.test(flag) ? 'bad' : 'warn'}">${esc(flag)}</span>`).join('') : '<span class="chip">Healthy</span>'}</div></td>
+      </tr>`;
+  }).join('') : '<tr><td colspan="10" class="muted">No kiosk heartbeat data for today yet.</td></tr>';
+}
+
+async function fetchKioskHealth() {
+  if (DEMO_MODE) {
+    const fixture = await loadDemoFixture();
+    return {
+      ok:true,
+      date:fixture.dashboard?.date || localTodayKey(),
+      stale_after_minutes:20,
+      expected_service_worker_version:'',
+      devices:cloneJson(fixture.dashboard?.devices || [])
+    };
+  }
+  const [r, expected] = await Promise.all([
+    adminFetch('/admin/kiosk_health', { method:'GET' }),
+    fetchExpectedKioskSwVersion().catch(() => '')
+  ]);
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data?.ok) throw new Error(data?.detail || data?.error || `HTTP ${r.status}`);
+  data.expected_service_worker_version = expected || '';
+  return data;
+}
+
+async function refreshKioskHealth(options = {}) {
+  const button = options.button || null;
+  if (button) button.disabled = true;
+  try {
+    const health = await fetchKioskHealth();
+    renderKioskHealth(health.devices || [], health);
+    return health;
+  } catch (err) {
+    if (kioskHealthSummary && !options.silent) {
+      kioskHealthSummary.textContent = `Kiosk health unavailable: ${err?.message || err}`;
+    }
+    return null;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+function startKioskHealthAutoRefresh() {
+  if (DEMO_MODE || kioskHealthRefreshTimer) return;
+  kioskHealthRefreshTimer = setInterval(() => {
+    if (!document.hidden) refreshKioskHealth({ silent:true }).catch(() => {});
+  }, 5 * 60 * 1000);
+}
+
 async function fetchDashboard(date = '', options = {}) {
   if (DEMO_MODE) return demoDashboardForDate(date);
   const u = new URL('/admin/fidelity_dashboard', API_BASE);
@@ -1163,7 +1304,7 @@ function renderDashboard(data, statusLabel = 'Historical') {
   renderTeacherSubmissions(data.teacher_submissions || []);
   renderOpenWorkflowDetails(data.workflow || {});
   renderLowTrust(data || {});
-  renderDevices(data.devices || []);
+  renderKioskHealth(data.devices || [], data.kiosk_health || {});
   setStatus(true, statusLabel);
 }
 
@@ -1245,6 +1386,9 @@ async function loadInitialDashboard() {
         : 'Loading the latest saved historical score snapshot. Today is excluded.'
     });
   }
+  await refreshKioskHealth({ silent:true }).catch(() => null);
+  startKioskHealthAutoRefresh();
+
   await loadRangeDashboard(
     String(rangeStartInput?.value || '').trim(),
     String(rangeEndInput?.value || '').trim(),
@@ -1412,3 +1556,9 @@ rangeLoadBtn.addEventListener('click', () => {
       : 'Loading saved daily accountability snapshots for the selected range.'
   }).catch(() => {});
 });
+
+if (kioskHealthRefreshBtn) {
+  kioskHealthRefreshBtn.addEventListener('click', () => {
+    refreshKioskHealth({ button:kioskHealthRefreshBtn }).catch(() => {});
+  });
+}

@@ -868,11 +868,23 @@
     if (!stopAfterMs) return;
 
     __KIOSK_HEARTBEAT_STOP_AT_MS = Date.now() + stopAfterMs;
-    const sendHeartbeat = () => {
+    const sendHeartbeat = async () => {
       if (!__KIOSK_HEARTBEAT_STOP_AT_MS || Date.now() >= __KIOSK_HEARTBEAT_STOP_AT_MS) {
         stopKioskHeartbeatLoop();
         return;
       }
+      let pendingRows = [];
+      try { pendingRows = await loadScanEventQueue(); } catch {}
+      const oldestPending = pendingRows.length
+        ? pendingRows.reduce((best, row) => {
+            const raw = String(row?.whenISO || row?.queued_at || '').trim();
+            if (!raw) return best;
+            return !best || raw < best ? raw : best;
+          }, '')
+        : '';
+      let swVersion = null;
+      try { swVersion = await getServiceWorkerVersion(); } catch {}
+
       emitKioskFidelityEvent('kiosk_heartbeat', {
         metadata: {
           online: !!navigator.onLine,
@@ -880,6 +892,10 @@
           current_period: CURRENT_CLASS_PERIOD_KEY || '',
           heartbeat_reason: String(__KIOSK_HEARTBEAT_CFG.reason || ''),
           heartbeat_stop_local_min: __KIOSK_HEARTBEAT_CFG.stop_local_min ?? null,
+          service_worker_version: swVersion || null,
+          pending_scan_count: pendingRows.length,
+          oldest_pending_scan_at: oldestPending || null,
+          kiosk_locked: !!IS_LOCATION_LOCKED,
           clock_offset_ms: Number.isFinite(__SERVER_CLOCK_OFFSET_MS) ? Math.round(__SERVER_CLOCK_OFFSET_MS) : null,
           clock_sample_age_ms: Number.isFinite(currentClockSampleAgeMs_()) ? Math.round(currentClockSampleAgeMs_()) : null,
           clock_rtt_ms: Number.isFinite(__SERVER_CLOCK_RTT_MS) ? Math.round(__SERVER_CLOCK_RTT_MS) : null,
@@ -889,7 +905,8 @@
       });
     };
 
-    __KIOSK_HEARTBEAT_TIMER = setInterval(sendHeartbeat, intervalMs);
+    sendHeartbeat().catch(()=>{});
+    __KIOSK_HEARTBEAT_TIMER = setInterval(() => { sendHeartbeat().catch(()=>{}); }, intervalMs);
     __KIOSK_HEARTBEAT_STOP_TIMER = setTimeout(stopKioskHeartbeatLoop, stopAfterMs + 1000);
   }
 
@@ -2962,14 +2979,18 @@
 
     if (isClassKiosk(loc)) {
       const attendanceLabel = lockerNum || 'Present';
-      const shouldRoom = lockerColor || '';
+      const rawShouldRoom = String(lockerColor || '').trim();
+      const shouldRoom = rawShouldRoom.replace(/^Expected\s+/i, '').trim();
     
       const upper = String(attendanceLabel).toUpperCase();
-      const showShould = (upper === 'NOT ALLOWED') && !!shouldRoom;
+      const isWrongRoom = upper.startsWith('WRONG ROOM');
+      const showShould = (upper === 'NOT ALLOWED' || isWrongRoom) && !!shouldRoom;
     
-      const thirdCell = showShould
-        ? `${esc(attendanceLabel)} <span class="muted">(should be ${esc(shouldRoom)})</span>`
-        : esc(attendanceLabel);
+      const thirdCell = isWrongRoom
+        ? `<span class="badge badge--na">Wrong room</span>${shouldRoom ? ` <span class="muted">(go to ${esc(shouldRoom)})</span>` : ''}`
+        : (showShould
+            ? `${esc(attendanceLabel)} <span class="muted">(should be ${esc(shouldRoom)})</span>`
+            : esc(attendanceLabel));
     
       tr.className = '';
       tr.innerHTML =
@@ -3198,16 +3219,29 @@
 
     if (isClassKiosk(loc)) {
       const attendanceLabel = lockerNum || 'Present';
-      const shouldRoom = lockerColor || '';
+      const rawShouldRoom = String(lockerColor || '').trim();
+      const shouldRoom = rawShouldRoom.replace(/^Expected\s+/i, '').trim();
     
       const upper = String(attendanceLabel).toUpperCase();
-      const showShould = (upper === 'NOT ALLOWED') && !!shouldRoom;
+      const isWrongRoom = upper.startsWith('WRONG ROOM');
+      const showShould = (upper === 'NOT ALLOWED' || isWrongRoom) && !!shouldRoom;
+      const nameHtml = nameHtmlWithBadge(name);
+
+      if (isWrongRoom) {
+        resultEl.innerHTML =
+          `<div class="err">WRONG ROOM</div>
+           <div class="name">${nameHtml}</div>
+           <div class="code">${esc(code)} — RECORDED HERE</div>
+           <div class="name" style="margin-top:10px; font-size:20px;">${shouldRoom ? `GO TO ROOM ${esc(shouldRoom)}` : 'CHECK YOUR SCHEDULE'}</div>
+           <div class="muted">${fmtTime(when)}</div>`;
+        setStatus(shouldRoom ? `Wrong room. Go to ${shouldRoom}.` : 'Wrong room. Check your schedule.');
+        return;
+      }
     
       const extra = showShould
         ? `${attendanceLabel} — should be ${esc(shouldRoom)}`
         : attendanceLabel;
     
-      const nameHtml = nameHtmlWithBadge(name);
       resultEl.innerHTML =
         `<div class="ok">OK</div>
          <div class="name">${nameHtml}</div>
