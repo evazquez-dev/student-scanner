@@ -373,6 +373,71 @@ async function loadCommunicationHistory() {
   }
 }
 
+function canEditCommunicationCategory(row) {
+  if (access?.view_as?.active) return false;
+  const role = String(access?.role || '').trim();
+  if (role === 'super_admin' || role === 'admin') return true;
+  return String(row?.actor_email || '').trim().toLowerCase() === String(access?.email || '').trim().toLowerCase();
+}
+
+function openCommunicationCategoryEditor(item, row) {
+  item.querySelector('.historyCategoryEditor')?.remove();
+  const editor = document.createElement('div');
+  editor.className = 'historyCategoryEditor';
+  const select = document.createElement('select');
+  const current = String(row?.category || '').trim();
+  const seen = new Set();
+  for (const category of communicationCategories) {
+    const value = String(category || '').trim();
+    if (!value || seen.has(value.toLowerCase())) continue;
+    seen.add(value.toLowerCase());
+    select.appendChild(new Option(value, value));
+  }
+  if (current && !seen.has(current.toLowerCase())) select.appendChild(new Option(`${current} (current)`, current));
+  select.value = current;
+
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'btn primary';
+  save.textContent = 'Save category';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'btn secondary';
+  cancel.textContent = 'Cancel';
+  const status = document.createElement('span');
+  status.className = 'historyCategoryStatus';
+
+  cancel.addEventListener('click', () => editor.remove());
+  save.addEventListener('click', async () => {
+    const category = String(select.value || '').trim();
+    if (!category) return;
+    save.disabled = true;
+    select.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      const r = await adminFetch('/admin/communications/category', {
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          communication_id: row.communication_id,
+          student_number: row.student_number || currentStudent?.osis || '',
+          category
+        })
+      });
+      const j = await r.json().catch(()=>({}));
+      if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+      await loadCommunicationHistory();
+    } catch (e) {
+      status.textContent = `Could not change category: ${e?.message || e}`;
+      save.disabled = false;
+      select.disabled = false;
+    }
+  });
+
+  editor.append(select, save, cancel, status);
+  item.appendChild(editor);
+}
+
 function renderCommunicationHistory() {
   communicationHistory.innerHTML = '';
   if (!currentCommunications.length) {
@@ -385,6 +450,9 @@ function renderCommunicationHistory() {
     const follow = row.follow_up_needed
       ? `<div class="historyFollow">Follow-up: ${esc(row.follow_up_at_iso ? formatDateTime(row.follow_up_at_iso) : 'needed')}${row.follow_up_owner_email ? ` • ${esc(row.follow_up_owner_email)}` : ''}</div>`
       : '';
+    const categoryAudit = row.category_updated_at_iso
+      ? `<div class="historyCategoryAudit">Category last changed${row.previous_category ? ` from ${esc(row.previous_category)}` : ''} → ${esc(row.category || '')} by ${esc(row.category_updated_by_email || '—')} on ${esc(formatDateTime(row.category_updated_at_iso))}.</div>`
+      : '';
     item.innerHTML = `
       <div class="historyTop">
         <div>
@@ -395,7 +463,19 @@ function renderCommunicationHistory() {
       </div>
       <div class="historyNotes">${esc(row.notes)}</div>
       ${follow}
+      ${categoryAudit}
       <div class="historyMeta">Logged by ${esc(row.actor_email || '—')}${row.related_incident_id ? ` • Incident ${esc(row.related_incident_id)}` : ''} • ${esc(row.communication_id || '')}</div>`;
+    if (canEditCommunicationCategory(row)) {
+      const actions = document.createElement('div');
+      actions.className = 'historyActions';
+      const change = document.createElement('button');
+      change.type = 'button';
+      change.className = 'btn secondary';
+      change.textContent = 'Change category';
+      change.addEventListener('click', () => openCommunicationCategoryEditor(item, row));
+      actions.appendChild(change);
+      item.appendChild(actions);
+    }
     communicationHistory.appendChild(item);
   }
 }

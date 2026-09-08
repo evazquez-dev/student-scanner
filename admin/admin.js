@@ -152,6 +152,13 @@ const communicationCategoriesRows = document.getElementById('communicationCatego
 const communicationCategoriesOut = document.getElementById('communicationCategoriesOut');
 const btnAddCommunicationCategory = document.getElementById('btnAddCommunicationCategory');
 const btnSaveCommunicationCategories = document.getElementById('btnSaveCommunicationCategories');
+let configuredCommunicationCategories = [];
+
+// Required communication campaigns
+const requiredCommunicationsRows = document.getElementById('requiredCommunicationsRows');
+const requiredCommunicationsOut = document.getElementById('requiredCommunicationsOut');
+const btnAddRequiredCommunication = document.getElementById('btnAddRequiredCommunication');
+const btnSaveRequiredCommunications = document.getElementById('btnSaveRequiredCommunications');
 
 // Super Admin read-only View as Teacher
 const viewAsStaffSelect = document.getElementById('viewAsStaffSelect');
@@ -269,6 +276,7 @@ async function afterLoginBoot() {
   await loadEsasStatus();
   await loadExternalNavLinks();
   await loadCommunicationCategories();
+  await loadRequiredCommunications();
   await loadAcademicRosterSettings();
   await loadViewAsStaffSettings();
 
@@ -1023,8 +1031,10 @@ function renderCommunicationCategories(categories){
   if (!communicationCategoriesRows) return;
   communicationCategoriesRows.replaceChildren();
   const rows = Array.isArray(categories) ? categories : [];
+  configuredCommunicationCategories = rows.map((value) => String(value || '').trim()).filter(Boolean);
   if (!rows.length) addCommunicationCategoryRow();
   else rows.forEach((category) => addCommunicationCategoryRow(category));
+  refreshRequiredCommunicationCategoryOptions();
 }
 
 function collectCommunicationCategories(){
@@ -1080,6 +1090,219 @@ btnSaveCommunicationCategories?.addEventListener('click', async () => {
     btnSaveCommunicationCategories.disabled = false;
   }
 });
+
+/* ===============================
+ * REQUIRED COMMUNICATION CAMPAIGNS
+ * =============================== */
+function requiredCampaignId(){
+  return `rc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}`;
+}
+
+function setRequiredCategoryOptions(select, selected = ''){
+  if (!select) return;
+  const current = String(selected || select.value || '').trim();
+  select.replaceChildren();
+  const placeholder = new Option('Choose category…', '');
+  select.appendChild(placeholder);
+  const seen = new Set();
+  for (const category of configuredCommunicationCategories) {
+    const value = String(category || '').trim();
+    if (!value || seen.has(value.toLowerCase())) continue;
+    seen.add(value.toLowerCase());
+    select.appendChild(new Option(value, value));
+  }
+  if (current && !seen.has(current.toLowerCase())) {
+    const opt = new Option(`${current} (not currently configured)`, current);
+    select.appendChild(opt);
+  }
+  select.value = current;
+}
+
+function refreshRequiredCommunicationCategoryOptions(){
+  for (const select of requiredCommunicationsRows?.querySelectorAll('.requiredCommCategory') || []) {
+    setRequiredCategoryOptions(select, select.value);
+  }
+}
+
+function addRequiredCommunicationRow(campaign = {}){
+  if (!requiredCommunicationsRows) return;
+  const row = document.createElement('div');
+  row.className = 'requiredCommunicationRow';
+  row.dataset.campaignId = String(campaign?.campaign_id || requiredCampaignId());
+  const grades = new Set((Array.isArray(campaign?.grades) ? campaign.grades : []).map((g) => String(g)));
+
+  row.innerHTML = `
+    <div class="requiredCommunicationGrid">
+      <label>Name
+        <input class="requiredCommName" type="text" maxlength="120" placeholder="Curriculum Night Calls" value="${esc(campaign?.name || '')}">
+      </label>
+      <label>Category
+        <select class="requiredCommCategory"></select>
+      </label>
+      <label>Start date
+        <input class="requiredCommStart" type="date" value="${esc(campaign?.start_date || '')}">
+      </label>
+      <label>Due date
+        <input class="requiredCommDue" type="date" value="${esc(campaign?.due_date || '')}">
+      </label>
+    </div>
+    <div>
+      <div style="font-weight:700;margin-bottom:5px;">Student scope <span class="muted" style="font-weight:400;">(leave every grade unchecked for all active students)</span></div>
+      <div class="requiredCommunicationGrades">
+        ${['9','10','11','12'].map((grade) => `<label><input class="requiredCommGrade" type="checkbox" value="${grade}" ${grades.has(grade) ? 'checked' : ''}> Grade ${grade}</label>`).join('')}
+      </div>
+    </div>
+    <label class="requiredCommunicationLegacy">Legacy note phrases <span class="muted" style="font-weight:400;">(one per line; the selected category name is always matched automatically)</span>
+      <textarea class="requiredCommLegacy" rows="3" maxlength="5000" placeholder="curriculum night call\nfamily reminded about curriculum night">${esc((campaign?.legacy_phrases || []).join('\n'))}</textarea>
+    </label>
+    <div class="requiredCommunicationFooter">
+      <div class="left">
+        <label style="display:flex;align-items:center;gap:6px;font-weight:700;"><input class="requiredCommActive" type="checkbox" ${campaign?.active === false ? '' : 'checked'}> Active</label>
+        <button class="btn ghost requiredCommCoverageBtn" type="button">Check coverage</button>
+      </div>
+      <div class="right">
+        <button class="btn ghost requiredCommRemoveBtn" type="button">Remove</button>
+      </div>
+    </div>
+    <pre class="pane requiredCommunicationCoverage" hidden>—</pre>`;
+
+  const categorySelect = row.querySelector('.requiredCommCategory');
+  setRequiredCategoryOptions(categorySelect, campaign?.category || '');
+  row.querySelector('.requiredCommRemoveBtn')?.addEventListener('click', () => row.remove());
+  row.querySelector('.requiredCommCoverageBtn')?.addEventListener('click', () => checkRequiredCommunicationCoverage(row));
+  requiredCommunicationsRows.appendChild(row);
+}
+
+function renderRequiredCommunications(campaigns){
+  if (!requiredCommunicationsRows) return;
+  requiredCommunicationsRows.replaceChildren();
+  for (const campaign of Array.isArray(campaigns) ? campaigns : []) addRequiredCommunicationRow(campaign);
+}
+
+function collectRequiredCommunications(){
+  const campaigns = [];
+  const ids = new Set();
+  for (const row of requiredCommunicationsRows?.querySelectorAll('.requiredCommunicationRow') || []) {
+    const name = String(row.querySelector('.requiredCommName')?.value || '').trim().replace(/\s+/g,' ');
+    const category = String(row.querySelector('.requiredCommCategory')?.value || '').trim();
+    const start_date = String(row.querySelector('.requiredCommStart')?.value || '').trim();
+    const due_date = String(row.querySelector('.requiredCommDue')?.value || '').trim();
+    const rawLegacy = String(row.querySelector('.requiredCommLegacy')?.value || '');
+    const legacy_phrases = [];
+    const phraseSeen = new Set();
+    for (const raw of rawLegacy.split(/\r?\n/)) {
+      const phrase = raw.trim().replace(/\s+/g,' ').slice(0,160);
+      if (!phrase) continue;
+      const key = phrase.toLowerCase();
+      if (phraseSeen.has(key)) continue;
+      phraseSeen.add(key);
+      legacy_phrases.push(phrase);
+    }
+    const grades = Array.from(row.querySelectorAll('.requiredCommGrade:checked')).map((input) => String(input.value));
+    const active = row.querySelector('.requiredCommActive')?.checked !== false;
+    const campaign_id = String(row.dataset.campaignId || requiredCampaignId()).trim();
+    row.dataset.campaignId = campaign_id;
+
+    if (!name && !category && !start_date && !due_date) continue;
+    if (!name) throw new Error('Every required communication needs a name.');
+    if (!category) throw new Error(`“${name}” needs a category.`);
+    if (!start_date || !due_date) throw new Error(`“${name}” needs both a start date and a due date.`);
+    if (due_date < start_date) throw new Error(`“${name}” has a due date before its start date.`);
+    if (ids.has(campaign_id)) throw new Error(`Duplicate campaign ID: ${campaign_id}`);
+    ids.add(campaign_id);
+    campaigns.push({ campaign_id, name, category, start_date, due_date, grades, active, legacy_phrases });
+  }
+  if (campaigns.length > 30) throw new Error('A maximum of 30 required communication campaigns is allowed.');
+  return campaigns;
+}
+
+async function loadRequiredCommunications(){
+  if (!requiredCommunicationsRows) return;
+  if (requiredCommunicationsOut) requiredCommunicationsOut.textContent = 'Loading…';
+  try {
+    const r = await adminFetch('/admin/required_communications', { method:'GET' });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderRequiredCommunications(j.campaigns || []);
+    if (requiredCommunicationsOut) requiredCommunicationsOut.textContent = `${Number(j.count || 0)} required communication campaign(s) configured.`;
+  } catch (e) {
+    renderRequiredCommunications([]);
+    if (requiredCommunicationsOut) requiredCommunicationsOut.textContent = `Load failed: ${e?.message || e}`;
+  }
+}
+
+async function saveRequiredCommunications(){
+  if (!btnSaveRequiredCommunications) return;
+  btnSaveRequiredCommunications.disabled = true;
+  try {
+    const campaigns = collectRequiredCommunications();
+    if (requiredCommunicationsOut) requiredCommunicationsOut.textContent = 'Saving…';
+    const r = await adminFetch('/admin/required_communications', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({ campaigns })
+    });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.detail || j?.error || `HTTP ${r.status}`);
+    renderRequiredCommunications(j.campaigns || campaigns);
+    if (requiredCommunicationsOut) requiredCommunicationsOut.textContent = `Saved ${Number(j.count || campaigns.length)} required communication campaign(s).`;
+    return true;
+  } catch (e) {
+    if (requiredCommunicationsOut) requiredCommunicationsOut.textContent = `Save failed: ${e?.message || e}`;
+    return false;
+  } finally {
+    btnSaveRequiredCommunications.disabled = false;
+  }
+}
+
+async function checkRequiredCommunicationCoverage(row){
+  if (!row) return;
+  let out = row.querySelector('.requiredCommunicationCoverage');
+  let button = row.querySelector('.requiredCommCoverageBtn');
+  const campaignId = String(row.dataset.campaignId || '').trim();
+  if (!campaignId) return;
+  if (out) { out.hidden = false; out.textContent = 'Checking coverage…'; }
+  if (button) button.disabled = true;
+  try {
+    // Save first so coverage always reflects the exact rule visible on screen.
+    const saved = await saveRequiredCommunications();
+    if (!saved) throw new Error('Save the campaign successfully before checking coverage.');
+    row = Array.from(requiredCommunicationsRows?.querySelectorAll('.requiredCommunicationRow') || []).find((candidate) => String(candidate.dataset.campaignId || '') === campaignId) || row;
+    out = row.querySelector('.requiredCommunicationCoverage');
+    button = row.querySelector('.requiredCommCoverageBtn');
+    if (out) { out.hidden = false; out.textContent = 'Checking coverage…'; }
+    if (button) button.disabled = true;
+    const r = await adminFetch(`/admin/required_communications/coverage?campaign_id=${encodeURIComponent(campaignId)}`, { method:'GET' });
+    const j = await r.json().catch(()=>({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.detail || j?.error || `HTTP ${r.status}`);
+    const result = j.campaigns?.[0];
+    if (!result) throw new Error('No coverage result returned.');
+    const c = result.counts || {};
+    const missing = Array.isArray(result.missing) ? result.missing : [];
+    const missingShown = missing.slice(0,50).map((student) => `  • ${student.name || student.student_number} (${student.student_number})${student.grade ? ` — Grade ${student.grade}` : ''}`);
+    const lines = [
+      `${result.campaign?.name || 'Required communication'} — ${Number(c.completion_percent || 0)}% complete`,
+      `Expected: ${Number(c.expected || 0)}`,
+      `Complete: ${Number(c.complete || 0)}`,
+      `Missing: ${Number(c.missing || 0)}`,
+      `Exact category students: ${Number(c.exact_category_students || 0)}`,
+      `Legacy-note students: ${Number(c.legacy_text_students || 0)}`,
+      `Qualifying records: ${Number(c.qualifying_records || 0)}`,
+      `Duplicate qualifying records: ${Number(c.duplicate_qualifying_records || 0)}`,
+      '',
+      missing.length ? `Missing students${missing.length > 50 ? ` (first 50 of ${missing.length})` : ''}:` : 'No students are missing.',
+      ...missingShown
+    ];
+    if (out) out.textContent = lines.join('\n');
+  } catch (e) {
+    if (out) out.textContent = `Coverage check failed: ${e?.message || e}`;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+btnAddRequiredCommunication?.addEventListener('click', () => addRequiredCommunicationRow());
+btnSaveRequiredCommunications?.addEventListener('click', saveRequiredCommunications);
 
 /* ===============================
  * SY2627 FIRST-DAY PREFLIGHT

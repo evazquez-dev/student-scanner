@@ -267,6 +267,22 @@ tr.row-bad{ background: var(--row-bad-bg); }
 }
 
 
+/* Required communications */
+.requiredCommunicationsRows{display:grid;gap:12px;margin-top:12px;}
+.requiredCommunicationRow{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--table-bg);display:grid;gap:10px;}
+.requiredCommunicationGrid{display:grid;grid-template-columns:minmax(180px,1.4fr) minmax(150px,1fr) repeat(2,minmax(135px,.8fr));gap:10px;align-items:end;}
+.requiredCommunicationGrid label,.requiredCommunicationLegacy{display:grid;gap:5px;font-weight:700;}
+.requiredCommunicationGrid input,.requiredCommunicationGrid select,.requiredCommunicationLegacy textarea{width:100%;box-sizing:border-box;}
+.requiredCommunicationGrades{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.requiredCommunicationGrades label{display:flex;gap:5px;align-items:center;font-weight:600;}
+.requiredCommunicationGrades input{width:auto;}
+.requiredCommunicationFooter{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;}
+.requiredCommunicationFooter .left,.requiredCommunicationFooter .right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.requiredCommunicationCoverage{white-space:pre-wrap;margin:0;}
+.requiredCommunicationsActions{margin-top:10px;}
+@media (max-width:900px){.requiredCommunicationGrid{grid-template-columns:1fr 1fr;}}
+@media (max-width:620px){.requiredCommunicationGrid{grid-template-columns:1fr;}}
+
 /* Persistent academic roster / DOW settings */
 .academicRosterHeader{
   display:flex;
