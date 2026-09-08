@@ -147,6 +147,12 @@ const externalLinksOut = document.getElementById('externalLinksOut');
 const btnAddExternalLink = document.getElementById('btnAddExternalLink');
 const btnSaveExternalLinks = document.getElementById('btnSaveExternalLinks');
 
+// Parent communication categories
+const communicationCategoriesRows = document.getElementById('communicationCategoriesRows');
+const communicationCategoriesOut = document.getElementById('communicationCategoriesOut');
+const btnAddCommunicationCategory = document.getElementById('btnAddCommunicationCategory');
+const btnSaveCommunicationCategories = document.getElementById('btnSaveCommunicationCategories');
+
 // Super Admin read-only View as Teacher
 const viewAsStaffSelect = document.getElementById('viewAsStaffSelect');
 const viewAsEmail = document.getElementById('viewAsEmail');
@@ -262,6 +268,7 @@ async function afterLoginBoot() {
   await loadSystemMode();
   await loadEsasStatus();
   await loadExternalNavLinks();
+  await loadCommunicationCategories();
   await loadAcademicRosterSettings();
   await loadViewAsStaffSettings();
 
@@ -941,6 +948,136 @@ btnSaveExternalLinks?.addEventListener('click', async () => {
     if (externalLinksOut) externalLinksOut.textContent = `Save failed: ${e?.message || e}`;
   }finally{
     btnSaveExternalLinks.disabled = false;
+  }
+});
+
+/* ===============================
+ * PARENT COMMUNICATION CATEGORIES
+ * =============================== */
+function addCommunicationCategoryRow(value = ''){
+  if (!communicationCategoriesRows) return;
+  const row = document.createElement('div');
+  row.className = 'communicationCategoryRow';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 80;
+  input.placeholder = 'Category name';
+  input.setAttribute('aria-label', 'Communication category name');
+  input.value = String(value || '');
+
+  const controls = document.createElement('div');
+  controls.className = 'communicationCategoryRowControls';
+
+  const moveUp = document.createElement('button');
+  moveUp.type = 'button';
+  moveUp.className = 'btn ghost communicationCategoryMoveBtn';
+  moveUp.textContent = '↑';
+  moveUp.title = 'Move category up';
+  moveUp.setAttribute('aria-label', 'Move communication category up');
+  moveUp.addEventListener('click', () => moveCommunicationCategoryRow(row, -1));
+
+  const moveDown = document.createElement('button');
+  moveDown.type = 'button';
+  moveDown.className = 'btn ghost communicationCategoryMoveBtn';
+  moveDown.textContent = '↓';
+  moveDown.title = 'Move category down';
+  moveDown.setAttribute('aria-label', 'Move communication category down');
+  moveDown.addEventListener('click', () => moveCommunicationCategoryRow(row, 1));
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'btn ghost';
+  remove.textContent = 'Remove';
+  remove.addEventListener('click', () => {
+    row.remove();
+    if (!communicationCategoriesRows.querySelector('.communicationCategoryRow')) addCommunicationCategoryRow();
+    syncCommunicationCategoryMoveButtons();
+  });
+
+  controls.append(moveUp, moveDown, remove);
+  row.append(input, controls);
+  communicationCategoriesRows.appendChild(row);
+  syncCommunicationCategoryMoveButtons();
+}
+
+function moveCommunicationCategoryRow(row, direction){
+  if (!communicationCategoriesRows || !row) return;
+  const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (direction < 0) communicationCategoriesRows.insertBefore(row, sibling);
+  else communicationCategoriesRows.insertBefore(sibling, row);
+  syncCommunicationCategoryMoveButtons();
+}
+
+function syncCommunicationCategoryMoveButtons(){
+  const rows = Array.from(communicationCategoriesRows?.querySelectorAll('.communicationCategoryRow') || []);
+  rows.forEach((row, index) => {
+    const buttons = row.querySelectorAll('.communicationCategoryMoveBtn');
+    if (buttons[0]) buttons[0].disabled = index === 0;
+    if (buttons[1]) buttons[1].disabled = index === rows.length - 1;
+  });
+}
+
+function renderCommunicationCategories(categories){
+  if (!communicationCategoriesRows) return;
+  communicationCategoriesRows.replaceChildren();
+  const rows = Array.isArray(categories) ? categories : [];
+  if (!rows.length) addCommunicationCategoryRow();
+  else rows.forEach((category) => addCommunicationCategoryRow(category));
+}
+
+function collectCommunicationCategories(){
+  const categories = [];
+  const seen = new Set();
+  for (const row of communicationCategoriesRows?.querySelectorAll('.communicationCategoryRow') || []) {
+    const value = String(row.querySelector('input')?.value || '').trim().replace(/\s+/g, ' ');
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) throw new Error(`Duplicate category: “${value}”.`);
+    seen.add(key);
+    categories.push(value);
+  }
+  if (!categories.length) throw new Error('At least one communication category is required.');
+  if (categories.length > 40) throw new Error('A maximum of 40 communication categories is allowed.');
+  return categories;
+}
+
+async function loadCommunicationCategories(){
+  if (!communicationCategoriesRows) return;
+  if (communicationCategoriesOut) communicationCategoriesOut.textContent = 'Loading…';
+  try {
+    const r = await adminFetch('/admin/communication_categories', { method:'GET' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderCommunicationCategories(j.categories || []);
+    if (communicationCategoriesOut) communicationCategoriesOut.textContent = `${Number(j.count || 0)} communication categor${Number(j.count || 0) === 1 ? 'y' : 'ies'} configured.`;
+  } catch (e) {
+    renderCommunicationCategories([]);
+    if (communicationCategoriesOut) communicationCategoriesOut.textContent = `Load failed: ${e?.message || e}`;
+  }
+}
+
+btnAddCommunicationCategory?.addEventListener('click', () => addCommunicationCategoryRow());
+
+btnSaveCommunicationCategories?.addEventListener('click', async () => {
+  btnSaveCommunicationCategories.disabled = true;
+  try {
+    const categories = collectCommunicationCategories();
+    if (communicationCategoriesOut) communicationCategoriesOut.textContent = 'Saving…';
+    const r = await adminFetch('/admin/communication_categories', {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body:JSON.stringify({ categories })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.detail || j?.error || `HTTP ${r.status}`);
+    renderCommunicationCategories(j.categories || categories);
+    if (communicationCategoriesOut) communicationCategoriesOut.textContent = `Saved ${Number(j.count || categories.length)} communication categor${Number(j.count || categories.length) === 1 ? 'y' : 'ies'}. Staff will see the new list the next time Student Contacts loads.`;
+  } catch (e) {
+    if (communicationCategoriesOut) communicationCategoriesOut.textContent = `Save failed: ${e?.message || e}`;
+  } finally {
+    btnSaveCommunicationCategories.disabled = false;
   }
 });
 

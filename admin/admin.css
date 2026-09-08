@@ -229,6 +229,44 @@ tr.row-bad{ background: var(--row-bad-bg); }
 }
 
 
+/* Super Admin: parent communication categories */
+.communicationCategoriesRows{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:12px;
+}
+.communicationCategoryRow{
+  display:grid;
+  grid-template-columns:minmax(180px, 1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.communicationCategoryRow input{
+  width:100%;
+  min-width:0;
+  box-sizing:border-box;
+}
+.communicationCategoryRowControls{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.communicationCategoryMoveBtn{
+  min-width:38px;
+  padding-left:10px;
+  padding-right:10px;
+  font-size:1rem;
+  line-height:1;
+}
+.communicationCategoriesActions{ margin-top:10px; }
+@media (max-width:700px){
+  .communicationCategoryRow{ grid-template-columns:1fr; }
+  .communicationCategoryRowControls{ width:100%; }
+  .communicationCategoryRowControls .btn{ flex:1; }
+}
+
+
 /* Persistent academic roster / DOW settings */
 .academicRosterHeader{
   display:flex;

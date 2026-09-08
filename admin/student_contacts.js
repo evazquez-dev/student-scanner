@@ -10,6 +10,8 @@ const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
 const PAGE_PARAMS = new URLSearchParams(window.location.search);
 const PAGE_SOURCE = String(PAGE_PARAMS.get('source') || 'student_contacts').trim() || 'student_contacts';
+const DEFAULT_COMMUNICATION_CATEGORIES = ['Attendance','Behavior','Academic','Enrollment','Positive Contact','General','Other'];
+let communicationCategories = DEFAULT_COMMUNICATION_CATEGORIES.slice();
 
 function getStoredAdminSessionSid() {
   try {
@@ -534,6 +536,33 @@ async function resetMyEdits() {
   }
 }
 
+function renderCommunicationCategoryOptions(categories){
+  const clean = Array.isArray(categories)
+    ? categories.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+  communicationCategories = clean.length ? clean : DEFAULT_COMMUNICATION_CATEGORIES.slice();
+  const previous = String(commCategory.value || '').trim();
+  commCategory.replaceChildren();
+  for (const category of communicationCategories) {
+    commCategory.appendChild(new Option(category, category));
+  }
+  const preferred = communicationCategories.includes(previous)
+    ? previous
+    : (communicationCategories.includes('General') ? 'General' : communicationCategories[0]);
+  commCategory.value = preferred || '';
+}
+
+async function loadCommunicationCategories(){
+  try {
+    const r = await adminFetch('/admin/communication_categories', { method:'GET' });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.ok || !Array.isArray(j.categories) || !j.categories.length) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderCommunicationCategoryOptions(j.categories);
+  } catch {
+    renderCommunicationCategoryOptions(DEFAULT_COMMUNICATION_CATEGORIES);
+  }
+}
+
 function openCommunication(contact = null) {
   if (!currentStudent) return;
   communicatingWith = contact;
@@ -544,7 +573,7 @@ function openCommunication(contact = null) {
   commAt.value = localDateTimeValue();
   commMethod.value = 'Phone';
   commDirection.value = 'Outgoing';
-  commCategory.value = 'General';
+  commCategory.value = communicationCategories.includes('General') ? 'General' : (communicationCategories[0] || '');
   commOutcome.value = 'Spoke/Connected';
   commIncident.value = '';
   commNotes.value = '';
@@ -662,6 +691,7 @@ async function boot() {
   if (!access?.can?.student_contacts) throw new Error('forbidden');
   loginCard.hidden = true;
   app.hidden = false;
+  await loadCommunicationCategories();
 
   const bootUrl = new URL(location.href);
   const osis = bootUrl.searchParams.get('osis');
