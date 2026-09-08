@@ -209,10 +209,23 @@ tr.row-bad{ background: var(--row-bad-bg); }
   min-width:0;
   box-sizing:border-box;
 }
+.externalLinkRowControls{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.externalLinkMoveBtn{
+  min-width:38px;
+  padding-left:10px;
+  padding-right:10px;
+  font-size:1rem;
+  line-height:1;
+}
 .externalLinksActions{ margin-top:10px; }
 @media (max-width:700px){
   .externalLinkRow{ grid-template-columns:1fr; }
-  .externalLinkRow .btn{ width:100%; }
+  .externalLinkRowControls{ width:100%; }
+  .externalLinkRowControls .btn{ flex:1; }
 }
 
 

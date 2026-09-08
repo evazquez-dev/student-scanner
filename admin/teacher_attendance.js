@@ -46,6 +46,8 @@ const outListEl = document.getElementById('outList');
 const inListEl  = document.getElementById('inList');
 const outCountEl = document.getElementById('outCount');
 const inCountEl  = document.getElementById('inCount');
+const rosterCountText = document.getElementById('rosterCountText');
+const inClassCountText = document.getElementById('inClassCountText');
 let FIDELITY_TEACHER_PAGE_LOADED = false;
 let demoFixturePromise = null;
 let DEMO_SESSION_STATE = null;
@@ -1156,6 +1158,7 @@ async function refreshBehaviorLogForContext_(ctx){
 // Last rendered context (for organizer view)
 let LAST_CTX = null;           // { date, room, period }
 let LAST_SESSION_STATE = null; // object returned by /admin/class_session/state
+let LAST_SESSION_STATE_READY = false;
 
 function getTheme(){
   const t = String(document.documentElement?.dataset?.theme || '').trim().toLowerCase();
@@ -1300,6 +1303,35 @@ function zoneBlocksOutIn(_zone){
   // a teacher's explicit Out/In observation after attendance has been submitted.
   return false;
 }
+
+function renderTeacherClassCounts({ total = null, inClass = null } = {}){
+  const hasTotalOverride = total !== null && total !== undefined && Number.isFinite(Number(total));
+  const rosterTotal = hasTotalOverride
+    ? Number(total)
+    : (Array.isArray(lastMergedRows) ? lastMergedRows.length : 0);
+
+  if (rosterCountText) rosterCountText.textContent = `Roster: ${rosterTotal}`;
+
+  if (!inClassCountText) return;
+  const hasInClassOverride = inClass !== null && inClass !== undefined && Number.isFinite(Number(inClass));
+  if (hasInClassOverride) {
+    inClassCountText.textContent = `In class: ${Number(inClass)}`;
+    return;
+  }
+  if (PAGE_MODE !== 'class' || !LAST_SESSION_STATE_READY) {
+    inClassCountText.textContent = 'In class: —';
+    return;
+  }
+
+  const rows = Array.isArray(lastMergedRows) ? lastMergedRows : [];
+  let count = 0;
+  for (const row of rows) {
+    const osis = String(row?.osis || '').trim();
+    if (osis && hasSessionFirstIn(osis) && !isStudentOut(osis)) count += 1;
+  }
+  inClassCountText.textContent = `In class: ${count}`;
+}
+
 // Organizer renderer: OUT first, then IN.
 function renderOutInOrganizer(){
   if (!outInBox || !outListEl || !inListEl) return;
@@ -1346,6 +1378,7 @@ function renderOutInOrganizer(){
 
   if (outCountEl) outCountEl.textContent = String(outs.length);
   if (inCountEl)  inCountEl.textContent  = String(ins.length);
+  renderTeacherClassCounts();
 
   function makeRow({ r, osis, isOut, outSinceISO }){
     const wrap = document.createElement('div');
@@ -1403,6 +1436,7 @@ function renderOutInOrganizer(){
 
         if (!LAST_SESSION_STATE) LAST_SESSION_STATE = { ok:true, students:{}, effective_out_by_osis:{} };
         applyToggleResultToSessionState(LAST_SESSION_STATE, osis, res);
+        LAST_SESSION_STATE_READY = true;
 
         // Update table row button too (if present)
         const ui = ROW_UI.get(osis);
@@ -1539,6 +1573,8 @@ const LUNCH_ADVISOR_UI_PERIODS = new Set(['LCH1','LCH2']);
 let TEACHER_OPTS_CACHE = null;
 
 const roomLabelEl = document.querySelector('label[for="roomInput"]');
+const physicalRoomField = document.getElementById('physicalRoomField');
+const physicalRoomText = document.getElementById('physicalRoomText');
 
 // Advisor names are UI labels. Backend attendance/ClassSession buckets always use physical rooms.
 let UI_ADVISOR_LABEL = '';
@@ -1608,6 +1644,22 @@ function selectedAdvisorLabelForApi(periodLocal){
   return '';
 }
 
+function renderPhysicalRoomContext(){
+  if (!physicalRoomField || !physicalRoomText) return;
+  const p = periodKey(periodInput?.value || '');
+  const advisorMode = isAdvisorPeriod(p);
+  physicalRoomField.hidden = !advisorMode;
+  if (!advisorMode) {
+    physicalRoomText.textContent = '—';
+    return;
+  }
+
+  const picked = String(roomInput?.value || '').trim();
+  const map = TEACHER_OPTS_CACHE?.advisor_to_room?.[p] || {};
+  const physicalRoom = String(map?.[picked] || '').trim();
+  physicalRoomText.textContent = physicalRoom || '—';
+}
+
 function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
   const period = String(periodInput?.value || '').trim();
 
@@ -1629,6 +1681,7 @@ function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
   const keep = current && items.some(x => String(x) === current) ? current : '';
 
   fillSelect(roomInput, items, advisorMode ? 'Select advisor…' : 'Select room…', keep);
+  renderPhysicalRoomContext();
 
   // If we had to clear it, also clear saved room so we don't “stick” wrong mode
   if (!keep) {
@@ -2881,6 +2934,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   ROW_UI = new Map();
   ROW_DATA = new Map();
   CURRENT_OSIS_LIST = [];
+  LAST_SESSION_STATE_READY = !!sessionState;
   LAST_SESSION_STATE = sessionState || LAST_SESSION_STATE;
   // restore selection for this view (survives auto-refresh)
   SELECTED_OSIS = loadSelection(date, room, period);
@@ -3340,6 +3394,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
           if (!sessionState) sessionState = { ok:true, students:{}, effective_out_by_osis:{} };
           applyToggleResultToSessionState(sessionState, r.osis, res);
           LAST_SESSION_STATE = sessionState;
+          LAST_SESSION_STATE_READY = true;
 
           btn.className = 'btn btn-mini ' + (res.isOut ? 'btn-in' : 'btn-out');
           btn.textContent = outBtnLabelFor(r.osis);
@@ -3529,6 +3584,7 @@ function renderAfterSchoolRows({ date, homeRoomLabel, rows }){
 
   rowsEl.innerHTML = '';
   lastMergedRows = [];
+  LAST_SESSION_STATE_READY = false;
 
   const list = Array.isArray(rows) ? rows : [];
 
@@ -3628,6 +3684,10 @@ function renderAfterSchoolRows({ date, homeRoomLabel, rows }){
   }
 
   subtitleRight.textContent = `${String(homeRoomLabel || '').trim()} • After School • ${list.length} students`;
+  renderTeacherClassCounts({
+    total: list.length,
+    inClass: list.filter((row) => !!row?.in_room).length
+  });
   dateText.textContent = date || '—';
 }
 
@@ -3913,6 +3973,7 @@ async function bootTeacherAttendance(){
 
   roomInput.addEventListener('change', (ev) => {
     const v = roomInput.value.trim();
+    renderPhysicalRoomContext();
     try {
       if (!DEMO_MODE) {
         if (PAGE_MODE === 'after_school') localStorage.setItem(AS_ROOM_KEY, v);

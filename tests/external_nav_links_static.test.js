@@ -27,13 +27,17 @@ test('shared nav renders configured links at the bottom and opens safely in a ne
   assert.match(nav, /ssNavExternalSection/);
 });
 
-test('super admin dashboard supports add, edit, remove, load, and save', () => {
+test('super admin dashboard supports add, edit, reorder, remove, load, and save', () => {
   const html = read('student-scanner/admin/index.html');
   const js = read('student-scanner/admin/admin.js');
   assert.match(html, /id="externalLinksRows"/);
   assert.match(html, /id="btnAddExternalLink"/);
   assert.match(html, /id="btnSaveExternalLinks"/);
   assert.match(js, /function addExternalLinkRow/);
+  assert.match(js, /function moveExternalLinkRow/);
+  assert.match(js, /function syncExternalLinkMoveButtons/);
+  assert.match(js, /Move external link up/);
+  assert.match(js, /Move external link down/);
   assert.match(js, /function collectExternalNavLinks/);
   assert.match(js, /\/admin\/nav_external_links/);
   assert.match(js, /row\.remove\(\)/);

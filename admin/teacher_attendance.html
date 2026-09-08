@@ -365,7 +365,7 @@
 
     .controls{
       display:grid;
-      grid-template-columns: 1fr 1fr auto auto;
+      grid-template-columns: minmax(150px,1fr) minmax(150px,1fr) minmax(120px,.7fr) auto auto;
       gap: 0.5rem;
       align-items:end;
     }
@@ -386,6 +386,19 @@
       color: var(--fg);
       outline:none;
       font-size:0.92rem;
+    }
+    .fieldValue{
+      width:100%;
+      min-height:2.35rem;
+      padding:0.55rem 0.65rem;
+      border-radius:0.75rem;
+      border:1px solid var(--border-strong);
+      background: var(--control-bg);
+      color: var(--fg);
+      font-size:0.92rem;
+      font-weight:800;
+      display:flex;
+      align-items:center;
     }
     .btn{
       cursor:pointer;
@@ -878,6 +891,14 @@
             <span>⏱</span>
             <span id="refreshText">Never</span>
           </div>
+          <div class="pill" title="Students on the selected roster">
+            <span>👥</span>
+            <span id="rosterCountText">Roster: —</span>
+          </div>
+          <div class="pill" title="Students currently in the selected classroom based on ClassSession state">
+            <span>✅</span>
+            <span id="inClassCountText">In class: —</span>
+          </div>
 
           <!-- After-school toggle (only shown when Worker is in after-school window) -->
           <button class="btn" id="afterSchoolBtn" type="button" style="display:none;">🌙 After School</button>
@@ -899,6 +920,10 @@
             <div class="field" id="periodField">
               <label for="periodInput">Period (local)</label>
               <select id="periodInput"></select>
+            </div>
+            <div class="field" id="physicalRoomField" hidden>
+              <label>Physical room</label>
+              <div id="physicalRoomText" class="fieldValue" aria-live="polite">—</div>
             </div>
             <!-- <div class="field">
               <label for="whenSelect">When</label>

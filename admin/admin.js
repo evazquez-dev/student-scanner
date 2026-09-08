@@ -567,14 +567,56 @@ function addExternalLinkRow(link = {}){
   url.setAttribute('aria-label', 'External link URL');
   url.value = String(link?.url || link?.href || '');
 
+  const controls = document.createElement('div');
+  controls.className = 'externalLinkRowControls';
+
+  const moveUp = document.createElement('button');
+  moveUp.type = 'button';
+  moveUp.className = 'btn ghost externalLinkMoveBtn';
+  moveUp.textContent = '↑';
+  moveUp.title = 'Move link up';
+  moveUp.setAttribute('aria-label', 'Move external link up');
+  moveUp.addEventListener('click', () => moveExternalLinkRow(row, -1));
+
+  const moveDown = document.createElement('button');
+  moveDown.type = 'button';
+  moveDown.className = 'btn ghost externalLinkMoveBtn';
+  moveDown.textContent = '↓';
+  moveDown.title = 'Move link down';
+  moveDown.setAttribute('aria-label', 'Move external link down');
+  moveDown.addEventListener('click', () => moveExternalLinkRow(row, 1));
+
   const remove = document.createElement('button');
   remove.type = 'button';
   remove.className = 'btn ghost';
   remove.textContent = 'Remove';
-  remove.addEventListener('click', () => row.remove());
+  remove.addEventListener('click', () => {
+    row.remove();
+    syncExternalLinkMoveButtons();
+  });
 
-  row.append(label, url, remove);
+  controls.append(moveUp, moveDown, remove);
+  row.append(label, url, controls);
   externalLinksRows.appendChild(row);
+  syncExternalLinkMoveButtons();
+}
+
+function moveExternalLinkRow(row, direction){
+  if (!externalLinksRows || !row) return;
+  const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+  if (!sibling) return;
+  if (direction < 0) externalLinksRows.insertBefore(row, sibling);
+  else externalLinksRows.insertBefore(sibling, row);
+  syncExternalLinkMoveButtons();
+}
+
+function syncExternalLinkMoveButtons(){
+  const rows = Array.from(externalLinksRows?.querySelectorAll('.externalLinkRow') || []);
+  rows.forEach((row, index) => {
+    const buttons = row.querySelectorAll('.externalLinkMoveBtn');
+    if (buttons[0]) buttons[0].disabled = index === 0;
+    if (buttons[1]) buttons[1].disabled = index === rows.length - 1;
+  });
 }
 
 function renderExternalNavLinks(links){
