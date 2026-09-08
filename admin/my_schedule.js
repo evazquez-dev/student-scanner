@@ -28,7 +28,7 @@ function stashSid(resp,data){try{const sid=String(data?.sid||resp?.headers?.get(
 async function adminFetch(path,init={}){const headers=new Headers(init.headers||{});const sid=getSid();if(sid&&!headers.has(SESSION_HEADER))headers.set(SESSION_HEADER,sid);const resp=await fetch(new URL(path,API_BASE),{...init,headers,credentials:'include',cache:'no-store'});let j=null;try{j=await resp.clone().json();}catch{}stashSid(resp,j);if(resp.status===401&&['expired','no_session'].includes(String(j?.error||'')))clearSid();return resp;}
 async function waitForGoogle(timeoutMs=8000){const start=Date.now();while(!window.google?.accounts?.id){if(Date.now()-start>timeoutMs)throw new Error('Google Sign-In failed to load');await new Promise(r=>setTimeout(r,50));}return window.google.accounts.id;}
 function setStatus(text,kind='info'){pageStatus.className=`statusBanner ${kind}`;pageStatus.textContent=text;}
-function attendanceHref(room,period){const u=new URL('./teacher_attendance.html',location.href);u.searchParams.set('room',room);u.searchParams.set('period',period);return u.href;}
+function attendanceHref(room,period,advisor=''){const u=new URL('./teacher_attendance.html',location.href);u.searchParams.set('room',room);u.searchParams.set('period',period);if(advisor)u.searchParams.set('advisor',advisor);return u.href;}
 function displayDate(iso){if(!iso)return '—';const d=new Date(`${iso}T12:00:00`);return Number.isFinite(d.getTime())?d.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric',year:'numeric'}):iso;}
 
 function render(data){
@@ -51,13 +51,14 @@ function render(data){
     const classes=Array.isArray(p.classes)?p.classes:[];
     const badge=p.highlight_kind==='current'?'Current period':(p.highlight_kind==='up_next'?'Up next':'');
     const classHtml=classes.length?classes.map(c=>{
+      const isAdvisory=c.kind==='advisory';
       const names=(c.sections||[]).map(s=>s.name||s.code).filter(Boolean);
       const codes=(c.sections||[]).map(s=>s.code).filter(Boolean);
-      const title=names.length?names.join(' + '):'Scheduled class';
-      const href=attendanceHref(String(c.room||''),String(p.id||''));
-      return `<a class="classLink" href="${esc(href)}" aria-label="Open Teacher Attendance for Period ${esc(p.id)}, Room ${esc(c.room)}">
+      const title=isAdvisory?(c.advisor_label||'Advisory'):(names.length?names.join(' + '):'Scheduled class');
+      const href=attendanceHref(String(c.room||''),String(p.id||''),isAdvisory?String(c.advisor_label||''):'');
+      return `<a class="classLink" href="${esc(href)}" aria-label="Open Teacher Attendance for Period ${esc(p.id)}, Room ${esc(c.room)}${isAdvisory?`, Advisor ${esc(c.advisor_label||'')}`:''}">
         <div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(c.room)}</span></div>
-        ${codes.length?`<div class="sectionCodes">${esc(codes.join(' • '))}</div>`:''}
+        ${isAdvisory?'<div class="sectionCodes">Advisory</div>':(codes.length?`<div class="sectionCodes">${esc(codes.join(' • '))}</div>`:'')}
       </a>`;
     }).join(''):'<div class="emptyClass">No class assigned</div>';
     return `<section class="periodRow ${p.is_highlighted?'highlighted':''}">

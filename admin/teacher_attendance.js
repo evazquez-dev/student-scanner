@@ -1676,9 +1676,23 @@ function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
 
   if (roomLabelEl) roomLabelEl.textContent = advisorMode ? 'Advisor' : 'Room';
 
-  // Keep selection only if it exists in the new list
-  const current = String(preferredRoom || roomInput.value || '').trim();
-  const keep = current && items.some(x => String(x) === current) ? current : '';
+  // Direct My Schedule links carry the physical room plus ?advisor=Name.
+  // During ADV/FM, the visible dropdown value is the advisor label.
+  const advisorFromUrl = isAdvisorPeriod(pKey)
+    ? String(qs().get('advisor') || '').trim()
+    : '';
+  const teacherDefaults = isAdvisorPeriod(pKey)
+    ? (opts?.teacher_advisors_by_period?.[pKey] || [])
+    : [];
+
+  // Keep an explicit/current selection if it still exists. Otherwise, for a
+  // linked teacher with exactly one advisory in this period, auto-select it.
+  const current = String(advisorFromUrl || preferredRoom || roomInput.value || '').trim();
+  let keep = current && items.some(x => String(x) === current) ? current : '';
+  if (!keep && teacherDefaults.length === 1) {
+    const ownAdvisor = String(teacherDefaults[0] || '').trim();
+    if (ownAdvisor && items.some(x => String(x) === ownAdvisor)) keep = ownAdvisor;
+  }
 
   fillSelect(roomInput, items, advisorMode ? 'Select advisor…' : 'Select room…', keep);
   renderPhysicalRoomContext();

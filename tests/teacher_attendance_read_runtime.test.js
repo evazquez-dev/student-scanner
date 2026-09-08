@@ -102,7 +102,10 @@ function seed({ practice = false } = {}) {
       courses: {
         '111111111': { '1': 'ENG100.1', '2': 'SCI100.1', FM1: 'Advisory Alpha' },
         '222222222': { '1': 'ENG100.1', FM1: 'Advisory Alpha' }
-      }
+      },
+      advisor_links: [
+        { teacher_name: 'Advisory Alpha', teacher_email: 'teacher@school.org', room: '310', alt_room: '204' }
+      ]
     },
     locs_v1: { locations: [
       { name: '302', type: 'class' },
@@ -154,7 +157,28 @@ test('Teacher Attendance options are served by the modular read route with perio
   assert.equal(data.last_period_local, '2');
   assert.deepEqual(data.advisors_by_period.FM1, ['Advisory Alpha']);
   assert.equal(data.advisor_to_room.FM1['Advisory Alpha'], '310');
+  assert.deepEqual(data.teacher_advisors_by_period.FM1, ['Advisory Alpha']);
+  assert.equal(data.teacher_advisor_to_room.FM1['Advisory Alpha'], '310');
+  assert.equal(data.teacher_advisor_linked, true);
   assert.equal(data.chairs_reminder_enabled, true);
+});
+
+test('advisor link room fallback never guesses when multiple advisor labels share a room', async () => {
+  const { handleTeacherAttendanceReadRequest } = await loadRoute();
+  const env = makeEnv();
+  const classes = JSON.parse(await env.ROSTER.get('student_classes_v1'));
+  classes.courses['222222222'].FM1 = 'Advisory Beta';
+  classes.advisor_links = [
+    { teacher_name: 'Name Not Present', teacher_email: 'teacher@school.org', room: '310', alt_room: '' }
+  ];
+  await env.ROSTER.put('student_classes_v1', JSON.stringify(classes));
+
+  const response = await handleTeacherAttendanceReadRequest(request('/admin/teacher_att/options'), env, {});
+  assert.equal(response.status, 200);
+  const data = await json(response);
+  assert.deepEqual(data.advisors_by_period.FM1, ['Advisory Alpha', 'Advisory Beta']);
+  assert.deepEqual(data.teacher_advisors_by_period.FM1, []);
+  assert.equal(data.teacher_advisor_linked, true);
 });
 
 test('meeting preview computes the same scheduled roster and attendance-code semantics without touching submit/finalization', async () => {
