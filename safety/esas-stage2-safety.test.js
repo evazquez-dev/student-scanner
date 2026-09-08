@@ -53,8 +53,8 @@ test('SAFETY: all student accounting mutations retain origin and View-as guards'
 
 test('SAFETY: unaccounted/search/my roster are authenticated staff reads while incident management stays restricted', () => {
   const unaccountedStart = route.indexOf('async function handleUnaccounted');
-  const accountStart = route.indexOf('async function handleAccount', unaccountedStart);
-  const unaccountedBlock = route.slice(unaccountedStart, accountStart);
+  const unaccountedEnd = route.indexOf('async function handleArchive', unaccountedStart);
+  const unaccountedBlock = route.slice(unaccountedStart, unaccountedEnd);
   assert.match(unaccountedBlock, /authenticated/);
   assert.doesNotMatch(unaccountedBlock, /manageOnly/);
   assert.match(route, /handleMyRoster[\s\S]*authenticated/);
@@ -76,10 +76,14 @@ test('SAFETY: ended student-level ESAS archives have bounded retention and DO fu
   assert.match(durable, /path === '\/archive-complete'/);
 });
 
-test('SAFETY: ESAS Stage 2 still has no attendance, GAS, PowerSchool, redirect, or push side effects', () => {
-  const combined = `${route}\n${service}\n${durable}`;
-  assert.doesNotMatch(combined, /pushFinalToGAS|WORKER_PUSH_URL|PowerSchool|FIDELITY_GAS_URL|BEHAVIOR_GAS_URL/);
-  assert.doesNotMatch(combined, /location\.replace|window\.location|showNotification|push\/subscribe/);
+test('SAFETY: ESAS Stage 2 snapshot/accounting core still has no attendance, GAS, PowerSchool, or browser side effects', () => {
+  const core = `${service}
+${durable}`;
+  assert.doesNotMatch(core, /pushFinalToGAS|WORKER_PUSH_URL|PowerSchool|FIDELITY_GAS_URL|BEHAVIOR_GAS_URL/);
+  assert.doesNotMatch(core, /location\.replace|window\.location|showNotification|push\/subscribe/);
+  // Stage 4 may dispatch a privacy-safe push from the authenticated activation route;
+  // it does not change the Stage 2 snapshot/accounting state machine.
+  assert.match(route, /sendPushToEmails/);
   assert.match(worker, /path === "\/admin\/teacher_att\/submit"/);
   assert.match(worker, /async function pushFinalToGAS/);
 });

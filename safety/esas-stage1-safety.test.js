@@ -14,6 +14,7 @@ const wrangler = read('cf-redcake/red-cake-77d5/wrangler.jsonc');
 const access = read('cf-redcake/red-cake-77d5/src/services/admin-session.js');
 const adminHtml = read('student-scanner/admin/index.html');
 const adminJs = read('student-scanner/admin/admin.js');
+const navJs = read('student-scanner/admin/nav.js');
 
 const interceptPos = index.indexOf('ESAS_PATHS.has(path)');
 const fallbackPos = index.indexOf('return baseWorker.fetch(req, env, ctx);');
@@ -60,7 +61,7 @@ test('SAFETY: ending ESAS requires an exact incident id and archives the ended l
   assert.match(service, /archive_write_failed/);
 });
 
-test('SAFETY: Super Admin page exposes explicit ESAS activate/end controls without global redirect yet', () => {
+test('SAFETY: Super Admin retains explicit ESAS controls while Stage 4 takeover is centralized in shared nav', () => {
   assert.match(adminHtml, /id="esasControlCard"/);
   assert.match(adminHtml, /id="btnActivateEsas"/);
   assert.match(adminHtml, /id="btnEndEsas"/);
@@ -68,6 +69,8 @@ test('SAFETY: Super Admin page exposes explicit ESAS activate/end controls witho
   assert.match(adminJs, /\/admin\/esas\/activate/);
   assert.match(adminJs, /\/admin\/esas\/end/);
   assert.doesNotMatch(adminJs, /location\.replace\([^\n]*esas/);
+  assert.match(navJs, /refreshEsasTakeover/);
+  assert.match(navJs, /location\.replace\('\.\/esas\.html\?takeover=1'\)/);
 });
 
 test('SAFETY: Teacher Attendance write/finalization boundary remains untouched during ESAS Stage 1', () => {

@@ -5,6 +5,7 @@
   const DEMO_MODE = new URLSearchParams(location.search).get('demo') === '1';
 
   const LS_OPEN = 'ss_nav_open_v1';
+  const ESAS_TAKEOVER_POLL_MS = 4000;
   // Give authenticated admin pages a consistent installable Staff PWA identity.
   if (!document.querySelector('link[rel="manifest"]')) {
     const manifestLink = document.createElement('link');
@@ -141,6 +142,37 @@
 
   function isEsasPage(){
     return /esas\.html$/i.test(location.pathname || '');
+  }
+
+  function isEsasTakeoverExemptPage(){
+    // Visitor Desk must remain usable during an emergency. Public visitor,
+    // student, scanner, and kiosk surfaces live outside /admin/ and never load
+    // this shared admin navigation guard.
+    return isEsasPage() || isVisitorPage();
+  }
+
+  let esasTakeoverInFlight = false;
+  let esasRedirecting = false;
+
+  async function refreshEsasTakeover(){
+    if (DEMO_MODE || isEsasTakeoverExemptPage() || esasRedirecting || esasTakeoverInFlight) return null;
+    esasTakeoverInFlight = true;
+    try{
+      const r = await adminFetch('/admin/esas/status', { method:'GET' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.ok) return null;
+      if (j.active === true && j.incident?.incident_id){
+        esasRedirecting = true;
+        location.replace('./esas.html?takeover=1');
+      }
+      return j;
+    }catch{
+      // Never redirect from a guessed or stale client-side state. ESAS takeover
+      // requires a fresh authenticated server response.
+      return null;
+    }finally{
+      esasTakeoverInFlight = false;
+    }
   }
 
   let practiceBannerResizeObserver = null;
@@ -688,6 +720,8 @@
     for (let i = 0; i < 40; i++) {
       const access = await getAccess();
       if (access?.ok) {
+        const esas = await refreshEsasTakeover();
+        if (esas?.active === true && esas?.incident?.incident_id) return;
         mountNav(access);
         return;
       }
@@ -701,10 +735,18 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSystemMode(); });
   }
 
+  function bootEsasTakeoverWatcher(){
+    if (isEsasTakeoverExemptPage()) return;
+    refreshEsasTakeover();
+    setInterval(refreshEsasTakeover, ESAS_TAKEOVER_POLL_MS);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshEsasTakeover(); });
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => { bootModeWatcher(); bootNav(); });
+    document.addEventListener('DOMContentLoaded', () => { bootModeWatcher(); bootEsasTakeoverWatcher(); bootNav(); });
   } else {
     bootModeWatcher();
+    bootEsasTakeoverWatcher();
     bootNav();
   }
 })();

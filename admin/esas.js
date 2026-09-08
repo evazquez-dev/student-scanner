@@ -63,6 +63,27 @@ const opsEmpty = $('opsEmpty');
 
 const toast = $('toast');
 
+const managerControls = $('managerControls');
+const managerControlHint = $('managerControlHint');
+const endIncidentBtn = $('endIncidentBtn');
+const endGuardPanel = $('endGuardPanel');
+const endGuardMessage = $('endGuardMessage');
+const endGuardPhraseLabel = $('endGuardPhraseLabel');
+const endGuardPhraseText = $('endGuardPhraseText');
+const endGuardInput = $('endGuardInput');
+const cancelEndBtn = $('cancelEndBtn');
+const confirmEndBtn = $('confirmEndBtn');
+
+const archiveSummaryCard = $('archiveSummaryCard');
+const archiveSummaryTitle = $('archiveSummaryTitle');
+const archiveSummaryMeta = $('archiveSummaryMeta');
+const archiveExpectedCount = $('archiveExpectedCount');
+const archiveAccountedCount = $('archiveAccountedCount');
+const archiveUnaccountedCount = $('archiveUnaccountedCount');
+const archiveSummaryDetails = $('archiveSummaryDetails');
+const archiveFinalUnaccounted = $('archiveFinalUnaccounted');
+const dismissArchiveSummaryBtn = $('dismissArchiveSummaryBtn');
+
 let SESSION = null;
 let ESAS_STATUS = null;
 let MY_ROSTER = [];
@@ -75,6 +96,11 @@ let LAST_SYNC_MS = 0;
 let SEARCH_TIMER = null;
 let SEARCH_SEQ = 0;
 let TOAST_TIMER = null;
+let LAST_ARCHIVE_SUMMARY = null;
+let ARCHIVE_REQUEST_ATTEMPTED = false;
+let END_GUARD_COUNT = null;
+let END_GUARD_PHRASE = '';
+let END_IN_FLIGHT = false;
 const PENDING_OSIS = new Set();
 
 function esc(value){
@@ -201,12 +227,212 @@ function formatStarted(iso){
   return d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
 }
 
+function formatDateTime(iso){
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+}
+
+function formatDuration(seconds){
+  const total = Number(seconds);
+  if (!Number.isFinite(total) || total < 0) return '—';
+  const min = Math.floor(total / 60);
+  const sec = Math.round(total % 60);
+  if (min >= 60) return `${Math.floor(min / 60)}h ${min % 60}m`;
+  return min ? `${min}m ${sec}s` : `${sec}s`;
+}
+
+function requestedArchiveId(){
+  try { return String(new URLSearchParams(location.search).get('summary') || '').trim(); }
+  catch { return ''; }
+}
+
 function scheduleText(incident){
   const context = incident?.context || {};
   const period = String(context.period_local || '').trim();
   const mode = String(context.schedule_mode || '').replaceAll('_', ' ').trim();
   if (period) return `Period ${period}${mode ? ` · ${mode}` : ''}`;
   return mode || 'No current period';
+}
+
+function closeEndGuard(){
+  END_GUARD_COUNT = null;
+  END_GUARD_PHRASE = '';
+  if (endGuardInput) endGuardInput.value = '';
+  if (endGuardPanel) endGuardPanel.hidden = true;
+  if (endGuardPhraseLabel) endGuardPhraseLabel.hidden = true;
+  if (confirmEndBtn) confirmEndBtn.disabled = false;
+}
+
+function renderManagerControls(){
+  if (!managerControls) return;
+  const active = isActive();
+  const allowed = active && canManage() && !isViewAsReadOnly();
+  managerControls.hidden = !allowed;
+  if (!allowed) {
+    closeEndGuard();
+    return;
+  }
+  const remaining = Number(ESAS_STATUS?.incident?.counts?.unaccounted || 0);
+  if (managerControlHint) {
+    managerControlHint.textContent = remaining > 0
+      ? `${remaining} student${remaining === 1 ? '' : 's'} remain unaccounted. Ending requires an explicit force confirmation.`
+      : 'All expected students are accounted for. Ending still requires a final confirmation.';
+  }
+  if (endIncidentBtn) {
+    endIncidentBtn.disabled = END_IN_FLIGHT;
+    endIncidentBtn.textContent = remaining > 0 ? `End ESAS · ${remaining} unaccounted` : 'End ESAS';
+  }
+}
+
+function renderArchiveSummary(){
+  if (!archiveSummaryCard) return;
+  const summary = LAST_ARCHIVE_SUMMARY;
+  if (!summary || !canManage()) {
+    archiveSummaryCard.hidden = true;
+    return;
+  }
+  archiveSummaryCard.hidden = false;
+  const kind = String(summary.kind || '').toLowerCase();
+  archiveSummaryTitle.textContent = summary.label || (kind === 'drill' ? 'ESAS Drill' : 'ESAS Incident');
+  archiveSummaryMeta.textContent = `${kind === 'drill' ? 'Drill' : 'Emergency'} · ${formatDateTime(summary.started_at_iso)} → ${formatDateTime(summary.ended_at_iso)} · ${summary.incident_id || ''}`;
+  const counts = summary.counts || {};
+  archiveExpectedCount.textContent = Number(counts.expected || 0).toLocaleString();
+  archiveAccountedCount.textContent = Number(counts.accounted || 0).toLocaleString();
+  archiveUnaccountedCount.textContent = Number(counts.unaccounted || 0).toLocaleString();
+
+  const detailRows = [
+    ['Duration', formatDuration(summary.duration_seconds)],
+    ['Ended by', summary.ended_by || '—'],
+    ['Actions recorded', Number(summary.action_count || 0).toLocaleString()],
+    ['Initially off campus', Number(counts.excluded_off_campus_initial || 0).toLocaleString()],
+    ['Promoted from off campus', Number(counts.promoted_from_off_campus || 0).toLocaleString()],
+    ['Archive retention', `${Number(summary.archive_retention_days || 90)} days`]
+  ];
+  archiveSummaryDetails.innerHTML = detailRows
+    .map(([label, value]) => `<div class="archive-detail"><b>${esc(label)}</b>${esc(value)}</div>`)
+    .join('');
+
+  const missing = Array.isArray(summary.final_unaccounted) ? summary.final_unaccounted : [];
+  if (!missing.length) {
+    archiveFinalUnaccounted.innerHTML = '<div class="archive-unaccounted-empty">✓ No students remained unaccounted when the incident ended.</div>';
+    return;
+  }
+  archiveFinalUnaccounted.innerHTML = `<h3>Final unaccounted (${Number(counts.unaccounted || missing.length)})</h3>` +
+    `<div class="archive-unaccounted-list">${missing.map((student) => {
+      const bits = [];
+      if (student.grade) bits.push(`Grade ${student.grade}`);
+      if (student.osis) bits.push(`OSIS ${student.osis}`);
+      if (student.expected_room) bits.push(`Room ${student.expected_room}`);
+      if (student.expected_course) bits.push(student.expected_course);
+      if (Array.isArray(student.expected_teacher_names) && student.expected_teacher_names.length) bits.push(student.expected_teacher_names.join(', '));
+      return `<div class="archive-unaccounted-row"><strong>${esc(student.name || 'Student')}</strong>${esc(bits.join(' · '))}</div>`;
+    }).join('')}</div>` +
+    (summary.final_unaccounted_truncated ? '<div class="muted" style="margin-top:8px">This display is truncated; the full incident archive remains retained server-side.</div>' : '');
+}
+
+async function loadRequestedArchiveSummary(){
+  const id = requestedArchiveId();
+  if (!id || ARCHIVE_REQUEST_ATTEMPTED || !canManage() || isActive()) return;
+  ARCHIVE_REQUEST_ATTEMPTED = true;
+  try{
+    const result = await getJson(`/admin/esas/archive?incident_id=${encodeURIComponent(id)}`, { method:'GET' });
+    LAST_ARCHIVE_SUMMARY = result.summary || null;
+    renderArchiveSummary();
+  }catch(error){
+    showToast(`Could not load archived ESAS summary: ${error?.message || error}`);
+  }
+}
+
+function openEndGuard(){
+  if (!isActive() || !canManage() || isViewAsReadOnly() || END_IN_FLIGHT) return;
+  const remaining = Number(ESAS_STATUS?.incident?.counts?.unaccounted || 0);
+  END_GUARD_COUNT = remaining;
+  END_GUARD_PHRASE = remaining > 0 ? `END WITH ${remaining} UNACCOUNTED` : '';
+  endGuardPanel.hidden = false;
+  endGuardMessage.textContent = remaining > 0
+    ? `${remaining} student${remaining === 1 ? '' : 's'} are still unaccounted. Ending now preserves them in the final archived summary and requires an explicit force confirmation.`
+    : 'All expected students are accounted for. Confirm that you want to end this ESAS incident.';
+  endGuardPhraseLabel.hidden = remaining === 0;
+  endGuardPhraseText.textContent = END_GUARD_PHRASE;
+  endGuardInput.value = '';
+  confirmEndBtn.disabled = remaining > 0;
+  if (remaining > 0) setTimeout(() => endGuardInput.focus(), 0);
+}
+
+function syncEndGuardInput(){
+  if (!confirmEndBtn) return;
+  if (Number(END_GUARD_COUNT || 0) === 0) {
+    confirmEndBtn.disabled = END_IN_FLIGHT;
+    return;
+  }
+  confirmEndBtn.disabled = END_IN_FLIGHT || String(endGuardInput?.value || '').trim() !== END_GUARD_PHRASE;
+}
+
+async function endCurrentIncident(){
+  if (END_IN_FLIGHT || !isActive() || !canManage() || isViewAsReadOnly()) return;
+  const incidentId = String(ESAS_STATUS?.incident?.incident_id || '').trim();
+  const confirmedUnaccounted = Number(END_GUARD_COUNT);
+  if (!incidentId || !Number.isInteger(confirmedUnaccounted) || confirmedUnaccounted < 0) return;
+  const force = confirmedUnaccounted > 0;
+  if (force && String(endGuardInput?.value || '').trim() !== END_GUARD_PHRASE) return;
+
+  END_IN_FLIGHT = true;
+  if (endIncidentBtn) endIncidentBtn.disabled = true;
+  if (confirmEndBtn) confirmEndBtn.disabled = true;
+  try{
+    const result = await getJson('/admin/esas/end', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        incident_id: incidentId,
+        confirm_unaccounted: confirmedUnaccounted,
+        force_with_unaccounted: force
+      })
+    });
+    LAST_ARCHIVE_SUMMARY = result.summary || null;
+    ARCHIVE_REQUEST_ATTEMPTED = !!LAST_ARCHIVE_SUMMARY;
+    try{
+      const u = new URL(location.href);
+      u.searchParams.delete('takeover');
+      u.searchParams.set('summary', incidentId);
+      history.replaceState(null, '', `${u.pathname}${u.search}${u.hash}`);
+    }catch{}
+    closeEndGuard();
+    await refreshAll({ silent:true });
+    renderArchiveSummary();
+    showToast(result.archive_warning
+      ? 'ESAS ended. The secondary archive reported a warning; the Worker retained the ended incident for recovery.'
+      : 'ESAS ended and the final incident summary was archived.');
+  }catch(error){
+    const code = String(error?.code || '');
+    if (code === 'unaccounted_count_changed') {
+      showToast('The unaccounted count changed while you were confirming. ESAS was NOT ended. Review the current list and try again.');
+      closeEndGuard();
+      await refreshAll({ silent:true });
+    } else if (code === 'unaccounted_students_remain') {
+      showToast('Students are still unaccounted. ESAS was NOT ended without the explicit force confirmation.');
+      closeEndGuard();
+      await refreshAll({ silent:true });
+    } else {
+      showToast(`ESAS was NOT ended: ${error?.message || error}`);
+    }
+  }finally{
+    END_IN_FLIGHT = false;
+    renderManagerControls();
+    syncEndGuardInput();
+  }
+}
+
+function dismissArchiveSummary(){
+  LAST_ARCHIVE_SUMMARY = null;
+  archiveSummaryCard.hidden = true;
+  try{
+    const u = new URL(location.href);
+    u.searchParams.delete('summary');
+    history.replaceState(null, '', `${u.pathname}${u.search}${u.hash}`);
+  }catch{}
 }
 
 function renderIncident(){
@@ -223,6 +449,8 @@ function renderIncident(){
     activeApp.hidden = true;
     inactiveCard.hidden = false;
     tabOps.hidden = true;
+    renderManagerControls();
+    renderArchiveSummary();
     return;
   }
 
@@ -251,6 +479,8 @@ function renderIncident(){
   inactiveCard.hidden = true;
   activeApp.hidden = false;
   tabOps.hidden = false;
+  renderManagerControls();
+  renderArchiveSummary();
 
   if (canManage() && ACTIVE_VIEW === 'roster' && !tabOps.dataset.seenManager) {
     ACTIVE_VIEW = 'ops';
@@ -501,6 +731,8 @@ async function refreshAll({ silent = false } = {}){
       renderOps();
       LAST_SYNC_MS = Date.now();
       setSync('ok', syncAgeText());
+      await loadRequestedArchiveSummary();
+      renderArchiveSummary();
       return;
     }
 
@@ -642,6 +874,11 @@ async function boot(){
   tabSearch.addEventListener('click', () => setView('search'));
   tabOps.addEventListener('click', () => setView('ops'));
   refreshBtn.addEventListener('click', () => refreshAll());
+  endIncidentBtn?.addEventListener('click', openEndGuard);
+  cancelEndBtn?.addEventListener('click', closeEndGuard);
+  confirmEndBtn?.addEventListener('click', () => endCurrentIncident().catch(() => {}));
+  endGuardInput?.addEventListener('input', syncEndGuardInput);
+  dismissArchiveSummaryBtn?.addEventListener('click', dismissArchiveSummary);
 
   studentSearch.addEventListener('input', scheduleSearch);
   clearSearchBtn.addEventListener('click', () => {

@@ -266,7 +266,7 @@ test('accounting is incident-id protected, View-as/mutation guards remain, and e
     method: 'POST', sid: 'teacher-sid', body: { incident_id: id, osis: '1001', source: 'roster' }
   }), env, {});
   const ended = await handleEsasRequest(req('/admin/esas/end', {
-    method: 'POST', sid: 'admin-sid', body: { incident_id: id }
+    method: 'POST', sid: 'admin-sid', body: { incident_id: id, confirm_unaccounted: 2, force_with_unaccounted: true }
   }), env, {});
   assert.equal(ended.status, 200);
 

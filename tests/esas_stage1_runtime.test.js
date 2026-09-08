@@ -177,13 +177,13 @@ test('ending ESAS requires the current incident id and archives the ended lifecy
   const incidentId = a.incident.incident_id;
 
   const stale = await handleEsasRequest(req('/admin/esas/end', {
-    method: 'POST', sid: 'admin-sid', body: { incident_id: 'esas-stale' }
+    method: 'POST', sid: 'admin-sid', body: { incident_id: 'esas-stale', confirm_unaccounted: 1, force_with_unaccounted: true }
   }), env, {});
   assert.equal(stale.status, 409);
   assert.equal((await data(stale)).error, 'incident_mismatch');
 
   const ended = await handleEsasRequest(req('/admin/esas/end', {
-    method: 'POST', sid: 'admin-sid', body: { incident_id: incidentId }
+    method: 'POST', sid: 'admin-sid', body: { incident_id: incidentId, confirm_unaccounted: 1, force_with_unaccounted: true }
   }), env, {});
   assert.equal(ended.status, 200);
   const e = await data(ended);

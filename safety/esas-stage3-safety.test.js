@@ -10,7 +10,7 @@ const js = read('admin/esas.js');
 const sw = read('sw.js');
 const route = fs.readFileSync(path.resolve(ROOT, '..', 'cf-redcake/red-cake-77d5/src/routes/esas.js'), 'utf8');
 
-test('SAFETY: Stage 3 does not introduce global emergency takeover or push activation', () => {
+test('SAFETY: the Stage 3 ESAS page does not duplicate the shared Stage 4 takeover or backend push dispatcher', () => {
   assert.doesNotMatch(js, /location\.replace|window\.location\s*=|location\.assign/);
   assert.doesNotMatch(js, /showNotification|PushManager|push\/subscribe/);
   assert.doesNotMatch(sw, /esas/i);
@@ -39,8 +39,8 @@ test('SAFETY: every authenticated staff page receives the live whole-school unac
   assert.match(js, /tabOps\.hidden = false/);
   assert.doesNotMatch(js, /tabOps\.hidden = !canManage\(\)/);
   const unaccountedStart = route.indexOf('async function handleUnaccounted');
-  const accountStart = route.indexOf('async function handleAccount', unaccountedStart);
-  const unaccountedBlock = route.slice(unaccountedStart, accountStart);
+  const unaccountedEnd = route.indexOf('async function handleArchive', unaccountedStart);
+  const unaccountedBlock = route.slice(unaccountedStart, unaccountedEnd);
   assert.match(unaccountedBlock, /authenticated/);
   assert.doesNotMatch(unaccountedBlock, /manageOnly/);
 });

@@ -78,12 +78,58 @@
       <section id="inactiveCard" class="state-card" hidden>
         <div class="state-icon">✓</div>
         <h2>No ESAS incident is active</h2>
-        <p>This page will keep checking automatically. When an authorized Ops/Admin user activates a drill or emergency, the incident will appear here.</p>
+        <p>This page will keep checking automatically. When an authorized Ops/Admin user activates a drill or emergency, authenticated EagleNEST staff pages are redirected here.</p>
         <p class="muted">ESAS does not replace established emergency procedures or offline accountability.</p>
+      </section>
+
+      <section id="archiveSummaryCard" class="archive-summary" hidden>
+        <div class="archive-summary__head">
+          <div>
+            <div class="archive-kicker">Archived incident summary</div>
+            <h2 id="archiveSummaryTitle">Ended ESAS incident</h2>
+            <div id="archiveSummaryMeta" class="archive-meta">—</div>
+          </div>
+          <button id="dismissArchiveSummaryBtn" class="icon-btn" type="button" aria-label="Dismiss archived incident summary">×</button>
+        </div>
+        <div class="count-grid archive-count-grid">
+          <div class="count-card">
+            <span class="count-label">Expected</span>
+            <strong id="archiveExpectedCount">—</strong>
+          </div>
+          <div class="count-card count-card--ok">
+            <span class="count-label">Accounted</span>
+            <strong id="archiveAccountedCount">—</strong>
+          </div>
+          <div class="count-card count-card--danger">
+            <span class="count-label">Final unaccounted</span>
+            <strong id="archiveUnaccountedCount">—</strong>
+          </div>
+        </div>
+        <div id="archiveSummaryDetails" class="archive-details"></div>
+        <div id="archiveFinalUnaccounted" class="archive-unaccounted"></div>
       </section>
 
       <section id="activeApp" hidden>
         <div id="contextStrip" class="context-strip"></div>
+
+        <section id="managerControls" class="manager-controls" hidden>
+          <div>
+            <strong>Incident controls</strong>
+            <div id="managerControlHint" class="muted">Only authorized Ops/Admin staff can end ESAS.</div>
+          </div>
+          <button id="endIncidentBtn" class="end-incident-btn" type="button">End ESAS</button>
+          <div id="endGuardPanel" class="end-guard" hidden>
+            <div id="endGuardMessage" class="end-guard__message"></div>
+            <label id="endGuardPhraseLabel" class="end-guard__label" hidden>
+              <span>Type <code id="endGuardPhraseText"></code> to confirm ending with students still unaccounted.</span>
+              <input id="endGuardInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" />
+            </label>
+            <div class="end-guard__actions">
+              <button id="cancelEndBtn" class="end-guard-btn end-guard-btn--secondary" type="button">Cancel</button>
+              <button id="confirmEndBtn" class="end-guard-btn end-guard-btn--danger" type="button">Confirm End</button>
+            </div>
+          </div>
+        </section>
 
         <nav class="view-tabs" aria-label="ESAS views">
           <button id="tabRoster" class="view-tab is-active" type="button" data-view="roster">
@@ -151,6 +197,6 @@
     </main>
   </div>
 
-  <script type="module" src="./esas.js?v=20260828-stage3"></script>
+  <script type="module" src="./esas.js?v=20260908-stage4"></script>
 </body>
 </html>

@@ -528,16 +528,33 @@ btnEndEsas?.addEventListener('click', async () => {
   const incidentId = String(currentEsasStatus?.incident?.incident_id || '').trim();
   if (!incidentId) return;
   const label = String(currentEsasStatus?.incident?.label || incidentId);
-  if (!confirm(`END the active ESAS incident “${label}”? Stage 1 will archive the incident lifecycle record.`)) return;
+  const remaining = Number(currentEsasStatus?.incident?.counts?.unaccounted || 0);
+  let forceWithUnaccounted = false;
+  if (remaining > 0) {
+    const phrase = `END WITH ${remaining} UNACCOUNTED`;
+    const typed = prompt(`${remaining} student${remaining === 1 ? '' : 's'} remain unaccounted.
+
+To force-end “${label}”, type exactly:
+${phrase}`);
+    if (String(typed || '').trim() !== phrase) return;
+    forceWithUnaccounted = true;
+  } else if (!confirm(`END the active ESAS incident “${label}”? All expected students are currently accounted for.`)) {
+    return;
+  }
   btnEndEsas.disabled = true;
   try{
     const r = await adminFetch('/admin/esas/end', {
       method:'POST',
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({ incident_id: incidentId })
+      body:JSON.stringify({
+        incident_id: incidentId,
+        confirm_unaccounted: remaining,
+        force_with_unaccounted: forceWithUnaccounted
+      })
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    if (esasOut) esasOut.textContent = JSON.stringify(j?.summary || j, null, 2);
     await loadEsasStatus();
   }catch(e){
     if (esasOut) esasOut.textContent = `ESAS end failed: ${e?.message || e}`;
