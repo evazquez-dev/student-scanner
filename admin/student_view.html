@@ -4,91 +4,89 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="robots" content="noindex,nofollow">
-
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
   <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-
   <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
-
   <title>EagleNEST — Student Lookup</title>
-
   <link rel="stylesheet" href="./nav.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-
   <script>
     (function(){
       try{
-        var key='ss_theme_v1';
-        var t=localStorage.getItem(key);
-        if(!t){
-          t=(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
-        }
-        document.documentElement.dataset.theme=t;
-      }catch(e){}
+        const saved = localStorage.getItem('ss_theme_v1');
+        const preferred = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme = saved || preferred;
+      }catch{}
     })();
   </script>
-
   <style>
     :root{
       color-scheme:dark;
       --fg:#e5e7eb;--muted:#94a3b8;--page:#020617;--panel:#0f172a;--panel2:#111827;
       --control:rgba(2,6,23,.42);--border:rgba(148,163,184,.24);--accent:#4f46e5;
-      --accent2:#7c3aed;--good:#86efac;--bad:#fca5a5;--warn:#fde68a;
+      --accent2:#7c3aed;--good:#86efac;--bad:#fca5a5;--warn:#fde68a;--info:#93c5fd;
       --shadow:0 18px 60px rgba(0,0,0,.24)
     }
     :root[data-theme="light"]{
       color-scheme:light;
       --fg:#0f172a;--muted:#64748b;--page:#f8fafc;--panel:#fff;--panel2:#f8fafc;
       --control:#fff;--border:rgba(100,116,139,.28);--accent:#4338ca;
-      --accent2:#6d28d9;--good:#166534;--bad:#b91c1c;--warn:#92400e;
+      --accent2:#6d28d9;--good:#166534;--bad:#b91c1c;--warn:#92400e;--info:#1d4ed8;
       --shadow:0 16px 44px rgba(15,23,42,.08)
     }
     *{box-sizing:border-box}
     body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--page);color:var(--fg)}
-    .wrap{max-width:1120px;margin:0 auto;padding:16px}
+    .wrap{max-width:1220px;margin:0 auto;padding:16px}
     .card{border:1px solid var(--border);background:var(--panel);border-radius:18px;padding:16px;box-shadow:var(--shadow)}
     #loginCard{max-width:520px;margin:10vh auto 0}
     h1,h2,h3{margin:0}.muted{color:var(--muted)}.small{font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .pageHead{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
     .pageHead p{margin:6px 0 0;max-width:760px}
-    .searchCard{position:relative}
-    .searchRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .searchCard{position:relative}.searchRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .suggest{position:relative;flex:1;min-width:min(100%,320px)}
     .input,select,textarea{width:100%;border:1px solid var(--border);background:var(--control);color:var(--fg);border-radius:12px;padding:10px 12px;font:inherit;outline:none}
-    .input{font-weight:700}
-    .input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+    .input{font-weight:700}.input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
     .menu{position:absolute;top:calc(100% + 6px);left:0;right:0;border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:auto;z-index:50;box-shadow:var(--shadow);display:none;max-height:340px}
     .menu button{width:100%;text-align:left;padding:11px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--fg);cursor:pointer}
     .menu button:last-child{border-bottom:0}.menu button:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
     .selectedCard{margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
     .studentName{font-size:24px;font-weight:900}.studentMeta{margin-top:4px;color:var(--muted)}
-    .quickActions{display:flex;gap:8px;flex-wrap:wrap}
-    .btn{border:1px solid var(--border);background:var(--control);color:var(--fg);border-radius:12px;padding:9px 12px;font:inherit;font-weight:800;cursor:pointer}
-    .btn.primary{background:var(--accent);color:#fff;border-color:transparent}.btn.secondary{background:var(--panel2)}
-    .btn:disabled{opacity:.48;cursor:not-allowed}
-    .actionStatus{margin-top:10px;min-height:18px}.actionStatus.good{color:var(--good)}.actionStatus.bad{color:var(--bad)}.actionStatus.warn{color:var(--warn)}
-    .layout{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
-    .row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px dashed var(--border)}.row:last-child{border-bottom:none}.row>div:last-child{text-align:right;overflow-wrap:anywhere}
+    .quickActions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--border);background:var(--control);color:var(--fg);border-radius:12px;padding:9px 12px;font:inherit;font-weight:800;cursor:pointer}
+    .btn.primary{background:var(--accent);color:#fff;border-color:transparent}.btn.secondary{background:var(--panel2)}.btn.small{padding:7px 10px;font-size:12px}.btn:disabled{opacity:.48;cursor:not-allowed}
+    .actionStatus{width:100%;min-height:18px}.actionStatus.good{color:var(--good)}.actionStatus.bad{color:var(--bad)}.actionStatus.warn{color:var(--warn)}
     .emptyCard{margin-top:12px;text-align:center;padding:34px 18px}.emptyCard strong{display:block;font-size:18px;margin-bottom:5px}
-    .readonlyNote{width:100%;padding:9px 11px;border-radius:12px;border:1px solid currentColor;color:var(--warn);margin-top:10px}
-    .backdrop{position:fixed;inset:0;z-index:2147483600;background:rgba(2,6,23,.72);display:flex;align-items:center;justify-content:center;padding:16px}
-    .backdrop[hidden]{display:none!important}
+    .readonlyNote{width:100%;padding:9px 11px;border-radius:12px;border:1px solid currentColor;color:var(--warn);margin-top:6px}
+
+    .tabsShell{margin-top:14px}.tabs{display:flex;gap:7px;overflow:auto;padding:4px 2px 10px;scrollbar-width:thin}
+    .tab{white-space:nowrap;border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:999px;padding:9px 13px;font:inherit;font-weight:850;cursor:pointer}
+    .tab[aria-selected="true"]{background:var(--accent);border-color:transparent;color:#fff}.tab .count{font-size:11px;opacity:.85;margin-left:4px}
+    .tabPanel{outline:none}.tabPanel[hidden]{display:none!important}
+    .panelCard{box-shadow:none}.panelHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:13px}.panelHead p{margin:5px 0 0}
+    .overviewGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.statusCard{border:1px solid var(--border);background:var(--panel2);border-radius:16px;padding:14px;min-height:132px}
+    .statusCard h3{font-size:14px;color:var(--muted);margin-bottom:10px}.statusBig{font-size:22px;font-weight:900;line-height:1.15}.statusSub{margin-top:6px;color:var(--muted);line-height:1.4}.statusDetail{margin-top:10px;font-size:12px;color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;padding:4px 8px;border:1px solid currentColor;border-radius:999px;font-size:11px;font-weight:850}.pill.good{color:var(--good)}.pill.warn{color:var(--warn)}.pill.bad{color:var(--bad)}.pill.info{color:var(--info)}
+
+    .list{display:grid;gap:9px}.listItem{border:1px solid var(--border);background:var(--panel2);border-radius:14px;padding:12px}.listItem.current{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+    .listTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.listTitle{font-weight:900}.listMeta{color:var(--muted);font-size:12px;margin-top:4px}.listBody{margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}
+    .scheduleGrid{display:grid;grid-template-columns:100px 150px minmax(180px,1fr) 130px;gap:10px;align-items:center}.scheduleHead{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:850;padding:0 12px 5px}.scheduleRow{border:1px solid var(--border);background:var(--panel2);border-radius:14px;padding:11px 12px}.scheduleRow.current{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+    .attendanceSummary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.summaryChip{border:1px solid var(--border);background:var(--panel2);border-radius:12px;padding:8px 10px;font-size:12px}.summaryChip strong{font-size:16px;margin-right:4px}
+    .loadingState,.emptyState,.errorState{border:1px dashed var(--border);border-radius:14px;padding:24px;text-align:center;color:var(--muted)}.errorState{color:var(--bad)}
+    .inlineActions{display:flex;gap:8px;flex-wrap:wrap}.footerHint{margin-top:12px;color:var(--muted);font-size:12px}
+
+    .backdrop{position:fixed;inset:0;z-index:2147483600;background:rgba(2,6,23,.72);display:flex;align-items:center;justify-content:center;padding:16px}.backdrop[hidden]{display:none!important}
     .modal{width:min(620px,100%);max-height:92vh;overflow:auto;border:1px solid var(--border);background:var(--panel);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
-    .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border-bottom:1px solid var(--border)}
-    .modalBody{padding:16px}.modalFoot{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px;flex-wrap:wrap}
-    .iconBtn{border:0;background:transparent;color:var(--fg);font-size:24px;line-height:1;cursor:pointer;padding:2px 5px}
-    .field{display:block;margin-bottom:13px}.field>span{display:block;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 5px}
-    .contextBox{padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);margin-bottom:13px;line-height:1.45}
-    .twoCol{display:grid;grid-template-columns:1fr 1fr;gap:10px}.errorText{color:var(--bad);min-height:18px;margin-top:5px}
-    @media(max-width:760px){.wrap{padding:10px}.layout{grid-template-columns:1fr}.selectedCard{align-items:flex-start}.quickActions{width:100%}.quickActions .btn{flex:1}.twoCol{grid-template-columns:1fr}.studentName{font-size:21px}}
+    .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border-bottom:1px solid var(--border)}.modalBody{padding:16px}.modalFoot{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px;flex-wrap:wrap}
+    .iconBtn{border:0;background:transparent;color:var(--fg);font-size:24px;line-height:1;cursor:pointer;padding:2px 5px}.field{display:block;margin-bottom:13px}.field>span{display:block;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 5px}
+    .contextBox{padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);margin-bottom:13px;line-height:1.45}.twoCol{display:grid;grid-template-columns:1fr 1fr;gap:10px}.errorText{color:var(--bad);min-height:18px;margin-top:5px}
+
+    @media(max-width:800px){.wrap{padding:10px}.overviewGrid{grid-template-columns:1fr}.selectedCard{align-items:flex-start}.quickActions{width:100%}.quickActions .btn{flex:1}.twoCol{grid-template-columns:1fr}.studentName{font-size:21px}.scheduleGrid{grid-template-columns:84px 1fr}.scheduleGrid>*:nth-child(2){display:none}.scheduleGrid>*:nth-child(4){text-align:right}.scheduleHead{display:none}.scheduleRow{display:grid}}
   </style>
 </head>
-
 <body data-module="student_view">
   <div class="wrap">
     <section id="loginCard" class="card">
@@ -102,7 +100,7 @@
       <header class="pageHead">
         <div>
           <h1>Student Lookup</h1>
-          <p class="muted">Search any student to see their current status and use the student actions available to you.</p>
+          <p class="muted">Search any student to see current status, today's schedule and attendance, recent scans, behavior, and communications.</p>
         </div>
       </header>
 
@@ -121,81 +119,124 @@
           <div id="studentName" class="studentName">—</div>
           <div id="studentMeta" class="studentMeta mono">—</div>
         </div>
-        <div class="quickActions" aria-label="Student quick actions">
+        <div class="quickActions">
+          <button id="refreshStudentBtn" class="btn secondary" type="button">Refresh</button>
           <button id="logBehaviorBtn" class="btn primary" type="button">Log Behavior</button>
           <button id="logCommunicationBtn" class="btn secondary" type="button">Log Communication</button>
         </div>
-        <div id="viewAsNote" class="readonlyNote" hidden>View As is read-only. Student information remains available, but logging actions are disabled.</div>
         <div id="actionStatus" class="actionStatus small" aria-live="polite"></div>
+        <div id="readOnlyNote" class="readonlyNote small" hidden>View As is read-only. Student information remains available, but logging actions are disabled.</div>
       </section>
 
-      <section id="emptyCard" class="card emptyCard">
-        <strong>No student selected</strong>
-        <div class="muted">Use the search above to open a student.</div>
+      <section id="emptyState" class="card emptyCard">
+        <strong>Search for a student</strong>
+        <div class="muted">Their current location is available to every authenticated staff member. Other history is shown according to your existing EagleNEST permissions.</div>
       </section>
 
-      <div id="studentDetails" class="layout" hidden>
-        <section class="card">
-          <h3>Current Location</h3>
-          <div class="row"><div class="muted">Zone</div><div class="mono" id="locZone">—</div></div>
-          <div class="row"><div class="muted">Location</div><div class="mono" id="locLabel">—</div></div>
-          <div class="row"><div class="muted">Updated</div><div class="mono" id="locUpdated">—</div></div>
+      <section id="tabsShell" class="tabsShell" hidden>
+        <div class="tabs" role="tablist" aria-label="Student information sections">
+          <button id="tabOverview" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panelOverview" data-tab="overview">Overview</button>
+          <button id="tabSchedule" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelSchedule" data-tab="schedule" tabindex="-1">Schedule</button>
+          <button id="tabAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelAttendance" data-tab="attendance" tabindex="-1">Attendance</button>
+          <button id="tabScans" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelScans" data-tab="scans" tabindex="-1">Scans <span id="scansCount" class="count"></span></button>
+          <button id="tabBehavior" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelBehavior" data-tab="behavior" tabindex="-1">Behavior <span id="behaviorCount" class="count"></span></button>
+          <button id="tabCommunications" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelCommunications" data-tab="communications" tabindex="-1">Communications <span id="communicationsCount" class="count"></span></button>
+        </div>
+
+        <section id="panelOverview" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabOverview" data-panel="overview">
+          <div class="panelHead"><div><h2>Current Status</h2><p class="muted small">Live operational context for the selected student.</p></div></div>
+          <div class="overviewGrid">
+            <article class="statusCard">
+              <h3>Current Location</h3>
+              <div id="locLabel" class="statusBig">—</div>
+              <div id="locZone" class="statusSub">—</div>
+              <div id="locUpdated" class="statusDetail">Updated —</div>
+            </article>
+            <article class="statusCard">
+              <h3>Current / Upcoming Class</h3>
+              <div id="currentClass" class="statusBig">—</div>
+              <div id="currentClassMeta" class="statusSub">—</div>
+              <div id="scheduleMode" class="statusDetail">—</div>
+            </article>
+            <article class="statusCard">
+              <h3>Current Attendance</h3>
+              <div id="currentAttendance" class="statusBig">—</div>
+              <div id="currentAttendanceMeta" class="statusSub">—</div>
+              <div id="attendanceTodayMeta" class="statusDetail">—</div>
+            </article>
+            <article class="statusCard">
+              <h3>Class Movement</h3>
+              <div id="currentMovement" class="statusBig">—</div>
+              <div id="currentMovementMeta" class="statusSub">—</div>
+              <div class="statusDetail">ClassSession physical IN/OUT context.</div>
+            </article>
+          </div>
         </section>
 
-        <section class="card">
-          <h3>This Period</h3>
-          <div class="row"><div class="muted">Schedule</div><div class="mono" id="sched">—</div></div>
-          <div class="row"><div class="muted">Attendance</div><div class="mono" id="att">—</div></div>
-          <div class="row"><div class="muted">Out / In</div><div class="mono" id="oi">—</div></div>
+        <section id="panelSchedule" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabSchedule" data-panel="schedule" hidden>
+          <div class="panelHead"><div><h2>Today's Schedule</h2><p class="muted small">Assigned periods from today's live EagleNEST schedule.</p></div></div>
+          <div id="scheduleList"></div>
         </section>
-      </div>
 
-      <div id="meta" class="muted mono small" style="margin-top:10px">—</div>
+        <section id="panelAttendance" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabAttendance" data-panel="attendance" hidden>
+          <div class="panelHead"><div><h2>Today's Attendance</h2><p class="muted small">Meeting attendance records currently stored for today's assigned periods.</p></div></div>
+          <div id="attendanceSummary" class="attendanceSummary"></div>
+          <div id="attendanceList" class="list"></div>
+        </section>
+
+        <section id="panelScans" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabScans" data-panel="scans" hidden>
+          <div class="panelHead">
+            <div><h2>Recent Scans</h2><p id="scansMeta" class="muted small">Recent 7-day scanner history loads when this tab is opened.</p></div>
+            <button id="refreshScansBtn" class="btn secondary small" type="button">Refresh scans</button>
+          </div>
+          <div id="scansList" class="list"><div class="loadingState">Open this tab to load recent scans.</div></div>
+        </section>
+
+        <section id="panelBehavior" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabBehavior" data-panel="behavior" hidden>
+          <div class="panelHead">
+            <div><h2>Behavior</h2><p id="behaviorMeta" class="muted small">Shows behavior logs you currently have permission to view.</p></div>
+            <button id="refreshBehaviorBtn" class="btn secondary small" type="button">Refresh behavior</button>
+          </div>
+          <div id="behaviorList" class="list"><div class="loadingState">Open this tab to load behavior history.</div></div>
+        </section>
+
+        <section id="panelCommunications" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabCommunications" data-panel="communications" hidden>
+          <div class="panelHead">
+            <div><h2>Communications</h2><p id="communicationsMeta" class="muted small">Recent communications logged for this student.</p></div>
+            <div class="inlineActions">
+              <button id="openContactsBtn" class="btn secondary small" type="button">Open contacts</button>
+              <button id="refreshCommunicationsBtn" class="btn secondary small" type="button">Refresh communications</button>
+            </div>
+          </div>
+          <div id="communicationsList" class="list"><div class="loadingState">Open this tab to load communication history.</div></div>
+        </section>
+      </section>
     </main>
   </div>
 
   <div id="behaviorBackdrop" class="backdrop" hidden>
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="behaviorTitle">
-      <div class="modalHead">
-        <div>
-          <h2 id="behaviorTitle">Log Behavior</h2>
-          <div id="behaviorStudent" class="muted small" style="margin-top:4px">—</div>
-        </div>
+      <header class="modalHead">
+        <div><h2 id="behaviorTitle">Log Behavior</h2><div id="behaviorStudent" class="muted small"></div></div>
         <button id="closeBehavior" class="iconBtn" type="button" aria-label="Close">×</button>
-      </div>
+      </header>
       <div class="modalBody">
-        <div id="behaviorContext" class="contextBox muted small">Loading context…</div>
-
-        <label class="field">
-          <span>Category</span>
-          <select id="behaviorSubmenu"></select>
-        </label>
-
-        <label class="field">
-          <span>Behavior</span>
-          <select id="behaviorOption"></select>
-        </label>
-
+        <div id="behaviorContext" class="contextBox small">Loading behavior options…</div>
+        <label class="field"><span>Behavior category</span><select id="behaviorCategory"></select></label>
+        <label class="field"><span>Behavior</span><select id="behaviorOption"></select></label>
         <div class="twoCol">
-          <label class="field">
-            <span>Location / Room</span>
-            <input id="behaviorRoom" class="input" maxlength="120" placeholder="Optional location">
-          </label>
-          <label class="field">
-            <span>Period</span>
-            <input id="behaviorPeriod" class="input" maxlength="40" placeholder="Optional period">
-          </label>
+          <label class="field"><span>Location / room</span><input id="behaviorRoom" class="input" maxlength="120" placeholder="Room, hallway, cafeteria…"></label>
+          <label class="field"><span>Period</span><input id="behaviorPeriod" class="input" maxlength="40" placeholder="PR3, LCH1, passing…"></label>
         </div>
-
         <div id="behaviorError" class="errorText small" aria-live="polite"></div>
       </div>
-      <div class="modalFoot">
+      <footer class="modalFoot">
         <button id="cancelBehavior" class="btn secondary" type="button">Cancel</button>
-        <button id="saveBehavior" class="btn primary" type="button">Log Behavior</button>
-      </div>
+        <button id="saveBehavior" class="btn primary" type="button">Log behavior</button>
+      </footer>
     </section>
   </div>
 
-  <script src="./student_view.js"></script>
+  <script src="./student_view.js" defer></script>
 </body>
 </html>
