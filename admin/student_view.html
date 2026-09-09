@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="robots" content="noindex,nofollow">
 
-  <!-- same meta tags as your other admin pages -->
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
   <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
 
@@ -15,7 +14,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
 
-  <title>EagleNEST — Student View</title>
+  <title>EagleNEST — Student Lookup</title>
 
   <link rel="stylesheet" href="./nav.css">
   <script src="./brand.js" defer></script>
@@ -36,128 +35,165 @@
 
   <style>
     :root{
-      color-scheme: dark;
-      --fg:#e5e7eb; --muted:#9ca3af;
-      --page-bg: radial-gradient(circle at top, #020617, #000);
-      --login-bg: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(15,23,42,0.94));
-      --card-bg: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(15,23,42,0.92));
-      --pill-bg: rgba(15,23,42,0.85);
-      --control-bg: rgba(2,6,23,0.35);
-      --card-border:#1f2937;
-      --border-strong: rgba(31,41,55,0.9);
+      color-scheme:dark;
+      --fg:#e5e7eb;--muted:#94a3b8;--page:#020617;--panel:#0f172a;--panel2:#111827;
+      --control:rgba(2,6,23,.42);--border:rgba(148,163,184,.24);--accent:#4f46e5;
+      --accent2:#7c3aed;--good:#86efac;--bad:#fca5a5;--warn:#fde68a;
+      --shadow:0 18px 60px rgba(0,0,0,.24)
     }
     :root[data-theme="light"]{
-      color-scheme: light;
-      --fg:#0f172a; --muted:#334155;
-      --page-bg: radial-gradient(circle at top, #eef2ff, #ffffff);
-      --login-bg: linear-gradient(145deg, rgba(255,255,255,0.96), rgba(255,255,255,0.92));
-      --card-bg: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.92));
-      --pill-bg: rgba(255,255,255,0.85);
-      --control-bg: rgba(241,245,249,0.8);
-      --card-border: rgba(100,116,139,0.35);
-      --border-strong: rgba(100,116,139,0.35);
+      color-scheme:light;
+      --fg:#0f172a;--muted:#64748b;--page:#f8fafc;--panel:#fff;--panel2:#f8fafc;
+      --control:#fff;--border:rgba(100,116,139,.28);--accent:#4338ca;
+      --accent2:#6d28d9;--good:#166534;--bad:#b91c1c;--warn:#92400e;
+      --shadow:0 16px 44px rgba(15,23,42,.08)
     }
-    body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      background: var(--page-bg); color: var(--fg); }
-
-    .wrap{ max-width: 980px; margin: 0 auto; padding: 16px; }
-    .card{
-      border:1px solid var(--card-border);
-      background: var(--card-bg);
-      border-radius: 18px;
-      padding: 14px;
-      box-shadow: 0 18px 60px rgba(0,0,0,0.25);
-      backdrop-filter: blur(10px);
-    }
-    #loginCard{ max-width: 520px; margin: 10vh auto 0; background: var(--login-bg); }
-    .muted{ color: var(--muted); }
-    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-
-    .topbar{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    .input{
-      width: min(540px, 100%);
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--border-strong);
-      background: var(--control-bg);
-      color: var(--fg);
-      outline: none;
-      font-weight: 700;
-    }
-    .suggest{
-      position: relative;
-      width: min(540px, 100%);
-    }
-    .menu{
-      position:absolute;
-      top: calc(100% + 6px);
-      left:0; right:0;
-      border-radius: 14px;
-      border: 1px solid var(--card-border);
-      background: var(--pill-bg);
-      overflow: hidden;
-      z-index: 50;
-      box-shadow: 0 18px 60px rgba(0,0,0,0.25);
-      display:none;
-      max-height: 320px;
-      overflow: auto;
-    }
-    .menu button{
-      width:100%;
-      text-align:left;
-      padding: 10px 12px;
-      border:0;
-      background: transparent;
-      color: var(--fg);
-      cursor:pointer;
-    }
-    .menu button:hover{ background: rgba(99,102,241,0.12); }
-    .layout{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top: 12px; }
-    @media (max-width: 900px){ .layout{ grid-template-columns: 1fr; } }
-    .row{ display:flex; justify-content:space-between; gap:10px; padding: 8px 0;
-      border-bottom: 1px dashed rgba(100,116,139,0.25); }
-    .row:last-child{ border-bottom:none; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--page);color:var(--fg)}
+    .wrap{max-width:1120px;margin:0 auto;padding:16px}
+    .card{border:1px solid var(--border);background:var(--panel);border-radius:18px;padding:16px;box-shadow:var(--shadow)}
+    #loginCard{max-width:520px;margin:10vh auto 0}
+    h1,h2,h3{margin:0}.muted{color:var(--muted)}.small{font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .pageHead{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+    .pageHead p{margin:6px 0 0;max-width:760px}
+    .searchCard{position:relative}
+    .searchRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .suggest{position:relative;flex:1;min-width:min(100%,320px)}
+    .input,select,textarea{width:100%;border:1px solid var(--border);background:var(--control);color:var(--fg);border-radius:12px;padding:10px 12px;font:inherit;outline:none}
+    .input{font-weight:700}
+    .input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+    .menu{position:absolute;top:calc(100% + 6px);left:0;right:0;border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:auto;z-index:50;box-shadow:var(--shadow);display:none;max-height:340px}
+    .menu button{width:100%;text-align:left;padding:11px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--fg);cursor:pointer}
+    .menu button:last-child{border-bottom:0}.menu button:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+    .selectedCard{margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+    .studentName{font-size:24px;font-weight:900}.studentMeta{margin-top:4px;color:var(--muted)}
+    .quickActions{display:flex;gap:8px;flex-wrap:wrap}
+    .btn{border:1px solid var(--border);background:var(--control);color:var(--fg);border-radius:12px;padding:9px 12px;font:inherit;font-weight:800;cursor:pointer}
+    .btn.primary{background:var(--accent);color:#fff;border-color:transparent}.btn.secondary{background:var(--panel2)}
+    .btn:disabled{opacity:.48;cursor:not-allowed}
+    .actionStatus{margin-top:10px;min-height:18px}.actionStatus.good{color:var(--good)}.actionStatus.bad{color:var(--bad)}.actionStatus.warn{color:var(--warn)}
+    .layout{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    .row{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-bottom:1px dashed var(--border)}.row:last-child{border-bottom:none}.row>div:last-child{text-align:right;overflow-wrap:anywhere}
+    .emptyCard{margin-top:12px;text-align:center;padding:34px 18px}.emptyCard strong{display:block;font-size:18px;margin-bottom:5px}
+    .readonlyNote{width:100%;padding:9px 11px;border-radius:12px;border:1px solid currentColor;color:var(--warn);margin-top:10px}
+    .backdrop{position:fixed;inset:0;z-index:2147483600;background:rgba(2,6,23,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+    .backdrop[hidden]{display:none!important}
+    .modal{width:min(620px,100%);max-height:92vh;overflow:auto;border:1px solid var(--border);background:var(--panel);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+    .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border-bottom:1px solid var(--border)}
+    .modalBody{padding:16px}.modalFoot{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px;flex-wrap:wrap}
+    .iconBtn{border:0;background:transparent;color:var(--fg);font-size:24px;line-height:1;cursor:pointer;padding:2px 5px}
+    .field{display:block;margin-bottom:13px}.field>span{display:block;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 5px}
+    .contextBox{padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);margin-bottom:13px;line-height:1.45}
+    .twoCol{display:grid;grid-template-columns:1fr 1fr;gap:10px}.errorText{color:var(--bad);min-height:18px;margin-top:5px}
+    @media(max-width:760px){.wrap{padding:10px}.layout{grid-template-columns:1fr}.selectedCard{align-items:flex-start}.quickActions{width:100%}.quickActions .btn{flex:1}.twoCol{grid-template-columns:1fr}.studentName{font-size:21px}}
   </style>
 </head>
 
 <body data-module="student_view">
   <div class="wrap">
-
     <section id="loginCard" class="card">
-      <h2 style="margin:0 0 6px;">Admin sign-in</h2>
-      <div class="muted">Use your staff account.</div>
-      <div style="margin-top:12px;" id="g_id_signin"></div>
-      <pre id="loginOut" class="muted" style="margin:10px 0 0; white-space:pre-wrap;">Loading…</pre>
+      <h2>Staff sign-in</h2>
+      <p class="muted">Use your EagleNEST staff account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="muted" style="white-space:pre-wrap">Loading…</pre>
     </section>
 
-    <section id="app" style="display:none;">
-      <div class="topbar">
-        <div class="suggest">
-          <input id="q" class="input" placeholder="Search student (name, OSIS, email)…" autocomplete="off" />
-          <div id="menu" class="menu"></div>
+    <main id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <h1>Student Lookup</h1>
+          <p class="muted">Search any student to see their current status and use the student actions available to you.</p>
         </div>
-        <div class="muted mono" id="picked">No student selected</div>
-      </div>
+      </header>
 
-      <div class="layout">
+      <section class="card searchCard">
+        <div class="searchRow">
+          <div class="suggest">
+            <input id="q" class="input" placeholder="Search by name, OSIS, or email…" autocomplete="off" aria-label="Search students">
+            <div id="menu" class="menu" role="listbox"></div>
+          </div>
+          <div id="searchStatus" class="muted small">Type at least 2 characters to search.</div>
+        </div>
+      </section>
+
+      <section id="studentCard" class="card selectedCard" hidden>
+        <div>
+          <div id="studentName" class="studentName">—</div>
+          <div id="studentMeta" class="studentMeta mono">—</div>
+        </div>
+        <div class="quickActions" aria-label="Student quick actions">
+          <button id="logBehaviorBtn" class="btn primary" type="button">Log Behavior</button>
+          <button id="logCommunicationBtn" class="btn secondary" type="button">Log Communication</button>
+        </div>
+        <div id="viewAsNote" class="readonlyNote" hidden>View As is read-only. Student information remains available, but logging actions are disabled.</div>
+        <div id="actionStatus" class="actionStatus small" aria-live="polite"></div>
+      </section>
+
+      <section id="emptyCard" class="card emptyCard">
+        <strong>No student selected</strong>
+        <div class="muted">Use the search above to open a student.</div>
+      </section>
+
+      <div id="studentDetails" class="layout" hidden>
         <section class="card">
-          <h3 style="margin:0 0 8px;">Current Location</h3>
+          <h3>Current Location</h3>
           <div class="row"><div class="muted">Zone</div><div class="mono" id="locZone">—</div></div>
           <div class="row"><div class="muted">Location</div><div class="mono" id="locLabel">—</div></div>
           <div class="row"><div class="muted">Updated</div><div class="mono" id="locUpdated">—</div></div>
         </section>
 
         <section class="card">
-          <h3 style="margin:0 0 8px;">This Period</h3>
+          <h3>This Period</h3>
           <div class="row"><div class="muted">Schedule</div><div class="mono" id="sched">—</div></div>
           <div class="row"><div class="muted">Attendance</div><div class="mono" id="att">—</div></div>
           <div class="row"><div class="muted">Out / In</div><div class="mono" id="oi">—</div></div>
         </section>
       </div>
 
-      <div class="muted mono" style="margin-top:10px;" id="meta">—</div>
-    </section>
+      <div id="meta" class="muted mono small" style="margin-top:10px">—</div>
+    </main>
+  </div>
 
+  <div id="behaviorBackdrop" class="backdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="behaviorTitle">
+      <div class="modalHead">
+        <div>
+          <h2 id="behaviorTitle">Log Behavior</h2>
+          <div id="behaviorStudent" class="muted small" style="margin-top:4px">—</div>
+        </div>
+        <button id="closeBehavior" class="iconBtn" type="button" aria-label="Close">×</button>
+      </div>
+      <div class="modalBody">
+        <div id="behaviorContext" class="contextBox muted small">Loading context…</div>
+
+        <label class="field">
+          <span>Category</span>
+          <select id="behaviorSubmenu"></select>
+        </label>
+
+        <label class="field">
+          <span>Behavior</span>
+          <select id="behaviorOption"></select>
+        </label>
+
+        <div class="twoCol">
+          <label class="field">
+            <span>Location / Room</span>
+            <input id="behaviorRoom" class="input" maxlength="120" placeholder="Optional location">
+          </label>
+          <label class="field">
+            <span>Period</span>
+            <input id="behaviorPeriod" class="input" maxlength="40" placeholder="Optional period">
+          </label>
+        </div>
+
+        <div id="behaviorError" class="errorText small" aria-live="polite"></div>
+      </div>
+      <div class="modalFoot">
+        <button id="cancelBehavior" class="btn secondary" type="button">Cancel</button>
+        <button id="saveBehavior" class="btn primary" type="button">Log Behavior</button>
+      </div>
+    </section>
   </div>
 
   <script src="./student_view.js"></script>

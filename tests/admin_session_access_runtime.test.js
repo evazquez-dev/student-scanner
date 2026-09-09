@@ -90,7 +90,7 @@ test('editor access retains Hallway, Staff Pull and Phone Pass capability logic'
   assert.equal(access.can.phone_pass_return, true);
   assert.equal(access.can.visitor_desk, false);
   assert.equal(access.can.teacher_attendance, true);
-  assert.equal(access.can.student_view, false);
+  assert.equal(access.can.student_view, true);
 });
 
 test('x-admin-session fallback wins and cookie fallback still works', async () => {
@@ -122,7 +122,7 @@ test('View-as preserves actor identity but applies target role and permissions r
   assert.equal(access.view_as.read_only, true);
   assert.equal(access.can.super_admin, false);
   assert.equal(access.can.admin, false);
-  assert.equal(access.can.student_view, false);
+  assert.equal(access.can.student_view, true);
 });
 
 test('modular /admin/access merges default and personal external links', async () => {

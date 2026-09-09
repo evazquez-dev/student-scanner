@@ -16,7 +16,7 @@ for (const section of [
   'Account',
   'Administration'
 ]) {
-  assert.match(nav, new RegExp(`title: '${section.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}'`), `Nav should contain ${section}`);
+  assert.match(nav, new RegExp(`title: '${section.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`), `Nav should contain ${section}`);
 }
 
 assert.doesNotMatch(nav, /title: 'Behavior And Admin'/, 'Behavior and administration should not share one catch-all section');
@@ -24,7 +24,7 @@ assert.doesNotMatch(nav, /title: 'Account & Device'/, 'Account settings now incl
 assert.doesNotMatch(nav, /title: 'Passes'/, 'Movement workflows should be grouped by purpose rather than implementation');
 
 assert.match(brand, /teacher_trace_lookup:\s*'Attendance Diagnostics'/);
-assert.match(brand, /student_view:\s*'Student Snapshot'/);
+assert.match(brand, /student_view:\s*'Student Lookup'/);
 assert.match(brand, /admin_roles:\s*'Roles & Access'/);
 assert.match(brand, /admin:\s*'System Administration'/);
 assert.match(brand, /notifications:\s*'My Settings'/);
@@ -58,7 +58,7 @@ const expectedBadges = [
 ];
 
 for (const [key, badge] of expectedBadges) {
-  const escapedBadge = badge.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+  const escapedBadge = badge.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   assert.match(nav, new RegExp(`key:'${key}'[^\\n]+badge:["']${escapedBadge}["']`), `${key} should describe its user-facing purpose`);
 }
 

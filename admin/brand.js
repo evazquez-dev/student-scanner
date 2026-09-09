@@ -10,7 +10,7 @@
     attendance_status: 'Attendance Status',
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
-    student_view: 'Student Snapshot',
+    student_view: 'Student Lookup',
     communications: 'Communications',
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
