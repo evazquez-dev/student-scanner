@@ -12,6 +12,7 @@
     student_scans: 'Student Scan Report',
     student_view: 'Student Snapshot',
     communications: 'Communications',
+    coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',

@@ -28,6 +28,7 @@
     scan_injector: 'Scan Injector',
     student_view: 'Student Snapshot',
     communications: 'Communications',
+    coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
@@ -67,6 +68,7 @@
     'notifications_admin_session_v1',
     'student_scans_admin_session_v1',
     'communications_admin_session_v1',
+    'coverage_planner_admin_session_v1',
     'scan_injector_admin_session_v1',
     'behavior_history_admin_session_v1',
     'admin_roles_admin_session_v1',
@@ -371,6 +373,7 @@
           early_dismissal: true,
           teacher_attendance: true,
           attendance_status: isAdminLike,
+          coverage_planner: isAdminLike,
           senior_lunch_audit: isAdminLike,
           student_scans: true,
           student_view: isSuperAdmin,
@@ -465,6 +468,7 @@
           { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'class attendance' },
           { key:'attendance_status', label: MODULES.attendance_status || 'Attendance Status', href:'./attendance_status.html', badge:'period audit' },
           { key:'attendance_change', label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'bulk changes' },
+          { key:'coverage_planner', label: MODULES.coverage_planner || 'Coverage Planner', href:'./coverage_planner.html', badge:"today's gaps" },
         ]
       },
       {

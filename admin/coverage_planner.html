@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <title>EagleNEST — Coverage Planner</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./coverage_planner.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}})();</script>
+</head>
+<body data-module="coverage_planner">
+  <div class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h2>Admin sign-in</h2>
+      <p class="muted">Coverage Planner is available to EagleNEST Admin and Super Admin accounts.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="muted">Loading…</pre>
+    </section>
+
+    <main id="app" hidden>
+      <section class="card topbar">
+        <div>
+          <h1>Coverage Planner</h1>
+          <div id="dateLine" class="muted topSub">Loading today’s schedule…</div>
+        </div>
+        <div class="topActions">
+          <span id="viewerPill" class="tag info mono">—</span>
+          <button id="printBtn" class="btn" type="button">Print</button>
+          <button id="refreshBtn" class="btn" type="button">Refresh</button>
+        </div>
+      </section>
+
+      <div id="staleBanner" class="banner warn" hidden></div>
+      <div id="errorBanner" class="banner bad" hidden></div>
+
+      <section class="section card">
+        <div class="sectionHead">
+          <div>
+            <h2>Who is absent today?</h2>
+            <p class="muted">Select one or more Teacher Assignment entries. <span class="mono">vacancy_teacher</span> stays available as a normal selectable option.</p>
+          </div>
+          <div class="rowActions">
+            <button id="clearBtn" class="btn small" type="button">Clear</button>
+            <button id="showGapsBtn" class="btn primary" type="button">Show Today’s Gaps</button>
+          </div>
+        </div>
+
+        <div class="selectorToolbar">
+          <input id="teacherSearch" type="search" placeholder="Search teacher, email, department, or grade team…" aria-label="Search teachers">
+          <select id="groupSelect" aria-label="Add teacher group">
+            <option value="">Add a group…</option>
+          </select>
+          <button id="selectVisibleBtn" class="btn" type="button">Select visible</button>
+        </div>
+
+        <div id="selectedSummary" class="selectedSummary muted">No teachers selected.</div>
+        <div id="teacherList" class="teacherGrid" aria-label="Teacher choices"></div>
+      </section>
+
+      <section class="kpiGrid" aria-label="Coverage summary">
+        <div class="kpi"><span>Absent Selected</span><strong id="kpiSelected">0</strong><span>teacher assignments</span></div>
+        <div class="kpi"><span>Coverage Gaps</span><strong id="kpiGaps">0</strong><span>sections needing coverage</span></div>
+        <div class="kpi"><span>Students in Gaps</span><strong id="kpiStudents">0</strong><span>scheduled seats</span></div>
+        <div class="kpi"><span>Still Staffed</span><strong id="kpiStillStaffed">0</strong><span>co-taught sections excluded</span></div>
+      </section>
+
+      <section class="section card">
+        <div class="sectionHead">
+          <div>
+            <h2>Today’s Coverage Gaps</h2>
+            <p class="muted">A co-taught section only appears here when every assigned teacher is selected absent.</p>
+          </div>
+          <span id="gapCountTag" class="tag warn">0 gaps</span>
+        </div>
+        <div id="gapTable" class="tableWrap"></div>
+      </section>
+
+      <section id="teacherSummaryCard" class="section card" hidden>
+        <div class="sectionHead">
+          <div>
+            <h2>Selected Teacher Summary</h2>
+            <p class="muted">Meetings found in today’s schedule and how many actually create a coverage gap.</p>
+          </div>
+        </div>
+        <div id="teacherSummaryTable" class="tableWrap"></div>
+      </section>
+
+      <details id="stillStaffedDetails" class="section card" hidden>
+        <summary>Selected-teacher sections that still have another assigned teacher</summary>
+        <p class="muted detailText">These meetings are intentionally excluded from the coverage-gap count because at least one assigned teacher was not selected absent.</p>
+        <div id="stillStaffedTable" class="tableWrap"></div>
+      </details>
+    </main>
+  </div>
+
+  <script src="./coverage_planner.js"></script>
+</body>
+</html>
