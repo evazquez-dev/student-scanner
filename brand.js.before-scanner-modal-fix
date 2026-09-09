@@ -96,8 +96,6 @@
     style.id = 'scannerConfigMenuStyles';
     style.textContent = `
       #scannerConfigMenuBackdrop{position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.72);display:none;align-items:center;justify-content:center;padding:16px;box-sizing:border-box}
-      /* While Scanner Configuration is open, make the legacy kiosk modal guard read as active without showing it. */
-      body.scanner-config-menu-open #locModal{display:block!important;visibility:hidden!important;pointer-events:none!important}
       #scannerConfigMenu{width:min(620px,96vw);max-height:92vh;overflow:auto;background:#fff;color:#111827;border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.4);padding:20px;box-sizing:border-box}
       #scannerConfigMenu h2{margin:0 0 5px;font-size:1.45rem}
       #scannerConfigMenu .cfg-sub{color:#64748b;font-size:.93rem;margin-bottom:14px}
@@ -148,7 +146,6 @@
     const backdrop = document.getElementById('scannerConfigMenuBackdrop');
     if (backdrop) backdrop.style.display = 'none';
     window.__SCANNER_CONFIG_MENU_OPEN = false;
-    document.body?.classList.remove('scanner-config-menu-open');
     ACTIVE_CONFIG_CODE = '';
     ACTIVE_CONFIG_STATE = null;
     try { document.getElementById('manualInput')?.focus({ preventScroll: true }); } catch {}
@@ -160,7 +157,6 @@
     body.innerHTML = html;
     backdrop.style.display = 'flex';
     window.__SCANNER_CONFIG_MENU_OPEN = true;
-    document.body?.classList.add('scanner-config-menu-open');
   }
 
   function stateLabel(state = ACTIVE_CONFIG_STATE) {
