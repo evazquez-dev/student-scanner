@@ -28,13 +28,16 @@ test('Arrival Window permits positive early evidence but does not start OUT-from
   assert.match(worker, /preserveArrivalObservation/);
 });
 
-test('future periods remain disabled while Arrival Window is selectable', () => {
-  assert.match(teacherRead, /started: phase !== 'future'/);
-  assert.match(teacherRead, /editable: phase !== 'future'/);
-  assert.match(teacher, /opt\.disabled = item\.disabled === true \|\| item\.started === false/);
-  assert.match(teacher, /syncPeriodOptionStates/);
-  assert.match(teacher, /safeSavedPeriod/);
-  assert.match(teacher, /savedOption[\s\S]*started === false/);
+test('future periods are selectable for roster viewing but attendance controls remain read-only', () => {
+  assert.match(teacherRead, /editable = phase !== 'future'/);
+  assert.match(teacherRead, /disabled: false/);
+  assert.match(teacherRead, /\[view only\]/);
+  assert.match(teacher, /function isAttendancePeriodEditable/);
+  assert.match(teacher, /opt\.disabled = item\.disabled === true && !viewOnly/);
+  assert.match(teacher, /View only — attendance editing opens when the arrival window or period begins/);
+  assert.match(teacher, /if \(!isAttendancePeriodEditable\(periodLocal\)\)/);
+  assert.doesNotMatch(teacher, /safeSavedPeriod/);
+  assert.doesNotMatch(teacher, /safeRemembered/);
 });
 
 test('Teacher Attendance submit validates authoritative class membership', () => {

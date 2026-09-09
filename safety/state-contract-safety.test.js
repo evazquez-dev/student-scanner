@@ -24,10 +24,12 @@ test('SAFETY: hold obligations cannot overwrite credible physical location', () 
   assert.match(worker, /With Staff: \$\{staffLabel\}/);
 });
 
-test('SAFETY: Teacher IN is intentional and future periods cannot be edited', () => {
+test('SAFETY: Teacher IN is intentional and future periods are viewable but cannot be edited', () => {
   assert.match(teacher, /hasFirstIn/);
   assert.match(teacher, /Submit Present\/Late\/Excused Late first/);
-  assert.match(teacher, /opt\.disabled = item\.disabled === true \|\| item\.started === false/);
+  assert.match(teacher, /opt\.disabled = item\.disabled === true && !viewOnly/);
+  assert.match(teacher, /if \(!attendanceEditable\)[\s\S]*sel\.disabled = true/);
+  assert.match(teacher, /if \(!isAttendancePeriodEditable\(periodLocal\)\)/);
   assert.match(worker, /error: "period_not_started_yet"/);
 });
 

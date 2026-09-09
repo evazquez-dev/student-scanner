@@ -28,7 +28,8 @@ test('ClassSession derives OUT from the bell and Teacher IN stays intentional', 
   assert.match(teacher, /period_start_no_in/);
   assert.match(teacher, /const canToggle = allowOutIn && codeIsPL && hasFirstIn && !blocked/);
   assert.match(teacher, /Submit Present\/Late\/Excused Late first, or have the student scan the classroom kiosk/);
-  assert.match(teacher, /opt\.disabled = item\.disabled === true \|\| item\.started === false/);
+  assert.match(teacher, /opt\.disabled = item\.disabled === true && !viewOnly/);
+  assert.match(teacher, /function isAttendancePeriodEditable/);
 });
 
 test('Holds do not disable teacher physical observations', () => {

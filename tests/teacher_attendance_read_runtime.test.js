@@ -5,6 +5,7 @@ const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const routeUrl = pathToFileURL(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/routes/teacher-attendance-read.js')).href;
+const serviceUrl = pathToFileURL(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/services/teacher-attendance-read.js')).href;
 
 class FakeKV {
   constructor(seed = {}) {
@@ -161,6 +162,27 @@ test('Teacher Attendance options are served by the modular read route with perio
   assert.equal(data.teacher_advisor_to_room.FM1['Advisory Alpha'], '310');
   assert.equal(data.teacher_advisor_linked, true);
   assert.equal(data.chairs_reminder_enabled, true);
+});
+
+
+
+test('future Teacher Attendance periods stay selectable while carrying read-only metadata', async () => {
+  const { buildTeacherAttendanceOptions } = await import(`${serviceUrl}?v=${Date.now()}-${Math.random()}`);
+  const env = makeEnv();
+  await env.ROSTER.put('bell_schedule_v1', JSON.stringify({
+    tz: 'America/New_York',
+    periods: [
+      { id: '1', start: '08:00', end: '08:50' },
+      { id: '2', start: '09:00', end: '09:50' }
+    ]
+  }));
+  const data = await buildTeacherAttendanceOptions(env, { practice: false, date: todayNY() }, 'teacher@school.org', { now_min: 7 * 60 });
+  const p1 = data.period_options.find((item) => item.value === '1');
+  assert.equal(p1.phase, 'future');
+  assert.equal(p1.started, false);
+  assert.equal(p1.editable, false);
+  assert.equal(p1.disabled, false);
+  assert.match(p1.label, /\[view only\]/i);
 });
 
 test('advisor link room fallback never guesses when multiple advisor labels share a room', async () => {

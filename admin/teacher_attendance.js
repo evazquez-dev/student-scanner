@@ -1514,6 +1514,7 @@ const dateText   = document.getElementById('dateText');
 const refreshText= document.getElementById('refreshText');
 const currentPeriodText = document.getElementById('currentPeriodText');
 const chairReminder = document.getElementById('chairReminder');
+const attendanceReadOnlyNotice = document.getElementById('attendanceReadOnlyNotice');
 const tableBox = document.getElementById('tableBox');
 const outInHeader = document.getElementById('outInHeader');
 
@@ -1600,6 +1601,32 @@ function periodOptionFor(periodLocal){
 
 function periodPhaseFor(periodLocal){
   return String(periodOptionFor(periodLocal)?.phase || '').trim().toLowerCase();
+}
+
+function isAttendancePeriodEditable(periodLocal){
+  const p = String(periodLocal || '').trim();
+  if (!p) return false;
+  const item = periodOptionFor(p);
+  // Compatibility fallback: older option payloads may not include `editable`.
+  // The Worker submit endpoint remains authoritative and rejects future writes.
+  if (!item || typeof item !== 'object') return true;
+  if (typeof item.editable === 'boolean') return item.editable;
+  return item.started !== false;
+}
+
+function isSelectedAttendancePeriodEditable(){
+  if (PAGE_MODE !== 'class') return false;
+  return isAttendancePeriodEditable(normPeriod(periodInput?.value || ''));
+}
+
+function renderAttendanceReadOnlyState(){
+  if (!attendanceReadOnlyNotice) return;
+  const p = normPeriod(periodInput?.value || '');
+  const viewOnly = PAGE_MODE === 'class' && !!p && !isAttendancePeriodEditable(p);
+  attendanceReadOnlyNotice.hidden = !viewOnly;
+  if (!viewOnly) return;
+  attendanceReadOnlyNotice.textContent =
+    `👁 View only — ${p} has not started yet. You can view the roster now; attendance editing will unlock when the arrival window or period begins.`;
 }
 
 function isArrivalPeriod(periodLocal){
@@ -2123,6 +2150,9 @@ function applyModeUI(){
 
   setAfterSchoolButtonUI();
   renderChairReminder();
+  renderAttendanceReadOnlyState();
+  updateBulkUI();
+  updateSubmitButtons();
 }
 
 async function refreshAfterSchoolEligibility(){
@@ -2188,15 +2218,9 @@ async function exitAfterSchoolMode(){
         : (TEACHER_OPTS_CACHE.periods || []);
 
       const remembered = String(LAST_CLASS_PICK.period || '').trim();
-      const rememberedOption = Array.isArray(periodItems)
-        ? periodItems.find((item) => String(item?.value ?? item ?? '').trim() === remembered)
-        : null;
-      const safeRemembered = rememberedOption && typeof rememberedOption === 'object' && rememberedOption.started === false
-        ? ''
-        : remembered;
       const preferredPeriod = String(TEACHER_OPTS_CACHE.current_period_local || '').trim()
         || String(TEACHER_OPTS_CACHE.arrival_period_local || '').trim()
-        || safeRemembered;
+        || remembered;
       fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
       applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE, LAST_CLASS_PICK.room || '');
     }
@@ -2301,18 +2325,14 @@ async function populateDropdowns(){
   fillSelect(roomInput, opts.rooms || [], 'Select room…', '');
 
   const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
-  const savedOption = Array.isArray(periodItems)
-    ? periodItems.find((item) => String(item?.value ?? item ?? '').trim() === String(savedPeriod).trim())
-    : null;
-  const safeSavedPeriod = savedOption && typeof savedOption === 'object' && savedOption.started === false
-    ? ''
-    : savedPeriod;
 
-  // Prefer Active, then Arrival Open, then a still-editable saved period.
+  // Prefer Active, then Arrival Open, then the teacher's last viewed period.
+  // Future periods are intentionally selectable in view-only mode.
   const preferredPeriod = String(opts.current_period_local || '').trim()
     || String(opts.arrival_period_local || '').trim()
-    || safeSavedPeriod;
+    || savedPeriod;
   fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
+  renderAttendanceReadOnlyState();
 }
 
 async function fetchTeacherOptions(){
@@ -2378,9 +2398,16 @@ function fillSelect(el, items, placeholder, preferredValue){
     if(item && typeof item === 'object'){
       const value = (item.value ?? item.id ?? item.local ?? '');
       const label = (item.label ?? item.text ?? value);
+      const hasPeriodState = Object.prototype.hasOwnProperty.call(item, 'started')
+        || Object.prototype.hasOwnProperty.call(item, 'editable')
+        || Object.prototype.hasOwnProperty.call(item, 'phase');
+      const viewOnly = hasPeriodState
+        && (item.editable === false || (typeof item.editable !== 'boolean' && item.started === false));
       opt.value = String(value);
       opt.textContent = String(label);
-      opt.disabled = item.disabled === true || item.started === false;
+      // Future attendance periods remain selectable so teachers can inspect the roster.
+      // `disabled` is reserved for truly unavailable options, not view-only periods.
+      opt.disabled = item.disabled === true && !viewOnly;
     } else {
       opt.value = String(item);
       opt.textContent = String(item);
@@ -2666,6 +2693,7 @@ let ROW_DATA = new Map();           // osis -> row record object
 // (legacy secret-menu block removed; using initSecretMenu/SECRET_MENU only)
 
 function countChanges(){
+  if (!isSelectedAttendancePeriodEditable()) return 0;
   return (lastMergedRows || [])
     .filter(r => !isSystemLockedAttendanceRow(r))
     .filter(r => (normalizeAttendanceCode(r.chosen || 'A') !== normalizeAttendanceCode(r.baseline || 'A')))
@@ -2673,36 +2701,40 @@ function countChanges(){
 }
 
 function updateSubmitButtons(){
-  const n = countChanges();
-  const label = n ? `Submit changes (${n})` : 'Submit changes';
+  const editable = isSelectedAttendancePeriodEditable();
+  const n = editable ? countChanges() : 0;
+  const label = !editable ? 'View only' : (n ? `Submit changes (${n})` : 'Submit changes');
 
   if (submitBtn){
-    submitBtn.disabled = n === 0;
+    submitBtn.disabled = !editable || n === 0;
     submitBtn.textContent = label;
   }
   if (submitBtnBottom){
-    submitBtnBottom.disabled = n === 0;
+    submitBtnBottom.disabled = !editable || n === 0;
     submitBtnBottom.textContent = label;
   }
 }
 
 function updateBulkUI(){
-  const n = SELECTED_OSIS.size;
+  const editable = isSelectedAttendancePeriodEditable();
+  const n = editable ? SELECTED_OSIS.size : 0;
+
+  if (!editable && SELECTED_OSIS.size) SELECTED_OSIS.clear();
 
   if (bulkSelectedCountEl){
     bulkSelectedCountEl.textContent = `${n} selected`;
   }
   if (bulkCodeSelect){
-    // only allow staging when something is selected
-    bulkCodeSelect.disabled = (n === 0);
+    bulkCodeSelect.disabled = !editable || n === 0;
 
-    // if nothing selected, force dropdown back to "Unselected…"
-    if (n === 0) bulkCodeSelect.value = '';
+    // if nothing can be selected, force dropdown back to "Unselected…"
+    if (!editable || n === 0) bulkCodeSelect.value = '';
   }
 
   if (selectAllCb){
     const total = CURRENT_OSIS_LIST.length;
-    if (!total){
+    selectAllCb.disabled = !editable || total === 0;
+    if (!editable || !total){
       selectAllCb.checked = false;
       selectAllCb.indeterminate = false;
     } else {
@@ -2735,6 +2767,12 @@ function stageBulkCodeToSelected(){
   const periodLocal = normPeriod(periodInput.value);
   const room = normRoom(resolveRoomForApi(periodLocal, picked));
   const date = dateText.textContent || '';
+
+  if (!isAttendancePeriodEditable(periodLocal)) {
+    setErr('This period is view-only until the arrival window or period begins.');
+    if (bulkCodeSelect) bulkCodeSelect.value = '';
+    return;
+  }
 
   const codeLetter = String(bulkCodeSelect?.value || '').trim().toUpperCase();
   const osisList = Array.from(SELECTED_OSIS);
@@ -2954,7 +2992,10 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   SELECTED_OSIS = loadSelection(date, room, period);
   updateBulkUI();
 
-  // Only show Out/In for the current period (and only if current period is known)
+  const attendanceEditable = isAttendancePeriodEditable(period);
+  renderAttendanceReadOnlyState();
+
+  // Only show Out/In for the current period/arrival window.
   const cur = String(CURRENT_PERIOD_LOCAL || '').trim();
   const allowOutIn = isOutInOpenPeriod(period);
   const showRpBadge = isLastScheduledPeriodLocal(period);
@@ -2985,7 +3026,9 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   // If no snapshot exists yet (current/unfinished period), baseline is the scan-computed suggestion.
   const haveSnapshot = snapBy.size > 0;
 
-  const overrides = loadOverrides(date, room, period);
+  // Future periods are view-only: never let cached local attendance overrides alter
+  // what the teacher sees before the attendance window opens.
+  const overrides = attendanceEditable ? loadOverrides(date, room, period) : {};
   let overridesPruned = false;
 
   // Union keys
@@ -3056,7 +3099,10 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   let pruned = false;
   for (const osis of Array.from(SELECTED_OSIS)){
     const row = merged.find(r => r.osis === osis);
-    if (!visible.has(osis) || isSystemLockedAttendanceRow(row)) { SELECTED_OSIS.delete(osis); pruned = true; }
+    if (!attendanceEditable || !visible.has(osis) || isSystemLockedAttendanceRow(row)) {
+      SELECTED_OSIS.delete(osis);
+      pruned = true;
+    }
   }
   if (pruned) saveSelection(date, room, period, SELECTED_OSIS);
   updateBulkUI();
@@ -3092,15 +3138,20 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     c0.className = 'selCell';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.checked = SELECTED_OSIS.has(r.osis);
-    if (r.systemLocked) {
+    cb.checked = attendanceEditable && SELECTED_OSIS.has(r.osis);
+    if (!attendanceEditable) {
+      cb.checked = false;
+      cb.disabled = true;
+      cb.title = 'View only — attendance editing opens when the arrival window or period begins.';
+      SELECTED_OSIS.delete(r.osis);
+    } else if (r.systemLocked) {
       cb.checked = false;
       cb.disabled = true;
       cb.title = 'Excused Late is system-controlled and cannot be changed by teachers.';
       SELECTED_OSIS.delete(r.osis);
     }
     cb.addEventListener('change', () => {
-      if (r.systemLocked) return;
+      if (!attendanceEditable || r.systemLocked) return;
       if (cb.checked) SELECTED_OSIS.add(r.osis);
       else SELECTED_OSIS.delete(r.osis);
       updateBulkUI();
@@ -3294,12 +3345,20 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     r.chosen = sel.value;
     sel.className = 'codeSelect codeSelect--' + (r.chosen || 'A');
     sel.title = `Baseline: ${codeLabel(r.baseline)} • Scan: ${codeLabel(r.scanSuggested)} • Snapshot: ${codeLabel(r.snapshotLetter)}`;
-    if (r.systemLocked) {
+    if (!attendanceEditable) {
+      sel.disabled = true;
+      sel.title = 'View only — attendance editing opens when the arrival window or period begins.';
+    } else if (r.systemLocked) {
       sel.disabled = true;
       sel.title = 'Excused Late is system-controlled and cannot be changed by teachers.';
     }
 
     sel.addEventListener('change', () => {
+      if (!attendanceEditable) {
+        sel.value = normalizeAttendanceCode(r.baseline || 'A') || 'A';
+        r.chosen = sel.value;
+        return;
+      }
       if (r.systemLocked) {
         sel.value = 'EL';
         r.chosen = 'EL';
@@ -3459,6 +3518,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
   subtitleRight.textContent =
     `${roomDisplay} • P${period} • ${whenType} • ${merged.length} students` +
     (haveSnapshot ? ' • (snapshot)' : ' • (live)') +
+    (attendanceEditable ? '' : ' • VIEW ONLY') +
     (allowOutIn ? '' : ' • (Out/In hidden)');
 
   // cache last context for Organizer view
@@ -3484,6 +3544,12 @@ async function submitChanges(){
 
   if(!room || !periodLocal){
     setErr('Room + Period are required.');
+    return;
+  }
+
+  if (!isAttendancePeriodEditable(periodLocal)) {
+    setErr('This period is view-only until the arrival window or period begins.');
+    updateSubmitButtons();
     return;
   }
 
@@ -3870,8 +3936,11 @@ function syncPeriodOptionStates(opts){
     if (!opt.value) continue;
     const item = byValue.get(String(opt.value));
     if (!item) continue;
-    opt.disabled = item.disabled === true || item.started === false;
+    const viewOnly = item.editable === false || (typeof item.editable !== 'boolean' && item.started === false);
+    opt.disabled = item.disabled === true && !viewOnly;
+    if (item.label != null) opt.textContent = String(item.label);
   }
+  renderAttendanceReadOnlyState();
 }
 
 function startCurrentPeriodTicker(){
@@ -3881,10 +3950,17 @@ function startCurrentPeriodTicker(){
   CURRENT_PERIOD_TIMER = setInterval(async () => {
     if(!IS_AUTHED) return;
     try{
+      const selectedPeriod = normPeriod(periodInput?.value || '');
+      const wasEditable = selectedPeriod ? isAttendancePeriodEditable(selectedPeriod) : false;
       const opts = await fetchTeacherOptions();
       TEACHER_OPTS_CACHE = opts;
       renderCurrentPeriod(opts);
       syncPeriodOptionStates(opts);
+      const nowEditable = selectedPeriod ? isAttendancePeriodEditable(selectedPeriod) : false;
+      if (PAGE_MODE === 'class' && selectedPeriod && wasEditable !== nowEditable
+          && roomInput?.value?.trim() && periodInput?.value?.trim()) {
+        await refreshOnce();
+      }
     }catch(_){}
 
     // Keep after-school eligibility + button in sync as the schedule shifts
@@ -4009,6 +4085,9 @@ async function bootTeacherAttendance(){
 
     // Period can change advisor-mode room list; update rooms first
     if (TEACHER_OPTS_CACHE) applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE);
+    renderAttendanceReadOnlyState();
+    updateBulkUI();
+    updateSubmitButtons();
 
     // Auto-refresh on real user pick only, and only if changed
     if (ev?.isTrusted && v !== LAST_UI_PICK.period) {
@@ -4064,6 +4143,12 @@ async function bootTeacherAttendance(){
   });
 
   selectAllCb?.addEventListener('change', () => {
+    if (!isSelectedAttendancePeriodEditable()) {
+      selectAllCb.checked = false;
+      SELECTED_OSIS.clear();
+      updateBulkUI();
+      return;
+    }
     const on = !!selectAllCb.checked;
     if (!on) {
       SELECTED_OSIS.clear();

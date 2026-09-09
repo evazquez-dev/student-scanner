@@ -334,6 +334,20 @@
     .chairReminder[hidden]{
       display: none;
     }
+    .attendanceReadOnlyNotice{
+      display:flex;
+      align-items:center;
+      width:100%;
+      margin:0.75rem 0 0;
+      padding:0.65rem 0.8rem;
+      border-radius:0.7rem;
+      border:1px solid rgba(59,130,246,0.55);
+      background:rgba(59,130,246,0.12);
+      color:var(--fg);
+      font-size:0.86rem;
+      font-weight:700;
+    }
+    .attendanceReadOnlyNotice[hidden]{ display:none; }
 
     .layout{
       display:grid;
@@ -937,6 +951,7 @@
             <button class="btn btn-primary" id="submitBtn" disabled>Submit changes</button>
           </div>
 
+          <div id="attendanceReadOnlyNotice" class="attendanceReadOnlyNotice" hidden aria-live="polite"></div>
           <div class="error" id="errBox"></div>
           <div class="diag" id="optionsDiag"></div>
 
