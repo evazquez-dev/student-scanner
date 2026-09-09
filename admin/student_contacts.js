@@ -10,6 +10,7 @@ const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
 const PAGE_PARAMS = new URLSearchParams(window.location.search);
 const PAGE_SOURCE = String(PAGE_PARAMS.get('source') || 'student_contacts').trim() || 'student_contacts';
+const PAGE_PREFILL_CATEGORY = String(PAGE_PARAMS.get('category') || '').trim();
 const DEFAULT_COMMUNICATION_CATEGORIES = ['Attendance','Behavior','Academic','Enrollment','Positive Contact','General','Other'];
 let communicationCategories = DEFAULT_COMMUNICATION_CATEGORIES.slice();
 
@@ -448,7 +449,7 @@ function renderCommunicationHistory() {
     const item = document.createElement('article');
     item.className = 'historyItem';
     const follow = row.follow_up_needed
-      ? `<div class="historyFollow">Follow-up: ${esc(row.follow_up_at_iso ? formatDateTime(row.follow_up_at_iso) : 'needed')}${row.follow_up_owner_email ? ` • ${esc(row.follow_up_owner_email)}` : ''}</div>`
+      ? `<div class="historyFollow">Follow-up: ${row.follow_up_resolved_at_iso ? `resolved ${esc(formatDateTime(row.follow_up_resolved_at_iso))}${row.follow_up_resolved_by_email ? ` by ${esc(row.follow_up_resolved_by_email)}` : ''}` : `${esc(row.follow_up_at_iso ? formatDateTime(row.follow_up_at_iso) : 'needed')}${row.follow_up_owner_email ? ` • ${esc(row.follow_up_owner_email)}` : ''}`}</div>`
       : '';
     const categoryAudit = row.category_updated_at_iso
       ? `<div class="historyCategoryAudit">Category last changed${row.previous_category ? ` from ${esc(row.previous_category)}` : ''} → ${esc(row.category || '')} by ${esc(row.category_updated_by_email || '—')} on ${esc(formatDateTime(row.category_updated_at_iso))}.</div>`
@@ -653,7 +654,8 @@ function openCommunication(contact = null) {
   commAt.value = localDateTimeValue();
   commMethod.value = 'Phone';
   commDirection.value = 'Outgoing';
-  commCategory.value = communicationCategories.includes('General') ? 'General' : (communicationCategories[0] || '');
+  const requestedCategory = communicationCategories.find((value) => String(value).toLowerCase() === PAGE_PREFILL_CATEGORY.toLowerCase());
+  commCategory.value = requestedCategory || (communicationCategories.includes('General') ? 'General' : (communicationCategories[0] || ''));
   commOutcome.value = 'Spoke/Connected';
   commIncident.value = '';
   commNotes.value = '';
@@ -786,6 +788,7 @@ async function boot() {
       // Consume the one-time action so a refresh does not reopen the modal.
       const cleanUrl = new URL(location.href);
       cleanUrl.searchParams.delete('action');
+      cleanUrl.searchParams.delete('category');
       history.replaceState(null, '', cleanUrl);
       openCommunication(null);
     }

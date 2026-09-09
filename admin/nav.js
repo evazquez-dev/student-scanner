@@ -27,6 +27,7 @@
     student_scans: 'Student Scan Report',
     scan_injector: 'Scan Injector',
     student_view: 'Student Snapshot',
+    communications: 'Communications',
     student_contacts: 'Student Contacts',
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
@@ -65,6 +66,7 @@
     'phone_pass_admin_session_v1',
     'notifications_admin_session_v1',
     'student_scans_admin_session_v1',
+    'communications_admin_session_v1',
     'scan_injector_admin_session_v1',
     'behavior_history_admin_session_v1',
     'admin_roles_admin_session_v1',
@@ -470,6 +472,7 @@
         items: [
           { key:'student_view', label: MODULES.student_view || 'Student Snapshot', href:'./student_view.html', badge:'location & attendance' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', badge:'scan & bathroom' },
+          { key:'communications', label: MODULES.communications || 'Communications', href:'./communications.html', badge:'outreach & follow-ups' },
           { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', badge:'contacts & communication' },
         ]
       },

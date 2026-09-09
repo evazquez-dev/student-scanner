@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <title>EagleNEST — Communications</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./communications.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}})();</script>
+</head>
+<body data-module="communications">
+  <div class="wrap">
+    <section id="loginCard" class="card">
+      <h2>Staff sign-in</h2>
+      <p class="muted">Use your American Dream School staff account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="muted">Loading…</pre>
+    </section>
+
+    <main id="app" hidden>
+      <section class="card topbar">
+        <div>
+          <h1>Parent & Family Communications</h1>
+          <div id="subtitle" class="muted" style="margin-top:6px">Loading your communication scope…</div>
+        </div>
+        <div class="topActions">
+          <span id="viewerPill" class="tag info mono">—</span>
+          <a class="btn primary" href="./student_contacts.html?action=log-communication&source=communications">+ Log Communication</a>
+          <button id="refreshBtn" class="btn" type="button">Refresh</button>
+        </div>
+      </section>
+
+      <div id="scopeTabs" class="scopeTabs" aria-label="Communication scope"></div>
+      <div id="modeBanner" hidden class="banner info"></div>
+      <div id="qualityBanner" hidden class="banner warn"></div>
+
+      <section class="kpiGrid" aria-label="Communication summary">
+        <div class="kpi"><span>Today</span><strong id="kpiToday">0</strong><span>communications logged</span></div>
+        <div class="kpi"><span>This Week</span><strong id="kpiWeek">0</strong><span>communications logged</span></div>
+        <div class="kpi"><span>Students Reached</span><strong id="kpiReached">0</strong><span>this week</span></div>
+        <div class="kpi"><span>Open Follow-ups</span><strong id="kpiFollowups">0</strong><span id="kpiFollowupDetail">0 overdue</span></div>
+        <div class="kpi"><span>Required Campaigns</span><strong id="kpiCampaigns">0</strong><span id="kpiStudentScope">0 students in scope</span></div>
+      </section>
+
+      <section class="section card">
+        <div class="sectionHead">
+          <div><h2>Required Communications</h2><p class="muted">Completion is one qualifying communication per student. Legacy note matches remain visibly identified.</p></div>
+        </div>
+        <div id="campaigns" class="campaignGrid"></div>
+      </section>
+
+      <section class="section twoCol">
+        <div class="card">
+          <div class="sectionHead"><div><h2>Needs Attention</h2><p class="muted">Overdue follow-ups, repeated unsuccessful attempts, and students without recent scoped outreach.</p></div><span id="attentionCount" class="tag warn">0</span></div>
+          <div id="attention" class="attentionGrid"></div>
+        </div>
+        <div class="card">
+          <div class="sectionHead"><div><h2>Staff Activity</h2><p class="muted">Activity within the selected scope.</p></div></div>
+          <div id="staffActivity" class="tableWrap"></div>
+        </div>
+      </section>
+
+      <section class="section card">
+        <div class="sectionHead"><div><h2>Follow-up Queue</h2><p class="muted">Open follow-ups for this scope. Only the assigned owner or an administrator can mark one resolved.</p></div></div>
+        <div id="followups" class="tableWrap"></div>
+      </section>
+
+      <section class="section card">
+        <div class="sectionHead">
+          <div><h2>Recent Communications</h2><p class="muted">Use filters to narrow the activity table without changing required-campaign completion.</p></div>
+        </div>
+        <div class="filters" style="margin-bottom:10px">
+          <input id="filterSearch" type="search" placeholder="Student, notes, contact, or staff…">
+          <select id="filterCategory"><option value="">All categories</option></select>
+          <select id="filterOutcome"><option value="">All outcomes</option></select>
+          <select id="filterStaff"><option value="">All staff</option></select>
+        </div>
+        <div id="recent" class="tableWrap"></div>
+      </section>
+
+      <section id="errorCard" class="section card" hidden>
+        <h2>Error</h2>
+        <div id="errorOut" class="error"></div>
+      </section>
+    </main>
+  </div>
+  <script src="./communications.js"></script>
+</body>
+</html>
