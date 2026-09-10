@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const root = process.cwd();
+const root = path.resolve(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const html = read('student-scanner/admin/student_view.html');
 const js = read('student-scanner/admin/student_view.js');
