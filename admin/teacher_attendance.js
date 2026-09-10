@@ -21,6 +21,7 @@ const SECRET_BEHAVIOR_ENDPOINT = '/admin/behavior/log';
 const SECRET_BEHAVIOR_MENU_ENDPOINT = '/admin/behavior/menu';
 const BEHAVIOR_RECENT_ENDPOINT = '/admin/behavior/recent';
 const PHONE_PASS_CONTEXT_ENDPOINT = '/admin/phone_pass/context';
+const PHONE_PASS_OPTIONS_ENDPOINT = '/admin/phone_pass/options';
 const PHONE_PASS_GRANT_ENDPOINT = '/admin/phone_pass/grant';
 const PHONE_PASS_SEND_BACK_ENDPOINT = '/admin/phone_pass/send_to_return';
 const SECRET_BEHAVIOR_NAMESPACE = 'TASecretBehavior';
@@ -2690,6 +2691,342 @@ let CURRENT_OSIS_LIST = [];         // [osis,...] for current rendered view
 let ROW_UI = new Map();             // osis -> { rowEl, cbEl, selEl, outInBtn }
 let ROW_DATA = new Map();           // osis -> row record object
 
+/******************** Bulk phone pickup from Teacher Attendance ********************/
+const BULK_PHONE_PICKUP_CONCURRENCY = 4;
+let BULK_PHONE_PICKUP_STATE = {
+  loaded: false,
+  loading: false,
+  canGrant: false,
+  running: false,
+  lastAttemptAt: 0,
+  error: '',
+  knownStudents: new Set()
+};
+
+function bulkPhonePickupSelectedRows_(){
+  return Array.from(SELECTED_OSIS || []).map((osis) => {
+    const id = String(osis || '').trim();
+    const row = ROW_DATA?.get?.(id) || (lastMergedRows || []).find((item) => String(item?.osis || '').trim() === id) || null;
+    return {
+      osis: id,
+      name: String(row?.name || id || 'Student').trim() || id || 'Student'
+    };
+  }).filter((row) => row.osis);
+}
+
+function bulkPhonePickupContext_(){
+  const periodLocal = normPeriod(periodInput?.value || '');
+  const picked = normRoom(roomInput?.value || '');
+  const room = normRoom(resolveRoomForApi(periodLocal, picked));
+  return {
+    date: String(dateText?.textContent || '').trim(),
+    room,
+    periodLocal
+  };
+}
+
+function ensureBulkPhonePickupControls_(){
+  const actions = bulkCodeSelect?.closest?.('.bulkActions') || document.querySelector('#bulkBar .bulkActions');
+  if (!actions) return null;
+
+  let button = document.getElementById('bulkPhonePickupBtn');
+  if (!button) {
+    button = document.createElement('button');
+    button.id = 'bulkPhonePickupBtn';
+    button.type = 'button';
+    button.className = 'btn bulkPhonePickupBtn';
+    button.hidden = true;
+    button.disabled = true;
+    button.textContent = '📱 Send selected for phone pickup';
+    if (submitBtnBottom && submitBtnBottom.parentElement === actions) actions.insertBefore(button, submitBtnBottom);
+    else actions.appendChild(button);
+    button.addEventListener('click', openBulkPhonePickupConfirm_);
+  }
+
+  let backdrop = document.getElementById('bulkPhonePickupBackdrop');
+  if (!backdrop) {
+    const style = document.createElement('style');
+    style.id = 'bulkPhonePickupStyles';
+    style.textContent = `
+      .bulkPhonePickupBtn{border-color:rgba(56,189,248,.65)}
+      .bulkPhonePickupBtn[hidden]{display:none!important}
+      .bulkPhonePickupBackdrop{position:fixed;inset:0;z-index:2147483600;background:rgba(2,6,23,.76);display:grid;place-items:center;padding:16px}
+      .bulkPhonePickupBackdrop[hidden]{display:none!important}
+      .bulkPhonePickupModal{width:min(640px,100%);max-height:90vh;overflow:auto;border:1px solid var(--card-border);background:var(--card-bg);color:var(--fg);border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.48);padding:18px}
+      .bulkPhonePickupModal h2{margin:0 0 7px;font-size:1.15rem}
+      .bulkPhonePickupLead{color:var(--muted);line-height:1.45;margin-bottom:12px}
+      .bulkPhonePickupList{display:grid;gap:6px;max-height:260px;overflow:auto;margin:10px 0 14px;padding:8px;border:1px solid var(--card-border);border-radius:12px;background:var(--control-bg)}
+      .bulkPhonePickupStudent{display:flex;justify-content:space-between;gap:10px;padding:7px 8px;border-bottom:1px solid rgba(148,163,184,.15)}
+      .bulkPhonePickupStudent:last-child{border-bottom:0}
+      .bulkPhonePickupStudent span:last-child{color:var(--muted);font-variant-numeric:tabular-nums}
+      .bulkPhonePickupResult{margin:10px 0;padding:10px 12px;border-radius:12px;border:1px solid var(--card-border);background:var(--control-bg);line-height:1.45}
+      .bulkPhonePickupResult[hidden]{display:none!important}
+      .bulkPhonePickupProgress{color:var(--muted);font-size:.84rem;min-height:20px;margin-top:8px}
+      .bulkPhonePickupActions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px}
+      @media(max-width:900px){.bulkPhonePickupActions .btn{flex:1 1 160px}.bulkPhonePickupStudent{display:block}.bulkPhonePickupStudent span:last-child{display:block;margin-top:2px}}
+    `;
+    document.head.appendChild(style);
+
+    backdrop = document.createElement('div');
+    backdrop.id = 'bulkPhonePickupBackdrop';
+    backdrop.className = 'bulkPhonePickupBackdrop';
+    backdrop.hidden = true;
+    backdrop.innerHTML = `
+      <section class="bulkPhonePickupModal" role="dialog" aria-modal="true" aria-labelledby="bulkPhonePickupTitle">
+        <h2 id="bulkPhonePickupTitle">Send students for phone pickup?</h2>
+        <div id="bulkPhonePickupLead" class="bulkPhonePickupLead"></div>
+        <div id="bulkPhonePickupList" class="bulkPhonePickupList"></div>
+        <div id="bulkPhonePickupResult" class="bulkPhonePickupResult" hidden></div>
+        <div id="bulkPhonePickupProgress" class="bulkPhonePickupProgress" aria-live="polite"></div>
+        <div class="bulkPhonePickupActions">
+          <button id="bulkPhonePickupCancel" class="btn" type="button">Cancel</button>
+          <button id="bulkPhonePickupConfirm" class="btn btn-primary" type="button">Confirm & Send</button>
+        </div>
+      </section>`;
+    document.body.appendChild(backdrop);
+    backdrop.addEventListener('click', (event) => {
+      if (event.target === backdrop) closeBulkPhonePickupConfirm_();
+    });
+    document.getElementById('bulkPhonePickupCancel')?.addEventListener('click', closeBulkPhonePickupConfirm_);
+    document.getElementById('bulkPhonePickupConfirm')?.addEventListener('click', () => runBulkPhonePickup_().catch((error) => {
+      const result = document.getElementById('bulkPhonePickupResult');
+      if (result) {
+        result.hidden = false;
+        result.textContent = `Could not send phone pickup requests: ${error?.message || error}`;
+      }
+      BULK_PHONE_PICKUP_STATE.running = false;
+      updateBulkPhonePickupUI_();
+    }));
+  }
+
+  return { button, backdrop };
+}
+
+function updateBulkPhonePickupUI_(){
+  const ui = ensureBulkPhonePickupControls_();
+  if (!ui) return;
+
+  const editable = PAGE_MODE === 'class' && isSelectedAttendancePeriodEditable();
+  const count = editable ? SELECTED_OSIS.size : 0;
+  const canShow = BULK_PHONE_PICKUP_STATE.loaded && BULK_PHONE_PICKUP_STATE.canGrant && PAGE_MODE === 'class';
+
+  ui.button.hidden = !canShow;
+  ui.button.disabled = !canShow || count === 0 || BULK_PHONE_PICKUP_STATE.running;
+  ui.button.textContent = count > 0
+    ? `📱 Send ${count} for phone pickup`
+    : '📱 Send selected for phone pickup';
+
+  if (!DEMO_MODE && IS_AUTHED && !BULK_PHONE_PICKUP_STATE.loaded && !BULK_PHONE_PICKUP_STATE.loading
+      && Date.now() - Number(BULK_PHONE_PICKUP_STATE.lastAttemptAt || 0) > 30000) {
+    void refreshBulkPhonePickupCapability_().catch(() => {});
+  }
+}
+
+async function refreshBulkPhonePickupCapability_(){
+  if (DEMO_MODE || !IS_AUTHED || BULK_PHONE_PICKUP_STATE.loading) {
+    updateBulkPhonePickupUI_();
+    return BULK_PHONE_PICKUP_STATE;
+  }
+
+  BULK_PHONE_PICKUP_STATE.loading = true;
+  BULK_PHONE_PICKUP_STATE.lastAttemptAt = Date.now();
+  try {
+    const response = await adminFetch(PHONE_PASS_OPTIONS_ENDPOINT, { method:'GET' });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) throw new Error(data?.error || `phone_pass/options HTTP ${response.status}`);
+    BULK_PHONE_PICKUP_STATE.loaded = true;
+    BULK_PHONE_PICKUP_STATE.canGrant = data.can_grant === true;
+    BULK_PHONE_PICKUP_STATE.error = '';
+    BULK_PHONE_PICKUP_STATE.knownStudents = new Set(
+      (Array.isArray(data.students) ? data.students : [])
+        .map((row) => String(row?.osis || '').trim())
+        .filter(Boolean)
+    );
+  } catch (error) {
+    BULK_PHONE_PICKUP_STATE.loaded = false;
+    BULK_PHONE_PICKUP_STATE.canGrant = false;
+    BULK_PHONE_PICKUP_STATE.error = String(error?.message || error || 'phone_pass_options_failed');
+  } finally {
+    BULK_PHONE_PICKUP_STATE.loading = false;
+    updateBulkPhonePickupUI_();
+  }
+  return BULK_PHONE_PICKUP_STATE;
+}
+
+function openBulkPhonePickupConfirm_(){
+  if (!BULK_PHONE_PICKUP_STATE.canGrant || BULK_PHONE_PICKUP_STATE.running) return;
+  const selected = bulkPhonePickupSelectedRows_();
+  if (!selected.length) {
+    setErr('Select one or more students first.');
+    return;
+  }
+
+  const ui = ensureBulkPhonePickupControls_();
+  if (!ui) return;
+  const lead = document.getElementById('bulkPhonePickupLead');
+  const list = document.getElementById('bulkPhonePickupList');
+  const result = document.getElementById('bulkPhonePickupResult');
+  const progress = document.getElementById('bulkPhonePickupProgress');
+  const confirm = document.getElementById('bulkPhonePickupConfirm');
+  const cancel = document.getElementById('bulkPhonePickupCancel');
+
+  if (lead) {
+    lead.innerHTML = `<strong>${selected.length} student${selected.length === 1 ? '' : 's'}</strong> will be checked and sent to pick up their phone. Students who already have their phone or already have an active pickup request will be skipped. Attendance selections will stay exactly as they are.`;
+  }
+  if (list) {
+    list.innerHTML = selected.map((row) => `<div class="bulkPhonePickupStudent"><strong>${escapeHtml_(row.name)}</strong><span>${escapeHtml_(row.osis)}</span></div>`).join('');
+  }
+  if (result) {
+    result.hidden = true;
+    result.innerHTML = '';
+  }
+  if (progress) progress.textContent = '';
+  if (confirm) {
+    confirm.disabled = false;
+    confirm.textContent = `Confirm & Send ${selected.length}`;
+  }
+  if (cancel) cancel.textContent = 'Cancel';
+  ui.backdrop.hidden = false;
+  setTimeout(() => confirm?.focus?.(), 0);
+}
+
+function closeBulkPhonePickupConfirm_(){
+  if (BULK_PHONE_PICKUP_STATE.running) return;
+  const backdrop = document.getElementById('bulkPhonePickupBackdrop');
+  if (backdrop) backdrop.hidden = true;
+}
+
+async function getBulkPhonePickupContext_(osis){
+  const url = new URL(PHONE_PASS_CONTEXT_ENDPOINT, API_BASE);
+  url.searchParams.set('osis', String(osis || '').trim());
+  const response = await adminFetch(url, { method:'GET' });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || !data?.ok) throw new Error(data?.error || `phone_pass/context HTTP ${response.status}`);
+  return data;
+}
+
+async function sendBulkPhonePickupOne_(student, context){
+  const osis = String(student?.osis || '').trim();
+  if (!osis) return { status:'failed', student, reason:'missing_osis' };
+
+  if (BULK_PHONE_PICKUP_STATE.knownStudents.size && !BULK_PHONE_PICKUP_STATE.knownStudents.has(osis)) {
+    return { status:'skipped', student, reason:'not available in Phone Pass roster' };
+  }
+
+  try {
+    const existing = await getBulkPhonePickupContext_(osis);
+    const state = existing?.state || {};
+    if (state.phone_out === true) {
+      return { status:'skipped', student, reason:'already has phone' };
+    }
+    if (state.phone_pickup_requested === true) {
+      return { status:'skipped', student, reason:'already sent for pickup' };
+    }
+
+    const response = await adminFetch(PHONE_PASS_GRANT_ENDPOINT, {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body: JSON.stringify({
+        osis,
+        source:'teacher_attendance_bulk',
+        room:String(context?.room || ''),
+        periodLocal:String(context?.periodLocal || ''),
+        date:String(context?.date || '')
+      })
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || !data?.ok) throw new Error(data?.error || `phone_pass/grant HTTP ${response.status}`);
+    return { status:'sent', student };
+  } catch (error) {
+    return { status:'failed', student, reason:String(error?.message || error || 'request_failed') };
+  }
+}
+
+async function runBulkPhonePickup_(){
+  if (BULK_PHONE_PICKUP_STATE.running || !BULK_PHONE_PICKUP_STATE.canGrant) return;
+  const selected = bulkPhonePickupSelectedRows_();
+  if (!selected.length) return;
+
+  BULK_PHONE_PICKUP_STATE.running = true;
+  updateBulkPhonePickupUI_();
+
+  const confirm = document.getElementById('bulkPhonePickupConfirm');
+  const cancel = document.getElementById('bulkPhonePickupCancel');
+  const progress = document.getElementById('bulkPhonePickupProgress');
+  const result = document.getElementById('bulkPhonePickupResult');
+  if (confirm) {
+    confirm.disabled = true;
+    confirm.textContent = 'Sending…';
+  }
+  if (cancel) cancel.disabled = true;
+  if (result) {
+    result.hidden = true;
+    result.innerHTML = '';
+  }
+
+  const context = bulkPhonePickupContext_();
+  const results = new Array(selected.length);
+  let nextIndex = 0;
+  let completed = 0;
+
+  const runner = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= selected.length) return;
+      results[index] = await sendBulkPhonePickupOne_(selected[index], context);
+      completed += 1;
+      if (progress) progress.textContent = `Checking/sending ${completed} of ${selected.length}…`;
+    }
+  };
+
+  try {
+    const workers = Array.from({ length: Math.min(BULK_PHONE_PICKUP_CONCURRENCY, selected.length) }, () => runner());
+    await Promise.all(workers);
+
+    const sent = results.filter((row) => row?.status === 'sent');
+    const skipped = results.filter((row) => row?.status === 'skipped');
+    const failed = results.filter((row) => row?.status === 'failed');
+
+    if (result) {
+      const detailRows = [...skipped, ...failed];
+      const detail = detailRows.length
+        ? `<div style="margin-top:8px">${detailRows.map((row) => `<div><strong>${escapeHtml_(row?.student?.name || row?.student?.osis || 'Student')}</strong> — ${escapeHtml_(row?.status === 'skipped' ? 'Skipped' : 'Failed')}: ${escapeHtml_(row?.reason || 'unknown')}</div>`).join('')}</div>`
+        : '';
+      result.hidden = false;
+      result.innerHTML = `<strong>${sent.length} sent</strong> • ${skipped.length} skipped • ${failed.length} failed${detail}`;
+    }
+    if (progress) progress.textContent = 'Complete.';
+
+    const statusText = `Phone pickup: ${sent.length} sent${skipped.length ? `, ${skipped.length} skipped` : ''}${failed.length ? `, ${failed.length} failed` : ''}.`;
+    setStatus(failed.length === 0, statusText);
+    if (failed.length) setErr('Some phone pickup requests failed. Review the confirmation window for details; successful requests were still sent.');
+    else setErr('');
+
+    emitTeacherFidelityEvent('teacher_phone_pickup_bulk', {
+      success: failed.length === 0,
+      metadata: {
+        selected_count: selected.length,
+        sent_count: sent.length,
+        skipped_count: skipped.length,
+        failed_count: failed.length
+      }
+    });
+  } finally {
+    BULK_PHONE_PICKUP_STATE.running = false;
+    updateBulkPhonePickupUI_();
+    if (confirm) {
+      confirm.disabled = true;
+      confirm.textContent = 'Sent';
+    }
+    if (cancel) {
+      cancel.disabled = false;
+      cancel.textContent = 'Close';
+    }
+  }
+}
+/******************** End bulk phone pickup ********************/
+
+
 // (legacy secret-menu block removed; using initSecretMenu/SECRET_MENU only)
 
 function countChanges(){
@@ -2742,6 +3079,8 @@ function updateBulkUI(){
       selectAllCb.indeterminate = (n > 0 && n < total);
     }
   }
+
+  updateBulkPhonePickupUI_();
 }
 
 function clearSelection(){
@@ -4189,6 +4528,7 @@ async function bootTeacherAttendance(){
     show(appShell);
     IS_AUTHED = true;
     setStatus(true, 'Live');
+    void refreshBulkPhonePickupCapability_().catch(() => {});
 
     // Session is confirmed. Replace any stale no_session/expired fallback.
     if (isSecretEnabled()) {
