@@ -3421,6 +3421,10 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const regentsPrep = !!(snap?.regents_prep || snap?.rp);
     const phoneOutActive = !!(snap?.phone_out === true && String(snap?.date || '').trim() === String(date || '').trim());
     const phoneReturnRequested = !!(snap?.phone_return_requested === true && phoneOutActive);
+    // TEACHER_ATTENDANCE_DAYTIME_PRESENCE_EXCEPTIONS_V1
+    // The Worker already calculates these from physical-presence evidence. Carry
+    // the result into the normal daytime roster instead of dropping it here.
+    const presenceException = String(snap?.presence_exception || '').trim().toLowerCase();
 
     const snapshotLetter = normalizeAttendanceCode(snapRec?.codeLetter || '');
     const scanSuggested  = normalizeAttendanceCode(compRec?.codeLetter || '');
@@ -3448,6 +3452,7 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       regentsPrep,
       phoneOutActive,
       phoneReturnRequested,
+      presenceException,
       snapshotLetter,
       scanSuggested,
       baseline,
@@ -3578,7 +3583,47 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     top.appendChild(student);
     top.appendChild(makePhoneIndicator_(r.osis, r.phoneOutActive, r.phoneReturnRequested));
 
-    if (r.zone) {
+    // TEACHER_ATTENDANCE_DAYTIME_PRESENCE_EXCEPTIONS_V1
+    // Exception badges describe what EagleNEST actually knows. They do not infer
+    // absence from a missing scan, and LEFT EARLY remains more specific than the
+    // generic off-campus location produced by Early Dismissal.
+    const presenceCode = String(r.presenceException || '').trim().toLowerCase();
+    const presenceLabels = {
+      left_early: 'LEFT EARLY',
+      off_campus: 'OFF CAMPUS',
+      missed_am_scan: 'MISSED AM SCAN',
+      not_seen_today: 'NOT SEEN TODAY'
+    };
+    if (presenceLabels[presenceCode]) {
+      const presenceChip = document.createElement('span');
+      presenceChip.className = 'chip';
+      presenceChip.dataset.presenceException = presenceCode;
+      presenceChip.textContent = presenceLabels[presenceCode];
+      presenceChip.style.fontWeight = '900';
+      presenceChip.style.letterSpacing = '0.02em';
+      if (presenceCode === 'left_early') {
+        presenceChip.style.borderColor = 'rgba(56,189,248,0.62)';
+        presenceChip.style.background = 'var(--bath-soft)';
+        presenceChip.title = 'An active Early Dismissal record exists for this student today.';
+      } else if (presenceCode === 'off_campus') {
+        presenceChip.style.borderColor = 'rgba(239,68,68,0.62)';
+        presenceChip.style.background = 'var(--bad-soft)';
+        presenceChip.title = 'Student is explicitly off campus.';
+      } else if (presenceCode === 'missed_am_scan') {
+        presenceChip.style.borderColor = 'rgba(245,158,11,0.62)';
+        presenceChip.style.background = 'var(--warn-soft)';
+        presenceChip.title = 'Physical scan evidence exists today, but no morning entrance scan is recorded.';
+      } else {
+        presenceChip.style.borderColor = 'rgba(239,68,68,0.45)';
+        presenceChip.style.background = 'var(--bad-soft)';
+        presenceChip.title = 'No morning entrance scan or other physical scan evidence is recorded today.';
+      }
+      top.appendChild(presenceChip);
+    }
+
+    // LEFT EARLY / OFF CAMPUS already communicate the off-campus state more
+    // clearly, so do not render a second generic "off campus" chip beside them.
+    if (r.zone && !(r.zone === 'off_campus' && (presenceCode === 'left_early' || presenceCode === 'off_campus'))) {
       const chip = document.createElement('span');
       chip.className = 'chip ' + zoneToChipClass(r.zone);
       chip.textContent = String(r.zone).replace(/_/g, ' ');
