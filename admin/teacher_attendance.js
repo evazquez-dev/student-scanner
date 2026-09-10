@@ -3301,6 +3301,20 @@ async function fetchRosterSnapshotMap(){
     }
   }
 
+  try {
+    const p = await adminFetch('/admin/teacher_att/presence_exceptions', { method:'GET' });
+    const pj = await p.json().catch(() => null);
+    if (p.ok && pj?.ok && pj?.by_osis && typeof pj.by_osis === 'object') {
+      for (const [osisRaw, statusRaw] of Object.entries(pj.by_osis)) {
+        const osis = String(osisRaw || '').trim();
+        if (!osis) continue;
+        const rec = map.get(osis) || { osis };
+        rec.presence_exception = String(statusRaw || '').trim().toLowerCase();
+        map.set(osis, rec);
+      }
+    }
+  } catch {}
+
   return { date: data.date, map };
 }
 
@@ -4091,6 +4105,25 @@ function renderAfterSchoolRows({ date, homeRoomLabel, rows }){
     const c2 = document.createElement('div');
     c2.className = 'mono muted';
     c2.textContent = inRoom ? 'IN ROOM' : shortZoneLabel(zone);
+    const presenceCode = String(snap?.presence_exception || '').trim().toLowerCase();
+    const presenceLabels = {
+      left_early: 'LEFT EARLY',
+      off_campus: 'OFF CAMPUS',
+      missed_am_scan: 'MISSED AM SCAN',
+      not_seen_today: 'NOT SEEN TODAY'
+    };
+    if (presenceLabels[presenceCode]) {
+      c2.textContent = presenceLabels[presenceCode];
+      c2.classList.remove('muted');
+      c2.style.fontWeight = '900';
+      c2.title = presenceCode === 'missed_am_scan'
+        ? 'Physical scan evidence exists today, but no morning entrance scan is recorded.'
+        : presenceCode === 'not_seen_today'
+          ? 'No morning entrance scan or other physical scan evidence is recorded today.'
+          : presenceCode === 'left_early'
+            ? 'An active Early Dismissal record exists for this student today.'
+            : 'Student is explicitly off campus.';
+    }
 
     // c3: In/Out button
     const c3 = document.createElement('div');

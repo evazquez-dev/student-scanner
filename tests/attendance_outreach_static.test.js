@@ -17,7 +17,7 @@ const access = read('cf-redcake/red-cake-77d5/src/services/admin-session.js');
   assert.match(brand, /attendance_outreach:\s*'Attendance Outreach'/);
   assert.match(nav, /attendance_outreach\.html/);
   assert.match(nav, /morning calls/);
-  assert.match(access, /attendance_outreach:\s*isAdminLike/);
+  assert.match(access, /attendance_outreach:\s*canOfficeStaff/);
 });
 
 test('Attendance Outreach reuses existing Contacts and Communications writes', () => {

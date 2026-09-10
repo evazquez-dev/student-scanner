@@ -44,6 +44,15 @@
 
         <hr style="margin:18px 0;">
 
+        <label for="officeStaffBox"><strong>Office Staff Emails</strong></label>
+        <p class="muted">Office Staff can use Attendance Outreach, Attendance Status, Attendance Change, Early Dismissal/Undo, Student Lookup, Student Contacts, and Student Scan Report. This does not grant the whole-school Communications dashboard, Hallway, Visitor Desk, Phone Pass, Staff Pull, Coverage Planner, or admin tools.</p>
+        <textarea id="officeStaffBox" rows="8" style="width:100%;margin-top:8px;" spellcheck="false" placeholder="office.staff@theamericandreamschool.org"></textarea>
+        <div class="row" style="margin-top:12px;gap:10px;flex-wrap:wrap;">
+          <button id="saveOfficeStaffBtn" class="btn" type="button">Save Office Staff List</button>
+        </div>
+
+        <hr style="margin:18px 0;">
+
         <label for="visitorDeskBox"><strong>Visitor Desk Emails</strong></label>
         <p class="muted">Emails in this list can use Visitor Desk without being made full admins.</p>
         <textarea id="visitorDeskBox" rows="8" style="width:100%;margin-top:8px;" spellcheck="false" placeholder="security.staff@theamericandreamschool.org"></textarea>
@@ -74,6 +83,10 @@
           <section>
             <strong>Visitor Desk</strong>
             <pre id="visitorDeskOut" class="pane">—</pre>
+          </section>
+          <section>
+            <strong>Office Staff</strong>
+            <pre id="officeStaffOut" class="pane">—</pre>
           </section>
           <section>
             <strong>Staff Pull Roles</strong>

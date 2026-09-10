@@ -10,6 +10,7 @@ const loginCard = $('loginCard');
 const loginOut = $('loginOut');
 const app = $('app');
 const refreshBtn = $('refreshBtn');
+const communicationsLink = $('communicationsLink');
 const errorCard = $('errorCard');
 const errorOut = $('errorOut');
 const modeBanner = $('modeBanner');
@@ -169,6 +170,7 @@ async function ensureAccess() {
     }
     loginCard.hidden = true;
     app.hidden = false;
+    if (communicationsLink) communicationsLink.hidden = ACCESS?.can?.communications !== true;
     return true;
   }
 
