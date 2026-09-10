@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./attendance_outreach.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./attendance_outreach.js" defer></script>
+  <title>EagleNEST — Attendance Outreach</title>
+</head>
+<body data-module="attendance_outreach">
+  <main class="shell">
+    <section id="loginCard" class="card loginCard" hidden>
+      <h2 data-brand-title>EagleNEST — Attendance Outreach</h2>
+      <p>Sign in to work the morning attendance outreach queue.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut">—</pre>
+    </section>
+
+    <div id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <h1 data-brand-title>EagleNEST — Attendance Outreach</h1>
+          <p>Work morning attendance exceptions, verify students with later evidence, and log family calls without leaving the queue.</p>
+        </div>
+        <div class="headActions">
+          <a class="btn" href="./attendance_status.html">Attendance Status</a>
+          <a class="btn" href="./communications.html?scope=school">Communications</a>
+          <button id="refreshBtn" class="btn primary" type="button">Refresh Queue</button>
+        </div>
+      </header>
+
+      <section id="modeBanner" class="infoBanner" hidden></section>
+      <section id="errorCard" class="errorBanner" hidden><strong>Could not load Attendance Outreach.</strong><div id="errorOut"></div></section>
+
+      <section class="kpis" aria-label="Attendance outreach summary">
+        <button class="kpi danger" type="button" data-filter="needs_call"><span id="countNeedsCall">0</span><small>Needs Call</small></button>
+        <button class="kpi warn" type="button" data-filter="needs_verification"><span id="countNeedsVerification">0</span><small>Needs Verification</small></button>
+        <button class="kpi info" type="button" data-filter="contacted"><span id="countContacted">0</span><small>Contacted</small></button>
+        <button class="kpi good" type="button" data-filter="verified"><span id="countVerified">0</span><small>Verified</small></button>
+        <button class="kpi neutral" type="button" data-filter="confirmed"><span id="countConfirmed">0</span><small>Morning Scan</small></button>
+      </section>
+
+      <section class="card queueCard">
+        <div class="queueHead">
+          <div>
+            <h2>Morning Attendance Outreach</h2>
+            <div class="muted"><span id="queueDate">—</span> · <span id="generatedAt">—</span></div>
+          </div>
+          <div class="queueTools">
+            <select id="statusFilter" aria-label="Filter by status">
+              <option value="needs_action">Needs Action</option>
+              <option value="needs_call">Needs Call</option>
+              <option value="needs_verification">Needs Verification</option>
+              <option value="contacted">Contacted</option>
+              <option value="verified">Verified</option>
+              <option value="confirmed">Morning Scan</option>
+              <option value="all">All Students</option>
+            </select>
+            <input id="searchInput" type="search" placeholder="Search student, OSIS, grade…" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="ruleNote">
+          <strong>Queue rule:</strong> no morning-entry scan + no physical evidence today → <b>Needs Call</b>. No morning-entry scan + another scan/location evidence today → <b>Needs Verification</b>. Logging an Attendance communication moves the student to <b>Contacted</b>.
+        </div>
+
+        <div class="tableWrap">
+          <table>
+            <thead><tr><th>Student</th><th>Status</th><th>Evidence</th><th>Current</th><th>Latest Attendance Contact</th><th>Action</th></tr></thead>
+            <tbody id="queueBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div id="queueMeta" class="muted queueMeta"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="callBackdrop" class="modalBackdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="callTitle">
+      <div class="modalHead"><div><h2 id="callTitle">Call / Log Attendance Contact</h2><div id="callStudent" class="muted"></div></div><button id="closeCall" class="iconBtn" type="button" aria-label="Close">×</button></div>
+      <div id="callError" class="errorText" hidden></div>
+      <div class="field"><label>Family contact</label><div id="contactChoices" class="contactChoices"><div class="muted">Loading contacts…</div></div></div>
+      <div class="field"><label>Outcome</label><div id="outcomeChoices" class="outcomeChoices"></div></div>
+      <div class="field"><label for="callNotes">Notes</label><textarea id="callNotes" rows="4" placeholder="What did the family say? For No Answer / Left Voicemail / Wrong Number, a standard note is filled automatically."></textarea></div>
+      <label class="followRow"><input id="followUpNeeded" type="checkbox"> Follow-up needed</label>
+      <div id="followUpFields" class="fieldRow" hidden><label>Follow-up date/time<input id="followUpAt" type="datetime-local"></label><label>Owner<input id="followUpOwner" type="email"></label></div>
+      <div class="modalActions"><button id="cancelCall" class="btn" type="button">Cancel</button><button id="saveCall" class="btn" type="button">Save</button><button id="saveNextCall" class="btn primary" type="button">Save &amp; Next</button></div>
+    </section>
+  </div>
+
+  <div id="verifyBackdrop" class="modalBackdrop" hidden>
+    <section class="modal smallModal" role="dialog" aria-modal="true" aria-labelledby="verifyTitle">
+      <div class="modalHead"><div><h2 id="verifyTitle">Verify Student in Building</h2><div id="verifyStudent" class="muted"></div></div><button id="closeVerify" class="iconBtn" type="button" aria-label="Close">×</button></div>
+      <div id="verifyEvidence" class="evidenceBox"></div>
+      <div class="field"><label for="verifyNote">Verification note (optional)</label><textarea id="verifyNote" rows="3" placeholder="Example: Confirmed with front office / teacher that student is in Room 309."></textarea></div>
+      <div id="verifyError" class="errorText" hidden></div>
+      <div class="modalActions"><button id="cancelVerify" class="btn" type="button">Cancel</button><button id="saveVerify" class="btn primary" type="button">Mark Verified</button></div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+</body>
+</html>

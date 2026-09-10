@@ -8,6 +8,7 @@
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Diagnostics',
     attendance_status: 'Attendance Status',
+    attendance_outreach: 'Attendance Outreach',
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
     student_view: 'Student Lookup',
