@@ -187,6 +187,51 @@ function isAdminLike(){
   return role === 'admin' || role === 'super_admin';
 }
 
+// STUDENT_LOOKUP_BEHAVIOR_DELETE_V1
+function isSuperAdmin(){
+  return String(access?.role || '').trim().toLowerCase() === 'super_admin';
+}
+
+function canDeleteBehavior(row){
+  if (isViewAsReadOnly() || row?.is_deleted) return false;
+  const actor = String(row?.actor_email || '').trim().toLowerCase();
+  const viewer = String(access?.email || '').trim().toLowerCase();
+  return isSuperAdmin() || actor === viewer;
+}
+
+async function deleteBehaviorFromLookup(row, button){
+  const behaviorId = String(row?.behavior_id || '').trim();
+  if (!behaviorId || !canDeleteBehavior(row)) return;
+
+  const entered = prompt(
+    'Mark this behavior deleted? It will disappear from normal behavior views. Optional reason:',
+    ''
+  );
+  if (entered === null) return;
+
+  if (button) button.disabled = true;
+  try {
+    const r = await adminFetch('/admin/behavior/update', {
+      method:'POST',
+      headers:{ 'content-type':'application/json' },
+      body:JSON.stringify({
+        behaviorId,
+        isDeleted:true,
+        deleteReason:String(entered || '').trim()
+      })
+    });
+    const data = await r.json().catch(() => null);
+    if (!r.ok || !data?.ok) throw new Error(data?.error || `behavior/update HTTP ${r.status}`);
+
+    tabLoads.behavior.loaded = false;
+    setActionStatus('Behavior marked deleted.', 'good');
+    await loadBehaviorHistory(true, selectionSequence);
+  } catch (e) {
+    setActionStatus(`Could not delete behavior: ${e?.message || e}`, 'bad');
+    if (button) button.disabled = false;
+  }
+}
+
 function setActionStatus(message = '', kind = ''){
   actionStatus.textContent = String(message || '');
   actionStatus.className = `actionStatus small${kind ? ` ${kind}` : ''}`;
@@ -523,8 +568,6 @@ async function loadBehaviorHistory(force = false, seq = selectionSequence){
     const data = await r.json().catch(() => null);
     if (seq !== selectionSequence) return;
     if (!r.ok || !data?.ok) throw new Error(data?.error || `behavior/list HTTP ${r.status}`);
-    // The q filter is broad text search; exact-filter by OSIS client-side so another
-    // record containing the digits can never appear on the selected student's tab.
     const rows = (Array.isArray(data.rows) ? data.rows : [])
       .filter((row) => String(row?.osis || '').trim() === selected.osis && !row?.is_deleted)
       .sort((a,b) => String(b?.when_iso || b?.logged_at_iso || '').localeCompare(String(a?.when_iso || a?.logged_at_iso || '')));
@@ -534,6 +577,9 @@ async function loadBehaviorHistory(force = false, seq = selectionSequence){
       : `${rows.length} active behavior log${rows.length === 1 ? '' : 's'} available to you for this student.`;
     behaviorList.innerHTML = rows.length ? rows.map((row) => {
       const where = [row.room ? `Room ${row.room}` : '', row.period_local ? `Period ${row.period_local}` : ''].filter(Boolean).join(' • ');
+      const deleteButton = canDeleteBehavior(row)
+        ? `<button type="button" class="btn secondary small" data-behavior-delete-id="${esc(row.behavior_id || '')}">Mark deleted</button>`
+        : '';
       return `<article class="listItem">
         <div class="listTop">
           <div><div class="listTitle">${esc(row.event_label || row.event_key || 'Behavior')}</div><div class="listMeta">${esc(fmtDateTime(row.when_iso || row.logged_at_iso))}${where ? ` • ${esc(where)}` : ''}</div></div>
@@ -541,8 +587,18 @@ async function loadBehaviorHistory(force = false, seq = selectionSequence){
         </div>
         ${row.notes ? `<div class="listBody">${esc(row.notes)}</div>` : ''}
         <div class="listMeta">Logged by ${esc(row.actor_email || '—')}${row.source ? ` • ${esc(row.source)}` : ''}</div>
+        ${deleteButton ? `<div class="inlineActions" style="margin-top:.55rem;">${deleteButton}</div>` : ''}
       </article>`;
     }).join('') : '<div class="emptyState">No active behavior logs are available to you for this student.</div>';
+
+    behaviorList.querySelectorAll('[data-behavior-delete-id]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const behaviorId = String(button.getAttribute('data-behavior-delete-id') || '').trim();
+        const row = rows.find((item) => String(item?.behavior_id || '').trim() === behaviorId);
+        if (row) deleteBehaviorFromLookup(row, button);
+      });
+    });
+
     tabLoads.behavior.loaded = true;
   }catch(e){
     if (seq !== selectionSequence) return;

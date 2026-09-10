@@ -180,6 +180,23 @@ function isAdminViewer(){
   return !!ACCESS?.viewer?.is_admin || role === 'admin' || role === 'super_admin';
 }
 
+// STUDENT_LOOKUP_BEHAVIOR_DELETE_V1
+function isSuperAdminViewer(){
+  const role = String(ACCESS?.role || ACCESS?.viewer?.role || '').trim().toLowerCase();
+  return role === 'super_admin';
+}
+
+function behaviorActorIsViewer(row){
+  const actor = String(row?.actor_email || '').trim().toLowerCase();
+  const viewer = String(ACCESS?.email || ACCESS?.viewer?.email || '').trim().toLowerCase();
+  return !!actor && actor === viewer;
+}
+
+function canDeleteBehaviorRow(row){
+  if (ACCESS?.view_as?.active) return false;
+  return isSuperAdminViewer() || behaviorActorIsViewer(row);
+}
+
 function currentFilters(){
   const deleted = String(deletedFilter?.value || 'active').trim();
   return {
@@ -290,9 +307,11 @@ function renderRows(rows){
 
       <div class="cardActions">
         <button type="button" class="btn btn--primary" data-act="save" data-behavior-id="${escapeHtml_(row.behavior_id)}">Save notes</button>
-        <button type="button" class="btn ${row?.is_deleted ? 'btn--ghost' : 'btn--warn'}" data-act="${row?.is_deleted ? 'restore' : 'delete'}" data-behavior-id="${escapeHtml_(row.behavior_id)}">
-          ${row?.is_deleted ? 'Restore' : 'Mark deleted'}
-        </button>
+        ${canDeleteBehaviorRow(row) ? `
+          <button type="button" class="btn ${row?.is_deleted ? 'btn--ghost' : 'btn--warn'}" data-act="${row?.is_deleted ? 'restore' : 'delete'}" data-behavior-id="${escapeHtml_(row.behavior_id)}">
+            ${row?.is_deleted ? 'Restore' : 'Mark deleted'}
+          </button>
+        ` : ''}
       </div>
     `;
 

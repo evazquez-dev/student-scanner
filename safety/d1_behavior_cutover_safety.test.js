@@ -30,10 +30,12 @@ test('SAFETY: non-admin Behavior history is server-scoped to the authenticated a
   assert.match(service, /viewer_email_required/);
 });
 
-test('SAFETY: Behavior update keeps author-or-admin ownership enforcement', () => {
+test('SAFETY: Behavior delete/restore is original-poster or Super Admin only', () => {
   const service = read('cf-redcake/red-cake-77d5/src/services/behavior-d1.js');
-  assert.match(service, /actorRole === 'admin' \|\| actorRole === 'super_admin'/);
-  assert.match(service, /prior\.actor_email/);
+  assert.match(service, /const owner = d1Email\(prior\.actor_email\) === actorEmail/);
+  assert.match(service, /const canDeleteRestore = actorRole === 'super_admin' \|\| owner/);
+  assert.match(service, /if \(set_deleted && !canDeleteRestore\)/);
+  assert.match(service, /if \(!set_deleted && !admin && !owner\)/);
   assert.match(service, /status: 403, error: 'forbidden'/);
   assert.match(service, /INSERT INTO behavior_audit/);
 });
