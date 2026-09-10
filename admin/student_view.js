@@ -885,23 +885,19 @@ async function submitBehavior(){
   }
 }
 
-function contactsUrl({ log = false } = {}){
+function contactsUrl(){
   if (!selected?.osis) return null;
   const url = new URL('./student_contacts.html', location.href);
   url.searchParams.set('osis', selected.osis);
   if (selected.name) url.searchParams.set('name', selected.name);
-  if (log) url.searchParams.set('action', 'log-communication');
   url.searchParams.set('source', 'student_lookup');
   return url;
 }
 
 function openCommunication(){
   if (!selected?.osis || isViewAsReadOnly()) return;
-  const url = contactsUrl({ log:true });
-  // Keep these literal calls stable for the Phase 1 deep-link contract.
-  url.searchParams.set('action', 'log-communication');
-  url.searchParams.set('source', 'student_lookup');
-  location.href = url.toString();
+  const url = contactsUrl();
+  if (url) location.href = url.toString();
 }
 
 function openContacts(){

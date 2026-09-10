@@ -268,6 +268,51 @@ function emailMarkup(contact) {
   return html;
 }
 
+function directStudentCommunicationTarget() {
+  const name = String(
+    currentData?.student_name
+    || currentStudent?.name
+    || currentStudent?.osis
+    || 'Student'
+  ).trim() || 'Student';
+  return {
+    direct_student: true,
+    contact_assoc_id: '',
+    display: {
+      name: `Student — ${name}`,
+      relationship: 'Student'
+    }
+  };
+}
+
+function renderDirectStudentCommunicationCard() {
+  if (!currentStudent) return;
+  const name = String(currentData?.student_name || currentStudent.name || currentStudent.osis || 'Student').trim() || 'Student';
+  const card = document.createElement('article');
+  card.className = 'card contactCard directStudentContactCard';
+  card.dataset.communicationTarget = 'student';
+  card.innerHTML = `
+    <div class="contactTop">
+      <div>
+        <div class="contactName">${esc(name)}</div>
+        <div class="relationship">Student</div>
+      </div>
+      <div class="priority">Direct</div>
+    </div>
+    <div class="detailList">
+      <div class="detail">
+        <div class="detailLabel">Use for</div>
+        <div class="detailValue">A conversation or message directly with the student, not a parent, guardian, or other contact.</div>
+      </div>
+    </div>
+    <div class="badges"><span class="badge mine">Student direct</span></div>
+    <div class="cardActions">
+      <button class="btn primary commBtn" type="button">Log student communication</button>
+    </div>`;
+  card.querySelector('.commBtn').addEventListener('click', () => openCommunication(directStudentCommunicationTarget()));
+  contactsEl.appendChild(card);
+}
+
 function renderContacts() {
   const rows = currentData?.contacts || [];
   contactsEl.innerHTML = '';
@@ -281,9 +326,11 @@ function renderContacts() {
   contactCount.textContent = `${rows.length} contact${rows.length === 1 ? '' : 's'}`;
   syncStamp.textContent = formatSync(currentData?.synced_at_iso);
 
+  renderDirectStudentCommunicationCard();
+
   if (!rows.length) {
     emptyState.hidden = false;
-    emptyState.textContent = 'No PowerSchool contacts found for this student.';
+    emptyState.textContent = 'No PowerSchool family contacts found for this student. You can still log a direct student communication above.';
     return;
   }
 
@@ -647,12 +694,13 @@ async function loadCommunicationCategories(){
 function openCommunication(contact = null) {
   if (!currentStudent) return;
   communicatingWith = contact;
-  const label = contact?.display?.name || 'General / No specific contact';
-  const relationship = contact?.display?.relationship || '';
+  const isDirectStudent = contact?.direct_student === true;
+  const label = isDirectStudent ? 'Student (direct)' : (contact?.display?.name || 'General / No specific contact');
+  const relationship = isDirectStudent ? '' : (contact?.display?.relationship || '');
   commTitle.textContent = 'Log communication';
   commSubtitle.textContent = `${currentData?.student_name || currentStudent.name || currentStudent.osis} • ${label}${relationship && relationship.toLowerCase() !== 'not set' ? ` (${relationship})` : ''}`;
   commAt.value = localDateTimeValue();
-  commMethod.value = 'Phone';
+  commMethod.value = isDirectStudent ? 'In Person' : 'Phone';
   commDirection.value = 'Outgoing';
   const requestedCategory = communicationCategories.find((value) => String(value).toLowerCase() === PAGE_PREFILL_CATEGORY.toLowerCase());
   commCategory.value = requestedCategory || (communicationCategories.includes('General') ? 'General' : (communicationCategories[0] || ''));
@@ -686,8 +734,10 @@ async function saveCommunication() {
     const payload = {
       student_number: currentStudent.osis,
       student_name: currentData?.student_name || currentStudent.name || '',
-      contact_assoc_id: communicatingWith?.contact_assoc_id || '',
-      contact_display_name: communicatingWith?.display?.name || 'General / No specific contact',
+      contact_assoc_id: communicatingWith?.direct_student ? '' : (communicatingWith?.contact_assoc_id || ''),
+      contact_display_name: communicatingWith?.direct_student
+        ? `Student — ${currentData?.student_name || currentStudent.name || currentStudent.osis}`
+        : (communicatingWith?.display?.name || 'General / No specific contact'),
       contact_at_iso: localInputToIso(commAt.value),
       method: commMethod.value,
       direction: commDirection.value,

@@ -32,7 +32,8 @@ test('Phase 1 exposes behavior and communication quick actions for a selected st
   assert.match(js, /const BEHAVIOR_MENU_ENDPOINT = '\/admin\/behavior\/menu'/);
   assert.match(js, /const BEHAVIOR_LOG_ENDPOINT = '\/admin\/behavior\/log'/);
   assert.match(js, /source:'student_lookup'/);
-  assert.match(js, /action', 'log-communication'/);
+  assert.match(js, /new URL\('\.\/student_contacts\.html'/);
+  assert.doesNotMatch(js, /searchParams\.set\('action', 'log-communication'\)/);
   assert.match(js, /source', 'student_lookup'/);
 });
 

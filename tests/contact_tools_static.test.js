@@ -42,4 +42,11 @@ assert.match(worker,/path === "\/admin\/communications\/create"/);
 assert.match(adminSessionService,/communication_log: true/);
 assert.match(gas,/communication_create/);
 assert.match(gas,/communication_list/);
+assert.match(contactsHtml,/id="logGeneralComm"[^>]*>Log generic communication<\/button>/);
+assert.match(contactsJs,/function directStudentCommunicationTarget\(\)/);
+assert.match(contactsJs,/direct_student: true/);
+assert.match(contactsJs,/Student —/);
+assert.match(contactsJs,/Log student communication/);
+assert.match(contactsJs,/communicatingWith\?\.direct_student/);
+
 console.log('contact_tools_static.test.js: PASS');
