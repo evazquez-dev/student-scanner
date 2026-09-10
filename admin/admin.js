@@ -159,6 +159,7 @@ const requiredCommunicationsRows = document.getElementById('requiredCommunicatio
 const requiredCommunicationsOut = document.getElementById('requiredCommunicationsOut');
 const btnAddRequiredCommunication = document.getElementById('btnAddRequiredCommunication');
 const btnSaveRequiredCommunications = document.getElementById('btnSaveRequiredCommunications');
+let configuredRequiredCourseOptions = [];
 
 // Super Admin read-only View as Teacher
 const viewAsStaffSelect = document.getElementById('viewAsStaffSelect');
@@ -1130,6 +1131,13 @@ function addRequiredCommunicationRow(campaign = {}){
   row.className = 'requiredCommunicationRow';
   row.dataset.campaignId = String(campaign?.campaign_id || requiredCampaignId());
   const grades = new Set((Array.isArray(campaign?.grades) ? campaign.grades : []).map((g) => String(g)));
+  const selectedCourses = new Set((Array.isArray(campaign?.course_keys) ? campaign.course_keys : []).map((key) => String(key)));
+  const courseOptions = [...configuredRequiredCourseOptions];
+  for (const key of selectedCourses) {
+    if (!courseOptions.some((option) => String(option?.key || '') === key)) {
+      courseOptions.push({ key, label: `${key} (saved selection)`, type:'unavailable' });
+    }
+  }
 
   row.innerHTML = `
     <div class="requiredCommunicationGrid">
@@ -1152,6 +1160,14 @@ function addRequiredCommunicationRow(campaign = {}){
         ${['9','10','11','12'].map((grade) => `<label><input class="requiredCommGrade" type="checkbox" value="${grade}" ${grades.has(grade) ? 'checked' : ''}> Grade ${grade}</label>`).join('')}
       </div>
     </div>
+    <div class="requiredCommunicationCourseScope">
+      <div style="font-weight:700;margin-bottom:5px;">Responsible courses / advisories <span class="muted" style="font-weight:400;">(optional; leave blank to use the normal campaign scope)</span></div>
+      <div class="muted" style="margin-bottom:7px;">When selected, only teachers assigned to one of these courses/advisories are responsible. Multiple selections are combined; one qualifying call from an eligible teacher completes the student.</div>
+      <div class="requiredCommunicationCourses">
+        ${courseOptions.length ? courseOptions.map((option) => `<label><input class="requiredCommCourse" type="checkbox" value="${esc(option.key || '')}" ${selectedCourses.has(String(option.key || '')) ? 'checked' : ''}> <span>${esc(option.label || option.key || '')}</span></label>`).join('') : '<span class="muted">No academic course options are available yet. The four advisory options will appear after the Worker update is deployed.</span>'}
+      </div>
+      <div class="requiredCommCourseCount muted">${selectedCourses.size ? `${selectedCourses.size} selected` : 'No course restriction'}</div>
+    </div>
     <label class="requiredCommunicationLegacy">Legacy note phrases <span class="muted" style="font-weight:400;">(one per line; the selected category name is always matched automatically)</span>
       <textarea class="requiredCommLegacy" rows="3" maxlength="5000" placeholder="curriculum night call\nfamily reminded about curriculum night">${esc((campaign?.legacy_phrases || []).join('\n'))}</textarea>
     </label>
@@ -1169,6 +1185,12 @@ function addRequiredCommunicationRow(campaign = {}){
   const categorySelect = row.querySelector('.requiredCommCategory');
   setRequiredCategoryOptions(categorySelect, campaign?.category || '');
   row.querySelector('.requiredCommRemoveBtn')?.addEventListener('click', () => row.remove());
+  const updateRequiredCourseCount = () => {
+    const count = row.querySelectorAll('.requiredCommCourse:checked').length;
+    const out = row.querySelector('.requiredCommCourseCount');
+    if (out) out.textContent = count ? `${count} selected` : 'No course restriction';
+  };
+  row.querySelectorAll('.requiredCommCourse').forEach((input) => input.addEventListener('change', updateRequiredCourseCount));
   row.querySelector('.requiredCommCoverageBtn')?.addEventListener('click', () => checkRequiredCommunicationCoverage(row));
   requiredCommunicationsRows.appendChild(row);
 }
@@ -1199,6 +1221,7 @@ function collectRequiredCommunications(){
       legacy_phrases.push(phrase);
     }
     const grades = Array.from(row.querySelectorAll('.requiredCommGrade:checked')).map((input) => String(input.value));
+    const course_keys = Array.from(row.querySelectorAll('.requiredCommCourse:checked')).map((input) => String(input.value));
     const active = row.querySelector('.requiredCommActive')?.checked !== false;
     const campaign_id = String(row.dataset.campaignId || requiredCampaignId()).trim();
     row.dataset.campaignId = campaign_id;
@@ -1210,7 +1233,7 @@ function collectRequiredCommunications(){
     if (due_date < start_date) throw new Error(`“${name}” has a due date before its start date.`);
     if (ids.has(campaign_id)) throw new Error(`Duplicate campaign ID: ${campaign_id}`);
     ids.add(campaign_id);
-    campaigns.push({ campaign_id, name, category, start_date, due_date, grades, active, legacy_phrases });
+    campaigns.push({ campaign_id, name, category, start_date, due_date, grades, course_keys, active, legacy_phrases });
   }
   if (campaigns.length > 30) throw new Error('A maximum of 30 required communication campaigns is allowed.');
   return campaigns;
@@ -1223,6 +1246,7 @@ async function loadRequiredCommunications(){
     const r = await adminFetch('/admin/required_communications', { method:'GET' });
     const j = await r.json().catch(()=>({}));
     if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    configuredRequiredCourseOptions = Array.isArray(j.course_options) ? j.course_options : [];
     renderRequiredCommunications(j.campaigns || []);
     if (requiredCommunicationsOut) requiredCommunicationsOut.textContent = `${Number(j.count || 0)} required communication campaign(s) configured.`;
   } catch (e) {
@@ -1279,9 +1303,13 @@ async function checkRequiredCommunicationCoverage(row){
     if (!result) throw new Error('No coverage result returned.');
     const c = result.counts || {};
     const missing = Array.isArray(result.missing) ? result.missing : [];
-    const missingShown = missing.slice(0,50).map((student) => `  • ${student.name || student.student_number} (${student.student_number})${student.grade ? ` — Grade ${student.grade}` : ''}`);
+    const missingShown = missing.slice(0,50).map((student) => {
+      const responsible = (student.responsible_staff || []).map((staff) => staff.name || staff.email).filter(Boolean).join(', ');
+      return `  • ${student.name || student.student_number} (${student.student_number})${student.grade ? ` — Grade ${student.grade}` : ''}${responsible ? ` — Responsible: ${responsible}` : ''}`;
+    });
     const lines = [
       `${result.campaign?.name || 'Required communication'} — ${Number(c.completion_percent || 0)}% complete`,
+      ...(Array.isArray(result.campaign?.course_labels) && result.campaign.course_labels.length ? [`Responsible courses: ${result.campaign.course_labels.join(', ')}`] : []),
       `Expected: ${Number(c.expected || 0)}`,
       `Complete: ${Number(c.complete || 0)}`,
       `Missing: ${Number(c.missing || 0)}`,
