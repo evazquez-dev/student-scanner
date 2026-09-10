@@ -43,6 +43,8 @@ const toast = $('toast');
 let ACCESS = null;
 let QUEUE = null;
 let ACTIVE_CALL_ROW = null;
+// D1_ATTENDANCE_CALL_SUBMISSION_V1
+let ACTIVE_CALL_SUBMISSION_ID = '';
 let ACTIVE_VERIFY_ROW = null;
 let CONTACT_MAP = new Map();
 let SELECTED_OUTCOME = OUTCOMES[0];
@@ -127,6 +129,14 @@ function localDateTimeValue(date = new Date()) {
 function localInputToIso(value) {
   const d = new Date(value);
   return Number.isFinite(d.getTime()) ? d.toISOString() : '';
+}
+
+// D1_ATTENDANCE_CALL_SUBMISSION_V1
+function makeClientSubmissionId(prefix = 'communication') {
+  try {
+    if (globalThis.crypto?.randomUUID) return `${prefix}:${crypto.randomUUID()}`;
+  } catch {}
+  return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
 }
 
 function showToast(message) {
@@ -350,6 +360,7 @@ async function loadQueue() {
 function closeCallModal() {
   callBackdrop.hidden = true;
   ACTIVE_CALL_ROW = null;
+  ACTIVE_CALL_SUBMISSION_ID = '';
   CONTACT_MAP.clear();
 }
 
@@ -415,6 +426,7 @@ function renderContacts(data) {
 
 async function openCall(row) {
   ACTIVE_CALL_ROW = row;
+  ACTIVE_CALL_SUBMISSION_ID = makeClientSubmissionId('attendance_call');
   callStudent.textContent = `${row.name || row.osis} · Grade ${row.grade || '—'} · OSIS ${row.osis}`;
   callError.hidden = true;
   callNotes.value = '';
@@ -469,10 +481,24 @@ async function saveAttendanceCall(advance = false) {
   callError.hidden = true;
   try {
     const payload = {
+      submission_id: ACTIVE_CALL_SUBMISSION_ID || (ACTIVE_CALL_SUBMISSION_ID = makeClientSubmissionId('attendance_call')),
       student_number: row.osis,
       student_name: row.name || '',
       contact_assoc_id: contact?.contact_assoc_id || '',
       contact_display_name: contact?.display?.name || 'General / No specific contact',
+      contact_relationship: contact?.display?.relationship || '',
+      contact_phone: contact?.display?.phone || '',
+      contact_email: contact?.display?.email || '',
+      person_id: contact?.person_id || contact?.source?.person_id || '',
+      contact_snapshot: contact
+        ? {
+            contact_assoc_id: contact?.contact_assoc_id || '',
+            person_id: contact?.person_id || contact?.source?.person_id || '',
+            display: contact?.display || {},
+            source: contact?.source || {},
+            my_overrides: contact?.my_overrides || {}
+          }
+        : { general_contact: true },
       contact_at_iso: new Date().toISOString(),
       method: 'Phone',
       direction: 'Outgoing',

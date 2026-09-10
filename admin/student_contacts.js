@@ -114,6 +114,8 @@ let currentData = null;
 let currentCommunications = [];
 let editing = null;
 let communicatingWith = null;
+// D1_COMMUNICATION_SUBMISSION_V1
+let communicationSubmissionId = '';
 let debounceTimer = null;
 
 function esc(value) {
@@ -144,6 +146,14 @@ function localDateTimeValue(date = new Date()) {
 function localInputToIso(value) {
   const d = new Date(value);
   return Number.isFinite(d.getTime()) ? d.toISOString() : '';
+}
+
+// D1_COMMUNICATION_SUBMISSION_V1
+function makeClientSubmissionId(prefix = 'communication') {
+  try {
+    if (globalThis.crypto?.randomUUID) return `${prefix}:${crypto.randomUUID()}`;
+  } catch {}
+  return `${prefix}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`;
 }
 
 async function waitForGoogle(timeoutMs = 8000) {
@@ -694,6 +704,7 @@ async function loadCommunicationCategories(){
 function openCommunication(contact = null) {
   if (!currentStudent) return;
   communicatingWith = contact;
+  communicationSubmissionId = makeClientSubmissionId('communication');
   const isDirectStudent = contact?.direct_student === true;
   const label = isDirectStudent ? 'Student (direct)' : (contact?.display?.name || 'General / No specific contact');
   const relationship = isDirectStudent ? '' : (contact?.display?.relationship || '');
@@ -719,6 +730,7 @@ function openCommunication(contact = null) {
 function closeCommunication() {
   commBackdrop.hidden = true;
   communicatingWith = null;
+  communicationSubmissionId = '';
 }
 
 async function saveCommunication() {
@@ -732,12 +744,30 @@ async function saveCommunication() {
   commError.hidden = true;
   try {
     const payload = {
+      submission_id: communicationSubmissionId || (communicationSubmissionId = makeClientSubmissionId('communication')),
       student_number: currentStudent.osis,
       student_name: currentData?.student_name || currentStudent.name || '',
       contact_assoc_id: communicatingWith?.direct_student ? '' : (communicatingWith?.contact_assoc_id || ''),
       contact_display_name: communicatingWith?.direct_student
         ? `Student — ${currentData?.student_name || currentStudent.name || currentStudent.osis}`
         : (communicatingWith?.display?.name || 'General / No specific contact'),
+      contact_relationship: communicatingWith?.direct_student
+        ? 'Student'
+        : (communicatingWith?.display?.relationship || ''),
+      contact_phone: communicatingWith?.direct_student ? '' : (communicatingWith?.display?.phone || ''),
+      contact_email: communicatingWith?.direct_student ? '' : (communicatingWith?.display?.email || ''),
+      person_id: communicatingWith?.person_id || communicatingWith?.source?.person_id || '',
+      contact_snapshot: communicatingWith?.direct_student
+        ? { direct_student: true }
+        : (communicatingWith
+          ? {
+              contact_assoc_id: communicatingWith?.contact_assoc_id || '',
+              person_id: communicatingWith?.person_id || communicatingWith?.source?.person_id || '',
+              display: communicatingWith?.display || {},
+              source: communicatingWith?.source || {},
+              my_overrides: communicatingWith?.my_overrides || {}
+            }
+          : { general_contact: true }),
       contact_at_iso: localInputToIso(commAt.value),
       method: commMethod.value,
       direction: commDirection.value,
