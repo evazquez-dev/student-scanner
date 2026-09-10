@@ -212,6 +212,15 @@ function requestedByLabel(rec){
   return emailLocalPart(rec?.phone_return_requested_by_email);
 }
 
+function lockerLabel(rec, fallback = true){
+  const color = String(rec?.locker_color_effective ?? rec?.locker_color ?? '').trim();
+  const number = String(rec?.locker_number_effective ?? rec?.locker_number ?? '').trim();
+  if (color && number) return `Locker ${color} #${number}`;
+  if (color) return `Locker ${color}`;
+  if (number) return `Locker #${number}`;
+  return fallback ? 'Locker not assigned' : '';
+}
+
 let _CURPER_TIMER = null;
 
 async function fetchTeacherOptionsForPill_(){
@@ -530,7 +539,7 @@ function fillResults(filterText){
   for(const s of items){
     const opt = document.createElement('option');
     opt.value = String(s.osis);
-    opt.textContent = `${s.name} — ${s.osis}`;
+    opt.textContent = `${s.name} — ${s.osis} — ${lockerLabel(s)}`;
     studentSelect.appendChild(opt);
   }
 
@@ -598,7 +607,7 @@ async function loadMine(){
     const requested = s.phone_return_requested
       ? `student sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
       : '';
-    sub.textContent = [since, loc, requested].filter(Boolean).join(' • ') || '—';
+    sub.textContent = [lockerLabel(s), since, loc, requested].filter(Boolean).join(' • ') || '—';
 
     left.appendChild(nm);
     left.appendChild(sub);
@@ -627,6 +636,8 @@ async function loadSelectedContext(){
 
   const st = data.state || null;
   const sch = data.schedule || null;
+  const locker = data.roster || null;
+  const lockerText = lockerLabel(locker);
 
   // Phone status
   const out = st?.phone_out === true;
@@ -637,8 +648,10 @@ async function loadSelectedContext(){
     ? ` • student sent to return${requestedByLabel(st) ? (' by ' + requestedByLabel(st)) : ''}`
     : '';
   phoneBox.textContent = out
-    ? `OUT — student picked up phone ${since ? ('@ ' + since) : ''}${by ? (' • confirmed by ' + by) : ''}${requested}`
-    : (pickupRequested ? 'PICKUP REQUESTED — student was sent to pick up phone' : 'IN — in locker');
+    ? `${lockerText} • OUT — student picked up phone ${since ? ('@ ' + since) : ''}${by ? (' • confirmed by ' + by) : ''}${requested}`
+    : (pickupRequested
+        ? `${lockerText} • PICKUP REQUESTED — student was sent to pick up phone`
+        : `${lockerText} • IN — phone is in locker`);
 
   // Current location
   renderCurrentLocation(st);
@@ -646,7 +659,7 @@ async function loadSelectedContext(){
   // Schedule
   renderScheduleTable(sch);
 
-  selectedMeta.textContent = SELECTED_OSIS;
+  selectedMeta.textContent = `${SELECTED_OSIS} • ${lockerText}`;
 
   // Enable button (only if not already out)
   grantBtn.disabled = !CAPS.can_grant || !SELECTED_OSIS || out;
@@ -853,7 +866,7 @@ async function loadActive(){
     const requested = s.phone_return_requested
       ? `student sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
       : '';
-    sub.textContent = [by ? `allowed by ${by}` : '', since, loc, requested].filter(Boolean).join(' • ') || '—';
+    sub.textContent = [lockerLabel(s), by ? `allowed by ${by}` : '', since, loc, requested].filter(Boolean).join(' • ') || '—';
 
     left.appendChild(nm);
     left.appendChild(sub);

@@ -107,6 +107,8 @@ let SECRET_PHONE_STATE = {
   loaded: false,
   loading: false,
   error: '',
+  lockerColor: '',
+  lockerNumber: '',
   phoneOut: false,
   pickupRequested: false,
   returnRequested: false,
@@ -176,6 +178,15 @@ function escapeHtml_(v){
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function phoneLockerLabel_(rec, fallback = true){
+  const color = String(rec?.locker_color_effective ?? rec?.locker_color ?? rec?.lockerColor ?? '').trim();
+  const number = String(rec?.locker_number_effective ?? rec?.locker_number ?? rec?.lockerNumber ?? '').trim();
+  if (color && number) return `Locker ${color} #${number}`;
+  if (color) return `Locker ${color}`;
+  if (number) return `Locker #${number}`;
+  return fallback ? 'Locker not assigned' : '';
 }
 
 function slugifyBehaviorPart_(v){
@@ -365,6 +376,8 @@ function resetSecretPhoneState_(osis = ''){
     loaded: false,
     loading: false,
     error: '',
+    lockerColor: '',
+    lockerNumber: '',
     phoneOut: false,
     pickupRequested: false,
     returnRequested: false,
@@ -374,13 +387,15 @@ function resetSecretPhoneState_(osis = ''){
   };
 }
 
-function applySecretPhoneState_(state, osis = ''){
+function applySecretPhoneState_(state, osis = '', roster = null){
   const st = state && typeof state === 'object' ? state : {};
   SECRET_PHONE_STATE = {
     osis: String(osis || SECRET_PHONE_STATE.osis || '').trim(),
     loaded: true,
     loading: false,
     error: '',
+    lockerColor: String(roster?.locker_color_effective ?? roster?.locker_color ?? ''),
+    lockerNumber: String(roster?.locker_number_effective ?? roster?.locker_number ?? ''),
     phoneOut: st.phone_out === true,
     pickupRequested: st.phone_pickup_requested === true,
     returnRequested: st.phone_return_requested === true,
@@ -449,7 +464,7 @@ async function loadSecretPhoneState_({ force = false } = {}){
     const r = await adminFetch(u, { method: 'GET' });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.ok) throw new Error(data?.error || `phone_pass/context HTTP ${r.status}`);
-    applySecretPhoneState_(data.state || null, osis);
+    applySecretPhoneState_(data.state || null, osis, data.roster || null);
     return SECRET_PHONE_STATE;
   } catch (err) {
     SECRET_PHONE_STATE.loading = false;
@@ -478,17 +493,18 @@ function secretPhoneMenuHtml_(baseBtnStyle, subtle){
     ? (ps.returnRequested ? '📱 Phone out • student sent to return' : '📱 Phone out')
     : (ps.pickupRequested ? '📱 Student sent to pick up phone' : '📱 Phone in locker');
   const statusHtml = `<div style="${subtle}">${escapeHtml_(status)}</div>`;
+  const lockerHtml = `<div style="${subtle};font-weight:800;">${escapeHtml_(phoneLockerLabel_({ lockerColor: ps.lockerColor, lockerNumber: ps.lockerNumber }))}</div>`;
 
   if (!ps.phoneOut) {
     if (ps.pickupRequested) {
-      return `${sep}${statusHtml}<button data-act="phone" data-phone-action="pickup_requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Pick Up Phone</button>`;
+      return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="pickup_requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Pick Up Phone</button>`;
     }
-    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="grant" style="${baseBtnStyle}font-weight:600;">Send Student to Pick Up Phone</button>`;
+    return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="grant" style="${baseBtnStyle}font-weight:600;">Send Student to Pick Up Phone</button>`;
   }
   if (ps.returnRequested) {
-    return `${sep}${statusHtml}<button data-act="phone" data-phone-action="requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Return Phone</button>`;
+    return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Return Phone</button>`;
   }
-  return `${sep}${statusHtml}<button data-act="phone" data-phone-action="send_back" style="${baseBtnStyle}font-weight:600;">Send Student to Return Phone</button>`;
+  return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="send_back" style="${baseBtnStyle}font-weight:600;">Send Student to Return Phone</button>`;
 }
 
 async function performSecretPhoneAction_(action){
@@ -2700,16 +2716,19 @@ let BULK_PHONE_PICKUP_STATE = {
   running: false,
   lastAttemptAt: 0,
   error: '',
-  knownStudents: new Set()
+  knownStudents: new Set(),
+  phoneRosterByOsis: new Map()
 };
 
 function bulkPhonePickupSelectedRows_(){
   return Array.from(SELECTED_OSIS || []).map((osis) => {
     const id = String(osis || '').trim();
     const row = ROW_DATA?.get?.(id) || (lastMergedRows || []).find((item) => String(item?.osis || '').trim() === id) || null;
+    const phoneRoster = BULK_PHONE_PICKUP_STATE.phoneRosterByOsis.get(id) || null;
     return {
       osis: id,
-      name: String(row?.name || id || 'Student').trim() || id || 'Student'
+      name: String(row?.name || id || 'Student').trim() || id || 'Student',
+      locker: phoneLockerLabel_(phoneRoster)
     };
   }).filter((row) => row.osis);
 }
@@ -2837,10 +2856,14 @@ async function refreshBulkPhonePickupCapability_(){
     BULK_PHONE_PICKUP_STATE.loaded = true;
     BULK_PHONE_PICKUP_STATE.canGrant = data.can_grant === true;
     BULK_PHONE_PICKUP_STATE.error = '';
+    const phoneStudents = Array.isArray(data.students) ? data.students : [];
     BULK_PHONE_PICKUP_STATE.knownStudents = new Set(
-      (Array.isArray(data.students) ? data.students : [])
-        .map((row) => String(row?.osis || '').trim())
-        .filter(Boolean)
+      phoneStudents.map((row) => String(row?.osis || '').trim()).filter(Boolean)
+    );
+    BULK_PHONE_PICKUP_STATE.phoneRosterByOsis = new Map(
+      phoneStudents
+        .map((row) => [String(row?.osis || '').trim(), row])
+        .filter(([osis]) => !!osis)
     );
   } catch (error) {
     BULK_PHONE_PICKUP_STATE.loaded = false;
@@ -2874,7 +2897,7 @@ function openBulkPhonePickupConfirm_(){
     lead.innerHTML = `<strong>${selected.length} student${selected.length === 1 ? '' : 's'}</strong> will be checked and sent to pick up their phone. Students who already have their phone or already have an active pickup request will be skipped. Attendance selections will stay exactly as they are.`;
   }
   if (list) {
-    list.innerHTML = selected.map((row) => `<div class="bulkPhonePickupStudent"><strong>${escapeHtml_(row.name)}</strong><span>${escapeHtml_(row.osis)}</span></div>`).join('');
+    list.innerHTML = selected.map((row) => `<div class="bulkPhonePickupStudent"><strong>${escapeHtml_(row.name)}</strong><span>${escapeHtml_(row.locker)} • ${escapeHtml_(row.osis)}</span></div>`).join('');
   }
   if (result) {
     result.hidden = true;
@@ -3622,6 +3645,15 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     if (r.phoneOutActive) {
       const actionLine = document.createElement('div');
       actionLine.className = 'actionLine';
+
+      const lockerHint = document.createElement('div');
+      lockerHint.className = 'muted';
+      lockerHint.style.fontSize = '0.76rem';
+      lockerHint.style.fontWeight = '800';
+      lockerHint.textContent = phoneLockerLabel_(
+        BULK_PHONE_PICKUP_STATE.phoneRosterByOsis.get(String(r.osis || '').trim()) || {}
+      );
+      actionLine.appendChild(lockerHint);
 
       const phoneBtn = document.createElement('button');
       phoneBtn.type = 'button';

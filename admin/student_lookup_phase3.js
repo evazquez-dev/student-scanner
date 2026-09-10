@@ -108,6 +108,15 @@
     return d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' });
   }
 
+  function phoneLockerLabel(rec, fallback = true){
+    const color = String(rec?.locker_color_effective ?? rec?.locker_color ?? '').trim();
+    const number = String(rec?.locker_number_effective ?? rec?.locker_number ?? '').trim();
+    if (color && number) return `Locker ${color} #${number}`;
+    if (color) return `Locker ${color}`;
+    if (number) return `Locker #${number}`;
+    return fallback ? 'Locker not assigned' : '';
+  }
+
   function injectStyles(){
     if ($('studentLookupPhase3Styles')) return;
     const style = document.createElement('style');
@@ -276,6 +285,7 @@
     const data = result.value;
     const opts = options.value;
     const st = data?.state || {};
+    const locker = phoneLockerLabel(data?.roster || {});
     const canGrant = !!opts?.can_grant;
     const canReturn = !!opts?.can_return;
     if (!canGrant && !canReturn) return hideUnavailable('phase3Phone');
@@ -287,8 +297,8 @@
     const by = String(st.phone_out_by_email || st.phone_out_by_title || st.phone_out_by_role || '').trim();
     let status = out ? 'Phone is out' : (pickup ? 'Pickup requested' : 'Phone is in locker');
     let detail = out
-      ? [since ? `Picked up ${since}` : '', by ? `Confirmed by ${by}` : '', returnRequested ? 'Return requested' : ''].filter(Boolean).join(' • ')
-      : (pickup ? 'Student was sent to pick up the phone.' : 'No active phone checkout.');
+      ? [locker, since ? `Picked up ${since}` : '', by ? `Confirmed by ${by}` : '', returnRequested ? 'Return requested' : ''].filter(Boolean).join(' • ')
+      : [locker, pickup ? 'Student was sent to pick up the phone.' : 'No active phone checkout.'].filter(Boolean).join(' • ');
     let buttons = '';
     if (!isReadOnly() && out && canReturn) buttons += button('Student Returned Phone', 'phone-return', true);
     if (!isReadOnly() && !out && canGrant) buttons += button('Grant Phone', 'phone-grant', true);
