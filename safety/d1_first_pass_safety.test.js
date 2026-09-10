@@ -28,10 +28,14 @@ test('D1 write actor comes from authenticated access rather than request body', 
   assert.match(service, /actorEmail = d1Email\(actor\?\.email/);
 });
 
-test('behavior D1 foundation is not exposed as a live behavior mutation route', () => {
-  const route = read('cf-redcake/red-cake-77d5/src/routes/communications-d1.js');
+test('behavior D1 cutover is isolated in its own guarded live route', () => {
+  const communicationRoute = read('cf-redcake/red-cake-77d5/src/routes/communications-d1.js');
+  const behaviorRoute = read('cf-redcake/red-cake-77d5/src/routes/behavior-d1-live.js');
   const admin = read('cf-redcake/red-cake-77d5/src/routes/d1-admin.js');
-  assert.doesNotMatch(route, /behavior\/log/);
-  assert.doesNotMatch(admin, /behavior\/log/);
+  assert.doesNotMatch(communicationRoute, /behavior\/log/);
+  assert.match(behaviorRoute, /behavior\/log/);
+  assert.match(behaviorRoute, /mutationOriginAllowed/);
+  assert.match(behaviorRoute, /viewAsReadOnlyResponse/);
+  assert.doesNotMatch(behaviorRoute, /BEHAVIOR_GAS_URL/);
   assert.match(admin, /behavior_shadow\/reconcile/);
 });

@@ -35,15 +35,20 @@ test('D1 migrations create communications, immutable audit, behavior shadow, and
   assert.match(behavior, /origin_system TEXT NOT NULL DEFAULT 'google_sheet_shadow'/);
 });
 
-test('behavior remains live on GAS while D1 is shadow-only in first pass', () => {
+test('behavior live storage is D1 while legacy GAS code remains rollback-only', () => {
   const worker = read('cf-redcake/red-cake-77d5/src/worker.js');
-  const d1Route = read('cf-redcake/red-cake-77d5/src/routes/communications-d1.js');
+  const route = read('cf-redcake/red-cake-77d5/src/routes/behavior-d1-live.js');
+  const index = read('cf-redcake/red-cake-77d5/src/index.js');
   const d1Admin = read('cf-redcake/red-cake-77d5/src/routes/d1-admin.js');
   assert.match(worker, /if \(path === "\/admin\/behavior\/log"\)/);
-  assert.match(worker, /action: behaviorAction/);
-  assert.doesNotMatch(d1Route, /\/admin\/behavior\/log/);
-  assert.match(d1Admin, /production_behavior_storage:'google_sheet'/);
-  assert.match(d1Admin, /d1_role:'shadow_only'/);
+  assert.match(route, /\/admin\/behavior\/log/);
+  assert.match(route, /\/admin\/behavior\/list/);
+  assert.match(route, /\/admin\/behavior\/update/);
+  assert.match(route, /\/admin\/behavior\/recent/);
+  assert.match(index, /BEHAVIOR_D1_LIVE_PATHS/);
+  assert.doesNotMatch(route, /BEHAVIOR_GAS_URL/);
+  assert.match(d1Admin, /production_behavior_storage:'d1'/);
+  assert.match(d1Admin, /d1_role:'authoritative'/);
 });
 
 test('communication forms send stable client submission IDs for retry idempotency', () => {
