@@ -71,6 +71,7 @@ let searchSequence = 0;
 let selectionSequence = 0;
 let debounceTimer = null;
 let activeTab = 'overview';
+let showDeletedCommunications = false; // COMMUNICATION_SOFT_DELETE_V1
 let tabLoads = makeEmptyTabLoads();
 
 function makeEmptyTabLoads(){
@@ -551,6 +552,62 @@ async function loadBehaviorHistory(force = false, seq = selectionSequence){
   }
 }
 
+function isCommunicationAdmin(){
+  const role=String(access?.role||'').trim().toLowerCase();
+  return role==='admin'||role==='super_admin';
+}
+
+function canDeleteCommunication(row){
+  if(access?.view_as?.active||row?.is_deleted)return false;
+  if(isCommunicationAdmin())return true;
+  return String(row?.actor_email||'').trim().toLowerCase()===String(access?.email||'').trim().toLowerCase();
+}
+
+function canRestoreCommunication(row){
+  return !access?.view_as?.active&&isCommunicationAdmin()&&row?.is_deleted===true;
+}
+
+async function setCommunicationDeleted(row,deleted,button){
+  if(!row?.communication_id)return;
+  let reason='';
+  if(deleted){
+    const entered=prompt('Mark this communication deleted? It will disappear from normal staff views. Optional reason:','');
+    if(entered===null)return;
+    reason=entered.trim();
+  }else if(!confirm('Restore this deleted communication to normal staff views?'))return;
+  if(button)button.disabled=true;
+  try{
+    const endpoint=deleted?'/admin/communications/delete':'/admin/communications/restore';
+    const r=await adminFetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({communication_id:row.communication_id,student_number:row.student_number||selected?.osis||'',reason})});
+    const j=await r.json().catch(()=>null);
+    if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);
+    tabLoads.communications.loaded=false;
+    await loadCommunications(true,selectionSequence);
+  }catch(e){
+    setActionStatus(`Could not ${deleted?'delete':'restore'} communication: ${e?.message||e}`,'bad');
+    if(button)button.disabled=false;
+  }
+}
+
+function ensureDeletedCommunicationToggle(){
+  if(!isCommunicationAdmin()||document.getElementById('studentViewShowDeletedCommunications'))return;
+  const host=document.querySelector('#panelCommunications .inlineActions');
+  const refresh=document.getElementById('refreshCommunicationsBtn');
+  if(!host||!refresh)return;
+  const toggle=document.createElement('button');
+  toggle.id='studentViewShowDeletedCommunications';
+  toggle.type='button';
+  toggle.className='btn secondary small';
+  toggle.textContent='Show deleted';
+  toggle.addEventListener('click',async()=>{
+    showDeletedCommunications=!showDeletedCommunications;
+    toggle.textContent=showDeletedCommunications?'Hide deleted':'Show deleted';
+    tabLoads.communications.loaded=false;
+    await loadCommunications(true,selectionSequence);
+  });
+  host.insertBefore(toggle,refresh);
+}
+
 async function loadCommunications(force = false, seq = selectionSequence){
   if (!selected?.osis) return;
   if (tabLoads.communications.loading || (tabLoads.communications.loaded && !force)) return;
@@ -560,6 +617,7 @@ async function loadCommunications(force = false, seq = selectionSequence){
     const url = new URL('/admin/communications/student', API_BASE);
     url.searchParams.set('student_number', selected.osis);
     url.searchParams.set('limit', '50');
+    if(isCommunicationAdmin()&&showDeletedCommunications)url.searchParams.set('show_deleted','1');
     const r = await adminFetch(url, { method:'GET' });
     const data = await r.json().catch(() => null);
     if (seq !== selectionSequence) return;
@@ -568,23 +626,37 @@ async function loadCommunications(force = false, seq = selectionSequence){
       .filter((row) => !row?.student_number || String(row.student_number).trim() === selected.osis)
       .sort((a,b) => String(b?.contact_at_iso || b?.created_at_iso || '').localeCompare(String(a?.contact_at_iso || a?.created_at_iso || '')));
     communicationsCount.textContent = rows.length ? String(rows.length) : '';
-    communicationsMeta.textContent = `${rows.length} recent communication${rows.length === 1 ? '' : 's'} loaded.`;
+    communicationsMeta.textContent = `${rows.length} recent communication${rows.length === 1 ? '' : 's'} loaded${showDeletedCommunications ? ' (including deleted)' : ''}.`;
     communicationsList.innerHTML = rows.length ? rows.map((row) => {
       const follow = row.follow_up_needed
         ? (row.follow_up_resolved_at_iso
           ? `Follow-up resolved ${fmtDateTime(row.follow_up_resolved_at_iso)}${row.follow_up_resolved_by_email ? ` by ${row.follow_up_resolved_by_email}` : ''}`
           : `Follow-up ${row.follow_up_at_iso ? fmtDateTime(row.follow_up_at_iso) : 'needed'}${row.follow_up_owner_email ? ` • ${row.follow_up_owner_email}` : ''}`)
         : '';
-      return `<article class="listItem">
+      const deletedMeta=row.is_deleted?`Deleted${row.deleted_by_email?` by ${row.deleted_by_email}`:''}${row.deleted_at_iso?` on ${fmtDateTime(row.deleted_at_iso)}`:''}${row.delete_reason?` • ${row.delete_reason}`:''}`:'';
+      const actions=[];
+      if(canDeleteCommunication(row))actions.push(`<button class="btn secondary small communicationDelete" type="button" data-id="${esc(row.communication_id||'')}">Mark deleted</button>`);
+      if(canRestoreCommunication(row))actions.push(`<button class="btn secondary small communicationRestore" type="button" data-id="${esc(row.communication_id||'')}">Restore</button>`);
+      return `<article class="listItem"${row.is_deleted?' style="opacity:.72"':''}>
         <div class="listTop">
           <div><div class="listTitle">${esc(row.contact_display_name || 'General / No specific contact')}</div><div class="listMeta">${esc(fmtDateTime(row.contact_at_iso || row.created_at_iso))} • ${esc(row.method || '—')} • ${esc(row.direction || '—')} • ${esc(row.category || '—')}</div></div>
-          <span class="pill info">${esc(row.outcome || 'Logged')}</span>
+          <span class="pill ${row.is_deleted?'warn':'info'}">${esc(row.is_deleted?'Deleted':(row.outcome || 'Logged'))}</span>
         </div>
         ${row.notes ? `<div class="listBody">${esc(row.notes)}</div>` : ''}
         ${follow ? `<div class="listMeta" style="margin-top:8px">${esc(follow)}</div>` : ''}
+        ${deletedMeta?`<div class="listMeta" style="margin-top:8px">${esc(deletedMeta)}</div>`:''}
         <div class="listMeta">Logged by ${esc(row.actor_email || '—')}${row.related_incident_id ? ` • Incident ${esc(row.related_incident_id)}` : ''}</div>
+        ${actions.length?`<div class="inlineActions" style="margin-top:10px">${actions.join('')}</div>`:''}
       </article>`;
     }).join('') : '<div class="emptyState">No communications have been logged for this student yet.</div>';
+    communicationsList.querySelectorAll('.communicationDelete').forEach((button)=>button.addEventListener('click',()=>{
+      const row=rows.find((item)=>String(item?.communication_id||'')===String(button.dataset.id||''));
+      if(row)setCommunicationDeleted(row,true,button);
+    }));
+    communicationsList.querySelectorAll('.communicationRestore').forEach((button)=>button.addEventListener('click',()=>{
+      const row=rows.find((item)=>String(item?.communication_id||'')===String(button.dataset.id||''));
+      if(row)setCommunicationDeleted(row,false,button);
+    }));
     tabLoads.communications.loaded = true;
   }catch(e){
     if (seq !== selectionSequence) return;
@@ -965,6 +1037,7 @@ async function boot(){
   // Student Lookup is intentionally available to every authenticated EagleNEST staff account.
   loginCard.hidden = true;
   app.hidden = false;
+  ensureDeletedCommunicationToggle();
   updateActionState();
 
   const url = new URL(location.href);

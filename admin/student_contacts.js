@@ -13,6 +13,7 @@ const PAGE_SOURCE = String(PAGE_PARAMS.get('source') || 'student_contacts').trim
 const PAGE_PREFILL_CATEGORY = String(PAGE_PARAMS.get('category') || '').trim();
 const DEFAULT_COMMUNICATION_CATEGORIES = ['Attendance','Behavior','Academic','Enrollment','Positive Contact','General','Other'];
 let communicationCategories = DEFAULT_COMMUNICATION_CATEGORIES.slice();
+let showDeletedCommunications = false; // COMMUNICATION_SOFT_DELETE_V1
 
 function getStoredAdminSessionSid() {
   try {
@@ -421,7 +422,11 @@ async function loadCommunicationHistory() {
   if (!currentStudent) return;
   communicationHistory.innerHTML = '<div class="muted small">Loading communications…</div>';
   try {
-    const r = await adminFetch(`/admin/communications/student?student_number=${encodeURIComponent(currentStudent.osis)}&limit=50`);
+    const url = new URL('/admin/communications/student', API_BASE);
+    url.searchParams.set('student_number', currentStudent.osis);
+    url.searchParams.set('limit', '50');
+    if (isCommunicationAdmin() && showDeletedCommunications) url.searchParams.set('include_deleted', '1');
+    const r = await adminFetch(url);
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
     currentCommunications = j.rows || [];
@@ -431,8 +436,73 @@ async function loadCommunicationHistory() {
   }
 }
 
+function isCommunicationAdmin() {
+  const role = String(access?.role || '').trim().toLowerCase();
+  return role === 'super_admin' || role === 'admin';
+}
+
+function canDeleteCommunication(row) {
+  if (access?.view_as?.active || row?.is_deleted) return false;
+  if (isCommunicationAdmin()) return true;
+  return String(row?.actor_email || '').trim().toLowerCase() === String(access?.email || '').trim().toLowerCase();
+}
+
+function canRestoreCommunication(row) {
+  return !access?.view_as?.active && isCommunicationAdmin() && row?.is_deleted === true;
+}
+
+async function setCommunicationDeleted(row, deleted, button) {
+  if (!row?.communication_id) return;
+  let reason = '';
+  if (deleted) {
+    const entered = prompt('Mark this communication deleted? It will disappear from normal staff views. Optional reason:', '');
+    if (entered === null) return;
+    reason = entered.trim();
+  } else if (!confirm('Restore this deleted communication to normal staff views?')) {
+    return;
+  }
+
+  if (button) button.disabled = true;
+  try {
+    const endpoint = deleted ? '/admin/communications/delete' : '/admin/communications/restore';
+    const r = await adminFetch(endpoint, {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        communication_id:row.communication_id,
+        student_number:row.student_number || currentStudent?.osis || '',
+        reason
+      })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    await loadCommunicationHistory();
+  } catch (e) {
+    alert(`Could not ${deleted ? 'delete' : 'restore'} communication: ${e?.message || e}`);
+    if (button) button.disabled = false;
+  }
+}
+
+function ensureDeletedCommunicationToggle() {
+  if (!isCommunicationAdmin() || document.getElementById('showDeletedCommunications')) return;
+  const head = communicationHistoryCard?.querySelector('.historyHead');
+  const refresh = document.getElementById('refreshHistory');
+  if (!head || !refresh) return;
+  const toggle = document.createElement('button');
+  toggle.id = 'showDeletedCommunications';
+  toggle.type = 'button';
+  toggle.className = 'btn secondary';
+  toggle.textContent = 'Show deleted';
+  toggle.addEventListener('click', async () => {
+    showDeletedCommunications = !showDeletedCommunications;
+    toggle.textContent = showDeletedCommunications ? 'Hide deleted' : 'Show deleted';
+    await loadCommunicationHistory();
+  });
+  refresh.insertAdjacentElement('beforebegin', toggle);
+}
+
 function canEditCommunicationCategory(row) {
-  if (access?.view_as?.active) return false;
+  if (access?.view_as?.active || row?.is_deleted) return false;
   const role = String(access?.role || '').trim();
   if (role === 'super_admin' || role === 'admin') return true;
   return String(row?.actor_email || '').trim().toLowerCase() === String(access?.email || '').trim().toLowerCase();
@@ -511,6 +581,9 @@ function renderCommunicationHistory() {
     const categoryAudit = row.category_updated_at_iso
       ? `<div class="historyCategoryAudit">Category last changed${row.previous_category ? ` from ${esc(row.previous_category)}` : ''} → ${esc(row.category || '')} by ${esc(row.category_updated_by_email || '—')} on ${esc(formatDateTime(row.category_updated_at_iso))}.</div>`
       : '';
+    const deletedAudit = row.is_deleted
+      ? `<div class="historyCategoryAudit"><strong>Deleted</strong>${row.deleted_by_email ? ` by ${esc(row.deleted_by_email)}` : ''}${row.deleted_at_iso ? ` on ${esc(formatDateTime(row.deleted_at_iso))}` : ''}${row.delete_reason ? ` • ${esc(row.delete_reason)}` : ''}</div>`
+      : '';
     item.innerHTML = `
       <div class="historyTop">
         <div>
@@ -522,16 +595,39 @@ function renderCommunicationHistory() {
       <div class="historyNotes">${esc(row.notes)}</div>
       ${follow}
       ${categoryAudit}
+      ${deletedAudit}
       <div class="historyMeta">Logged by ${esc(row.actor_email || '—')}${row.related_incident_id ? ` • Incident ${esc(row.related_incident_id)}` : ''} • ${esc(row.communication_id || '')}</div>`;
-    if (canEditCommunicationCategory(row)) {
+    if (row.is_deleted) item.style.opacity = '0.72';
+    const canChange = canEditCommunicationCategory(row);
+    const canDelete = canDeleteCommunication(row);
+    const canRestore = canRestoreCommunication(row);
+    if (canChange || canDelete || canRestore) {
       const actions = document.createElement('div');
       actions.className = 'historyActions';
-      const change = document.createElement('button');
-      change.type = 'button';
-      change.className = 'btn secondary';
-      change.textContent = 'Change category';
-      change.addEventListener('click', () => openCommunicationCategoryEditor(item, row));
-      actions.appendChild(change);
+      if (canChange) {
+        const change = document.createElement('button');
+        change.type = 'button';
+        change.className = 'btn secondary';
+        change.textContent = 'Change category';
+        change.addEventListener('click', () => openCommunicationCategoryEditor(item, row));
+        actions.appendChild(change);
+      }
+      if (canDelete) {
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'btn secondary';
+        remove.textContent = 'Mark deleted';
+        remove.addEventListener('click', () => setCommunicationDeleted(row, true, remove));
+        actions.appendChild(remove);
+      }
+      if (canRestore) {
+        const restore = document.createElement('button');
+        restore.type = 'button';
+        restore.className = 'btn secondary';
+        restore.textContent = 'Restore';
+        restore.addEventListener('click', () => setCommunicationDeleted(row, false, restore));
+        actions.appendChild(restore);
+      }
       item.appendChild(actions);
     }
     communicationHistory.appendChild(item);
@@ -853,6 +949,7 @@ async function boot() {
   if (!access?.can?.student_contacts) throw new Error('forbidden');
   loginCard.hidden = true;
   app.hidden = false;
+  ensureDeletedCommunicationToggle();
   await loadCommunicationCategories();
 
   const bootUrl = new URL(location.href);
