@@ -31,6 +31,36 @@ function setStatus(text,kind='info'){pageStatus.className=`statusBanner ${kind}`
 function attendanceHref(room,period,advisor=''){const u=new URL('./teacher_attendance.html',location.href);u.searchParams.set('room',room);u.searchParams.set('period',period);if(advisor)u.searchParams.set('advisor',advisor);return u.href;}
 function displayDate(iso){if(!iso)return '—';const d=new Date(`${iso}T12:00:00`);return Number.isFinite(d.getTime())?d.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric',year:'numeric'}):iso;}
 
+function renderClassCard(c,p){
+  const isAdvisory=c.kind==='advisory';
+  const isCoverage=c.kind==='coverage';
+  const names=(c.sections||[]).map(s=>s.name||s.code).filter(Boolean);
+  const codes=(c.sections||[]).map(s=>s.code).filter(Boolean);
+  const title=isCoverage
+    ? (names.length?names.join(' + '):'Coverage assignment')
+    : (isAdvisory?(c.advisor_label||'Advisory'):(names.length?names.join(' + '):'Scheduled class'));
+  const room=String(c.room||'');
+
+  if(isCoverage){
+    const coverFor=Array.isArray(c.coverage_for)?c.coverage_for.filter(Boolean):[];
+    const detail=[
+      'Coverage assignment',
+      c.coverage_kind==='advisory'?'Advisory':String(c.coverage_kind||'').trim(),
+      coverFor.length?`for ${coverFor.join(' / ')}`:''
+    ].filter(Boolean).join(' · ');
+    return `<div class="classLink coverageAssignment" role="group" aria-label="Coverage assignment for Period ${esc(p.id)}, Room ${esc(room)}">
+      <div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(room)}</span></div>
+      <div class="sectionCodes">${esc(detail)}</div>
+    </div>`;
+  }
+
+  const href=attendanceHref(room,String(p.id||''),isAdvisory?String(c.advisor_label||''):'');
+  return `<a class="classLink" href="${esc(href)}" aria-label="Open Teacher Attendance for Period ${esc(p.id)}, Room ${esc(room)}${isAdvisory?`, Advisor ${esc(c.advisor_label||'')}`:''}">
+    <div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(room)}</span></div>
+    ${isAdvisory?'<div class="sectionCodes">Advisory</div>':(codes.length?`<div class="sectionCodes">${esc(codes.join(' • '))}</div>`:'')}
+  </a>`;
+}
+
 function render(data){
   if(!data.teacher_mapping_ok){hide(scheduleArea);show(mappingProblem);mappingProblemText.textContent=data.mapping_message||'Please contact Erick or Edwin for a fix.';setStatus('Teacher assignment mapping needs attention.','error');return;}
   hide(mappingProblem);show(scheduleArea);
@@ -44,23 +74,14 @@ function render(data){
   else if(stale){setStatus(`The latest teacher schedule is dated ${displayDate(data.schedule_date)}. Attendance links are disabled until today's schedule is pushed.`,'warn');}
   else if(data.highlight_kind==='current'){setStatus(`Period ${data.current_period_local} is in progress and highlighted below.`,'good');}
   else if(data.highlight_kind==='up_next'){setStatus(`Transition time — Period ${data.current_period_local} is highlighted as up next.`,'info');}
+  else if(Number(data.coverage_assignment_count||0)>0){setStatus(`Today's schedule is loaded with ${Number(data.coverage_assignment_count)} coverage assignment${Number(data.coverage_assignment_count)===1?'':'s'}.`,'good');}
   else{setStatus("Today's schedule is loaded.",'good');}
 
   const periods=Array.isArray(data.periods)?data.periods:[];
   periodList.innerHTML=periods.map(p=>{
     const classes=Array.isArray(p.classes)?p.classes:[];
     const badge=p.highlight_kind==='current'?'Current period':(p.highlight_kind==='up_next'?'Up next':'');
-    const classHtml=classes.length?classes.map(c=>{
-      const isAdvisory=c.kind==='advisory';
-      const names=(c.sections||[]).map(s=>s.name||s.code).filter(Boolean);
-      const codes=(c.sections||[]).map(s=>s.code).filter(Boolean);
-      const title=isAdvisory?(c.advisor_label||'Advisory'):(names.length?names.join(' + '):'Scheduled class');
-      const href=attendanceHref(String(c.room||''),String(p.id||''),isAdvisory?String(c.advisor_label||''):'');
-      return `<a class="classLink" href="${esc(href)}" aria-label="Open Teacher Attendance for Period ${esc(p.id)}, Room ${esc(c.room)}${isAdvisory?`, Advisor ${esc(c.advisor_label||'')}`:''}">
-        <div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(c.room)}</span></div>
-        ${isAdvisory?'<div class="sectionCodes">Advisory</div>':(codes.length?`<div class="sectionCodes">${esc(codes.join(' • '))}</div>`:'')}
-      </a>`;
-    }).join(''):'<div class="emptyClass">No class assigned</div>';
+    const classHtml=classes.length?classes.map(c=>renderClassCard(c,p)).join(''):'<div class="emptyClass">No class assigned</div>';
     return `<section class="periodRow ${p.is_highlighted?'highlighted':''}">
       <div class="periodBadge">
         <span class="periodNumber">Period ${esc(p.id)}</span>

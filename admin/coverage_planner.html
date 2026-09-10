@@ -67,20 +67,58 @@
 
       <section class="kpiGrid" aria-label="Coverage summary">
         <div class="kpi"><span>Absent Selected</span><strong id="kpiSelected">0</strong><span>teacher assignments</span></div>
-        <div class="kpi"><span>Coverage Gaps</span><strong id="kpiGaps">0</strong><span>sections needing coverage</span></div>
-        <div class="kpi"><span>Students in Gaps</span><strong id="kpiStudents">0</strong><span>scheduled seats</span></div>
-        <div class="kpi"><span>Still Staffed</span><strong id="kpiStillStaffed">0</strong><span>co-taught sections excluded</span></div>
+        <div class="kpi"><span>Coverage Gaps</span><strong id="kpiGaps">0</strong><span>sections / advisories</span></div>
+        <div class="kpi"><span>Assigned</span><strong id="kpiAssigned">0</strong><span>current gaps covered</span></div>
+        <div class="kpi"><span>Students in Gaps</span><strong id="kpiStudents">0</strong><span>scheduled class seats</span></div>
+        <div class="kpi"><span>Still Staffed</span><strong id="kpiStillStaffed">0</strong><span>coverage not needed</span></div>
       </section>
 
       <section class="section card">
         <div class="sectionHead">
           <div>
             <h2>Today’s Coverage Gaps</h2>
-            <p class="muted">A co-taught section only appears here when every assigned teacher is selected absent.</p>
+            <p class="muted">Classes and advisories are included. A co-taught class stays staffed when another assigned teacher remains; an advisory stays staffed when another non-absent staff member is already scheduled in the same room and period.</p>
           </div>
           <span id="gapCountTag" class="tag warn">0 gaps</span>
         </div>
+
+        <div class="coverageToolbar">
+          <label class="coveragePoolLabel" for="coveragePoolSelect">
+            <span>Coverage staff pool</span>
+            <select id="coveragePoolSelect" aria-label="Coverage staff pool">
+              <option value="all">All staff</option>
+            </select>
+          </label>
+          <div class="coverageHelp muted">Busy staff are automatically removed from each period’s choices. Selecting someone opens their complete day schedule before the assignment is saved.</div>
+        </div>
+
         <div id="gapTable" class="tableWrap"></div>
+      </section>
+
+      <section id="coveragePreviewCard" class="section card coveragePreviewCard" hidden>
+        <div class="sectionHead">
+          <div>
+            <h2>Coverage Schedule Preview — <span id="coveragePreviewName">—</span></h2>
+            <p id="coveragePreviewMeta" class="muted">—</p>
+          </div>
+          <button id="cancelCoverageBtn" class="btn small" type="button">Cancel</button>
+        </div>
+        <div id="coveragePreviewTarget" class="coveragePreviewTarget"></div>
+        <p class="muted previewHelp">Nothing is saved until you confirm. The right column shows the staff member’s full day with this coverage duty inserted.</p>
+        <div id="coveragePreviewTable" class="tableWrap"></div>
+        <div class="previewActions">
+          <button id="confirmCoverageBtn" class="btn primary" type="button">Assign coverage</button>
+        </div>
+      </section>
+
+      <section id="coverageAssignmentsCard" class="section card" hidden>
+        <div class="sectionHead">
+          <div>
+            <h2>Today’s Coverage Assignments</h2>
+            <p class="muted">Saved assignments are added to the covering staff member’s <strong>My Schedule</strong> for today. Remove an assignment here to remove it from their schedule.</p>
+          </div>
+        </div>
+        <div id="coverageAssignmentsTable" class="tableWrap"></div>
       </section>
 
       <section id="teacherSummaryCard" class="section card" hidden>
@@ -94,8 +132,8 @@
       </section>
 
       <details id="stillStaffedDetails" class="section card" hidden>
-        <summary>Selected-teacher sections that still have another assigned teacher</summary>
-        <p class="muted detailText">These meetings are intentionally excluded from the coverage-gap count because at least one assigned teacher was not selected absent.</p>
+        <summary>Selected-teacher duties that are already staffed</summary>
+        <p class="muted detailText">These meetings are intentionally excluded from the coverage-gap count because another assigned teacher remains or, for advisory, another non-absent staff member is already scheduled in the same room.</p>
         <div id="stillStaffedTable" class="tableWrap"></div>
       </details>
     </main>

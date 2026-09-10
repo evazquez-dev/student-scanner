@@ -14,6 +14,7 @@ const clearBtn = $('clearBtn');
 const selectVisibleBtn = $('selectVisibleBtn');
 const teacherSearch = $('teacherSearch');
 const groupSelect = $('groupSelect');
+const coveragePoolSelect = $('coveragePoolSelect');
 const teacherList = $('teacherList');
 const selectedSummary = $('selectedSummary');
 const staleBanner = $('staleBanner');
@@ -23,11 +24,22 @@ const teacherSummaryCard = $('teacherSummaryCard');
 const teacherSummaryTable = $('teacherSummaryTable');
 const stillStaffedDetails = $('stillStaffedDetails');
 const stillStaffedTable = $('stillStaffedTable');
+const coveragePreviewCard = $('coveragePreviewCard');
+const coveragePreviewName = $('coveragePreviewName');
+const coveragePreviewMeta = $('coveragePreviewMeta');
+const coveragePreviewTarget = $('coveragePreviewTarget');
+const coveragePreviewTable = $('coveragePreviewTable');
+const confirmCoverageBtn = $('confirmCoverageBtn');
+const cancelCoverageBtn = $('cancelCoverageBtn');
+const coverageAssignmentsCard = $('coverageAssignmentsCard');
+const coverageAssignmentsTable = $('coverageAssignmentsTable');
 
 let ACCESS = null;
 let MODEL = null;
 let SELECTED = new Set();
 let TEACHERS = [];
+let COVER_STAFF = [];
+let PENDING_ASSIGNMENT = null;
 
 function show(el){ if(el) el.hidden=false; }
 function hide(el){ if(el) el.hidden=true; }
@@ -82,23 +94,83 @@ function buildGroups(){
   groupSelect.innerHTML=options.join('');
 }
 
+function buildCoveragePools(){
+  const dept=new Set(),grade=new Set();COVER_STAFF.forEach(r=>{if(r.department)dept.add(r.department);if(r.grade_team)grade.add(r.grade_team)});
+  const current=coveragePoolSelect.value||'all';
+  const options=['<option value="all">All staff</option>'];
+  [...grade].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true})).forEach(v=>options.push(`<option value="grade:${esc(v)}">Grade Team · ${esc(v)}</option>`));
+  [...dept].sort((a,b)=>String(a).localeCompare(String(b),undefined,{sensitivity:'base'})).forEach(v=>options.push(`<option value="department:${esc(v)}">Department · ${esc(v)}</option>`));
+  coveragePoolSelect.innerHTML=options.join('');
+  if([...coveragePoolSelect.options].some(o=>o.value===current))coveragePoolSelect.value=current;
+}
+
 function selectGroup(value){
   const [kind,...rest]=String(value||'').split(':');const target=rest.join(':');if(!kind||!target)return;
   for(const row of TEACHERS){const list=kind==='grade'?(row.grade_teams||[]):kind==='department'?(row.departments||[]):[];if(list.some(v=>String(v)===target))SELECTED.add(row.teacher_key)}
   groupSelect.value='';renderTeachers();updateUrl();
 }
 
-function renderKpis(model){const s=model?.summary||{};$('kpiSelected').textContent=Number(s.selected_teachers||0);$('kpiGaps').textContent=Number(s.gap_count||0);$('kpiStudents').textContent=Number(s.students_in_gap_sections||0);$('kpiStillStaffed').textContent=Number(s.still_staffed_count||0);$('gapCountTag').textContent=`${Number(s.gap_count||0)} gap${Number(s.gap_count||0)===1?'':'s'}`}
+function renderKpis(model){
+  const s=model?.summary||{};
+  $('kpiSelected').textContent=Number(s.selected_teachers||0);
+  $('kpiGaps').textContent=Number(s.gap_count||0);
+  $('kpiAssigned').textContent=Number(s.assigned_gap_count||0);
+  $('kpiStudents').textContent=Number(s.students_in_gap_sections||0);
+  $('kpiStillStaffed').textContent=Number(s.still_staffed_count||0);
+  $('gapCountTag').textContent=`${Number(s.gap_count||0)} gap${Number(s.gap_count||0)===1?'':'s'}`;
+}
 function teacherNames(row,field){const values=row?.[field]||[];return values.length?values.map(v=>esc(v)).join('<br>'):'—'}
+
+function coveragePoolMatches(staff){
+  const value=String(coveragePoolSelect.value||'all');
+  if(value==='all')return true;
+  const [kind,...rest]=value.split(':');const target=rest.join(':');
+  if(kind==='grade')return String(staff.grade_team||'')===target;
+  if(kind==='department')return String(staff.department||'')===target;
+  return true;
+}
+
+function staffDutyRows(staff,period){
+  const row=(staff?.schedule||[]).find(r=>String(r.period_local||'').toUpperCase()===String(period||'').toUpperCase());
+  return Array.isArray(row?.duties)?row.duties:[];
+}
+
+function coverageStaffEligible(staff,gap){
+  if(!staff||staff.is_absent||!coveragePoolMatches(staff))return false;
+  const duties=staffDutyRows(staff,gap.period_local);
+  return !duties.some(d=>!(d?.kind==='coverage'&&String(d?.gap_key||'')===String(gap.key||'')));
+}
+
+function coverageStaffLabel(staff){
+  const bits=[];if(staff.department)bits.push(staff.department);if(staff.grade_team)bits.push(`GT ${staff.grade_team}`);
+  return `${staff.name||staff.email}${bits.length?` — ${bits.join(' · ')}`:''}`;
+}
+
+function coverageSelectHtml(gap){
+  const assigned=gap?.coverage_assignment||null;
+  const eligible=COVER_STAFF.filter(staff=>coverageStaffEligible(staff,gap));
+  const eligibleEmails=new Set(eligible.map(s=>s.email));
+  let options='<option value="">Choose coverage staff…</option>';
+  for(const staff of eligible){
+    const selected=assigned?.assigned_to_email===staff.email?' selected':'';
+    options+=`<option value="${esc(staff.email)}"${selected}>${esc(coverageStaffLabel(staff))}</option>`;
+  }
+  if(assigned?.assigned_to_email&&!eligibleEmails.has(assigned.assigned_to_email)){
+    options+=`<option value="${esc(assigned.assigned_to_email)}" selected>${esc(assigned.assigned_to_name||assigned.assigned_to_email)} — currently assigned (conflict)</option>`;
+  }
+  const current=assigned?`<div class="coverageCurrent">${tag('Assigned','good')} <strong>${esc(assigned.assigned_to_name||assigned.assigned_to_email)}</strong></div>`:'';
+  return `${current}<select class="coverageSelect" data-gap-key="${esc(gap.key)}" aria-label="Coverage staff for ${esc(gap.period_local)} ${esc(gap.room)}">${options}</select>`;
+}
 
 function renderGaps(model){
   gapTable.innerHTML=tableHtml(model?.gaps||[],[
-    {label:'Period',render:r=>`<div class="periodCell"><strong>${esc(r.period_local||'—')}</strong><span class="muted small">${esc(r.time_label||'')}</span></div>`},
-    {label:'Section',render:r=>`<strong>${esc(r.section_name||'—')}</strong>${r.section_code?`<div class="muted small mono">${esc(r.section_code)}</div>`:''}`},
+    {label:'Period',render:r=>`<div class="periodCell"><strong>${esc(r.period_local||'—')}</strong><span class="muted small">${esc(r.time_label||'')}</span>${r.gap_kind==='advisory'?`<span class="gapKind">Advisory</span>`:''}</div>`},
+    {label:'Section / Duty',render:r=>`<strong>${esc(r.section_name||'—')}</strong>${r.section_code?`<div class="muted small mono">${esc(r.section_code)}</div>`:''}`},
     {label:'Room',render:r=>esc(r.room||'—')},
-    {label:'Students',render:r=>`<span class="mono">${Number(r.student_count||0)}</span>`},
+    {label:'Students',render:r=>r.gap_kind==='advisory'?'—':`<span class="mono">${Number(r.student_count||0)}</span>`},
     {label:'Absent / unavailable',render:r=>teacherNames(r,'absent_teachers')},
-    {label:'Status',render:()=>tag('Needs coverage','warn')}
+    {label:'Coverage',render:r=>coverageSelectHtml(r)},
+    {label:'Status',render:r=>r.coverage_assignment?tag('Covered','good'):tag('Needs coverage','warn')}
   ],SELECTED.size?'No coverage gaps were found for the selected teachers today.':'Select one or more absent teachers, then click “Show Today’s Gaps.”');
 }
 
@@ -117,20 +189,98 @@ function renderStillStaffed(model){
   const rows=model?.still_staffed||[];if(!rows.length){hide(stillStaffedDetails);stillStaffedTable.innerHTML='';return}
   stillStaffedTable.innerHTML=tableHtml(rows,[
     {label:'Period',render:r=>`<strong>${esc(r.period_local||'—')}</strong><div class="muted small">${esc(r.time_label||'')}</div>`},
-    {label:'Section',render:r=>`<strong>${esc(r.section_name||'—')}</strong>`},
+    {label:'Section / Duty',render:r=>`<strong>${esc(r.section_name||'—')}</strong>${r.gap_kind==='advisory'?'<div class="muted small">Advisory room already has another staff member.</div>':''}`},
     {label:'Room',render:r=>esc(r.room||'—')},
     {label:'Selected absent',render:r=>teacherNames(r,'absent_teachers')},
-    {label:'Teacher still assigned',render:r=>teacherNames(r,'remaining_teachers')}
+    {label:'Staff still assigned',render:r=>teacherNames(r,'remaining_teachers')}
   ],'');show(stillStaffedDetails);
 }
 
+function renderCoverageAssignments(model){
+  const rows=model?.coverage_assignments||[];
+  if(!rows.length){hide(coverageAssignmentsCard);coverageAssignmentsTable.innerHTML='';return}
+  coverageAssignmentsTable.innerHTML=tableHtml(rows,[
+    {label:'Period',render:r=>`<strong>${esc(r.period_local||'—')}</strong><div class="muted small">${esc(r.time_label||'')}</div>`},
+    {label:'Coverage duty',render:r=>`<strong>${esc(r.section_name||'Coverage')}</strong>${r.section_code?`<div class="muted small mono">${esc(r.section_code)}</div>`:''}`},
+    {label:'Room',render:r=>esc(r.room||'—')},
+    {label:'Covering staff',render:r=>`<strong>${esc(r.assigned_to_name||r.assigned_to_email)}</strong><div class="muted small">${esc(r.assigned_to_email||'')}</div>`},
+    {label:'Absent / unavailable',render:r=>(r.absent_teachers||[]).map(v=>esc(v)).join('<br>')||'—'},
+    {label:'Action',render:r=>`<button class="btn small removeCoverageBtn" type="button" data-gap-key="${esc(r.gap_key)}">Remove</button>`}
+  ],'');show(coverageAssignmentsCard);
+}
+
+function dutyHtml(duty){
+  const kind=String(duty?.kind||'class');
+  const label=kind==='coverage'?'Coverage':kind==='advisory'?'Advisory':'Class';
+  return `<div class="previewDuty ${esc(kind)}"><span class="previewDutyTag">${esc(label)}</span><strong>${esc(duty?.title||duty?.section_name||'Scheduled duty')}</strong>${duty?.room?`<span>Room ${esc(duty.room)}</span>`:''}${duty?.section_code?`<span class="mono">${esc(duty.section_code)}</span>`:''}</div>`;
+}
+
+function renderCoveragePreview(gap,staff){
+  if(!gap||!staff){PENDING_ASSIGNMENT=null;hide(coveragePreviewCard);return}
+  PENDING_ASSIGNMENT={gap,staff};
+  coveragePreviewName.textContent=staff.name||staff.email;
+  const meta=[staff.email,staff.department,staff.grade_team?`Grade Team ${staff.grade_team}`:''].filter(Boolean).join(' · ');
+  coveragePreviewMeta.textContent=meta||'All staff';
+  coveragePreviewTarget.innerHTML=`Proposed assignment: <strong>${esc(gap.period_local)}</strong> · Room <strong>${esc(gap.room)}</strong> · ${esc(gap.section_name||'Coverage')}`;
+  const rows=(staff.schedule||[]).map(row=>{
+    const existing=Array.isArray(row.duties)?row.duties:[];
+    const isTarget=String(row.period_local||'').toUpperCase()===String(gap.period_local||'').toUpperCase();
+    const alreadyHere=existing.some(d=>d?.kind==='coverage'&&String(d?.gap_key||'')===String(gap.key||''));
+    const proposed=isTarget&&!alreadyHere?[...existing,{kind:'coverage',title:gap.section_name||'Coverage',section_name:gap.section_name||'Coverage',section_code:gap.section_code||'',room:gap.room,gap_key:gap.key}]:existing;
+    return {...row,existing,proposed,isTarget};
+  });
+  coveragePreviewTable.innerHTML=tableHtml(rows,[
+    {label:'Period',render:r=>`<strong>${esc(r.period_local)}</strong><div class="muted small">${esc(r.time_label||'')}</div>`},
+    {label:'Current schedule',render:r=>r.existing.length?r.existing.map(dutyHtml).join(''):'<span class="openSlot">Open</span>'},
+    {label:'With this coverage',render:r=>r.proposed.length?r.proposed.map(dutyHtml).join(''):'<span class="openSlot">Open</span>'}
+  ],'No periods are configured.');
+  confirmCoverageBtn.textContent=gap.coverage_assignment?.assigned_to_email===staff.email?'Confirm current assignment':`Assign ${staff.name||staff.email}`;
+  show(coveragePreviewCard);
+  coveragePreviewCard.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+async function postCoverage(action,payload={}){
+  const r=await adminFetch('/admin/coverage_planner',{
+    method:'POST',
+    headers:{'content-type':'application/json;charset=UTF-8'},
+    body:JSON.stringify({action,selected_teacher_keys:[...SELECTED],...payload})
+  });
+  const j=await r.json().catch(()=>null);
+  if(!r.ok||!j?.ok)throw new Error(j?.message||j?.error||`HTTP ${r.status}`);
+  return j;
+}
+
+async function assignPendingCoverage(){
+  if(!PENDING_ASSIGNMENT)return;
+  const {gap,staff}=PENDING_ASSIGNMENT;
+  confirmCoverageBtn.disabled=true;setError('');
+  try{
+    await postCoverage('assign',{gap_key:gap.key,staff_email:staff.email});
+    PENDING_ASSIGNMENT=null;hide(coveragePreviewCard);
+    await loadPlanner({preserveSelection:true});
+  }catch(e){setError(e?.message||e)}finally{confirmCoverageBtn.disabled=false}
+}
+
+async function removeCoverage(gapKey){
+  if(!gapKey)return;
+  setError('');
+  try{
+    await postCoverage('remove',{gap_key:gapKey});
+    if(PENDING_ASSIGNMENT?.gap?.key===gapKey){PENDING_ASSIGNMENT=null;hide(coveragePreviewCard)}
+    await loadPlanner({preserveSelection:true});
+  }catch(e){setError(e?.message||e)}
+}
+
 function renderModel(model){
-  MODEL=model;TEACHERS=Array.isArray(model?.teacher_options)?model.teacher_options:[];
+  MODEL=model;TEACHERS=Array.isArray(model?.teacher_options)?model.teacher_options:[];COVER_STAFF=Array.isArray(model?.coverage_staff_options)?model.coverage_staff_options:[];
   const valid=new Set(TEACHERS.map(r=>r.teacher_key));SELECTED=new Set((model?.selected_teacher_keys||[]).filter(k=>valid.has(k)));
   $('dateLine').textContent=`${fmtDay(model?.date)} · schedule source ${model?.schedule_date||'date unavailable'}`;
   $('viewerPill').textContent=ACCESS?.email||model?.viewer?.email||'—';
-  if(model?.schedule_stale){staleBanner.textContent=`Coverage Planner stopped before calculating gaps because the Teacher Assignments schedule is for ${model.schedule_date}, not today (${model.date}). Refresh/push today’s schedule first.`;show(staleBanner)}else hide(staleBanner);
-  buildGroups();renderTeachers();renderKpis(model);renderGaps(model);renderTeacherStats(model);renderStillStaffed(model);updateUrl();
+  const warnings=[];
+  if(model?.schedule_stale)warnings.push(`Coverage Planner stopped before calculating class gaps because Teacher Assignments is for ${model.schedule_date}, not today (${model.date}). Refresh/push today’s schedule first.`);
+  if(model?.advisor_schedule_stale)warnings.push(`Advisory coverage was not calculated because the advisory/class source is for ${model.advisor_source_date}, not today (${model.date}).`);
+  if(warnings.length){staleBanner.textContent=warnings.join(' ');show(staleBanner)}else hide(staleBanner);
+  buildGroups();buildCoveragePools();renderTeachers();renderKpis(model);renderGaps(model);renderTeacherStats(model);renderStillStaffed(model);renderCoverageAssignments(model);updateUrl();
 }
 
 async function loadPlanner({preserveSelection=true}={}){
@@ -149,11 +299,22 @@ window.addEventListener('DOMContentLoaded',async()=>{
   refreshBtn.addEventListener('click',()=>loadPlanner({preserveSelection:true}));
   showGapsBtn.addEventListener('click',()=>loadPlanner({preserveSelection:true}));
   printBtn.addEventListener('click',()=>window.print());
-  clearBtn.addEventListener('click',()=>{SELECTED.clear();renderTeachers();updateUrl();renderKpis({summary:{}});renderGaps({gaps:[]});hide(teacherSummaryCard);hide(stillStaffedDetails)});
+  clearBtn.addEventListener('click',()=>{SELECTED.clear();renderTeachers();updateUrl();renderKpis({summary:{}});renderGaps({gaps:[]});hide(teacherSummaryCard);hide(stillStaffedDetails);hide(coveragePreviewCard)});
   selectVisibleBtn.addEventListener('click',()=>{teacherList.querySelectorAll('.teacherChoice:not(.hiddenChoice) input[type="checkbox"]').forEach(cb=>SELECTED.add(cb.value));renderTeachers();updateUrl()});
   teacherSearch.addEventListener('input',renderTeachers);
   groupSelect.addEventListener('change',()=>selectGroup(groupSelect.value));
+  coveragePoolSelect.addEventListener('change',()=>{renderGaps(MODEL||{});hide(coveragePreviewCard);PENDING_ASSIGNMENT=null});
   teacherList.addEventListener('change',ev=>{const cb=ev.target.closest('input[type="checkbox"]');if(!cb)return;if(cb.checked)SELECTED.add(cb.value);else SELECTED.delete(cb.value);renderSelectedSummary();updateUrl()});
+  gapTable.addEventListener('change',ev=>{
+    const select=ev.target.closest('.coverageSelect');if(!select)return;
+    const gap=(MODEL?.gaps||[]).find(row=>String(row.key)===String(select.dataset.gapKey));
+    const staff=COVER_STAFF.find(row=>row.email===select.value);
+    if(!select.value||!gap||!staff){PENDING_ASSIGNMENT=null;hide(coveragePreviewCard);return}
+    renderCoveragePreview(gap,staff);
+  });
+  coverageAssignmentsTable.addEventListener('click',ev=>{const btn=ev.target.closest('.removeCoverageBtn');if(btn)removeCoverage(btn.dataset.gapKey)});
+  confirmCoverageBtn.addEventListener('click',assignPendingCoverage);
+  cancelCoverageBtn.addEventListener('click',()=>{PENDING_ASSIGNMENT=null;hide(coveragePreviewCard);renderGaps(MODEL||{})});
   if(await trySession())return;
   if(!GOOGLE_CLIENT_ID){loginOut.textContent='Missing google-client-id meta.';return}
   try{await new Promise((resolve,reject)=>{const started=Date.now();(function wait(){if(window.google?.accounts?.id)return resolve();if(Date.now()-started>8000)return reject(new Error('Google sign-in failed to load'));setTimeout(wait,50)})()});google.accounts.id.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,ux_mode:'popup',use_fedcm_for_prompt:true});google.accounts.id.renderButton($('g_id_signin'),{theme:'outline',size:'large'});loginOut.textContent='—'}catch(e){loginOut.textContent=`Google init failed: ${e?.message||e}`}
