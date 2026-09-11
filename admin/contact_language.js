@@ -230,6 +230,24 @@
     return span;
   }
 
+  // CONTACT_LANGUAGE_BADGE_IDEMPOTENT_V2
+  // Keep badge rendering idempotent. The contact list is observed for app-driven
+  // rerenders, so removing/re-adding our own badge on every observer callback
+  // creates a self-triggering MutationObserver loop that can freeze the page.
+  function syncBadge(target, pref){
+    if(!target) return;
+    let badge = target.querySelector(':scope > [data-contact-language-badge="1"]');
+    if(!badge){
+      badge = makeBadge(pref);
+      target.appendChild(badge);
+      return;
+    }
+    const nextClass = `contactLanguageBadge ${badgeClass(pref)}`;
+    const nextText = badgeText(pref);
+    if(badge.className !== nextClass) badge.className = nextClass;
+    if(badge.textContent !== nextText) badge.textContent = nextText;
+  }
+
   function renderContactBadges(){
     if(!currentStudent) return;
     const contacts = contactsByStudent.get(currentStudent) || [];
@@ -238,11 +256,10 @@
     if(pageModule === 'student_contacts'){
       const cards = Array.from(document.querySelectorAll('#contacts .contactCard:not(.directStudentContactCard)'));
       cards.forEach((card, index) => {
-        card.querySelectorAll('[data-contact-language-badge="1"]').forEach((el) => el.remove());
         const contact = contacts[index];
         if(!contact) return;
         const target = card.querySelector('.badges') || card.querySelector('.contactTop') || card;
-        target.appendChild(makeBadge(map.get(clean(contact.contact_assoc_id)) || null));
+        syncBadge(target, map.get(clean(contact.contact_assoc_id)) || null);
       });
     }
 
@@ -250,10 +267,9 @@
       document.querySelectorAll('#contactChoices input[name="attendanceContact"]').forEach((input) => {
         const label = input.closest('label');
         if(!label) return;
-        label.querySelectorAll('[data-contact-language-badge="1"]').forEach((el) => el.remove());
         const assoc = clean(input.value);
         if(!assoc || assoc === 'general') return;
-        label.appendChild(makeBadge(map.get(assoc) || null));
+        syncBadge(label, map.get(assoc) || null);
       });
     }
   }
@@ -500,12 +516,21 @@
       setActiveContact(currentStudent, assoc && assoc !== 'general' ? contactByAssoc(currentStudent, assoc) : null);
     }, true);
 
-    const observer = new MutationObserver(() => queueMicrotask(renderLanguageUi));
-    const observeIds = pageModule === 'student_contacts' ? ['contacts','commBackdrop'] : ['contactChoices','callBackdrop'];
-    for(const id of observeIds){
-      const el = document.getElementById(id);
-      if(el) observer.observe(el, { childList:true, subtree:true, attributes:true, attributeFilter:['hidden'] });
-    }
+    // CONTACT_LANGUAGE_OBSERVER_NO_SELF_LOOP_V2
+    // Observe only the app-owned contact list. Modal visibility is handled by
+    // the click/change hooks above; watching our own panel's hidden attributes
+    // would cause the language UI to retrigger itself.
+    const observer = new MutationObserver((mutations) => {
+      const meaningful = mutations.some((mutation) => {
+        const nodes = [...mutation.addedNodes, ...mutation.removedNodes].filter((node) => node.nodeType === 1);
+        if(!nodes.length) return false;
+        return nodes.some((node) => !node.matches?.('[data-contact-language-badge="1"]'));
+      });
+      if(meaningful) queueMicrotask(renderLanguageUi);
+    });
+    const observeId = pageModule === 'student_contacts' ? 'contacts' : 'contactChoices';
+    const observed = document.getElementById(observeId);
+    if(observed) observer.observe(observed, { childList:true, subtree:true });
   }
 
   function parseCsv(text){
