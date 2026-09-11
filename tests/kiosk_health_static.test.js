@@ -10,8 +10,7 @@ const fidelityHtml = fs.readFileSync(path.join(root, 'student-scanner', 'admin',
 const fidelityJs = fs.readFileSync(path.join(root, 'student-scanner', 'admin', 'fidelity.js'), 'utf8');
 const workerIndex = fs.readFileSync(path.join(root, 'cf-redcake', 'red-cake-77d5', 'src', 'index.js'), 'utf8');
 const healthRoute = fs.readFileSync(path.join(root, 'cf-redcake', 'red-cake-77d5', 'src', 'routes', 'fidelity-dashboard.js'), 'utf8');
-const fidelityGas = fs.readFileSync(path.join(root, 'Google Apps Script', 'clasp-projects', 'fidelity-tracking', 'Code.js'), 'utf8');
-const kioskHealthGas = fs.readFileSync(path.join(root, 'Google Apps Script', 'clasp-projects', 'fidelity-tracking', 'KioskHealth.js'), 'utf8');
+const fidelityD1 = fs.readFileSync(path.join(root, 'cf-redcake', 'red-cake-77d5', 'src', 'services', 'fidelity-d1.js'), 'utf8');
 
 test('wrong-room class scan gives a clear destination', () => {
   assert.match(kiosk, /WRONG ROOM/);
@@ -28,32 +27,32 @@ test('kiosk heartbeat reports software and queue health immediately', () => {
   assert.match(kiosk, /sendHeartbeat\(\)\.catch/);
 });
 
-test('service worker release is bumped for kiosk-health rollout', () => {
-  assert.match(sw, /v20\.9\.0-2026-09-04/);
+test('service worker release is present for kiosk-health version comparison', () => {
+  assert.match(sw, /const\s+VERSION\s*=\s*['"][^'"]+['"]/);
 });
 
-test('admin fidelity page exposes a live kiosk-health table', () => {
+test('admin fidelity page is the simplified operational-health view', () => {
+  assert.match(fidelityHtml, /Operational Health/);
   assert.match(fidelityHtml, /Kiosk Health \/ Devices/);
-  assert.match(fidelityHtml, /Version Status/);
-  assert.match(fidelityHtml, /Pending/);
-  assert.match(fidelityHtml, /Clock/);
+  assert.match(fidelityHtml, /Room \/ Period Health/);
+  assert.match(fidelityHtml, /Exceptions/);
   assert.match(fidelityJs, /\/admin\/kiosk_health/);
+  assert.match(fidelityJs, /\/admin\/fidelity_dashboard/);
   assert.match(fidelityJs, /fetchExpectedKioskSwVersion/);
-  assert.match(fidelityJs, /expected_service_worker_version/);
 });
 
-test('worker modular route augments fidelity dashboard and exposes kiosk health', () => {
+test('worker modular route serves kiosk health from D1', () => {
   assert.match(workerIndex, /handleFidelityDashboardRequest/);
   assert.match(workerIndex, /FIDELITY_DASHBOARD_PATHS/);
-  assert.match(healthRoute, /fidelity_kiosk_health/);
-  assert.match(healthRoute, /data\.devices = Array\.isArray\(health\?\.devices\)/);
+  assert.match(healthRoute, /listFidelityDevicesD1/);
+  assert.match(healthRoute, /buildFidelityDashboardD1/);
+  assert.doesNotMatch(healthRoute, /fidelity_kiosk_health|FIDELITY_GAS_URL/);
 });
 
-test('fidelity GAS accepts kiosk-health reads and summarizes heartbeat metadata', () => {
-  assert.match(fidelityGas, /fidelity_kiosk_health/);
-  assert.match(fidelityGas, /getFidelityKioskHealth_/);
-  assert.match(kioskHealthGas, /service_worker_version/);
-  assert.match(kioskHealthGas, /last_heartbeat_at_iso/);
-  assert.match(kioskHealthGas, /pending_scan_count/);
-  assert.match(kioskHealthGas, /clock_skew_warning/);
+test('D1 fidelity service stores heartbeat metadata in compact device state', () => {
+  assert.match(fidelityD1, /service_worker_version/);
+  assert.match(fidelityD1, /last_heartbeat_at_iso/);
+  assert.match(fidelityD1, /pending_scan_count/);
+  assert.match(fidelityD1, /clock_skew_warning/);
+  assert.match(fidelityD1, /ON CONFLICT\(device_id\)/);
 });
