@@ -15,6 +15,17 @@
   <link rel="stylesheet" href="./notifications.css" />
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
+  <style>
+    /* My Settings only shows notification types that apply to this account. */
+    .prefFuture,.prefIneligible{display:none!important}
+    .classReminderRow{margin-top:16px;cursor:default}
+    .classReminderRow>input{cursor:pointer}
+    .classReminderControls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:5px}
+    .classReminderControls label{font-size:.78rem;color:var(--muted);font-weight:700}
+    .classReminderSelect{border:1px solid var(--border);border-radius:10px;padding:8px 10px;background:var(--control);color:var(--fg);font:inherit;font-weight:700}
+    .classReminderSelect:disabled{opacity:.55}
+    @media(max-width:650px){.classReminderControls{align-items:flex-start;flex-direction:column}.classReminderSelect{width:100%}}
+  </style>
   <script>
     (function(){
       try{
@@ -25,13 +36,13 @@
       }catch(e){}
     })();
   </script>
-  <title>EagleNEST — Notifications</title>
+  <title>EagleNEST — My Settings</title>
 </head>
 <body data-module="notifications">
   <main class="wrap">
     <section id="loginCard" class="card loginCard">
       <h1>Staff sign-in</h1>
-      <p class="muted">Use your school account to manage EagleNEST notifications.</p>
+      <p class="muted">Use your school account to manage your EagleNEST settings.</p>
       <div id="g_id_signin"></div>
       <div id="loginOut" class="statusText">Loading…</div>
     </section>
@@ -40,8 +51,8 @@
       <header class="pageHeader">
         <div>
           <p class="eyebrow">Account &amp; Device</p>
-          <h1>Notifications</h1>
-          <p class="muted intro">Enable push alerts on each device where you want EagleNEST notifications.</p>
+          <h1>My Settings</h1>
+          <p class="muted intro">Manage your notifications and personal EagleNEST navigation settings.</p>
         </div>
         <span id="viewerPill" class="pill">—</span>
       </header>
@@ -87,13 +98,36 @@
             <span class="statusIcon">☑️</span>
             <div>
               <h2>Notification preferences</h2>
-              <p class="muted">Choose which EagleNEST alerts you want. These preferences apply to every enabled device registered to your school email.</p>
+              <p class="muted">Choose the EagleNEST alerts you want. These preferences apply to every enabled device registered to your school email.</p>
             </div>
           </div>
         </div>
+
+        <div id="classReminderSetting" class="prefRow classReminderRow">
+          <input id="classReminderToggle" type="checkbox" aria-label="Enable class reminders" disabled />
+          <span class="prefCopy">
+            <span class="prefTop">
+              <strong>Class reminders</strong>
+              <span id="classReminderStatus" class="prefBadge">Checking</span>
+            </span>
+            <span class="prefDescription">Get a push notification before your scheduled classes, advisories, and coverage assignments.</span>
+            <span class="classReminderControls">
+              <label for="classReminderLead">Remind me</label>
+              <select id="classReminderLead" class="classReminderSelect" disabled aria-label="Class reminder lead time">
+                <option value="1">1 minute before</option>
+                <option value="3">3 minutes before</option>
+                <option value="5" selected>5 minutes before</option>
+                <option value="10">10 minutes before</option>
+                <option value="15">15 minutes before</option>
+              </select>
+            </span>
+            <span id="classReminderDevice" class="prefAudience">Checking notification setup…</span>
+          </span>
+        </div>
+
         <div id="prefList" class="prefList" aria-live="polite"></div>
         <div id="prefSaveOut" class="statusText"></div>
-        <p class="muted small">Only categories your account is eligible to receive can be changed. Future categories are shown now so staff can see what may be added later.</p>
+        <p class="muted small">Only notification types that apply to your account are shown.</p>
       </section>
 
       <section class="card sectionCard">
@@ -139,20 +173,15 @@
         <p class="muted small externalLinksHint">Turning off default links hides only the shared defaults. Your personal links will still appear in the navigation menu.</p>
       </section>
 
-      <section class="card sectionCard">
+      <!-- Kept only as hidden compatibility targets for the existing notifications client. -->
+      <section id="notificationRouting" class="card sectionCard" hidden aria-hidden="true">
         <h2>Notification routing</h2>
-        <div class="routeRow">
-          <span>Incident report → Refer to Dean</span>
-          <strong id="deanEmail">—</strong>
-        </div>
-        <div class="routeRow">
-          <span>Phone Pass → Return requested</span>
-          <strong id="phoneReturnRouting">Checking…</strong>
-        </div>
-        <p class="muted small">Dean referrals and phone-return lock-screen notifications contain no student name or incident details. Tapping an operational alert opens the authenticated EagleNEST page with the live details.</p>
+        <div class="routeRow"><span>Incident report → Refer to Dean</span><strong id="deanEmail">—</strong></div>
+        <div class="routeRow"><span>Phone Pass → Return requested</span><strong id="phoneReturnRouting">Checking…</strong></div>
       </section>
     </section>
   </main>
   <script src="./notifications.js"></script>
+  <script src="./class_reminders.js?v=20260911-settings-personal-lead"></script>
 </body>
 </html>
