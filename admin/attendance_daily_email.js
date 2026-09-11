@@ -8,8 +8,6 @@
   const $=(id)=>document.getElementById(id);
 
   let PREVIEW=null;
-  let ACTIVE_OSIS='';
-  let RESULT_TOUCHED=false;
   let loadTimer=null;
   let loadingPreview=false;
 
@@ -124,41 +122,6 @@
     }finally{loadingPreview=false;}
   }
 
-  function inferredCallStatus(osis){
-    const explicit=PREVIEW?.explicit_statuses?.[osis];
-    if(explicit?.classification)return explicit;
-    const inferred=PREVIEW?.by_student?.[osis];
-    if(inferred?.classification)return inferred;
-    return {classification:'absent',reason:'',phone:''};
-  }
-
-  function prepareCallEmailFields(osis){
-    ACTIVE_OSIS=String(osis||'').trim();
-    RESULT_TOUCHED=false;
-    const state=inferredCallStatus(ACTIVE_OSIS);
-    const result=$('attendanceEmailResult');
-    const reason=$('attendanceEmailReason');
-    if(result)result.value=['absent','late','exclude'].includes(String(state?.classification||''))?state.classification:'absent';
-    if(reason)reason.value=String(state?.reason||'');
-  }
-
-  function classificationForOutcome(outcome){
-    const value=String(outcome||'').trim().toLowerCase();
-    if(value==='will be late')return 'late';
-    if(['absent today','no answer','left voicemail','wrong number'].includes(value))return 'absent';
-    return 'absent';
-  }
-
-  function defaultDailyReason(outcome){
-    const value=String(outcome||'').trim().toLowerCase();
-    if(value==='left voicemail'||value==='voicemail')return 'LVM';
-    if(value==='no answer')return 'No Answer';
-    if(value==='wrong number')return 'Phone not working';
-    if(value==='will be late')return 'LATE';
-    if(value==='absent today')return 'Absent Today';
-    return '';
-  }
-
   async function saveStatusRecord({osis,classification,reason,phone}){
     return jsonOrThrow(await dailyAdminFetch('/admin/attendance_outreach/email_status',{
       method:'POST',
@@ -178,69 +141,17 @@
     return String(init?.method||(input instanceof Request?input.method:'GET')||'GET').toUpperCase();
   }
 
-  function requestHeaders(input,init){
-    const headers=new Headers(input instanceof Request?input.headers:undefined);
-    for(const [k,v] of new Headers(init?.headers||{}).entries())headers.set(k,v);
-    return headers;
-  }
-
-  function parseJsonBody(init){
-    try{
-      if(typeof init?.body==='string')return JSON.parse(init.body);
-    }catch{}
-    return null;
-  }
-
-  function syntheticStatusFailure(baseResponse,error){
-    const headers=new Headers({'content-type':'application/json; charset=utf-8'});
-    const sid=baseResponse?.headers?.get?.(SESSION_HEADER)||baseResponse?.headers?.get?.('X-Admin-Session');
-    if(sid)headers.set(SESSION_HEADER,sid);
-    return new Response(JSON.stringify({
-      ok:false,
-      error:'attendance_email_status_failed',
-      detail:`Attendance call was logged, but the daily email status could not be saved. Retry Save; the call will not duplicate. ${String(error?.message||error)}`
-    }),{status:502,headers});
-  }
-
-  // Attach the daily-email classification to the exact Attendance Outreach call
-  // submission. D1 communication writes are idempotent, so if the companion
-  // status write fails the office can safely press Save again without creating
-  // a duplicate communication.
+  // Attendance Outreach writes the authoritative Attendance communication first.
+  // The daily email draft then re-reads that log and uses its latest Notes value.
+  // Do not create a second email-only reason while the call is being logged.
   window.fetch=async function attendanceDailyEmailFetch(input,init={}){
     const url=requestUrl(input);
     const method=requestMethod(input,init);
     const isCommunicationCreate=url?.pathname==='/admin/communications/create'&&method==='POST';
     const isQueueRead=url?.pathname==='/admin/attendance_outreach'&&method==='GET';
-    const payload=isCommunicationCreate?parseJsonBody(init):null;
     const response=await nativeFetch(input,init);
-
-    if(isQueueRead&&response.ok)schedulePreviewLoad(100);
-    if(!isCommunicationCreate||!response.ok)return response;
-
-    const osis=String(payload?.student_number||payload?.osis||ACTIVE_OSIS||'').trim();
-    if(!osis)return response;
-    const result=$('attendanceEmailResult');
-    const note=$('attendanceEmailReason');
-    const classification=String(result?.value||classificationForOutcome(payload?.outcome)||'absent');
-    const reason=String(note?.value||defaultDailyReason(payload?.outcome)||'').trim();
-    const phone=String(payload?.contact_phone||'').trim();
-
-    try{
-      const headers=requestHeaders(input,init);
-      const sid=getSid();
-      if(sid&&!headers.has(SESSION_HEADER))headers.set(SESSION_HEADER,sid);
-      headers.set('content-type','application/json');
-      const statusResponse=await nativeFetch(new URL('/admin/attendance_outreach/email_status',API_BASE),{
-        method:'POST',headers,credentials:'include',cache:'no-store',
-        body:JSON.stringify({osis,classification,reason,phone})
-      });
-      stashSid(statusResponse);
-      await jsonOrThrow(statusResponse);
-      schedulePreviewLoad(100);
-      return response;
-    }catch(error){
-      return syntheticStatusFailure(response,error);
-    }
+    if(response.ok&&(isCommunicationCreate||isQueueRead))schedulePreviewLoad(100);
+    return response;
   };
 
   function reviewRow(row){
@@ -374,21 +285,6 @@
     $('saveDailyEmailChanges')?.addEventListener('click',()=>persistReviewChanges({reload:true}));
     $('sendDailyEmail')?.addEventListener('click',sendDailyEmail);
 
-    // Capture before Attendance Outreach's existing delegated click handler.
-    $('queueBody')?.addEventListener('click',(event)=>{
-      const button=event.target?.closest?.('.callBtn');
-      if(button)prepareCallEmailFields(button.dataset.osis);
-    },true);
-
-    $('attendanceEmailResult')?.addEventListener('change',()=>{RESULT_TOUCHED=true;});
-    $('outcomeChoices')?.addEventListener('click',(event)=>{
-      const button=event.target?.closest?.('.outcomeChoice');
-      if(!button||RESULT_TOUCHED)return;
-      const result=$('attendanceEmailResult');
-      const reason=$('attendanceEmailReason');
-      if(result)result.value=classificationForOutcome(button.textContent);
-      if(reason&&!reason.value.trim())reason.value=defaultDailyReason(button.textContent);
-    });
 
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)schedulePreviewLoad(100);});
     window.addEventListener('focus',()=>schedulePreviewLoad(100));

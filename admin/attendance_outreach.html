@@ -13,8 +13,10 @@
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./attendance_outreach.css">
   <link rel="stylesheet" href="./attendance_daily_email.css">
+  <link rel="stylesheet" href="./contact_language.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
+  <script src="./contact_language.js" defer></script>
   <script src="./attendance_outreach.js" defer></script>
   <script src="./attendance_daily_email.js" defer></script>
   <title>EagleNEST — Attendance Outreach</title>
@@ -113,22 +115,7 @@
       <div class="field"><label>Family contact</label><div id="contactChoices" class="contactChoices"><div class="muted">Loading contacts…</div></div></div>
       <div class="field"><label>Outcome</label><div id="outcomeChoices" class="outcomeChoices"></div></div>
       <div class="field"><label for="callNotes">Notes</label><textarea id="callNotes" rows="4" placeholder="What did the family say? For No Answer / Left Voicemail / Wrong Number, a standard note is filled automatically."></textarea></div>
-
-      <div class="attendanceEmailCallFields">
-        <div class="field">
-          <label for="attendanceEmailResult">Daily email status</label>
-          <select id="attendanceEmailResult">
-            <option value="absent">Absent</option>
-            <option value="late">Late / coming in</option>
-            <option value="exclude">Exclude from daily email</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="attendanceEmailReason">Daily email note <span class="muted small">(optional)</span></label>
-          <input id="attendanceEmailReason" type="text" maxlength="1000" placeholder="Student sick / Doctor appointment / LVM…">
-        </div>
-        <p class="muted small attendanceEmailCallHint">This is what will appear in the Absentee / Late email. The full call notes stay in Communications.</p>
-      </div>
+      <p class="muted small">The latest Attendance communication note will prefill the Reason / Note in the daily email preview. You can edit the email draft before sending without changing this communication log.</p>
 
       <label class="followRow"><input id="followUpNeeded" type="checkbox"> Follow-up needed</label>
       <div id="followUpFields" class="fieldRow" hidden><label>Follow-up date/time<input id="followUpAt" type="datetime-local"></label><label>Owner<input id="followUpOwner" type="email"></label></div>
@@ -157,6 +144,7 @@
       </div>
       <div id="dailyEmailWarning" class="dailyEmailWarning" hidden></div>
       <div id="dailyEmailModalSummary" class="dailyEmailModalSummary"></div>
+      <div class="muted small">Reason / Note is prefilled from the latest Attendance communication log. Edit anything below before sending; these edits affect the email draft only and do not rewrite the communication log.</div>
       <div class="dailyEmailPreviewSection">
         <h3>Absent</h3>
         <div class="dailyEmailReviewTableWrap">
