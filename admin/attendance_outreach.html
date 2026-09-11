@@ -12,9 +12,11 @@
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./attendance_outreach.css">
+  <link rel="stylesheet" href="./attendance_daily_email.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script src="./attendance_outreach.js" defer></script>
+  <script src="./attendance_daily_email.js" defer></script>
   <title>EagleNEST — Attendance Outreach</title>
 </head>
 <body data-module="attendance_outreach">
@@ -48,6 +50,25 @@
         <button class="kpi info" type="button" data-filter="contacted"><span id="countContacted">0</span><small>Contacted</small></button>
         <button class="kpi good" type="button" data-filter="verified"><span id="countVerified">0</span><small>Verified</small></button>
         <button class="kpi neutral" type="button" data-filter="confirmed"><span id="countConfirmed">0</span><small>Morning Scan</small></button>
+      </section>
+
+      <section class="card dailyEmailCard" aria-labelledby="dailyEmailTitle">
+        <div class="dailyEmailHead">
+          <div>
+            <div class="dailyEmailEyebrow">Daily attendance summary</div>
+            <h2 id="dailyEmailTitle">Absentee / Late Email</h2>
+            <p class="muted">EagleNEST builds the Dream Team email from today’s outreach calls and morning arrival scans. Review it before sending.</p>
+          </div>
+          <button id="reviewDailyEmailBtn" class="btn primary" type="button" disabled>Loading Summary…</button>
+        </div>
+        <div id="dailyEmailStats" class="dailyEmailStats" aria-live="polite">
+          <span><strong id="dailyEmailAbsent">—</strong> absent</span>
+          <span><strong id="dailyEmailLate">—</strong> late</span>
+          <span><strong id="dailyEmailPresent">—</strong> present</span>
+          <span><strong id="dailyEmailNeedsAction">—</strong> outreach items remaining</span>
+        </div>
+        <div id="dailyEmailLastSend" class="muted small"></div>
+        <div id="dailyEmailInlineError" class="dailyEmailInlineError" hidden></div>
       </section>
 
       <section class="card queueCard">
@@ -92,6 +113,23 @@
       <div class="field"><label>Family contact</label><div id="contactChoices" class="contactChoices"><div class="muted">Loading contacts…</div></div></div>
       <div class="field"><label>Outcome</label><div id="outcomeChoices" class="outcomeChoices"></div></div>
       <div class="field"><label for="callNotes">Notes</label><textarea id="callNotes" rows="4" placeholder="What did the family say? For No Answer / Left Voicemail / Wrong Number, a standard note is filled automatically."></textarea></div>
+
+      <div class="attendanceEmailCallFields">
+        <div class="field">
+          <label for="attendanceEmailResult">Daily email status</label>
+          <select id="attendanceEmailResult">
+            <option value="absent">Absent</option>
+            <option value="late">Late / coming in</option>
+            <option value="exclude">Exclude from daily email</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="attendanceEmailReason">Daily email note <span class="muted small">(optional)</span></label>
+          <input id="attendanceEmailReason" type="text" maxlength="1000" placeholder="Student sick / Doctor appointment / LVM…">
+        </div>
+        <p class="muted small attendanceEmailCallHint">This is what will appear in the Absentee / Late email. The full call notes stay in Communications.</p>
+      </div>
+
       <label class="followRow"><input id="followUpNeeded" type="checkbox"> Follow-up needed</label>
       <div id="followUpFields" class="fieldRow" hidden><label>Follow-up date/time<input id="followUpAt" type="datetime-local"></label><label>Owner<input id="followUpOwner" type="email"></label></div>
       <div class="modalActions"><button id="cancelCall" class="btn" type="button">Cancel</button><button id="saveCall" class="btn" type="button">Save</button><button id="saveNextCall" class="btn primary" type="button">Save &amp; Next</button></div>
@@ -105,6 +143,45 @@
       <div class="field"><label for="verifyNote">Verification note (optional)</label><textarea id="verifyNote" rows="3" placeholder="Example: Confirmed with front office / teacher that student is in Room 309."></textarea></div>
       <div id="verifyError" class="errorText" hidden></div>
       <div class="modalActions"><button id="cancelVerify" class="btn" type="button">Cancel</button><button id="saveVerify" class="btn primary" type="button">Mark Verified</button></div>
+    </section>
+  </div>
+
+  <div id="dailyEmailBackdrop" class="modalBackdrop" hidden>
+    <section class="modal dailyEmailModal" role="dialog" aria-modal="true" aria-labelledby="dailyEmailModalTitle">
+      <div class="modalHead">
+        <div>
+          <h2 id="dailyEmailModalTitle">Review Daily Attendance Email</h2>
+          <div id="dailyEmailRecipient" class="muted">—</div>
+        </div>
+        <button id="closeDailyEmail" class="iconBtn" type="button" aria-label="Close">×</button>
+      </div>
+      <div id="dailyEmailWarning" class="dailyEmailWarning" hidden></div>
+      <div id="dailyEmailModalSummary" class="dailyEmailModalSummary"></div>
+      <div class="dailyEmailPreviewSection">
+        <h3>Absent</h3>
+        <div class="dailyEmailReviewTableWrap">
+          <table class="dailyEmailReviewTable">
+            <thead><tr><th>Student</th><th>Grade</th><th>Phone</th><th>Status</th><th>Reason / Note</th></tr></thead>
+            <tbody id="dailyEmailAbsentBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="dailyEmailPreviewSection">
+        <h3>Late</h3>
+        <div class="dailyEmailReviewTableWrap">
+          <table class="dailyEmailReviewTable">
+            <thead><tr><th>Student</th><th>Grade</th><th>Phone</th><th>Status</th><th>Reason / Note</th></tr></thead>
+            <tbody id="dailyEmailLateBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="dailyEmailModalError" class="errorText" hidden></div>
+      <div id="dailyEmailModalStatus" class="muted small"></div>
+      <div class="modalActions dailyEmailModalActions">
+        <button id="cancelDailyEmail" class="btn" type="button">Close</button>
+        <button id="saveDailyEmailChanges" class="btn" type="button">Save Changes</button>
+        <button id="sendDailyEmail" class="btn primary" type="button">Send to Dream Team</button>
+      </div>
     </section>
   </div>
 
