@@ -147,7 +147,7 @@ async function loadConfig(){
   evidenceLimits.textContent=`Up to ${j.max_files} files • ${humanBytes(j.max_file_bytes)} each • ${humanBytes(j.max_total_bytes)} total`;
   if(!j.evidence_enabled){
     evidenceInput.disabled=true;
-    evidenceHelp.textContent='Evidence upload is not configured yet. You can submit the incident without files; run setupIncidentStorage_() in the Behavioral Endpoint to enable uploads.';
+    evidenceHelp.textContent='Evidence upload is not configured yet. You can submit the incident without files; configure the INCIDENT_EVIDENCE R2 binding to enable uploads.';
   }
 }
 function renderFiles(){
