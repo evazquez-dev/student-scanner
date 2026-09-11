@@ -23,3 +23,12 @@ test('Student Scans service preserves Practice merge and Live GAS contracts', ()
   assert.match(service, /listStudentScanCorrections/);
   assert.match(service, /Math\.min\(Math\.max\(Number\(max \|\| 5000\)/);
 });
+
+
+test('Student Scans UI distinguishes Daily Attendance corrections from cutoff corrections', () => {
+  const ui = read('student-scanner/admin/student_scans.js');
+  assert.match(ui, /Daily Attendance Correction/);
+  assert.match(ui, /replace_daily_attendance_scan_time/);
+  assert.match(ui, /isDailyAttendanceCorrection/);
+  assert.match(ui, /isCutoffCorrectionRecord/);
+});

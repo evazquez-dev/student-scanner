@@ -138,6 +138,7 @@ function allowedType(allowed){
   const a = String(allowed||'').toLowerCase();
   if (!a) return 'none';
   if (a === 'correction_reset_off_campus') return 'correction';
+  if (a === 'daily_attendance_correction') return 'daily_correction';
   if (a === 'out') return 'out';
   if (a === 'manually_cleared') return 'manual_out';
   if (a === 'in' || a.startsWith('in_')) return 'in';
@@ -146,9 +147,99 @@ function allowedType(allowed){
   return 'other';
 }
 
+function isDailyAttendanceCorrection(c){
+  const type = String(c?.type || '').trim().toLowerCase();
+  const effect = String(c?.effect || '').trim().toLowerCase();
+  const label = String(c?.label || '').trim().toLowerCase();
+  return type === 'daily_attendance_correction' ||
+    effect === 'replace_daily_attendance_scan_time' ||
+    label === 'daily attendance correction';
+}
+
+function isCutoffCorrectionRecord(c){
+  if (!c || isDailyAttendanceCorrection(c)) return false;
+  const effect = String(c?.effect || '').trim().toLowerCase();
+  if (effect) return effect === 'ignore_earlier_scans_for_date';
+  return true;
+}
+
+function applyDailyAttendanceCorrections(rows, corrections = []){
+  const out = (Array.isArray(rows) ? rows : []).map(r => ({ ...r }));
+  const daily = (Array.isArray(corrections) ? corrections : [])
+    .filter(isDailyAttendanceCorrection)
+    .sort((a,b) => String(a?.loggedAtISO || a?.whenISO || '').localeCompare(String(b?.loggedAtISO || b?.whenISO || '')));
+
+  for (const corr of daily){
+    const correctedWhenISO = String(corr?.correctedWhenISO || corr?.corrected_when_iso || corr?.whenISO || '').trim();
+    if (!correctedWhenISO) continue;
+
+    const originalWhenISO = String(corr?.originalWhenISO || corr?.original_when_iso || '').trim();
+    const originalLogId = String(corr?.originalLogId || corr?.original_log_id || '').trim();
+    const location = String(corr?.locationLabel || corr?.location_label || 'Front Entrance (Morning)').trim();
+    let idx = -1;
+
+    if (originalLogId) {
+      idx = out.findIndex(r => String(r?.logId || '').trim() === originalLogId);
+    }
+    if (idx < 0 && originalWhenISO) {
+      idx = out.findIndex(r =>
+        String(r?.whenISO || '').trim() === originalWhenISO &&
+        isMorningLoc(r?.location)
+      );
+    }
+    if (idx < 0) {
+      idx = out.findIndex(r =>
+        String(r?.whenISO || '').trim() === correctedWhenISO &&
+        isMorningLoc(r?.location)
+      );
+    }
+
+    const metadata = {
+      isDailyAttendanceCorrection: true,
+      correctionLabel: String(corr?.label || 'Daily Attendance Correction'),
+      correctionId: String(corr?.correctionId || corr?.correction_id || ''),
+      correctionActorEmail: String(corr?.actorEmail || corr?.actor_email || ''),
+      correctionLoggedAtISO: String(corr?.loggedAtISO || ''),
+      correctionOriginalWhenISO: originalWhenISO,
+      correctionCorrectedWhenISO: correctedWhenISO,
+      correctionAction: String(corr?.action || '')
+    };
+
+    if (idx >= 0) {
+      out[idx] = {
+        ...out[idx],
+        ...metadata,
+        whenISO: correctedWhenISO,
+        location: location || out[idx].location,
+        source: 'Daily Attendance Correction'
+      };
+    } else {
+      out.push({
+        whenISO: correctedWhenISO,
+        osis: String(corr?.osis || ''),
+        name: '',
+        location,
+        allowed: 'daily_attendance_correction',
+        source: 'Daily Attendance Correction',
+        device: 'daily-attendance-gas',
+        logId: '',
+        cls: '',
+        periodId: '',
+        courseSection: '',
+        ...metadata
+      });
+    }
+  }
+
+  out.sort((a,b) => String(a?.whenISO || '').localeCompare(String(b?.whenISO || '')));
+  return out;
+}
+
 function applyCorrections(rows, corrections = []){
+  const correctedRows = applyDailyAttendanceCorrections(rows, corrections);
   const cutoffByDate = new Map();
-  for (const r of rows){
+
+  for (const r of correctedRows){
     if (allowedType(r.allowed) !== 'correction') continue;
     const dkey = dtParts(r.whenISO).dateKey;
     const prev = cutoffByDate.get(dkey);
@@ -157,9 +248,10 @@ function applyCorrections(rows, corrections = []){
     }
   }
 
-  for (const c of corrections){
-    const whenISO = String(c?.whenISO || '').trim();
-    const dkey = String(c?.date || '').trim() || (whenISO ? dtParts(whenISO).dateKey : '');
+  for (const corr of corrections){
+    if (!isCutoffCorrectionRecord(corr)) continue;
+    const whenISO = String(corr?.whenISO || '').trim();
+    const dkey = String(corr?.date || '').trim() || (whenISO ? dtParts(whenISO).dateKey : '');
     if (!dkey || !whenISO) continue;
     const prev = cutoffByDate.get(dkey);
     if (!prev || whenISO > String(prev.whenISO || '')) {
@@ -167,9 +259,9 @@ function applyCorrections(rows, corrections = []){
     }
   }
 
-  if (!cutoffByDate.size) return rows;
+  if (!cutoffByDate.size) return correctedRows;
 
-  return rows.filter((r) => {
+  return correctedRows.filter((r) => {
     const dkey = dtParts(r.whenISO).dateKey;
     const cutoff = cutoffByDate.get(dkey);
     if (!cutoff) return true;
@@ -602,7 +694,7 @@ function renderRaw(rows){
       <td class="mono">${esc(r.allowed || '')}</td>
       <td class="mono">${esc(r.cls || '')}</td>
       <td class="mono">${esc(r.periodId || '')}</td>
-      <td class="mono">${esc(r.source || '')}</td>
+      <td class="mono">${esc(r.correctionLabel || r.source || '')}</td>
       <td class="mono">${esc(r.device || '')}</td>
     `;
     tb.appendChild(tr);
@@ -792,7 +884,8 @@ async function runReport(){
       `<div style="font-weight:700;">${esc(name)} <span class="mono">(${esc(osis)})</span></div>
        <div class="small">Range: <span class="mono">${esc(start)}</span> → <span class="mono">${esc(end)}</span>${j.truncated ? ' (truncated)' : ''}</div>`;
 
-    setText('rawMeta', `Returned ${rows.length} scan(s). Corrections=${corrections.length}. Truncated=${Boolean(j.truncated)}.`);
+    const dailyCorrectionCount = corrections.filter(isDailyAttendanceCorrection).length;
+    setText('rawMeta', `Returned ${rows.length} scan(s). Corrections=${corrections.length} · Daily Attendance=${dailyCorrectionCount}. Truncated=${Boolean(j.truncated)}.`);
     if (outEl) outEl.textContent = '';
 
     // Compute
