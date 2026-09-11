@@ -3,6 +3,7 @@
 (() => {
   const RETURN_ENDPOINT = '/admin/phone_pass/send_to_return';
   const RETROACTIVE_RETURN_ENDPOINT = '/admin/phone_pass/retroactive_return'; // EAGLENEST_PHONE_PASS_RETROACTIVE_RETURN_V1
+  const RETROACTIVE_PICKUP_ENDPOINT = '/admin/phone_pass/retroactive_pickup'; // EAGLENEST_PHONE_PASS_RETROACTIVE_PICKUP_V1
   const PICKUP_REQUESTS_ENDPOINT = '/admin/phone_pass/pickup_requests';
   let CAP = { email: '', role: '', can_grant: false, can_return: false };
   let pickupRefreshTimer = null;
@@ -116,6 +117,18 @@
     return data;
   }
 
+  async function confirmRetroactivePickup(osis){
+    if(typeof adminFetch !== 'function') throw new Error('phone_pass_unavailable');
+    const response = await adminFetch(RETROACTIVE_PICKUP_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ osis, source: 'phone_pass' })
+    });
+    const data = await response.json().catch(() => null);
+    if(!response.ok || !data?.ok) throw new Error(data?.error || `phone_pass/retroactive_pickup HTTP ${response.status}`);
+    return data;
+  }
+
   async function refreshPhonePassViews(osis){
     const jobs = [];
     try { if(typeof loadMine === 'function') jobs.push(loadMine()); } catch {}
@@ -131,7 +144,45 @@
     } catch {}
   }
 
+  function ensurePickupRequestsLayoutStyles(){
+    if(document.getElementById('phonePassPickupRequestLayoutStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'phonePassPickupRequestLayoutStyles';
+    style.textContent = `
+      #pickupRequestsList .pickupRequestRow{
+        grid-template-columns: 1fr;
+        align-items:stretch;
+        gap:0.55rem;
+      }
+      #pickupRequestsList .pickupRequestInfo{
+        min-width:0;
+      }
+      #pickupRequestsList .pickupRequestActions{
+        display:flex;
+        flex-wrap:wrap;
+        justify-content:flex-start;
+        gap:0.5rem;
+        width:100%;
+      }
+      #pickupRequestsList .pickupRequestActions .btn{
+        flex:0 1 auto;
+      }
+      #pickupRequestsList .pickupRequestWaiting{
+        width:100%;
+        margin-top:0.1rem;
+      }
+      @media (max-width: 640px){
+        #pickupRequestsList .pickupRequestActions .btn{
+          width:100%;
+          flex:1 1 100%;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   function ensurePickupRequestsCard(){
+    ensurePickupRequestsLayoutStyles();
     let card = document.getElementById('pickupRequestsCard');
     if(card) return card;
     const layout = document.getElementById('layout');
@@ -183,10 +234,11 @@
         const osis = clean(rec?.osis);
         if(!osis) continue;
         const row = document.createElement('div');
-        row.className = 'row';
+        row.className = 'row pickupRequestRow';
         row.dataset.pickupRequestOsis = osis;
 
         const left = document.createElement('div');
+        left.className = 'pickupRequestInfo';
         const title = document.createElement('div');
         title.className = 'row-title';
         title.textContent = `${clean(rec?.name) || '—'} (${osis})`;
@@ -207,27 +259,65 @@
         row.appendChild(left);
 
         if(CAP.can_grant || isAdminLike()){
+          const actions = document.createElement('div');
+          actions.className = 'row-actions pickupRequestActions';
+
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'btn btn-primary';
           button.textContent = 'Student Picked Up Phone';
+
+          const retroButton = document.createElement('button');
+          retroButton.type = 'button';
+          retroButton.className = 'btn btn-return-request phone-pass-retroactive-pickup-action';
+          retroButton.textContent = 'Retroactive Pickup';
+          retroButton.title = "Mark the phone picked up without changing the student's live location.";
+
+          const setBusy = (busy, normalLabel = 'Student Picked Up Phone', retroLabel = 'Retroactive Pickup') => {
+            button.disabled = busy;
+            retroButton.disabled = busy;
+            button.textContent = normalLabel;
+            retroButton.textContent = retroLabel;
+          };
+
           button.addEventListener('click', async () => {
-            button.disabled = true;
-            button.textContent = 'Confirming…';
+            setBusy(true, 'Confirming…', 'Retroactive Pickup');
             try {
               await confirmPickup(osis);
               clearError();
               await refreshPhonePassViews(osis);
             } catch(error){
               showError(error);
-              button.disabled = false;
-              button.textContent = 'Student Picked Up Phone';
+              setBusy(false);
             }
           });
-          row.appendChild(button);
+
+          retroButton.addEventListener('click', async () => {
+            const student = clean(rec?.name) || osis;
+            const confirmed = window.confirm(
+              `Retroactive pickup for ${student}?\n\n` +
+              `This will mark the phone as OUT but will NOT change the student's current live location.\n\n` +
+              `Use this when the phone was already handed to the student but pickup was not recorded at that time.`
+            );
+            if(!confirmed) return;
+
+            setBusy(true, 'Student Picked Up Phone', 'Saving…');
+            try {
+              await confirmRetroactivePickup(osis);
+              clearError();
+              await refreshPhonePassViews(osis);
+            } catch(error){
+              showError(error);
+              setBusy(false);
+            }
+          });
+
+          actions.appendChild(button);
+          actions.appendChild(retroButton);
+          row.appendChild(actions);
         } else {
           const waiting = document.createElement('div');
-          waiting.className = 'muted';
+          waiting.className = 'muted pickupRequestWaiting';
           waiting.textContent = 'Waiting for pickup confirmation';
           row.appendChild(waiting);
         }
