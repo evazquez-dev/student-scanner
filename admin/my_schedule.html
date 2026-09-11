@@ -46,6 +46,19 @@
 
       <section id="pageStatus" class="statusBanner info">Loading today's schedule…</section>
 
+      <section id="classReminderCard" class="scheduleCard">
+        <div>
+          <span class="metaLabel">Notifications</span>
+          <h2>Class reminders</h2>
+          <p class="muted">Get a push notification about 5 minutes before a scheduled class, advisory, or coverage assignment. This is off by default.</p>
+          <p id="classReminderDevice" class="muted">Checking notification setup…</p>
+        </div>
+        <div>
+          <button id="classReminderToggle" class="btn secondary" type="button" disabled>Checking…</button>
+          <p id="classReminderStatus" class="muted" aria-live="polite"></p>
+        </div>
+      </section>
+
       <section id="mappingProblem" class="scheduleCard problemCard hidden">
         <h2>We couldn't load your schedule</h2>
         <p id="mappingProblemText">Please contact Erick or Edwin for a fix.</p>
@@ -71,6 +84,7 @@
       </section>
     </div>
   </main>
+  <script src="./class_reminders.js?v=20260911-class-reminders" defer></script>
   <script src="./my_schedule.js?v=20260821-first-pass" type="module"></script>
 </body>
 </html>
