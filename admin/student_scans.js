@@ -148,6 +148,7 @@ function allowedType(allowed){
 }
 
 function isDailyAttendanceCorrection(c){
+  if (c?.active === false || c?.reversed === true) return false;
   const type = String(c?.type || '').trim().toLowerCase();
   const effect = String(c?.effect || '').trim().toLowerCase();
   const label = String(c?.label || '').trim().toLowerCase();

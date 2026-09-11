@@ -35,6 +35,7 @@ const saveNextCall = $('saveNextCall');
 const verifyBackdrop = $('verifyBackdrop');
 const verifyStudent = $('verifyStudent');
 const verifyEvidence = $('verifyEvidence');
+const verifyCorrectionTime = $('verifyCorrectionTime');
 const verifyNote = $('verifyNote');
 const verifyError = $('verifyError');
 const saveVerify = $('saveVerify');
@@ -129,6 +130,17 @@ function localDateTimeValue(date = new Date()) {
 function localInputToIso(value) {
   const d = new Date(value);
   return Number.isFinite(d.getTime()) ? d.toISOString() : '';
+}
+
+function nyDateTimeInputValue(iso) {
+  const d = new Date(String(iso || ''));
+  if (!Number.isFinite(d.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'America/New_York', year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false
+  }).formatToParts(d);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}T${byType.hour}:${byType.minute}:${byType.second}`;
 }
 
 // D1_ATTENDANCE_CALL_SUBMISSION_V1
@@ -294,7 +306,7 @@ function renderQueue() {
     queueBody.innerHTML = rows.map((row) => `
       <tr data-osis="${esc(row.osis)}">
         <td><a class="studentLink" href="${esc(studentLookupHref(row))}">${esc(row.name || row.osis)}</a><div class="subline">Grade ${esc(row.grade || '—')} · ${esc(row.osis)}</div></td>
-        <td><span class="status ${esc(row.status)}">${esc(statusLabel(row.status))}</span>${row.verification?.note ? `<div class="subline">${esc(row.verification.note)}</div>` : ''}</td>
+        <td><span class="status ${esc(row.status)}">${esc(statusLabel(row.status))}</span>${row.verification?.corrected_when_iso ? `<div class="subline">Daily attendance: ${esc(fmtTime(row.verification.corrected_when_iso))}</div>` : ''}${row.verification?.note ? `<div class="subline">${esc(row.verification.note)}</div>` : ''}</td>
         <td>${evidenceMarkup(row)}</td>
         <td><strong>${esc(row.current_location || '—')}</strong><div class="subline">${esc(row.current_zone || '')}</div></td>
         <td>${communicationMarkup(row)}</td>
@@ -540,10 +552,14 @@ function openVerify(row) {
   ACTIVE_VERIFY_ROW = row;
   verifyStudent.textContent = `${row.name || row.osis} · Grade ${row.grade || '—'} · OSIS ${row.osis}`;
   verifyEvidence.innerHTML = `<strong>Why this student is flagged:</strong><br>No morning-entry scan was found, but EagleNEST has ${esc(row.evidence_kind === 'scan' ? 'another scan' : 'location evidence')} at <strong>${esc(fmtTime(row.evidence_at))}</strong> — ${esc(row.evidence_location || row.current_location || 'location recorded')}.`;
+  const date = String(QUEUE?.date || '').trim();
+  verifyCorrectionTime.min = date ? `${date}T00:00:00` : '';
+  verifyCorrectionTime.max = date ? `${date}T23:59:59` : '';
+  verifyCorrectionTime.value = nyDateTimeInputValue(row.evidence_at);
   verifyNote.value = '';
   verifyError.hidden = true;
   verifyBackdrop.hidden = false;
-  setTimeout(() => verifyNote.focus(), 0);
+  setTimeout(() => verifyCorrectionTime.focus(), 0);
 }
 
 async function saveVerification() {
@@ -552,13 +568,28 @@ async function saveVerification() {
   saveVerify.disabled = true;
   verifyError.hidden = true;
   try {
-    await jsonOrThrow(await adminFetch('/admin/attendance_outreach/verify', {
+    const correctionLocal = String(verifyCorrectionTime.value || '').trim();
+    if (!correctionLocal) throw new Error('Choose the Daily Attendance correction time.');
+    if (QUEUE?.date && !correctionLocal.startsWith(`${QUEUE.date}T`)) {
+      throw new Error('Correction time must stay on the active attendance date.');
+    }
+    const correctedWhenISO = localInputToIso(correctionLocal);
+    if (!correctedWhenISO) throw new Error('Choose a valid Daily Attendance correction time.');
+
+    const saved = await jsonOrThrow(await adminFetch('/admin/attendance_outreach/verify', {
       method:'POST',
       headers:{'content-type':'application/json'},
-      body:JSON.stringify({ osis:row.osis, action:'verify', note:verifyNote.value.trim() })
+      body:JSON.stringify({
+        osis:row.osis,
+        action:'verify',
+        corrected_when_iso:correctedWhenISO,
+        note:verifyNote.value.trim()
+      })
     }));
+
     closeVerifyModal();
-    showToast(`${row.name || row.osis} marked verified in building.`);
+    const effective = saved?.verification?.corrected_when_iso || correctedWhenISO;
+    showToast(`${row.name || row.osis} verified; Daily Attendance set to ${fmtTime(effective)}.`);
     await loadQueue();
   } catch (error) {
     verifyError.textContent = `Could not verify student: ${error?.message || error}`;

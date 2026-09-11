@@ -127,6 +127,11 @@
     <section class="modal smallModal" role="dialog" aria-modal="true" aria-labelledby="verifyTitle">
       <div class="modalHead"><div><h2 id="verifyTitle">Verify Student in Building</h2><div id="verifyStudent" class="muted"></div></div><button id="closeVerify" class="iconBtn" type="button" aria-label="Close">×</button></div>
       <div id="verifyEvidence" class="evidenceBox"></div>
+      <div class="field">
+        <label for="verifyCorrectionTime">Daily Attendance correction time</label>
+        <input id="verifyCorrectionTime" type="datetime-local" step="1">
+        <div class="muted small">Prefilled from EagleNEST evidence. Office staff may adjust this to the confirmed arrival/presence time before saving.</div>
+      </div>
       <div class="field"><label for="verifyNote">Verification note (optional)</label><textarea id="verifyNote" rows="3" placeholder="Example: Confirmed with front office / teacher that student is in Room 309."></textarea></div>
       <div id="verifyError" class="errorText" hidden></div>
       <div class="modalActions"><button id="cancelVerify" class="btn" type="button">Cancel</button><button id="saveVerify" class="btn primary" type="button">Mark Verified</button></div>
