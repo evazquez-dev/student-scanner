@@ -244,15 +244,67 @@ body.ssNav-open #ssNavBackdrop{ display:block; }
   border-color: rgba(59,130,246,0.55);
 }
 
-/* Teacher Attendance embeds Phone Pass controls in the student click menu.
-   The dedicated Phone Pass nav link is already filtered by access.can.phone_pass,
-   so use that exact permission-filtered surface as the visibility source of truth.
-   This intentionally fails closed while the nav/access response is still loading. */
-body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) .phoneOutIcon,
-body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) [data-act="phone"],
-body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) [data-act="communication"] + div,
-body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) [data-act="communication"] + div + div{
+/* Teacher Attendance: phone status is read-only operational context and should
+   be visible to every staff member who can use Teacher Attendance. Only the
+   Phone Pass mutation controls remain permission-gated by access.can.phone_pass. */
+body[data-module="teacher_attendance"]:not(:has(#ssNavDrawer .ssNavLink[href$="phone_pass.html"])) [data-act="phone"]{
   display:none !important;
+}
+
+/* Make an active checkout impossible to miss in the normal roster and Organizer. */
+body[data-module="teacher_attendance"] .phoneOutIcon{
+  min-height:1.35rem;
+  padding:0.16rem 0.42rem;
+  gap:0.22rem;
+  border:1px solid rgba(245,158,11,0.72);
+  border-radius:999px;
+  background:rgba(245,158,11,0.15);
+  color:var(--warn, #f59e0b);
+  font-size:0.67rem;
+  line-height:1;
+  font-weight:900;
+  letter-spacing:0.045em;
+  text-transform:uppercase;
+  cursor:help;
+  box-shadow:0 0 0 1px rgba(245,158,11,0.08);
+}
+body[data-module="teacher_attendance"] .phoneOutIcon::after{
+  content:"PHONE OUT";
+  white-space:nowrap;
+}
+body[data-module="teacher_attendance"] .phoneOutIcon[aria-label*="return requested"]{
+  border-color:rgba(239,68,68,0.72);
+  background:rgba(239,68,68,0.14);
+  color:var(--bad, #ef4444);
+}
+body[data-module="teacher_attendance"] .phoneOutIcon[aria-label*="return requested"]::after{
+  content:"RETURN REQUESTED";
+}
+
+/* A roster-level warning appears automatically whenever at least one visible
+   student row has an active phone checkout. No extra API request is required. */
+body[data-module="teacher_attendance"]:has(.phoneOutIcon:not([hidden])) .pill-row::after{
+  content:"📱 Phone out in this roster";
+  display:inline-flex;
+  align-items:center;
+  min-height:2rem;
+  padding:0.36rem 0.62rem;
+  border:1px solid rgba(245,158,11,0.72);
+  border-radius:999px;
+  background:rgba(245,158,11,0.15);
+  color:var(--warn, #f59e0b);
+  font-size:0.78rem;
+  font-weight:900;
+  letter-spacing:0.02em;
+  white-space:nowrap;
+}
+
+:root[data-theme="light"] body[data-module="teacher_attendance"] .phoneOutIcon,
+:root[data-theme="light"] body[data-module="teacher_attendance"]:has(.phoneOutIcon:not([hidden])) .pill-row::after{
+  background:rgba(245,158,11,0.11);
+}
+:root[data-theme="light"] body[data-module="teacher_attendance"] .phoneOutIcon[aria-label*="return requested"]{
+  background:rgba(239,68,68,0.09);
 }
 
 @media print{
