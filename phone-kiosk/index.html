@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/" />
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Phone Pass" />
+  <title>EagleNEST — Phone Pass Kiosk</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png" />
+  <link rel="apple-touch-icon" href="../icons/icon-192.png" />
+  <link rel="stylesheet" href="./phone-kiosk.css?v=20260911-1" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <main class="shell">
+    <section id="setupScreen" class="screen setup" hidden>
+      <div class="brand">EagleNEST</div>
+      <div class="emoji">📱</div>
+      <h1>Set up Phone Pass Kiosk</h1>
+      <p class="lead">An Admin or Super Admin must pair this device once. After pairing, students only see the Phone Pass kiosk.</p>
+      <label class="field">
+        <span>Device label</span>
+        <input id="deviceLabel" value="Main Office Phone Locker" maxlength="120" autocomplete="off" />
+      </label>
+      <div id="g_id_signin" class="signin"></div>
+      <p id="setupStatus" class="status"></p>
+    </section>
+
+    <section id="selectScreen" class="screen" hidden>
+      <div class="brandRow">
+        <div>
+          <div class="brand">EagleNEST</div>
+          <div class="kicker">Phone Pass Kiosk</div>
+        </div>
+        <div id="devicePill" class="pill">Paired</div>
+      </div>
+      <div class="emoji">📱</div>
+      <h1>Who are you?</h1>
+      <p class="lead">Choose your name below.</p>
+      <label class="field">
+        <span>Search</span>
+        <input id="studentSearch" type="search" placeholder="Start typing your name…" autocomplete="off" />
+      </label>
+      <label class="field">
+        <span>Student</span>
+        <select id="studentSelect" size="1">
+          <option value="">Select your name…</option>
+        </select>
+      </label>
+      <button id="continueBtn" class="primary" type="button" disabled>Continue</button>
+      <p id="selectStatus" class="status"></p>
+    </section>
+
+    <section id="messageScreen" class="screen message" hidden>
+      <div id="messageEmoji" class="emoji">🤨</div>
+      <h1 id="messageTitle">No phone request</h1>
+      <p id="messageText" class="lead bigLead"></p>
+      <button id="messageDoneBtn" class="secondary" type="button">Done</button>
+      <p class="muted">This screen will reset automatically.</p>
+    </section>
+
+    <section id="flowScreen" class="screen flow" hidden>
+      <div id="flowEmoji" class="emoji">✅</div>
+      <div id="flowType" class="flowType">PHONE PICKUP</div>
+      <h1 id="flowStudent">Student Name</h1>
+      <p id="flowInstruction" class="lead">Please wait for office staff.</p>
+
+      <div class="lockerCard">
+        <div class="lockerLabel">PHONE LOCKER</div>
+        <div id="lockerValue" class="lockerValue">Blue #42</div>
+      </div>
+
+      <div class="staffZone">
+        <div class="staffTitle">OFFICE STAFF</div>
+        <button id="confirmBtn" class="holdBtn" type="button">
+          <span id="confirmText">Hold to confirm handoff</span>
+          <span id="holdProgress" class="holdProgress"></span>
+        </button>
+        <p class="muted">Press and hold until the button completes.</p>
+      </div>
+      <p id="flowStatus" class="status"></p>
+      <button id="cancelFlowBtn" class="linkBtn" type="button">Cancel / start over</button>
+    </section>
+
+    <section id="successScreen" class="screen message success" hidden>
+      <div class="emoji">✅</div>
+      <h1 id="successTitle">All set</h1>
+      <p id="successText" class="lead bigLead"></p>
+      <button id="successDoneBtn" class="primary" type="button">Done</button>
+      <p class="muted">This screen will reset automatically.</p>
+    </section>
+  </main>
+
+  <script src="./phone-kiosk.js?v=20260911-1" defer></script>
+</body>
+</html>

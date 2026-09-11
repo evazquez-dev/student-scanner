@@ -31,7 +31,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
 
   // Bypass admin, visitor, and scanner lab routes so live records/forms/test code are never cached.
-  if (url.pathname.includes('/admin/') || url.pathname.includes('/visitor/') || url.pathname.includes('/scanner-lab/')) {
+  if (url.pathname.includes('/admin/') || url.pathname.includes('/visitor/') || url.pathname.includes('/phone-kiosk/') || url.pathname.includes('/scanner-lab/')) {
     event.respondWith(fetch(req, { cache: 'no-store' }));
     return;
   }
