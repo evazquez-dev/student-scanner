@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <title>EagleNEST — Student & Family Conferences</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./conferences.css?v=20260913-family-conferences-v1">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./conferences.js?v=20260913-family-conferences-v1" defer></script>
+  <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
+</head>
+<body data-module="conference_scheduler">
+  <main class="wrap stack">
+    <section id="loginCard" class="card">
+      <h1>Student & Family Conferences</h1>
+      <p class="muted">Sign in with your staff account.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="status muted">Loading…</div>
+    </section>
+
+    <section id="app" class="stack" hidden>
+      <header class="pageHead">
+        <div>
+          <h1>Student & Family Conferences</h1>
+          <div id="viewerMeta" class="muted">—</div>
+        </div>
+        <div class="toolbar">
+          <button id="refreshBtn" type="button">Refresh</button>
+          <button id="newEventBtn" class="primary adminOnly" type="button" hidden>+ New conference event</button>
+        </div>
+      </header>
+
+      <div class="safeBanner">🔒 Review mode: no family booking link exists and EagleNEST will not email or text families from this module. The family experience below is only a staff preview.</div>
+
+      <section class="card">
+        <div class="sectionHead">
+          <div>
+            <h2>Conference event</h2>
+            <div class="muted small">Choose an event to manage its staff lanes, time slots, and bookings.</div>
+          </div>
+          <div style="min-width:min(420px,100%);flex:1;max-width:620px"><select id="eventSelect"><option value="">Loading events…</option></select></div>
+        </div>
+        <div id="eventEmpty" class="muted" style="margin-top:14px">Select or create a conference event.</div>
+        <div id="eventDetails" hidden>
+          <div class="sectionHead" style="margin-top:16px">
+            <div>
+              <h2 id="eventTitle">—</h2>
+              <div id="eventMeta" class="eventMeta"></div>
+            </div>
+            <div class="toolbar adminOnly" id="eventAdminActions" hidden>
+              <button id="editEventBtn" type="button">Edit event</button>
+              <button id="manageStaffBtn" type="button">Staff lanes</button>
+              <button id="generateSlotsBtn" class="primary" type="button">Generate / rebuild slots</button>
+            </div>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><span>Staff</span><strong id="kpiStaff">0</strong></div>
+            <div class="kpi"><span>All slots</span><strong id="kpiSlots">0</strong></div>
+            <div class="kpi"><span>Open</span><strong id="kpiOpen">0</strong></div>
+            <div class="kpi"><span>Scheduled</span><strong id="kpiScheduled">0</strong></div>
+            <div class="kpi"><span>Completed</span><strong id="kpiCompleted">0</strong></div>
+            <div class="kpi"><span>No show</span><strong id="kpiNoShow">0</strong></div>
+          </div>
+        </div>
+        <div id="pageStatus" class="status" style="margin-top:12px"></div>
+      </section>
+
+      <section class="grid">
+        <section class="card span4">
+          <div class="sectionHead"><div><h2>Book a family</h2><div class="muted small">Staff can book on behalf of a family. Nothing is sent automatically.</div></div></div>
+          <div class="stack" style="margin-top:14px">
+            <label>Find student
+              <div class="searchWrap">
+                <input id="studentSearch" placeholder="Name or OSIS…" autocomplete="off">
+                <div id="studentSearchMenu" class="searchMenu" hidden></div>
+              </div>
+            </label>
+            <div id="selectedStudent" class="studentBox muted">No student selected.</div>
+            <label>Family contact
+              <select id="contactSelect"><option value="">No specific contact selected</option></select>
+            </label>
+            <div class="contactHint">The selected contact is stored with the booking for staff reference only in Phase 1.</div>
+            <label>Notes<textarea id="bookingNotes" rows="3" maxlength="1200" placeholder="Optional staff-only note"></textarea></label>
+          </div>
+        </section>
+
+        <section class="card span8">
+          <div class="sectionHead">
+            <div><h2>Available time slots</h2><div class="muted small">Admins can book any lane. Participating staff see and book their own lane.</div></div>
+            <label style="min-width:260px">Staff lane<select id="staffFilter"></select></label>
+          </div>
+          <div id="slotGrid" class="slotGrid" style="margin-top:14px"><div class="muted">Choose an event.</div></div>
+          <div class="toolbar" style="margin-top:14px;justify-content:flex-end"><button id="bookBtn" class="primary" type="button" disabled>Book selected slot</button></div>
+        </section>
+      </section>
+
+      <section class="card">
+        <div class="sectionHead">
+          <div><h2>Conference schedule</h2><div class="muted small">Scheduled, completed, cancelled, and no-show records stay visible for staff history.</div></div>
+          <label style="min-width:250px">Show staff<select id="scheduleStaffFilter"></select></label>
+        </div>
+        <div class="tableWrap" style="margin-top:14px">
+          <table class="table">
+            <thead><tr><th>Time</th><th>Staff</th><th>Student</th><th>Family contact</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+            <tbody id="bookingBody"><tr><td colspan="7" class="muted">Choose an event.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="sectionHead">
+          <div><h2>Family experience preview</h2><div class="muted small">This is a mockup only. Families cannot open or submit this page yet.</div></div>
+          <div class="previewControls">
+            <label>Information shown<select id="previewPrivacy"><option value="minimal">Minimal</option><option value="first">Student first name</option><option value="full">Student full name</option></select></label>
+            <label>Preview staff<select id="previewStaff"></select></label>
+          </div>
+        </div>
+        <div id="familyPreview" class="familyPreview"></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="eventModal" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true">
+      <div class="modalHead"><h2 id="eventModalTitle">New conference event</h2><button id="closeEventModal" type="button">Close</button></div>
+      <div class="formGrid" style="margin-top:14px">
+        <label class="wide">Event name<input id="eventName" maxlength="200" placeholder="Fall Student & Family Conferences"></label>
+        <label>Date<input id="eventDate" type="date"></label>
+        <label>Status<select id="eventStatus"><option value="draft">Draft</option><option value="active">Active (staff use)</option><option value="closed">Closed</option></select></label>
+        <label>Start time<input id="eventStart" type="time" value="15:30"></label>
+        <label>End time<input id="eventEnd" type="time" value="19:00"></label>
+        <label>Slot length (minutes)<input id="eventSlotMinutes" type="number" min="5" max="180" step="5" value="15"></label>
+        <label>Buffer between slots<input id="eventBufferMinutes" type="number" min="0" max="60" step="5" value="0"></label>
+        <label class="wide">Default location<input id="eventLocation" maxlength="160" placeholder="High School Campus"></label>
+        <label class="wide">Staff-facing instructions<textarea id="eventInstructions" rows="3" maxlength="2000"></textarea></label>
+        <label class="wide">Participating staff — one per line as <strong>Name | email | room</strong><textarea id="eventStaff" rows="8" placeholder="Erick Vazquez | evazquez@theamericandreamschool.org | 210"></textarea></label>
+      </div>
+      <div class="safeBanner" style="margin-top:14px">Family booking and outbound messaging remain disabled regardless of event status.</div>
+      <div id="eventModalStatus" class="status" style="margin-top:10px"></div>
+      <div class="toolbar" style="justify-content:flex-end;margin-top:12px"><button id="saveEventBtn" class="primary" type="button">Save event</button></div>
+    </section>
+  </div>
+
+  <div id="staffModal" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true">
+      <div class="modalHead"><h2>Conference staff lanes</h2><button id="closeStaffModal" type="button">Close</button></div>
+      <p class="muted">Changing staff lanes removes unbooked slots. Once a scheduled booking exists, staff lanes are locked for safety.</p>
+      <label>One per line: <strong>Name | email | room</strong><textarea id="staffRows" rows="12"></textarea></label>
+      <div id="staffModalStatus" class="status" style="margin-top:10px"></div>
+      <div class="toolbar" style="justify-content:flex-end;margin-top:12px"><button id="saveStaffBtn" class="primary" type="button">Save staff lanes</button></div>
+    </section>
+  </div>
+</body>
+</html>

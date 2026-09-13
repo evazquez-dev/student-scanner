@@ -554,11 +554,19 @@ function renderContacts() {
       <div class="cardActions">
         <button class="btn secondary editBtn" type="button">Edit / Suggest correction</button>
         <button class="btn secondary scheduleBtn" type="button">Schedule meeting</button>
+        <button class="btn secondary conferenceBtn" type="button">Book conference</button>
         <button class="btn primary commBtn" type="button">Log communication</button>
       </div>`;
 
     card.querySelector('.editBtn').addEventListener('click', () => openEditor(contact));
     card.querySelector('.scheduleBtn').addEventListener('click', () => openAppointment_(contact));
+    card.querySelector('.conferenceBtn').addEventListener('click', () => { // EAGLENEST_FAMILY_CONFERENCES_V1
+      const u = new URL('./conferences.html', location.href);
+      u.searchParams.set('osis', currentStudent?.osis || '');
+      u.searchParams.set('name', currentData?.student_name || currentStudent?.name || '');
+      if (contact?.contact_assoc_id) u.searchParams.set('contact_assoc_id', contact.contact_assoc_id);
+      location.href = u.toString();
+    });
     card.querySelector('.commBtn').addEventListener('click', () => openCommunication(contact));
     contactsEl.appendChild(card);
   }

@@ -31,6 +31,7 @@
     communications: 'Communications',
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
+    conference_scheduler: 'Student & Family Conferences', // EAGLENEST_FAMILY_CONFERENCES_V1
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
     esas: 'Emergency Accountability',
@@ -69,6 +70,7 @@
     'phone_pass_admin_session_v1',
     'notifications_admin_session_v1',
     'student_scans_admin_session_v1',
+    'conference_scheduler_admin_session_v1', // EAGLENEST_FAMILY_CONFERENCES_V1
     'communications_admin_session_v1',
     'coverage_planner_admin_session_v1',
     'scan_injector_admin_session_v1',
@@ -482,6 +484,7 @@
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', badge:'scan & bathroom' },
           { key:'communications', label: MODULES.communications || 'Communications', href:'./communications.html', badge:'outreach & follow-ups' },
           { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', badge:'contacts & communication' },
+          { key:'conference_scheduler', label: MODULES.conference_scheduler || 'Student & Family Conferences', href:'./conferences.html', badge:'conference scheduling' }, // EAGLENEST_FAMILY_CONFERENCES_V1
         ]
       },
       {
@@ -540,6 +543,7 @@
     for (const section of sections) {
       const visibleItems = section.items.filter((it) => !!(
         access?.can?.[it.key] ||
+        (it.key === 'conference_scheduler' && access?.can?.student_contacts) || // EAGLENEST_FAMILY_CONFERENCES_V1
         (it.key === 'esas' && !!access?.email) ||
         (it.key === 'attendance_change' && access?.can?.excused_apply) ||
         (it.key === 'scan_injector' && (access?.role === 'super_admin' || access?.role === 'admin'))

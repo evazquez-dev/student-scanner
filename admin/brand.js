@@ -15,6 +15,7 @@
     communications: 'Communications',
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
+    conference_scheduler: 'Student & Family Conferences', // EAGLENEST_FAMILY_CONFERENCES_V1
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
     esas: 'Emergency Accountability',
