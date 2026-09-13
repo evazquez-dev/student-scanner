@@ -37,6 +37,187 @@
   const returningProfileDialog = $('returningProfileDialog');
   const idnycDiagnosticsDialog = $('idnycDiagnosticsDialog');
 
+
+  // EAGLENEST_VISITOR_APPOINTMENTS_V1
+  let EXPECTED_APPOINTMENTS = [];
+  let pendingAppointmentId = '';
+
+  function googleCalendarUrl_(appointment) {
+    const start = new Date(String(appointment?.start_iso || ''));
+    const end = new Date(String(appointment?.end_iso || ''));
+
+    if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+      return '';
+    }
+
+    const stamp = (d) =>
+      d.toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}Z$/, 'Z');
+
+    const visitor = [
+      appointment?.visitor_first_name,
+      appointment?.visitor_last_name
+    ].filter(Boolean).join(' ');
+
+    const subject =
+      String(appointment?.purpose || 'Meeting').trim() || 'Meeting';
+
+    const title =
+      visitor && !subject.toLowerCase().includes(visitor.toLowerCase())
+        ? `${subject} — ${visitor}`
+        : subject;
+
+    const details = [
+      visitor ? `Visitor: ${visitor}` : '',
+      appointment?.relationship
+        ? `Relationship: ${appointment.relationship}`
+        : '',
+      appointment?.host_email
+        ? `Host: ${appointment.host_email}`
+        : '',
+      'Scheduled through EagleNEST Visitor Appointments.'
+    ].filter(Boolean).join('\n');
+
+    const u = new URL('https://calendar.google.com/calendar/render');
+    u.searchParams.set('action', 'TEMPLATE');
+    u.searchParams.set('text', title);
+    u.searchParams.set('dates', `${stamp(start)}/${stamp(end)}`);
+
+    if (appointment?.location) {
+      u.searchParams.set('location', appointment.location);
+    }
+
+    u.searchParams.set('details', details);
+    u.searchParams.set('ctz', 'America/New_York');
+
+    return u.toString();
+  }
+
+  function expectedTime_(appointment) {
+    const d = new Date(String(appointment?.start_iso || ''));
+
+    return Number.isFinite(d.getTime())
+      ? d.toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit'
+        })
+      : '-';
+  }
+
+  function renderExpectedAppointments_() {
+    const body = $('expectedAppointmentsBody');
+    if (!body) return;
+
+    $('expectedAppointmentsCount').textContent =
+      String(EXPECTED_APPOINTMENTS.length);
+
+    body.innerHTML = EXPECTED_APPOINTMENTS.length
+      ? EXPECTED_APPOINTMENTS.map((a) => {
+          const visitor = [
+            a.visitor_first_name,
+            a.visitor_last_name
+          ].filter(Boolean).join(' ');
+
+          const context = a.has_student
+            ? '<span class="pill">Family-linked appointment</span>'
+            : '<span class="muted">Outside guest</span>';
+
+          return `<tr data-appointment-id="${esc(a.appointment_id)}">
+            <td>
+              <strong>${esc(expectedTime_(a))}</strong>
+            </td>
+
+            <td>
+              <strong>${esc(visitor || 'Visitor')}</strong>
+              <div class="muted">
+                ${esc(a.relationship || a.organization || '')}
+              </div>
+            </td>
+
+            <td>
+              <div>${esc(a.purpose || 'Meeting')}</div>
+              <div class="muted">
+                Host: ${esc(a.host_name || a.host_email || '—')}
+                ${a.location ? ` • ${esc(a.location)}` : ''}
+              </div>
+              ${
+                a.desk_notes
+                  ? `<div class="appointmentDeskNote">${esc(a.desk_notes)}</div>`
+                  : ''
+              }
+            </td>
+
+            <td>${context}</td>
+
+            <td>
+              <div class="actions">
+                <button
+                  class="primary"
+                  data-appointment-action="checkin"
+                >
+                  Check In
+                </button>
+
+                <button data-appointment-action="calendar">
+                  📅 Add to my calendar
+                </button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="5" class="muted">No scheduled visitors expected today.</td></tr>';
+  }
+
+  async function refreshExpectedAppointments_() {
+    try {
+      const data = await api('/admin/visitor_appointments/today');
+
+      EXPECTED_APPOINTMENTS =
+        Array.isArray(data.rows) ? data.rows : [];
+
+      renderExpectedAppointments_();
+    } catch (err) {
+      const body = $('expectedAppointmentsBody');
+
+      if (body) {
+        body.innerHTML =
+          `<tr><td colspan="5" class="muted">Could not load expected visitors: ${esc(err?.message || err)}</td></tr>`;
+      }
+    }
+  }
+
+  function checkInExpectedAppointment_(appointment) {
+    if (!appointment) return;
+
+    const noteParts = [
+      `Scheduled appointment ${expectedTime_(appointment)}`,
+      appointment.desk_notes || ''
+    ].filter(Boolean);
+
+    openVisitorDialog({
+      visitor_first_name: appointment.visitor_first_name,
+      visitor_middle_name: '',
+      visitor_last_name: appointment.visitor_last_name,
+      date_of_birth: '',
+      visitor_type: appointment.has_student
+        ? 'parent_guardian'
+        : 'school_guest',
+      purpose: 'meeting',
+      organization: appointment.organization || '',
+      destination:
+        appointment.location ||
+        appointment.host_name ||
+        appointment.host_email ||
+        '',
+      host_email: appointment.host_email || '',
+      notes: noteParts.join(' • ').slice(0, 400)
+    }, {
+      appointmentId: appointment.appointment_id
+    });
+  }
+
+
   let ACCESS = null;
   let STATE = { waiting: [], active: [], counts: {} };
   let selectedVisit = null;
@@ -309,6 +490,7 @@
       const data = await api('/admin/visitor/state');
       STATE = data;
       renderState();
+      await refreshExpectedAppointments_();
       if (!silent) setStatus('Visitor Desk state loaded.', 'ok');
     } catch (err) {
       setStatus(`Refresh failed: ${err?.message || err}`, 'bad');
@@ -319,9 +501,11 @@
     return [...(STATE.waiting || []), ...(STATE.active || [])].find((v) => String(v.visit_id) === String(id)) || null;
   }
 
-  function openVisitorDialog(v) {
+  function openVisitorDialog(v, opts = {}) {
     visitorForm.reset();
-    $('visitorDialogTitle').textContent = v ? 'Review / Edit Visitor' : 'Check In Visitor';
+    const existingVisit = !!v?.visit_id;
+    pendingAppointmentId = String(opts?.appointmentId || '');
+    $('visitorDialogTitle').textContent = existingVisit ? 'Review / Edit Visitor' : (pendingAppointmentId ? 'Check In Scheduled Visitor' : 'Check In Visitor');
     $('visitorReviewPhoto').innerHTML = v ? photoSlot(v, 'large') : '';
     const els = visitorForm.elements;
     els.visit_id.value = v?.visit_id || '';
@@ -336,9 +520,9 @@
     els.host_email.value = v?.host_email || '';
     els.notes.value = v?.notes || '';
     els.direct_admit.checked = false;
-    els.direct_admit.disabled = !!v;
+    els.direct_admit.disabled = existingVisit;
     visitorDialog.showModal();
-    if (v) hydratePhotoSlots(visitorDialog);
+    if (existingVisit) hydratePhotoSlots(visitorDialog);
   }
 
   function visitorFormPayload() {
@@ -365,15 +549,25 @@
     const directPhotoOverride = direct && window.confirm('Direct admission without a visitor photo requires an audited override. Continue without a photo?');
     if (direct && !directPhotoOverride) direct = false;
     $('saveVisitorBtn').disabled = true;
+    let createdVisitData = null;
+    let appointmentLinkError = '';
     try {
       if (visitId) {
         await api('/admin/visitor/edit', { method: 'POST', body: { visit_id: visitId, patch } });
       } else {
-        await api('/admin/visitor/staff_create', { method: 'POST', body: { visitor: patch, direct_admit: direct, photo_required_override: directPhotoOverride } });
+        createdVisitData = await api('/admin/visitor/staff_create', { method: 'POST', body: { visitor: patch, direct_admit: direct, photo_required_override: directPhotoOverride } });
+        if (pendingAppointmentId && createdVisitData?.visit?.visit_id) {
+          try {
+            await api('/admin/visitor_appointments/link_visit', { method:'POST', body:{ appointment_id: pendingAppointmentId, visit_id: createdVisitData.visit.visit_id } });
+          } catch (linkErr) {
+            appointmentLinkError = String(linkErr?.message || linkErr);
+          }
+        }
       }
       visitorDialog.close();
+      pendingAppointmentId = '';
       await refreshState(true);
-      setStatus(direct ? 'Visitor checked in. Badge queued for automatic printing.' : 'Visitor saved.', 'ok');
+      setStatus(appointmentLinkError ? `Visitor saved, but appointment status could not be updated: ${appointmentLinkError}` : (direct ? 'Visitor checked in. Badge queued for automatic printing.' : 'Visitor saved.'), appointmentLinkError ? 'bad' : 'ok');
     } catch (err) {
       setStatus(`Save failed: ${err?.message || err}`, 'bad');
     } finally {
@@ -1190,6 +1384,15 @@
     $('historyBtn').addEventListener('click', startHistorySearch);
     $('historyPrevBtn').addEventListener('click', prevHistoryPage);
     $('historyNextBtn').addEventListener('click', nextHistoryPage);
+    $('expectedAppointmentsBody').addEventListener('click', (ev) => {
+      const row = ev.target.closest('[data-appointment-id]');
+      if (!row) return;
+      const appointment = EXPECTED_APPOINTMENTS.find((item) => String(item.appointment_id) === String(row.dataset.appointmentId));
+      if (!appointment) return;
+      const action = ev.target.closest('[data-appointment-action]')?.dataset?.appointmentAction || '';
+      if (action === 'checkin') checkInExpectedAppointment_(appointment);
+      else if (action === 'calendar') { const url = googleCalendarUrl_(appointment); if (url) window.open(url, '_blank', 'noopener'); }
+    });
     waitingBody.addEventListener('click', handleAction);
     activeBody.addEventListener('click', handleAction);
     $('startStaffCameraBtn').addEventListener('click', startStaffCamera);

@@ -256,3 +256,8 @@ label.check input { width: auto; }
   color: var(--muted);
   word-break: break-word;
 }
+
+
+/* EAGLENEST_VISITOR_APPOINTMENTS_V1 */
+.expectedAppointmentsCard{margin-top:16px}.appointmentDeskNote{margin-top:6px;padding:6px 8px;border-radius:7px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.35);font-size:.82rem}
+

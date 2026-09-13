@@ -109,6 +109,188 @@ const commFollowUpOwner = $('commFollowUpOwner');
 const commError = $('commError');
 const saveComm = $('saveComm');
 
+
+// EAGLENEST_VISITOR_APPOINTMENTS_V1
+let visitorAppointments = [];
+let appointmentTargetContact = null;
+
+function splitVisitorName_(raw) {
+  const value = String(raw || '').trim().replace(/\s+/g, ' ');
+  if (!value) return { first: '', last: '' };
+  if (value.includes(',')) {
+    const [last, ...rest] = value.split(',');
+    return { first: rest.join(' ').trim(), last: last.trim() };
+  }
+  const parts = value.split(' ');
+  if (parts.length === 1) return { first: parts[0], last: '' };
+  return { first: parts.slice(0, -1).join(' '), last: parts.at(-1) };
+}
+
+function googleCalendarUrl_(appointment) {
+  const start = new Date(String(appointment?.start_iso || ''));
+  const end = new Date(String(appointment?.end_iso || ''));
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return '';
+  const stamp = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+  const visitor = [appointment?.visitor_first_name, appointment?.visitor_last_name].filter(Boolean).join(' ');
+  const subject = String(appointment?.purpose || 'Meeting').trim() || 'Meeting';
+  const context = String(appointment?.student_name || visitor).trim();
+  const title = context && !subject.toLowerCase().includes(context.toLowerCase()) ? `${subject} — ${context}` : subject;
+  const details = [
+    visitor ? `Visitor: ${visitor}` : '',
+    appointment?.relationship ? `Relationship: ${appointment.relationship}` : '',
+    appointment?.student_name ? `Student: ${appointment.student_name}${appointment.student_number ? ` (${appointment.student_number})` : ''}` : '',
+    appointment?.host_email ? `Host: ${appointment.host_email}` : '',
+    'Scheduled through EagleNEST Visitor Appointments.'
+  ].filter(Boolean).join('\n');
+  const u = new URL('https://calendar.google.com/calendar/render');
+  u.searchParams.set('action', 'TEMPLATE');
+  u.searchParams.set('text', title);
+  u.searchParams.set('dates', `${stamp(start)}/${stamp(end)}`);
+  if (appointment?.location) u.searchParams.set('location', appointment.location);
+  u.searchParams.set('details', details);
+  u.searchParams.set('ctz', 'America/New_York');
+  return u.toString();
+}
+
+function fmtAppointment_(appointment) {
+  const d = new Date(String(appointment?.start_iso || ''));
+  return Number.isFinite(d.getTime()) ? d.toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : String(appointment?.start_iso || '');
+}
+
+function renderMyAppointments_() {
+  const root = document.getElementById('myAppointments');
+  if (!root) return;
+  if (!visitorAppointments.length) {
+    root.innerHTML = '<div class="muted small">No upcoming meetings scheduled or hosted by you.</div>';
+    return;
+  }
+  root.innerHTML = visitorAppointments.map((a) => {
+    const visitor = [a.visitor_first_name, a.visitor_last_name].filter(Boolean).join(' ');
+    return `<article class="appointmentItem" data-appointment-id="${esc(a.appointment_id)}">
+      <div class="appointmentTop"><div><strong>${esc(visitor || 'Visitor')}</strong><div class="muted small">${esc(fmtAppointment_(a))}${a.location ? ` • ${esc(a.location)}` : ''}</div></div><span class="countPill">${esc(a.status || 'scheduled')}</span></div>
+      <div class="small">${esc(a.purpose || 'Meeting')}${a.student_name ? ` • Student: ${esc(a.student_name)}` : ''}</div>
+      <div class="muted small">Host: ${esc(a.host_email || '—')}</div>
+      <div class="appointmentActions"><button class="btn secondary appointmentCalendarBtn" type="button">📅 Add to my calendar</button>${a.status === 'scheduled' ? '<button class="btn secondary appointmentCancelBtn" type="button">Cancel appointment</button>' : ''}</div>
+    </article>`;
+  }).join('');
+}
+
+async function loadMyAppointments_() {
+  const root = document.getElementById('myAppointments');
+  if (root) root.innerHTML = '<div class="muted small">Loading upcoming meetings…</div>';
+  try {
+    const r = await adminFetch('/admin/visitor_appointments/mine');
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    visitorAppointments = Array.isArray(j.rows) ? j.rows : [];
+    renderMyAppointments_();
+  } catch (e) {
+    if (root) root.innerHTML = `<div class="errorText">Could not load appointments: ${esc(e?.message || e)}</div>`;
+  }
+}
+
+function openAppointment_(contact = null) {
+  appointmentTargetContact = contact;
+  const name = splitVisitorName_(contact?.display?.name || contact?.source?.display_name || '');
+  const next = new Date(Date.now() + 60 * 60 * 1000);
+  next.setMinutes(Math.ceil(next.getMinutes() / 15) * 15, 0, 0);
+  document.getElementById('meetingVisitorFirst').value = name.first;
+  document.getElementById('meetingVisitorLast').value = name.last;
+  document.getElementById('meetingRelationship').value = String(contact?.display?.relationship || '').replace(/^not set$/i, '');
+  document.getElementById('meetingOrganization').value = '';
+  document.getElementById('meetingPhone').value = contact?.display?.phone || '';
+  document.getElementById('meetingEmail').value = contact?.display?.email || '';
+  document.getElementById('meetingStudentName').value = currentData?.student_name || currentStudent?.name || '';
+  document.getElementById('meetingStudentNumber').value = currentStudent?.osis || '';
+  document.getElementById('meetingStart').value = localDateTimeValue(next);
+  document.getElementById('meetingDuration').value = '30';
+  document.getElementById('meetingHostEmail').value = access?.email || '';
+  document.getElementById('meetingLocation').value = '';
+  document.getElementById('meetingPurpose').value = currentStudent ? 'Family meeting' : 'Meeting';
+  document.getElementById('meetingDeskNotes').value = '';
+  document.getElementById('appointmentSubtitle').textContent = contact
+    ? `${currentData?.student_name || currentStudent?.name || currentStudent?.osis || ''} • ${contact?.display?.name || 'Contact'}`
+    : 'Use this for an outside guest or a visitor who is not in Student Contacts.';
+  document.getElementById('appointmentError').hidden = true;
+  document.getElementById('appointmentBackdrop').hidden = false;
+  setTimeout(() => document.getElementById('meetingVisitorFirst').focus(), 0);
+}
+
+function closeAppointment_() {
+  document.getElementById('appointmentBackdrop').hidden = true;
+  appointmentTargetContact = null;
+}
+
+async function saveAppointment_() {
+  const err = document.getElementById('appointmentError');
+  const button = document.getElementById('saveAppointment');
+  const startValue = document.getElementById('meetingStart').value;
+  const startIso = localInputToIso(startValue);
+  const startMs = Date.parse(startIso);
+  const duration = Math.max(15, Number(document.getElementById('meetingDuration').value || 30));
+  const first = document.getElementById('meetingVisitorFirst').value.trim();
+  const last = document.getElementById('meetingVisitorLast').value.trim();
+  const hostEmail = document.getElementById('meetingHostEmail').value.trim();
+  if (!first || !last || !Number.isFinite(startMs) || !hostEmail) {
+    err.textContent = 'Visitor first/last name, meeting time, and host email are required.';
+    err.hidden = false;
+    return;
+  }
+  button.disabled = true;
+  err.hidden = true;
+  const payload = {
+    visitor_first_name: first,
+    visitor_last_name: last,
+    visitor_phone: document.getElementById('meetingPhone').value.trim(),
+    visitor_email: document.getElementById('meetingEmail').value.trim(),
+    relationship: document.getElementById('meetingRelationship').value.trim(),
+    organization: document.getElementById('meetingOrganization').value.trim(),
+    student_number: document.getElementById('meetingStudentNumber').value.trim(),
+    student_name: document.getElementById('meetingStudentName').value.trim(),
+    contact_assoc_id: appointmentTargetContact?.contact_assoc_id || '',
+    contact_snapshot: appointmentTargetContact ? {
+      contact_assoc_id: appointmentTargetContact?.contact_assoc_id || '',
+      person_id: appointmentTargetContact?.person_id || appointmentTargetContact?.source?.person_id || '',
+      display: appointmentTargetContact?.display || {},
+      source: appointmentTargetContact?.source || {}
+    } : { outside_guest: true },
+    start_iso: startIso,
+    end_iso: new Date(startMs + duration * 60000).toISOString(),
+    host_email: hostEmail,
+    host_name: '',
+    location: document.getElementById('meetingLocation').value.trim(),
+    purpose: document.getElementById('meetingPurpose').value.trim() || 'Meeting',
+    desk_notes: document.getElementById('meetingDeskNotes').value.trim(),
+    source: 'student_contacts'
+  };
+  try {
+    const r = await adminFetch('/admin/visitor_appointments/create', {
+      method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ appointment: payload })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    closeAppointment_();
+    await loadMyAppointments_();
+    searchStatus.textContent = `Meeting scheduled for ${fmtAppointment_(j.appointment)}. Use “Add to my calendar” below if you want it on Google Calendar.`;
+  } catch (e) {
+    err.textContent = `Could not schedule meeting: ${e?.message || e}`;
+    err.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function cancelAppointment_(appointment) {
+  if (!appointment?.appointment_id || !confirm(`Cancel the appointment with ${appointment.visitor_first_name} ${appointment.visitor_last_name}?`)) return;
+  const r = await adminFetch('/admin/visitor_appointments/cancel', {
+    method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ appointment_id: appointment.appointment_id })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+  await loadMyAppointments_();
+}
+
+
 let access = null;
 let currentStudent = null;
 let currentData = null;
@@ -371,10 +553,12 @@ function renderContacts() {
       <div class="badges">${mineBadges(contact)}${consensusBadges(contact)}${qualityBadges(contact)}</div>
       <div class="cardActions">
         <button class="btn secondary editBtn" type="button">Edit / Suggest correction</button>
+        <button class="btn secondary scheduleBtn" type="button">Schedule meeting</button>
         <button class="btn primary commBtn" type="button">Log communication</button>
       </div>`;
 
     card.querySelector('.editBtn').addEventListener('click', () => openEditor(contact));
+    card.querySelector('.scheduleBtn').addEventListener('click', () => openAppointment_(contact));
     card.querySelector('.commBtn').addEventListener('click', () => openCommunication(contact));
     contactsEl.appendChild(card);
   }
@@ -910,6 +1094,21 @@ async function boot() {
   saveEdit.addEventListener('click', saveChanges);
   resetEdits.addEventListener('click', resetMyEdits);
   editBackdrop.addEventListener('click', (e) => { if (e.target === editBackdrop) closeEditor(); });
+
+  $('scheduleOtherGuest').addEventListener('click', () => openAppointment_(null));
+  $('refreshAppointments').addEventListener('click', loadMyAppointments_);
+  $('closeAppointment').addEventListener('click', closeAppointment_);
+  $('cancelAppointment').addEventListener('click', closeAppointment_);
+  $('saveAppointment').addEventListener('click', saveAppointment_);
+  $('appointmentBackdrop').addEventListener('click', (e) => { if (e.target === $('appointmentBackdrop')) closeAppointment_(); });
+  $('myAppointments').addEventListener('click', (e) => {
+    const item = e.target.closest('[data-appointment-id]');
+    if (!item) return;
+    const appointment = visitorAppointments.find((row) => String(row.appointment_id) === String(item.dataset.appointmentId));
+    if (!appointment) return;
+    if (e.target.closest('.appointmentCalendarBtn')) { const url = googleCalendarUrl_(appointment); if (url) window.open(url, '_blank', 'noopener'); }
+    else if (e.target.closest('.appointmentCancelBtn')) cancelAppointment_(appointment).catch((err) => alert(`Could not cancel appointment: ${err?.message || err}`));
+  });
 
   $('logGeneralComm').addEventListener('click', () => openCommunication(null));
   $('refreshHistory').addEventListener('click', loadCommunicationHistory);
