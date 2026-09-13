@@ -39,7 +39,7 @@
         </div>
       </header>
 
-      <div class="safeBanner">🔒 Review mode: no family booking link exists and EagleNEST will not email or text families from this module. The family experience below is only a staff preview.</div>
+      <div class="safeBanner">🔒 Internal staff scheduling only. No family booking link exists and EagleNEST will not email or text families from this module.</div>
 
       <section class="card">
         <div class="sectionHead">
@@ -116,7 +116,10 @@
         </div>
       </section>
 
-      <section class="card">
+      <!-- EAGLENEST_HIDE_FAMILY_CONFERENCE_PREVIEW_V1
+           Family-facing preview intentionally hidden for now.
+           The underlying preview code is retained so it can be restored later. -->
+      <section class="card" id="familyExperiencePreviewSection" hidden aria-hidden="true">
         <div class="sectionHead">
           <div><h2>Family experience preview</h2><div class="muted small">This is a mockup only. Families cannot open or submit this page yet.</div></div>
           <div class="previewControls">
