@@ -181,6 +181,12 @@ const btnAcademicRebuild = document.getElementById('btnAcademicRebuild');
 const btnAddCourseMap = document.getElementById('btnAddCourseMap');
 const btnSaveCourseMap = document.getElementById('btnSaveCourseMap');
 
+// EAGLENEST_RESOURCE_ASSET_RFID_V1_ADMIN_ELEMENTS
+const resourceAssetsTbody = document.getElementById('resourceAssetsTbody');
+const resourceAssetsOut = document.getElementById('resourceAssetsOut');
+const btnLoadResourceAssets = document.getElementById('btnLoadResourceAssets');
+const btnSaveResourceAssets = document.getElementById('btnSaveResourceAssets');
+
 /* ===============================
  * SMALL HELPERS
  * =============================== */
@@ -280,6 +286,8 @@ async function afterLoginBoot() {
   await loadRequiredCommunications();
   await loadAcademicRosterSettings();
   await loadViewAsStaffSettings();
+  // EAGLENEST_RESOURCE_ASSET_RFID_V1_ADMIN_BOOT
+  await loadResourceAssets();
 
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
@@ -1961,6 +1969,93 @@ async function setCap(location, cap, gender /* optional */) {
   const text = await r.text();
   return { ok: r.ok && ct.includes('application/json'), status: r.status, text };
 }
+
+/* ===============================
+ * CHROMECART RFID TRACKING
+ * =============================== */
+// EAGLENEST_RESOURCE_ASSET_RFID_V1_ADMIN_UI
+const RESOURCE_ASSET_NAMES_UI = ['ChromeCart B', 'ChromeCart C', 'ChromeCart D'];
+
+function formatResourceAssetSeen(raw){
+  const value = String(raw || '').trim();
+  if (!value) return 'Never scanned';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+}
+
+function renderResourceAssets(rows){
+  if (!resourceAssetsTbody) return;
+  const byName = new Map((Array.isArray(rows) ? rows : []).map((row) => [String(row?.resource || ''), row]));
+  resourceAssetsTbody.innerHTML = RESOURCE_ASSET_NAMES_UI.map((resource) => {
+    const row = byName.get(resource) || {};
+    const rfid = String(row?.rfid || '');
+    const location = String(row?.current_location || '').trim();
+    const seen = String(row?.last_scanned_at_iso || '').trim();
+    return `<tr data-resource="${esc(resource)}">
+      <td><strong>${esc(resource)}</strong></td>
+      <td><input class="resourceAssetRfid" type="text" inputmode="numeric" autocomplete="off" maxlength="64" value="${esc(rfid)}" placeholder="Scan/paste numeric RFID"></td>
+      <td>${location ? `<strong>${esc(location)}</strong>` : '<span class="muted">Not scanned yet</span>'}</td>
+      <td>${esc(formatResourceAssetSeen(seen))}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadResourceAssets(){
+  if (!resourceAssetsTbody || !resourceAssetsOut) return null;
+  resourceAssetsOut.textContent = 'Loading ChromeCart RFID assignments…';
+  try {
+    const r = await adminFetch('/admin/resource_assets', { method:'GET' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    renderResourceAssets(j.assets);
+    resourceAssetsOut.textContent = 'Ready. RFID assignments are live system configuration.';
+    return j;
+  } catch (e) {
+    resourceAssetsOut.textContent = `Error: ${e?.message || e}`;
+    return null;
+  }
+}
+
+function gatherResourceAssets(){
+  if (!resourceAssetsTbody) return [];
+  return Array.from(resourceAssetsTbody.querySelectorAll('tr[data-resource]')).map((tr) => ({
+    resource: String(tr.dataset.resource || '').trim(),
+    rfid: String(tr.querySelector('.resourceAssetRfid')?.value || '').trim()
+  }));
+}
+
+btnLoadResourceAssets?.addEventListener('click', loadResourceAssets);
+
+btnSaveResourceAssets?.addEventListener('click', async () => {
+  if (!resourceAssetsOut) return;
+  const assets = gatherResourceAssets();
+  const invalid = assets.find((row) => row.rfid && !/^\d+$/.test(row.rfid));
+  if (invalid) {
+    resourceAssetsOut.textContent = `${invalid.resource}: RFID must contain digits only.`;
+    return;
+  }
+  btnSaveResourceAssets.disabled = true;
+  resourceAssetsOut.textContent = 'Saving RFID assignments…';
+  try {
+    const r = await adminFetch('/admin/resource_assets', {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({ assets })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) {
+      const collision = j?.collision?.name || j?.collision?.resource || j?.other_resource || j?.scanner_config_card || '';
+      throw new Error([j?.error || `HTTP ${r.status}`, collision].filter(Boolean).join(' — '));
+    }
+    renderResourceAssets(j.assets);
+    resourceAssetsOut.textContent = 'Saved. Cart cards are now active at room kiosks.';
+  } catch (e) {
+    resourceAssetsOut.textContent = `Save failed: ${e?.message || e}`;
+  } finally {
+    btnSaveResourceAssets.disabled = false;
+  }
+});
 
 /* ===============================
  * ATTENDANCE CFG

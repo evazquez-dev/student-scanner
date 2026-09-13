@@ -2463,6 +2463,7 @@ function selectedPhysicalRoomForResourceBooking_(){
   return picked;
 }
 
+// EAGLENEST_RESOURCE_ASSET_RFID_V1_TEACHER_UI
 function renderResourceBookingNotice(){
   if(!resourceBookingNotice)return;
   if(PAGE_MODE!=='class'){
@@ -2478,21 +2479,30 @@ function renderResourceBookingNotice(){
     resourceBookingNotice.innerHTML='';
     return;
   }
-
   const selectedRoom=selectedPhysicalRoomForResourceBooking_();
   const html=rows.map((booking)=>{
     const resource=String(booking?.resource||'ChromeCart').trim()||'ChromeCart';
     const bookedRoom=String(booking?.room||'').trim();
-    const mismatch=!!selectedRoom&&!!bookedRoom&&selectedRoom.toLowerCase()!==bookedRoom.toLowerCase();
-    const detail=mismatch
+    const reservationMismatch=!!selectedRoom&&!!bookedRoom&&selectedRoom.toLowerCase()!==bookedRoom.toLowerCase();
+    const assetLocation=String(booking?.asset_location||'').trim();
+    const assetSeen=String(booking?.asset_last_scanned_at_iso||'').trim();
+    const assetMismatch=!!assetLocation&&!!bookedRoom&&assetLocation.toLowerCase()!==bookedRoom.toLowerCase();
+    const anyMismatch=reservationMismatch||assetMismatch;
+    const reservationDetail=reservationMismatch
       ? `Booked for Room ${bookedRoom}; selected class is Room ${selectedRoom}.`
-      : (bookedRoom?`Room ${bookedRoom}`:'Reserved for this period.');
-    return `<div class="resourceBookingNoticeRow ${mismatch?'isMismatch':''}">
+      : (bookedRoom?`Reserved for Room ${bookedRoom}.`:'Reserved for this period.');
+    let assetDetail='No kiosk scan has been recorded for this cart yet.';
+    if(assetLocation){
+      const when=assetSeen?fmtClock(assetSeen):'';
+      assetDetail=`Last seen: ${assetLocation}${when?` at ${when}`:''}.`;
+      if(assetMismatch) assetDetail=`⚠️ ${assetDetail} Reservation is for Room ${bookedRoom}.`;
+    }
+    return `<div class="resourceBookingNoticeRow ${anyMismatch?'isMismatch':''}">
       <strong>💻 ${escapeHtml_(resource)} is reserved for this period</strong>
-      <span>${mismatch?'⚠️ ':''}${escapeHtml_(detail)}</span>
+      <span>${reservationMismatch?'⚠️ ':''}${escapeHtml_(reservationDetail)}</span>
+      <span>${escapeHtml_(assetDetail)}</span>
     </div>`;
   }).join('');
-
   resourceBookingNotice.innerHTML=html;
   resourceBookingNotice.hidden=false;
 }

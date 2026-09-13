@@ -1102,7 +1102,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260912-resource-booking-v1';
+    const pageAssetVer = '20260912-cart-rfid-v1';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 

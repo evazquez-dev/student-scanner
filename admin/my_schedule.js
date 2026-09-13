@@ -61,17 +61,34 @@ function renderClassCard(c,p){
   </a>`;
 }
 
+// EAGLENEST_RESOURCE_ASSET_RFID_V1_MY_SCHEDULE_UI
+function formatResourceAssetSeen(iso){
+  const raw=String(iso||'').trim();
+  if(!raw)return '';
+  const d=new Date(raw);
+  if(!Number.isFinite(d.getTime()))return raw;
+  return d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+}
+
 function renderResourceBookingChip(booking){
   const resource=String(booking?.resource||'ChromeCart').trim()||'ChromeCart';
   const room=String(booking?.room||'').trim();
-  const mismatch=booking?.room_mismatch===true;
+  const reservationMismatch=booking?.room_mismatch===true;
   const scheduledRooms=Array.isArray(booking?.scheduled_rooms)?booking.scheduled_rooms.filter(Boolean):[];
-  const detail=mismatch
+  const assetLocation=String(booking?.asset_location||'').trim();
+  const assetSeen=String(booking?.asset_last_scanned_at_iso||'').trim();
+  const assetMismatch=booking?.asset_location_mismatch===true;
+  const anyMismatch=reservationMismatch||assetMismatch;
+  const reservationDetail=reservationMismatch
     ? `Booked for Room ${room||'—'} · schedule shows ${scheduledRooms.length?scheduledRooms.join(' / '):'another room'}`
-    : (room?`Room ${room}`:'Reserved for this period');
-  return `<div class="resourceBooking ${mismatch?'resourceBookingMismatch':''}" role="status">
+    : (room?`Reserved for Room ${room}`:'Reserved for this period');
+  const assetDetail=assetLocation
+    ? `${assetMismatch?'⚠️ ':'📍 '}Last seen: ${assetLocation}${assetSeen?` · ${formatResourceAssetSeen(assetSeen)}`:''}`
+    : '📍 No kiosk scan recorded for this cart yet';
+  return `<div class="resourceBooking ${anyMismatch?'resourceBookingMismatch':''}" role="status">
     <div class="resourceBookingTop"><span class="resourceBookingTitle">💻 ${esc(resource)} reserved</span>${room?`<span class="resourceRoomPill">Room ${esc(room)}</span>`:''}</div>
-    <div class="resourceBookingDetail">${mismatch?'⚠️ ':''}${esc(detail)}</div>
+    <div class="resourceBookingDetail">${reservationMismatch?'⚠️ ':''}${esc(reservationDetail)}</div>
+    <div class="resourceAssetLine ${assetMismatch?'resourceAssetMismatch':''}">${esc(assetDetail)}</div>
   </div>`;
 }
 

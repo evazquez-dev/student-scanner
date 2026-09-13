@@ -457,6 +457,27 @@
     }
 
     if (!data?.matched) return false;
+
+    // EAGLENEST_RESOURCE_ASSET_RFID_V1_FRONTEND
+    if (data?.kind === 'resource_asset') {
+      const resource = String(data?.resource || 'ChromeCart').trim() || 'ChromeCart';
+      if (!response.ok || data?.ok === false) {
+        const detail = data?.error === 'location_required'
+          ? 'This kiosk has no room/location selected.'
+          : (data?.detail || data?.error || `HTTP ${response.status}`);
+        resultMessage(`${resource} location not updated`, detail, false);
+        return true;
+      }
+      const location = String(data?.location || '').trim() || 'Unknown location';
+      const changed = data?.changed === true;
+      resultMessage(
+        `${resource} location updated`,
+        `${changed ? 'Moved to' : 'Confirmed at'} ${location}.`,
+        true
+      );
+      return true;
+    }
+
     if (!response.ok || data?.ok === false) {
       resultMessage('Scanner configuration unavailable', data?.error || `HTTP ${response.status}`, false);
       return true;

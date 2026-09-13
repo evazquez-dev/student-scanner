@@ -37,8 +37,35 @@ async function service() {
   return import(`${serviceUrl}?v=${Date.now()}-${Math.random()}`);
 }
 
+class FakeD1Statement {
+  constructor(sql) {
+    this.sql = String(sql || '');
+    this.args = [];
+  }
+
+  bind(...args) {
+    this.args = args;
+    return this;
+  }
+
+  async first() {
+    // Existing scanner-config runtime tests have no ChromeCart RFID
+    // assignments. Returning null means no resource-asset collision.
+    return null;
+  }
+}
+
+class FakeD1 {
+  prepare(sql) {
+    return new FakeD1Statement(sql);
+  }
+}
+
 function env(seed = {}) {
-  return { ROSTER: new FakeKV(seed) };
+  return {
+    ROSTER: new FakeKV(seed),
+    EAGLENEST_DB: new FakeD1()
+  };
 }
 
 test('Scanner config cards save distinct numeric tags and preserve their entered values', async () => {

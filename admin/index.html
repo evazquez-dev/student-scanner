@@ -523,6 +523,34 @@
           </details>
         </section>
 
+        <!-- EAGLENEST_RESOURCE_ASSET_RFID_V1_ADMIN -->
+        <section class="card" id="resourceAssetsCard">
+          <h2>ChromeCart RFID Tracking</h2>
+          <div class="muted">
+            Assign one numeric RFID card to each ChromeCart. When that card is scanned at a room kiosk,
+            EagleNEST records the cart's last known location. Server-locked kiosk locations override the
+            tablet's local selection. These cards never run a student scan.
+          </div>
+          <div class="tableWrap" style="margin-top:10px;">
+            <table>
+              <thead>
+                <tr>
+                  <th style="min-width:150px;">Cart</th>
+                  <th style="min-width:190px;">RFID card</th>
+                  <th style="min-width:160px;">Last known location</th>
+                  <th style="min-width:190px;">Last scanned</th>
+                </tr>
+              </thead>
+              <tbody id="resourceAssetsTbody"></tbody>
+            </table>
+          </div>
+          <div class="row" style="margin-top:10px;">
+            <div class="col"><button id="btnLoadResourceAssets" class="btn ghost" type="button">Refresh</button></div>
+            <div class="col right"><button id="btnSaveResourceAssets" class="btn primary" type="button">Save RFID assignments</button></div>
+          </div>
+          <pre id="resourceAssetsOut" class="pane">—</pre>
+        </section>
+
         <!-- Class kiosk attendance -->
         <section class="card" id="attendanceCard">
           <h2>Class kiosk attendance</h2>
