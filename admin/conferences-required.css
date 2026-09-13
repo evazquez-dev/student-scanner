@@ -1,0 +1,31 @@
+/* EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 */
+.requirementKpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:14px}
+.requirementKpi{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card2)}
+.requirementKpi span{display:block;color:var(--muted);font-size:.76rem}
+.requirementKpi strong{font-size:1.45rem}
+.requirementFilters{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+.requirementFilters label{min-width:210px}
+.reqStatus{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:5px 9px;font-size:.78rem;font-weight:800;white-space:nowrap}
+.reqStatus.no_outreach{color:var(--danger);border-color:var(--danger)}
+.reqStatus.contacted{color:var(--warn);border-color:var(--warn)}
+.reqStatus.family_reached{color:var(--good);border-color:var(--good)}
+.reqStatus.booked,.reqStatus.completed{color:var(--good);border-color:var(--good)}
+.reqStatus.needs_rescheduling,.reqStatus.no_show{color:var(--danger);border-color:var(--danger)}
+.reqRowActions{display:flex;gap:6px;flex-wrap:wrap}
+.reqProgressWrap{margin-top:14px}
+.reqProgressTable{min-width:760px}
+.reqStudentTable{min-width:1100px}
+.reqOutreachSummary{display:grid;gap:6px}
+.reqOutreachSummary .muted{font-size:.78rem}
+.reqModalStudent{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card2);margin-bottom:14px}
+.reqQuickOutcomes{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.reqQuickOutcomes button{font-size:.82rem;padding:8px 10px}
+.reqQuickOutcomes button.active{outline:2px solid var(--accent);border-color:var(--accent)}
+.reqBookHint{padding:10px 12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted)}
+.reqEmpty{padding:18px;text-align:center;color:var(--muted)}
+.reqSnapshotNote{margin-top:8px;font-size:.82rem;color:var(--muted)}
+.reqAdminOnly[hidden]{display:none!important}
+.reqTeacherOnly[hidden]{display:none!important}
+.reqCheckboxLabel{display:flex!important;grid-column:1/-1;align-items:flex-start;gap:10px;font-weight:700}
+.reqCheckboxLabel input{width:auto;margin-top:4px}
+@media(max-width:900px){.requirementKpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
