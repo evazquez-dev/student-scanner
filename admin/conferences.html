@@ -10,10 +10,10 @@
   <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
   <title>EagleNEST — Student & Family Conferences</title>
   <link rel="stylesheet" href="./nav.css">
-  <link rel="stylesheet" href="./conferences.css?v=20260913-family-conferences-v1">
+  <link rel="stylesheet" href="./conferences.css?v=20260913-family-conferences-v2-staff-picker">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./conferences.js?v=20260913-family-conferences-v1" defer></script>
+  <script src="./conferences.js?v=20260913-family-conferences-v2-staff-picker" defer></script>
   <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
 </head>
 <body data-module="conference_scheduler">
@@ -140,7 +140,19 @@
         <label>Buffer between slots<input id="eventBufferMinutes" type="number" min="0" max="60" step="5" value="0"></label>
         <label class="wide">Default location<input id="eventLocation" maxlength="160" placeholder="High School Campus"></label>
         <label class="wide">Staff-facing instructions<textarea id="eventInstructions" rows="3" maxlength="2000"></textarea></label>
-        <label class="wide">Participating staff — one per line as <strong>Name | email | room</strong><textarea id="eventStaff" rows="8" placeholder="Erick Vazquez | evazquez@theamericandreamschool.org | 210"></textarea></label>
+        <!-- EAGLENEST_FAMILY_CONFERENCE_STAFF_PICKER_V1 -->
+        <div id="eventStaffSection" class="wide staffPickerField">
+          <div class="staffPickerHead">
+            <div><strong>Participating staff</strong><div class="muted small">Search EagleNEST staff, check everyone participating, and optionally assign a conference room.</div></div>
+            <span id="eventStaffCount" class="pill">0 selected</span>
+          </div>
+          <input id="eventStaffSearch" type="search" placeholder="Search name, email, department, or grade team…" autocomplete="off">
+          <div class="toolbar staffPickerTools">
+            <button id="eventSelectVisibleStaff" type="button">Select visible</button>
+            <button id="eventClearStaff" type="button">Clear selection</button>
+          </div>
+          <div id="eventStaffPicker" class="staffPicker"><div class="muted small">Loading staff…</div></div>
+        </div>
       </div>
       <div class="safeBanner" style="margin-top:14px">Family booking and outbound messaging remain disabled regardless of event status.</div>
       <div id="eventModalStatus" class="status" style="margin-top:10px"></div>
@@ -152,7 +164,19 @@
     <section class="modal card" role="dialog" aria-modal="true">
       <div class="modalHead"><h2>Conference staff lanes</h2><button id="closeStaffModal" type="button">Close</button></div>
       <p class="muted">Changing staff lanes removes unbooked slots. Once a scheduled booking exists, staff lanes are locked for safety.</p>
-      <label>One per line: <strong>Name | email | room</strong><textarea id="staffRows" rows="12"></textarea></label>
+      <!-- EAGLENEST_FAMILY_CONFERENCE_STAFF_PICKER_V1 -->
+      <div class="staffPickerField">
+        <div class="staffPickerHead">
+          <div><strong>Participating staff</strong><div class="muted small">The room is optional. If blank, the event's default location is used.</div></div>
+          <span id="staffSelectedCount" class="pill">0 selected</span>
+        </div>
+        <input id="staffSearch" type="search" placeholder="Search name, email, department, or grade team…" autocomplete="off">
+        <div class="toolbar staffPickerTools">
+          <button id="staffSelectVisible" type="button">Select visible</button>
+          <button id="staffClearSelection" type="button">Clear selection</button>
+        </div>
+        <div id="staffPicker" class="staffPicker"><div class="muted small">Loading staff…</div></div>
+      </div>
       <div id="staffModalStatus" class="status" style="margin-top:10px"></div>
       <div class="toolbar" style="justify-content:flex-end;margin-top:12px"><button id="saveStaffBtn" class="primary" type="button">Save staff lanes</button></div>
     </section>

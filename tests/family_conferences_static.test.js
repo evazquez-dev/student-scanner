@@ -49,3 +49,20 @@ test('Student Contacts deep-links a selected family into conference scheduling',
   assert.match(js, /conferences\.html/);
   assert.match(js, /contact_assoc_id/);
 });
+
+
+test('participating staff uses a searchable EagleNEST roster picker', () => {
+  const route = read('cf-redcake/red-cake-77d5/src/routes/family-conferences.js');
+  const service = read('cf-redcake/red-cake-77d5/src/services/family-conferences.js');
+  const html = read('student-scanner/admin/conferences.html');
+  const js = read('student-scanner/admin/conferences.js');
+  assert.match(route, /\/admin\/conferences\/staff_options/);
+  assert.match(service, /academic_roster_v1/);
+  assert.match(service, /staff_mapping_by_email/);
+  assert.match(html, /eventStaffPicker/);
+  assert.match(html, /Search name, email, department, or grade team/i);
+  assert.match(js, /loadStaffOptions/);
+  assert.match(js, /data-staff-choice/);
+  assert.match(js, /Conference room/);
+  assert.match(js, /EAGLENEST_FAMILY_CONFERENCE_STAFF_PICKER_V1/);
+});
