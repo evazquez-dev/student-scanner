@@ -349,6 +349,34 @@
     }
     .attendanceReadOnlyNotice[hidden]{ display:none; }
 
+    .resourceBookingNotice{
+      display:flex;
+      flex-direction:column;
+      gap:0.45rem;
+      width:100%;
+      margin:0.75rem 0 0;
+    }
+    .resourceBookingNotice[hidden]{ display:none; }
+    .resourceBookingNoticeRow{
+      display:flex;
+      flex-direction:column;
+      gap:0.2rem;
+      width:100%;
+      padding:0.65rem 0.8rem;
+      border-radius:0.7rem;
+      border:1px solid rgba(59,130,246,0.55);
+      background:rgba(59,130,246,0.12);
+      color:var(--fg);
+      font-size:0.86rem;
+    }
+    .resourceBookingNoticeRow strong{ font-weight:850; }
+    .resourceBookingNoticeRow span{ color:var(--muted); font-size:0.8rem; }
+    .resourceBookingNoticeRow.isMismatch{
+      border-color:rgba(245,158,11,0.7);
+      background:rgba(245,158,11,0.13);
+    }
+    .resourceBookingNoticeRow.isMismatch span{ color:var(--warn); font-weight:750; }
+
     .layout{
       display:grid;
       grid-template-columns: minmax(0,1fr);
@@ -952,6 +980,7 @@
           </div>
 
           <div id="attendanceReadOnlyNotice" class="attendanceReadOnlyNotice" hidden aria-live="polite"></div>
+          <div id="resourceBookingNotice" class="resourceBookingNotice" hidden aria-live="polite"></div>
           <div class="error" id="errBox"></div>
           <div class="diag" id="optionsDiag"></div>
 
@@ -1073,7 +1102,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260601-chair-reminder';
+    const pageAssetVer = '20260912-resource-booking-v1';
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 

@@ -61,6 +61,20 @@ function renderClassCard(c,p){
   </a>`;
 }
 
+function renderResourceBookingChip(booking){
+  const resource=String(booking?.resource||'ChromeCart').trim()||'ChromeCart';
+  const room=String(booking?.room||'').trim();
+  const mismatch=booking?.room_mismatch===true;
+  const scheduledRooms=Array.isArray(booking?.scheduled_rooms)?booking.scheduled_rooms.filter(Boolean):[];
+  const detail=mismatch
+    ? `Booked for Room ${room||'—'} · schedule shows ${scheduledRooms.length?scheduledRooms.join(' / '):'another room'}`
+    : (room?`Room ${room}`:'Reserved for this period');
+  return `<div class="resourceBooking ${mismatch?'resourceBookingMismatch':''}" role="status">
+    <div class="resourceBookingTop"><span class="resourceBookingTitle">💻 ${esc(resource)} reserved</span>${room?`<span class="resourceRoomPill">Room ${esc(room)}</span>`:''}</div>
+    <div class="resourceBookingDetail">${mismatch?'⚠️ ':''}${esc(detail)}</div>
+  </div>`;
+}
+
 function render(data){
   if(!data.teacher_mapping_ok){hide(scheduleArea);show(mappingProblem);mappingProblemText.textContent=data.mapping_message||'Please contact Erick or Edwin for a fix.';setStatus('Teacher assignment mapping needs attention.','error');return;}
   hide(mappingProblem);show(scheduleArea);
@@ -75,6 +89,7 @@ function render(data){
   else if(data.highlight_kind==='current'){setStatus(`Period ${data.current_period_local} is in progress and highlighted below.`,'good');}
   else if(data.highlight_kind==='up_next'){setStatus(`Transition time — Period ${data.current_period_local} is highlighted as up next.`,'info');}
   else if(Number(data.coverage_assignment_count||0)>0){setStatus(`Today's schedule is loaded with ${Number(data.coverage_assignment_count)} coverage assignment${Number(data.coverage_assignment_count)===1?'':'s'}.`,'good');}
+  else if(Number(data.resource_booking_count||0)>0){setStatus(`Today's schedule is loaded with ${Number(data.resource_booking_count)} ChromeCart reservation${Number(data.resource_booking_count)===1?'':'s'}.`,'good');}
   else{setStatus("Today's schedule is loaded.",'good');}
 
   const periods=Array.isArray(data.periods)?data.periods:[];
@@ -82,13 +97,15 @@ function render(data){
     const classes=Array.isArray(p.classes)?p.classes:[];
     const badge=p.highlight_kind==='current'?'Current period':(p.highlight_kind==='up_next'?'Up next':'');
     const classHtml=classes.length?classes.map(c=>renderClassCard(c,p)).join(''):'<div class="emptyClass">No class assigned</div>';
+    const bookings=Array.isArray(p.resource_bookings)?p.resource_bookings:[];
+    const bookingHtml=bookings.map(renderResourceBookingChip).join('');
     return `<section class="periodRow ${p.is_highlighted?'highlighted':''}">
       <div class="periodBadge">
         <span class="periodNumber">Period ${esc(p.id)}</span>
         <span class="periodTime">${esc(p.time_label||'')}</span>
         ${badge?`<span class="nowPill">${esc(badge)}</span>`:''}
       </div>
-      <div class="classes">${classHtml}</div>
+      <div class="classes">${classHtml}${bookingHtml}</div>
     </section>`;
   }).join('')||'<section class="scheduleCard"><p class="muted">No bell periods are configured for today.</p></section>';
 }

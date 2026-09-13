@@ -1532,6 +1532,7 @@ const refreshText= document.getElementById('refreshText');
 const currentPeriodText = document.getElementById('currentPeriodText');
 const chairReminder = document.getElementById('chairReminder');
 const attendanceReadOnlyNotice = document.getElementById('attendanceReadOnlyNotice');
+const resourceBookingNotice = document.getElementById('resourceBookingNotice');
 const tableBox = document.getElementById('tableBox');
 const outInHeader = document.getElementById('outInHeader');
 
@@ -1740,6 +1741,7 @@ function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
 
   fillSelect(roomInput, items, advisorMode ? 'Select advisor…' : 'Select room…', keep);
   renderPhysicalRoomContext();
+  renderResourceBookingNotice();
 
   // If we had to clear it, also clear saved room so we don't “stick” wrong mode
   if (!keep) {
@@ -2350,6 +2352,7 @@ async function populateDropdowns(){
     || savedPeriod;
   fillSelect(periodInput, periodItems, 'Select period…', preferredPeriod);
   renderAttendanceReadOnlyState();
+  renderResourceBookingNotice();
 }
 
 async function fetchTeacherOptions(){
@@ -2444,6 +2447,54 @@ function fillSelect(el, items, placeholder, preferredValue){
       if(head && head !== pv) el.value = head;
     }
   }
+}
+
+
+function selectedPhysicalRoomForResourceBooking_(){
+  const p=periodKey(periodInput?.value||'');
+  const picked=String(roomInput?.value||'').trim();
+  if(!p||!picked)return '';
+  if(isAdvisorPeriod(p)){
+    return String(TEACHER_OPTS_CACHE?.advisor_to_room?.[p]?.[picked]||'').trim();
+  }
+  if(isLunchAdvisorUiPeriod(p)){
+    return String(TEACHER_OPTS_CACHE?.lunch_advisor_to_room?.[p]?.[picked]||picked).trim();
+  }
+  return picked;
+}
+
+function renderResourceBookingNotice(){
+  if(!resourceBookingNotice)return;
+  if(PAGE_MODE!=='class'){
+    resourceBookingNotice.hidden=true;
+    resourceBookingNotice.innerHTML='';
+    return;
+  }
+  const p=periodKey(periodInput?.value||'');
+  const byPeriod=TEACHER_OPTS_CACHE?.resource_bookings_by_period||{};
+  const rows=Array.isArray(byPeriod?.[p])?byPeriod[p]:[];
+  if(!p||rows.length===0){
+    resourceBookingNotice.hidden=true;
+    resourceBookingNotice.innerHTML='';
+    return;
+  }
+
+  const selectedRoom=selectedPhysicalRoomForResourceBooking_();
+  const html=rows.map((booking)=>{
+    const resource=String(booking?.resource||'ChromeCart').trim()||'ChromeCart';
+    const bookedRoom=String(booking?.room||'').trim();
+    const mismatch=!!selectedRoom&&!!bookedRoom&&selectedRoom.toLowerCase()!==bookedRoom.toLowerCase();
+    const detail=mismatch
+      ? `Booked for Room ${bookedRoom}; selected class is Room ${selectedRoom}.`
+      : (bookedRoom?`Room ${bookedRoom}`:'Reserved for this period.');
+    return `<div class="resourceBookingNoticeRow ${mismatch?'isMismatch':''}">
+      <strong>💻 ${escapeHtml_(resource)} is reserved for this period</strong>
+      <span>${mismatch?'⚠️ ':''}${escapeHtml_(detail)}</span>
+    </div>`;
+  }).join('');
+
+  resourceBookingNotice.innerHTML=html;
+  resourceBookingNotice.hidden=false;
 }
 
 function qs(){
@@ -4390,6 +4441,7 @@ function syncPeriodOptionStates(opts){
     if (item.label != null) opt.textContent = String(item.label);
   }
   renderAttendanceReadOnlyState();
+  renderResourceBookingNotice();
 }
 
 function startCurrentPeriodTicker(){
@@ -4513,6 +4565,7 @@ async function bootTeacherAttendance(){
   roomInput.addEventListener('change', (ev) => {
     const v = roomInput.value.trim();
     renderPhysicalRoomContext();
+    renderResourceBookingNotice();
     try {
       if (!DEMO_MODE) {
         if (PAGE_MODE === 'after_school') localStorage.setItem(AS_ROOM_KEY, v);
@@ -4535,6 +4588,7 @@ async function bootTeacherAttendance(){
     // Period can change advisor-mode room list; update rooms first
     if (TEACHER_OPTS_CACHE) applyRoomDropdownFromOpts(TEACHER_OPTS_CACHE);
     renderAttendanceReadOnlyState();
+    renderResourceBookingNotice();
     updateBulkUI();
     updateSubmitButtons();
 
