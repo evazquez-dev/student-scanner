@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <title>EagleNEST — Counselor Dashboard</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./counselor_dashboard.css?v=20260913-counselor-v1">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./counselor_dashboard.js?v=20260913-counselor-v1" defer></script>
+  <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
+</head>
+<body data-module="counselor_dashboard">
+  <main class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h1>Counselor Dashboard</h1>
+      <p class="muted">Restricted counseling-team notes and follow-ups.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="status muted">Loading…</div>
+    </section>
+
+    <section id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <h1>Counselor Dashboard</h1>
+          <p class="muted">Ongoing student meeting notes, follow-ups, and recent counseling work.</p>
+          <div id="viewerMeta" class="small muted"></div>
+        </div>
+        <div class="toolbar">
+          <label id="scopeLabel" class="compactField" hidden>View
+            <select id="scopeSelect">
+              <option value="my">My work</option>
+              <option value="team">Counseling team</option>
+            </select>
+          </label>
+          <button id="accessBtn" class="adminOnly" type="button" hidden>Manage access</button>
+          <button id="refreshBtn" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <div class="privacyBanner">
+        🔒 Counseling notes are separate from Communications and are visible only to staff granted Counselor Notes access. Notes are audit-trailed when edited.
+      </div>
+
+      <section class="card searchCard">
+        <div class="sectionHead">
+          <div>
+            <h2>Find a student</h2>
+            <div class="muted small">Search by student name, OSIS, or email.</div>
+          </div>
+        </div>
+        <div class="searchWrap">
+          <input id="studentSearch" type="search" placeholder="Search student…" autocomplete="off">
+          <div id="studentSearchMenu" class="searchMenu" hidden></div>
+        </div>
+        <div id="pageStatus" class="status" aria-live="polite"></div>
+      </section>
+
+      <section id="dashboardView">
+        <section class="kpis">
+          <div class="kpi"><span>Notes this week</span><strong id="kpiNotes7d">0</strong></div>
+          <div class="kpi"><span>Students in 30 days</span><strong id="kpiStudents30d">0</strong></div>
+          <div class="kpi"><span>Open follow-ups</span><strong id="kpiOpenFollowups">0</strong></div>
+          <div class="kpi"><span>Overdue follow-ups</span><strong id="kpiOverdue">0</strong></div>
+        </section>
+
+        <section class="grid">
+          <section class="card span7">
+            <div class="sectionHead">
+              <div>
+                <h2>Follow-ups</h2>
+                <div class="muted small">Open items from counseling notes.</div>
+              </div>
+            </div>
+            <div id="followupList" class="list"><div class="emptyState">Loading…</div></div>
+          </section>
+
+          <section class="card span5">
+            <div class="sectionHead">
+              <div>
+                <h2>Recent students</h2>
+                <div class="muted small">Students with recent notes in this view.</div>
+              </div>
+            </div>
+            <div id="recentStudents" class="list"><div class="emptyState">Loading…</div></div>
+          </section>
+        </section>
+      </section>
+
+      <section id="studentView" class="card studentView" hidden>
+        <div class="studentHeader">
+          <div>
+            <button id="backToDashboard" class="linkBtn" type="button">← Dashboard</button>
+            <h2 id="studentName">Student</h2>
+            <div id="studentMeta" class="muted"></div>
+          </div>
+          <div class="toolbar">
+            <button id="openStudentLookup" type="button">Student Lookup</button>
+            <button id="newNoteBtn" class="primary" type="button">+ Add note</button>
+          </div>
+        </div>
+        <div class="studentStats">
+          <span><strong id="studentNoteCount">0</strong> notes</span>
+          <span><strong id="studentCounselorCount">0</strong> counselors</span>
+          <span><strong id="studentFollowupCount">0</strong> open follow-ups</span>
+          <span>Last meeting: <strong id="studentLastMeeting">—</strong></span>
+        </div>
+        <div id="studentTimeline" class="timeline"><div class="emptyState">Loading notes…</div></div>
+      </section>
+    </section>
+  </main>
+
+  <div id="noteModal" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true">
+      <div class="modalHead">
+        <div><h2 id="noteModalTitle">Add counseling note</h2><div id="noteStudentMeta" class="muted small"></div></div>
+        <button id="closeNoteModal" type="button">Close</button>
+      </div>
+      <div class="formGrid">
+        <label>Meeting date/time<input id="noteMeetingAt" type="datetime-local"></label>
+        <label>Type<select id="noteType">
+          <option>Check-in</option>
+          <option>Academic</option>
+          <option>Attendance</option>
+          <option>Social-Emotional</option>
+          <option>Peer Conflict</option>
+          <option>Family</option>
+          <option>College/Career</option>
+          <option>Crisis/Concern</option>
+          <option>Other</option>
+        </select></label>
+
+        <fieldset class="wide tagField">
+          <legend>Tags</legend>
+          <label><input type="checkbox" value="Academic" class="tagChoice"> Academic</label>
+          <label><input type="checkbox" value="Attendance" class="tagChoice"> Attendance</label>
+          <label><input type="checkbox" value="Social-Emotional" class="tagChoice"> Social-Emotional</label>
+          <label><input type="checkbox" value="Peer Conflict" class="tagChoice"> Peer Conflict</label>
+          <label><input type="checkbox" value="Family" class="tagChoice"> Family</label>
+          <label><input type="checkbox" value="College/Career" class="tagChoice"> College/Career</label>
+          <label><input type="checkbox" value="Check-in" class="tagChoice"> Check-in</label>
+        </fieldset>
+
+        <label class="wide">Note<textarea id="noteText" rows="8" maxlength="12000" placeholder="Counseling meeting note…"></textarea></label>
+
+        <label class="checkRow wide"><input id="followupNeeded" type="checkbox"> <span>Follow-up needed</span></label>
+        <label id="followupDueWrap" class="wide" hidden>Follow-up due date<input id="followupDueDate" type="date"></label>
+
+        <label id="editReasonWrap" class="wide" hidden>Edit reason<input id="editReason" maxlength="500" placeholder="Optional reason for editing this note"></label>
+      </div>
+      <div id="noteModalStatus" class="status"></div>
+      <div class="toolbar end">
+        <button id="saveNoteBtn" class="primary" type="button">Save note</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="accessModal" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true">
+      <div class="modalHead">
+        <div><h2>Counselor Notes Access</h2><div class="muted small">Super admin only. Grant access only to staff who should read counseling-team notes.</div></div>
+        <button id="closeAccessModal" type="button">Close</button>
+      </div>
+      <div class="stack">
+        <input id="accessSearch" type="search" placeholder="Search staff by name, email, department, or grade team…" autocomplete="off">
+        <div class="toolbar">
+          <button id="selectVisibleAccess" type="button">Select visible</button>
+          <button id="clearAccess" type="button">Clear selection</button>
+          <span id="accessCount" class="pill">0 selected</span>
+        </div>
+        <div id="accessStaffList" class="accessStaffList"><div class="emptyState">Loading staff…</div></div>
+      </div>
+      <div id="accessStatus" class="status"></div>
+      <div class="toolbar end">
+        <button id="saveAccessBtn" class="primary" type="button">Save access</button>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

@@ -242,6 +242,8 @@ function updateActionState(){
   const readOnly = isViewAsReadOnly();
   logBehaviorBtn.disabled = !hasStudent || readOnly;
   logCommunicationBtn.disabled = !hasStudent || readOnly;
+  const counselorNotesBtn = document.getElementById('counselorNotesBtn'); // EAGLENEST_COUNSELOR_DASHBOARD_V1
+  if (counselorNotesBtn) counselorNotesBtn.disabled = !hasStudent || readOnly;
   refreshStudentBtn.disabled = !hasStudent;
   readOnlyNote.hidden = !readOnly;
   if (readOnly) {
@@ -1013,6 +1015,26 @@ async function submitBehavior(){
   }
 }
 
+// EAGLENEST_COUNSELOR_DASHBOARD_V1
+function ensureCounselorNotesAction(){
+  if (access?.can?.counselor_notes !== true || document.getElementById('counselorNotesBtn')) return;
+  const host = logCommunicationBtn?.parentElement;
+  if (!host) return;
+  const button = document.createElement('button');
+  button.id = 'counselorNotesBtn';
+  button.className = 'btn secondary';
+  button.type = 'button';
+  button.textContent = 'Counselor Notes';
+  button.addEventListener('click', () => {
+    if (!selected?.osis || isViewAsReadOnly()) return;
+    const url = new URL('./counselor_dashboard.html', location.href);
+    url.searchParams.set('osis', selected.osis);
+    if (selected.name) url.searchParams.set('name', selected.name);
+    location.href = url.toString();
+  });
+  host.appendChild(button);
+}
+
 function contactsUrl(){
   if (!selected?.osis) return null;
   const url = new URL('./student_contacts.html', location.href);
@@ -1093,6 +1115,7 @@ async function boot(){
   // Student Lookup is intentionally available to every authenticated EagleNEST staff account.
   loginCard.hidden = true;
   app.hidden = false;
+  ensureCounselorNotesAction(); // EAGLENEST_COUNSELOR_DASHBOARD_V1
   ensureDeletedCommunicationToggle();
   updateActionState();
 
