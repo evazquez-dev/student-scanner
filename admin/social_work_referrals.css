@@ -1,0 +1,29 @@
+/* EAGLENEST_SOCIAL_WORK_REFERRALS_V1 */
+#swReferralSection{margin-bottom:16px}
+.swReferralKpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin-top:14px}
+.swReferralKpi{border:1px solid var(--line);background:var(--card2);border-radius:12px;padding:11px}
+.swReferralKpi span{display:block;color:var(--muted);font-size:.72rem}
+.swReferralKpi strong{font-size:1.35rem}
+.swReferralFilters{display:grid;grid-template-columns:160px 190px minmax(220px,1fr) auto;gap:9px;align-items:end;margin-top:14px}
+.swReferralList{display:grid;gap:10px;margin-top:14px}
+.swReferralCard{border:1px solid var(--line);border-radius:14px;background:var(--card2);padding:13px}
+.swReferralCard.safety{border-color:var(--danger);box-shadow:inset 4px 0 0 var(--danger)}
+.swReferralHead{display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+.swReferralReasons{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.swReferralReason{border:1px solid var(--line);border-radius:999px;padding:4px 8px;font-size:.76rem;font-weight:750}
+.swReferralSafety{margin-top:10px;border:1px solid var(--danger);color:var(--danger);border-radius:10px;padding:9px 10px;font-weight:800}
+.swReferralText{white-space:pre-wrap;line-height:1.45;margin-top:9px}
+.swReferralMeta{color:var(--muted);font-size:.8rem;margin-top:4px}
+.swReferralStatus{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:4px 8px;font-size:.74rem;font-weight:850}
+.swReferralStatus.new{color:var(--danger);border-color:var(--danger)}
+.swReferralStatus.in_review,.swReferralStatus.follow_up{color:var(--warn);border-color:var(--warn)}
+.swReferralStatus.assigned,.swReferralStatus.student_seen{color:var(--accent);border-color:var(--accent)}
+.swReferralStatus.closed{color:var(--good);border-color:var(--good)}
+.swReferralDetailGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.swReferralDetail{border:1px solid var(--line);background:var(--card2);border-radius:10px;padding:10px}
+.swReferralDetail span{display:block;color:var(--muted);font-size:.73rem;margin-bottom:4px}
+.swReferralHistory{display:grid;gap:7px;margin-top:10px}
+.swReferralEvent{border-left:3px solid var(--line);padding:7px 9px;background:var(--card2);border-radius:0 9px 9px 0}
+.swReferralNoteContext{border:1px solid var(--accent);border-radius:11px;padding:10px 12px;margin-bottom:13px;background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.swReferralNoteContext[hidden]{display:none!important}
+@media(max-width:900px){.swReferralKpis{grid-template-columns:repeat(2,minmax(0,1fr))}.swReferralFilters,.swReferralDetailGrid{grid-template-columns:1fr}}

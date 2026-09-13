@@ -61,6 +61,7 @@ let accessStaff=[];
 let teamAccess={college:new Set(),social_work:new Set(),academic:new Set()};
 let legacyGeneric=[];
 let legacyNotes=[];
+let linkedSocialWorkReferral=null; // EAGLENEST_SOCIAL_WORK_REFERRALS_V1
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function canManage(){return access?.can?.counselor_notes_manage===true;}
@@ -229,7 +230,7 @@ function applyTemplate(index){
 }
 
 function openNewNote(){
-  if(!selectedStudent||isReadOnly())return;editingNote=null;renderNoteFormForTeam();$('noteModalTitle').textContent='Add counseling note';$('noteStudentMeta').textContent=`${selectedStudent.name||selectedStudent.student_number} • OSIS ${selectedStudent.student_number}`;$('noteMeetingAt').value=localDateTimeValue();$('noteType').value=TEAM_CONFIG[activeTeam].noteTypes[0];setTagChoices([]);renderTeamDetails({});$('noteText').value='';$('followupNeeded').checked=false;$('followupDueWrap').hidden=true;$('followupDueDate').value=addDaysLocal(7);$('editReasonWrap').hidden=true;$('editReason').value='';$('noteModalStatus').textContent='';$('noteModal').hidden=false;$('noteText').focus();
+  if(!selectedStudent||isReadOnly())return;editingNote=null;linkedSocialWorkReferral=null;renderNoteFormForTeam();$('noteModalTitle').textContent='Add counseling note';$('noteStudentMeta').textContent=`${selectedStudent.name||selectedStudent.student_number} • OSIS ${selectedStudent.student_number}`;$('noteMeetingAt').value=localDateTimeValue();$('noteType').value=TEAM_CONFIG[activeTeam].noteTypes[0];setTagChoices([]);renderTeamDetails({});$('noteText').value='';$('followupNeeded').checked=false;$('followupDueWrap').hidden=true;$('followupDueDate').value=addDaysLocal(7);$('editReasonWrap').hidden=true;$('editReason').value='';$('noteModalStatus').textContent='';$('noteModal').hidden=false;$('noteText').focus();
 }
 function openEditNote(noteId){
   const note=(studentBundle?.notes||[]).find((row)=>row.note_id===noteId);if(!note||!noteCanEdit(note))return;editingNote=note;renderNoteFormForTeam();if(note.note_type&&![...$('noteType').options].some((o)=>o.value===note.note_type))$('noteType').appendChild(new Option(`${note.note_type} (legacy)`,note.note_type));$('noteModalTitle').textContent='Edit counseling note';$('noteStudentMeta').textContent=`${note.student_name||note.student_number} • ${note.counselor_name||note.counselor_email}`;$('noteMeetingAt').value=localDateTimeValue(note.meeting_at_iso);$('noteType').value=note.note_type||TEAM_CONFIG[activeTeam].noteTypes[0];setTagChoices(note.tags||[]);renderTeamDetails(note.details||{});$('noteText').value=note.note_text||'';$('followupNeeded').checked=note.follow_up_needed===true;$('followupDueWrap').hidden=!note.follow_up_needed;$('followupDueDate').value=note.follow_up_due_date||addDaysLocal(7);$('editReasonWrap').hidden=false;$('editReason').value='';$('noteModalStatus').textContent='';$('noteModal').hidden=false;
@@ -237,7 +238,7 @@ function openEditNote(noteId){
 async function saveNote(){
   if(!selectedStudent||isReadOnly()||!activeTeam)return;
   const meetingValue=$('noteMeetingAt').value,meetingDate=new Date(meetingValue);if(!meetingValue||!Number.isFinite(meetingDate.getTime())){$('noteModalStatus').textContent='Choose a valid meeting date/time.';return;}
-  const follow=$('followupNeeded').checked,payload={team:activeTeam,student_number:selectedStudent.student_number,meeting_at_iso:meetingDate.toISOString(),note_type:$('noteType').value,tags:noteTags(),details:collectDetails(),note_text:$('noteText').value.trim(),follow_up_needed:follow,follow_up_due_date:follow?$('followupDueDate').value:'',edit_reason:$('editReason').value.trim()};
+  const follow=$('followupNeeded').checked,payload={team:activeTeam,related_referral_id:linkedSocialWorkReferral?.referral_id||'',student_number:selectedStudent.student_number,meeting_at_iso:meetingDate.toISOString(),note_type:$('noteType').value,tags:noteTags(),details:collectDetails(),note_text:$('noteText').value.trim(),follow_up_needed:follow,follow_up_due_date:follow?$('followupDueDate').value:'',edit_reason:$('editReason').value.trim()};
   if(!payload.note_text){$('noteModalStatus').textContent='Enter a note.';return;}if(follow&&!payload.follow_up_due_date){$('noteModalStatus').textContent='Choose a follow-up due date.';return;}if(editingNote)payload.note_id=editingNote.note_id;
   $('saveNoteBtn').disabled=true;$('noteModalStatus').textContent=editingNote?'Saving changes…':'Saving note…';
   try{await api(editingNote?'/admin/counselor/note/update':'/admin/counselor/note/create',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});$('noteModal').hidden=true;await openStudent(selectedStudent);await loadDashboard();setStatus(editingNote?'Counseling note updated. Edit retained in audit history.':'Counseling note saved.','good');editingNote=null;}catch(e){$('noteModalStatus').textContent=`Could not save note: ${e.message}`;}finally{$('saveNoteBtn').disabled=false;}
