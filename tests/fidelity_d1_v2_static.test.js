@@ -56,3 +56,13 @@ test('operational health frontend is smaller and uses D1 dashboard endpoints', (
   assert.match(js, /fetchExpectedKioskSwVersion/);
   assert.doesNotMatch(js, /Fidelity_Score_Daily|fidelity_range_dashboard|fidelity_score_snapshot_meta/);
 });
+
+test('non-heartbeat Fidelity events satisfy NOT NULL heartbeat-state columns without clearing heartbeat state', () => {
+  assert.match(service, /const clockSkew = isHeartbeat \? \(boolIntOrNull\(meta\?\.clock_skew_warning\) \?\? 0\) : 0/);
+  assert.match(service, /const pending = isHeartbeat \? Math\.max\(0, Number\(meta\?\.pending_scan_count \|\| 0\)\) : 0/);
+  assert.match(service, /pending_scan_count = CASE WHEN excluded\.last_heartbeat_at_iso <> '' THEN excluded\.pending_scan_count ELSE fidelity_devices\.pending_scan_count END/);
+  assert.match(service, /clock_skew_warning = CASE WHEN excluded\.last_heartbeat_at_iso <> '' THEN excluded\.clock_skew_warning ELSE fidelity_devices\.clock_skew_warning END/);
+  assert.match(service, /pending_scan_count = CASE WHEN excluded\.last_heartbeat_at_iso <> '' THEN excluded\.pending_scan_count ELSE fidelity_device_daily\.pending_scan_count END/);
+  assert.match(service, /clock_skew_warning = CASE WHEN excluded\.last_heartbeat_at_iso <> '' THEN excluded\.clock_skew_warning ELSE fidelity_device_daily\.clock_skew_warning END/);
+});
+
