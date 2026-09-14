@@ -103,3 +103,27 @@ test('Tier 3 consecutive-absence migration is enabled and escalates', () => {
   assert.match(sql, /consecutive_absence_days/);
   assert.match(sql, /'gte',\s*5,\s*5,\s*0,\s*0,\s*1,\s*1,\s*1/);
 });
+
+test('historical streak catch-up is wired into both evaluation paths', () => {
+  const svc = read('cf-redcake/red-cake-77d5/src/services/mtss.js');
+  assert.match(svc, /backfillHistoricalConsecutiveAbsenceRules/);
+  assert.match(svc, /case_opened_historical/);
+  assert.match(svc, /case_escalated_historical/);
+
+  const manualStart = svc.indexOf('export async function evaluateMtssAttendanceNow');
+  const manualEnd = svc.indexOf('export async function attendanceMetricsForStudent', manualStart);
+  assert.ok(manualStart >= 0 && manualEnd > manualStart);
+  assert.match(
+    svc.slice(manualStart, manualEnd),
+    /backfillHistoricalConsecutiveAbsenceRules/
+  );
+
+  const syncStart = svc.indexOf('export async function ingestMtssPowerSchoolAttendanceSync');
+  const syncEnd = svc.indexOf('async function evaluateAttendanceRules', syncStart);
+  assert.ok(syncStart >= 0 && syncEnd > syncStart);
+  assert.match(
+    svc.slice(syncStart, syncEnd),
+    /historical_streak_catchup/
+  );
+});
+
