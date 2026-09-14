@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./mtss.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <title>EagleNEST — MTSS</title>
+</head>
+<body data-module="mtss">
+  <div class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h2>Staff sign-in</h2>
+      <p class="muted">Use your EagleNEST staff account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="statusText">Checking session…</pre>
+    </section>
+
+    <main id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <div class="eyebrow">Student Support</div>
+          <h1>MTSS Case Management</h1>
+          <p class="muted">Attendance, academics, and behavior/SEL in one intervention and progress-monitoring workflow.</p>
+        </div>
+        <div class="pageActions">
+          <button id="btnNewCase" class="btn primary" type="button" hidden>Open case</button>
+          <button id="btnRefresh" class="btn" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <div id="scopeBanner" class="scopeBanner" hidden></div>
+
+      <section class="domainGrid" aria-label="MTSS tier summary">
+        <article class="domainCard" data-domain="attendance">
+          <div class="domainTop"><div><div class="eyebrow">Attendance</div><h2>Attendance</h2></div><span class="domainIcon">A</span></div>
+          <div class="tierStrip"><div><strong id="attT1">—</strong><span>Tier 1</span></div><div><strong id="attT2">—</strong><span>Tier 2</span></div><div><strong id="attT3">—</strong><span>Tier 3</span></div></div>
+        </article>
+        <article class="domainCard" data-domain="academic">
+          <div class="domainTop"><div><div class="eyebrow">Academics</div><h2>Academic</h2></div><span class="domainIcon">AC</span></div>
+          <div class="tierStrip"><div><strong id="acaT1">—</strong><span>Tier 1</span></div><div><strong id="acaT2">—</strong><span>Tier 2</span></div><div><strong id="acaT3">—</strong><span>Tier 3</span></div></div>
+        </article>
+        <article class="domainCard" data-domain="behavior">
+          <div class="domainTop"><div><div class="eyebrow">Behavior / SEL</div><h2>Behavior</h2></div><span class="domainIcon">B</span></div>
+          <div class="tierStrip"><div><strong id="behT1">—</strong><span>Tier 1</span></div><div><strong id="behT2">—</strong><span>Tier 2</span></div><div><strong id="behT3">—</strong><span>Tier 3</span></div></div>
+        </article>
+      </section>
+
+      <section class="miniStats">
+        <div class="miniStat"><span>Enrolled</span><strong id="statEnrolled">—</strong></div>
+        <div class="miniStat"><span>Reviews due</span><strong id="statDue">—</strong></div>
+        <div class="miniStat"><span>Data recommends review</span><strong id="statRecommend">—</strong></div>
+        <div class="miniStat"><span>Scope</span><strong id="statScope">—</strong></div>
+      </section>
+
+      <section class="card">
+        <div class="sectionHead">
+          <div><h2>Cases</h2><p class="muted">Tier 1 is universal support. Cases are opened for targeted Tier 2/3 support.</p></div>
+          <div id="caseCount" class="countBadge">0 cases</div>
+        </div>
+        <div class="filters">
+          <label><span>Search student</span><input id="filterQ" type="search" placeholder="Name or OSIS"></label>
+          <label><span>Domain</span><select id="filterDomain"><option value="">All domains</option><option value="attendance">Attendance</option><option value="academic">Academic</option><option value="behavior">Behavior / SEL</option></select></label>
+          <label><span>Tier</span><select id="filterTier"><option value="">All tiers</option><option value="2">Tier 2</option><option value="3">Tier 3</option></select></label>
+          <label><span>Status</span><select id="filterStatus"><option value="">Active statuses</option><option value="open">Open</option><option value="monitoring">Monitoring</option><option value="improving">Improving</option><option value="escalated">Escalated</option></select></label>
+          <label><span>Grade</span><select id="filterGrade"><option value="">All grades</option><option>9</option><option>10</option><option>11</option><option>12</option></select></label>
+          <label class="checkLabel"><input id="filterClosed" type="checkbox"><span>Include closed</span></label>
+        </div>
+        <div id="caseStatus" class="statusText">Loading cases…</div>
+        <div class="tableWrap">
+          <table class="casesTable">
+            <thead><tr><th>Student</th><th>Domain</th><th>Tier</th><th>Status</th><th>Owner</th><th>Next review</th><th>Signal</th></tr></thead>
+            <tbody id="casesBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="attendanceTools" class="card" hidden>
+        <div class="sectionHead">
+          <div><h2>Attendance automation</h2><p class="muted">Cases evaluate from finalized absentee/late email days—not live mid-day scanner state.</p></div>
+          <div class="buttonRow"><button id="btnEvaluate" class="btn" type="button">Re-evaluate now</button><button id="btnBackfill" class="btn" type="button" hidden>Backfill finalized days</button></div>
+        </div>
+        <div id="automationStatus" class="statusText">Ready.</div>
+      </section>
+
+      <section id="rulesCard" class="card" hidden>
+        <div class="sectionHead"><div><h2>Attendance rules</h2><p class="muted">Rule thresholds are configuration, not hard-coded policy. Tardy rules start disabled.</p></div></div>
+        <div class="tableWrap">
+          <table class="rulesTable"><thead><tr><th>Enabled</th><th>Rule</th><th>Tier</th><th>Signal</th><th>Threshold</th><th>Min days</th><th>Window</th><th>Auto</th><th></th></tr></thead><tbody id="rulesBody"></tbody></table>
+        </div>
+        <div id="rulesStatus" class="statusText"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="newCaseBackdrop" class="backdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="newCaseTitle">
+      <header class="modalHead"><div><div class="eyebrow">Manual case</div><h2 id="newCaseTitle">Open MTSS case</h2></div><button class="iconBtn" data-close="newCaseBackdrop" aria-label="Close">×</button></header>
+      <form id="newCaseForm" class="modalBody">
+        <label class="field"><span>Student OSIS</span><input id="newOsis" inputmode="numeric" required></label>
+        <div class="twoCol">
+          <label class="field"><span>Domain</span><select id="newDomain" required><option value="attendance">Attendance</option><option value="academic">Academic</option><option value="behavior">Behavior / SEL</option></select></label>
+          <label class="field"><span>Tier</span><select id="newTier"><option value="2">Tier 2</option><option value="3">Tier 3</option></select></label>
+        </div>
+        <label class="field"><span>Reason / concern</span><textarea id="newReason" rows="4" required placeholder="What targeted support is needed?"></textarea></label>
+        <label class="field"><span>Next review date</span><input id="newReviewDate" type="date"></label>
+        <div id="newCaseStatus" class="statusText"></div>
+        <div class="modalFoot"><button class="btn" data-close="newCaseBackdrop" type="button">Cancel</button><button class="btn primary" type="submit">Open case</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div id="caseBackdrop" class="backdrop" hidden>
+    <section class="modal modalWide" role="dialog" aria-modal="true" aria-labelledby="caseModalTitle">
+      <header class="modalHead"><div><div id="caseDomainLabel" class="eyebrow">MTSS case</div><h2 id="caseModalTitle">Case</h2><div id="caseMeta" class="muted"></div></div><button class="iconBtn" data-close="caseBackdrop" aria-label="Close">×</button></header>
+      <div class="modalBody">
+        <div id="caseMetrics" class="metricGrid"></div>
+        <div class="detailGrid">
+          <section class="subcard"><h3>Case details</h3><div id="caseDetails"></div></section>
+          <section class="subcard"><h3>Add intervention</h3><form id="interventionForm"><label class="field"><span>Intervention</span><select id="interventionName" required></select></label><div class="twoCol"><label class="field"><span>Method</span><select id="interventionMethod"></select></label><label class="field"><span>Frequency</span><select id="interventionFrequency"></select></label></div><label id="contentAreaField" class="field"><span>Content area</span><select id="interventionContent"></select></label><label class="field"><span>Notes</span><textarea id="interventionNotes" rows="2"></textarea></label><button id="btnAddIntervention" class="btn primary" type="submit">Add intervention</button></form></section>
+          <section class="subcard"><h3>Progress review</h3><form id="reviewForm"><label class="field"><span>Outcome</span><select id="reviewOutcome"><option value="maintain">Maintain current tier</option><option value="improving">Improving / continue</option><option value="escalate">Escalate to Tier 3</option><option value="step_down">Step down</option><option value="close">Close case</option></select></label><label class="field"><span>Notes</span><textarea id="reviewNotes" rows="3" required></textarea></label><label class="field"><span>Next review</span><input id="reviewNextDate" type="date"></label><button id="btnAddReview" class="btn primary" type="submit">Save review</button></form></section>
+        </div>
+        <section class="subcard timelineCard"><div class="sectionHead"><h3>Timeline</h3><span id="timelineCount" class="countBadge"></span></div><div id="caseTimeline" class="timeline"></div></section>
+        <div id="caseModalStatus" class="statusText"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="./mtss.js" defer></script>
+</body>
+</html>

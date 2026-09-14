@@ -45,6 +45,7 @@
     incident_creator: 'Incident Creator',
     behavior_history: 'Logged Behaviors',
     fidelity_dashboard: 'Fidelity Dashboard',
+    mtss: 'MTSS', // EAGLENEST_MTSS_V1_NAV_LABEL
     attendance_change: 'Attendance Change',
     supervised_lunch: 'Supervised Lunch',
     reflection_hold: 'Reflection Hold',
@@ -73,6 +74,7 @@
     'student_scans_admin_session_v1',
     'conference_scheduler_admin_session_v1', // EAGLENEST_FAMILY_CONFERENCES_V1
     'counselor_dashboard_admin_session_v1', // EAGLENEST_COUNSELOR_DASHBOARD_V1
+    'mtss_admin_session_v1', // EAGLENEST_MTSS_V1_NAV_SESSION
     'communications_admin_session_v1',
     'coverage_planner_admin_session_v1',
     'scan_injector_admin_session_v1',
@@ -494,6 +496,7 @@
         title: 'Student Support',
         items: [
           { key:'counselor_dashboard', label: MODULES.counselor_dashboard || 'Counselor Dashboard', href:'./counselor_dashboard.html', badge:'notes & follow-ups' }, // EAGLENEST_COUNSELOR_DASHBOARD_V1
+          { key:'mtss', label: MODULES.mtss || 'MTSS', href:'./mtss.html', badge:'tiers & interventions' }, // EAGLENEST_MTSS_V1_NAV_ITEM
           { key:'supervised_lunch', label: MODULES.supervised_lunch || 'Supervised Lunch', href:'./supervised_lunch.html', badge:'lunch assignments' },
           { key:'reflection_hold', label: MODULES.reflection_hold || 'Reflection Hold', href:'./reflection_hold.html', badge:'after-school holds' },
           { key:'incident_creator', label: MODULES.incident_creator || 'Incident Creator', href:'./incident_creator.html', badge:'submit incident report' },

@@ -29,6 +29,7 @@
     incident_creator: 'Incident Creator',
     behavior_history: 'Logged Behaviors',
     fidelity_dashboard: 'Fidelity Dashboard',
+    mtss: 'MTSS', // EAGLENEST_MTSS_V1_BRAND
     reflection_hold: 'Reflection Hold',
     dreamer_of_week: 'Dreamer of the Week',
     attendance_change: 'Attendance Change',
