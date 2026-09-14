@@ -75,9 +75,14 @@ function statusChip(status) {
   if (status === 'needs_attention') return chip('Needs attention','warn');
   return chip('Observed','info');
 }
-function renderSummary(counts={}) {
+function renderSummary(counts={}, selectedDate='') {
+  const historical = !!selectedDate && selectedDate !== localTodayKey();
   const cards = [
-    ['Devices active', counts.devices_active ?? 0, `${counts.devices_stale ?? 0} stale`],
+    [
+      historical ? 'Devices observed' : 'Devices active',
+      historical ? (counts.devices ?? 0) : (counts.devices_active ?? 0),
+      historical ? 'seen on selected date' : `${counts.devices_stale ?? 0} stale`
+    ],
     ['Pending queues', counts.devices_with_pending ?? 0, 'devices with unsent scans'],
     ['Healthy periods', counts.healthy_room_periods ?? 0, `${counts.expected_room_periods ?? 0} expected`],
     ['Need attention', counts.needs_attention_room_periods ?? 0, 'partial / error evidence'],
@@ -101,14 +106,19 @@ function versionChip(row) {
 }
 function renderDevices(rows=[], meta={}) {
   const staleAfter = Number(meta.stale_after_minutes || 20);
-  const stale = rows.filter(x => x.active_now === false).length;
+  const historical = !!meta.date && String(meta.date) !== localTodayKey();
+  const stale = historical ? 0 : rows.filter(x => x.active_now === false).length;
   const pending = rows.filter(x => Number(x.pending_scan_count || 0) > 0).length;
-  kioskHealthSummary.textContent = `${rows.length} device${rows.length===1?'':'s'} • ${stale} stale >${staleAfter}m • ${pending} with pending scans${expectedKioskVersion ? ` • expected ${expectedKioskVersion}`:''}`;
+  kioskHealthSummary.textContent = historical
+    ? `${rows.length} device${rows.length===1?'':'s'} observed on selected date • ${pending} with pending scans${expectedKioskVersion ? ` • expected ${expectedKioskVersion}`:''}`
+    : `${rows.length} device${rows.length===1?'':'s'} • ${stale} stale >${staleAfter}m • ${pending} with pending scans${expectedKioskVersion ? ` • expected ${expectedKioskVersion}`:''}`;
   deviceBody.innerHTML = rows.length ? rows.map(row => {
     const location = row.last_bound_location || row.last_reported_location || '—';
     const age = Number(row.last_seen_minutes_ago);
-    const ageText = Number.isFinite(age) ? (age < 1 ? 'just now' : `${Math.round(age)}m ago`) : '—';
-    const online = row.active_now === false ? chip('Stale','bad') : row.online === false ? chip('Offline','bad') : row.online === true ? chip('Online','ok') : chip('Unknown','warn');
+    const ageText = historical ? 'last seen that day' : (Number.isFinite(age) ? (age < 1 ? 'just now' : `${Math.round(age)}m ago`) : '—');
+    const online = historical
+      ? (row.online === false ? chip('Reported offline','bad') : row.online === true ? chip('Reported online','ok') : chip('Observed','info'))
+      : (row.active_now === false ? chip('Stale','bad') : row.online === false ? chip('Offline','bad') : row.online === true ? chip('Online','ok') : chip('Unknown','warn'));
     const clock = Number.isFinite(Number(row.clock_offset_ms)) ? `${Number(row.clock_offset_ms)>0?'+':''}${Math.round(Number(row.clock_offset_ms))}ms` : '—';
     return `<tr><td><div class="mono">${esc(row.device_id || '')}</div>${row.kiosk_locked===true?'<div class="muted">Locked</div>':''}</td><td>${esc(location)}${row.current_period?`<div class="muted">Period ${esc(row.current_period)}</div>`:''}</td><td>${esc(fmtDateTime(row.last_heartbeat_at_iso || row.last_seen_at_iso))}<div class="muted">${esc(ageText)}</div></td><td>${versionChip(row)}</td><td>${online}</td><td>${esc(row.pending_scan_count || 0)}</td><td>${row.clock_skew_warning ? chip(clock,'bad') : chip(clock,'info')}</td><td>${esc(row.scan_success_count || 0)} success<div class="muted">${esc(row.scan_error_count || 0)} errors</div></td><td>${(row.flags||[]).length ? (row.flags||[]).map(x=>chip(x,/offline|stale|error|mismatch|clock/i.test(x)?'bad':'warn')).join('') : chip('Healthy','ok')}</td></tr>`;
   }).join('') : `<tr><td colspan="9" class="empty">No D1 kiosk health data for this date yet.</td></tr>`;
@@ -144,7 +154,7 @@ async function loadDashboard(date='') {
     await fetchExpectedKioskSwVersion();
     const data = await fetchDashboard(date || localTodayKey());
     dateInput.value = data.date || date || localTodayKey();
-    renderSummary(data.counts || {});
+    renderSummary(data.counts || {}, data.date || date || localTodayKey());
     renderRoomPeriods(data.room_periods || []);
     renderDevices(data.devices || [], data);
     renderExceptions(data.exceptions || []);

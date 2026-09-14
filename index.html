@@ -2685,19 +2685,10 @@
       return true;
     }
     const resolved = sent.data.resolved || {};
-    emitKioskFidelityEvent('kiosk_scan_success', {
-      osis: String(resolved.osis || ctx.code).trim(),
-      raw_code: String(ctx.rawScanned || ctx.code).trim(),
-      input_method: event.input_method || 'unknown',
-      success: true,
-      metadata: {
-        allowed: String(sent.data?.result?.allowed || '').trim(),
-        current_period: String(resolved.current_period || resolved.next_period || '').trim(),
-        class_now: String(resolved.class_now || '').trim(),
-        kiosk_mode: String(resolved.kiosk_mode || '').trim(),
-        scan_event_id: event.event_id
-      }
-    });
+    // Successful physical-scan Fidelity is Worker-owned. The authoritative scan
+    // request already has the immutable event id, timestamp, device, room,
+    // student, period, and final action. Avoid a second fire-and-forget browser
+    // request that can be lost independently of the successful scan.
     await renderAuthoritativeScanResult_({ ...ctx, res:resolved }, sent.data);
     return true;
   }
