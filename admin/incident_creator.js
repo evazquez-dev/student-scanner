@@ -36,6 +36,8 @@ let ACCESS = null;
 let CONFIG = null;
 let PEOPLE = [];
 let WITNESSES = [];
+let STAFF_WITNESSES = [];
+let FREE_WITNESSES = [];
 let SOURCE_CONTEXT = {};
 let SOURCE = 'incident_creator';
 let BUSY = false;
@@ -91,49 +93,163 @@ function humanBytes(n){const x=Number(n||0);if(x<1024)return `${x} B`;if(x<1024*
 function nowHHMM(){try{return new Intl.DateTimeFormat('en-GB',{timeZone:'America/New_York',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date());}catch{return '';}}
 function newSubmissionId(){try{return `incident:${crypto.randomUUID()}`;}catch{return `incident:${Date.now()}:${Math.random().toString(36).slice(2)}`;}}
 
+function witnessKey(value){
+  return String(value || '').trim().toLowerCase();
+}
+function clearPicker(which){
+  const input=$(which==='people'?'peopleSearch':'witnessSearch');
+  const results=$(which==='people'?'peopleResults':'witnessResults');
+  input.value='';
+  results.hidden=true;
+  results.innerHTML='';
+}
 function renderChips(which){
-  const arr=which==='people'?PEOPLE:WITNESSES;
   const box=$(which==='people'?'peopleChips':'witnessChips');
   box.innerHTML='';
-  for(const p of arr){
+
+  if(which==='people'){
+    for(const p of PEOPLE){
+      const chip=document.createElement('span');chip.className='chip';
+      const txt=document.createElement('span');txt.textContent=`${p.name||'Unknown'} (${p.osis})`;
+      const rm=document.createElement('button');rm.type='button';rm.textContent='×';rm.title='Remove';
+      rm.addEventListener('click',()=>{PEOPLE=PEOPLE.filter(x=>x.osis!==p.osis);renderChips('people');});
+      chip.append(txt,rm);box.appendChild(chip);
+    }
+    return;
+  }
+
+  for(const p of WITNESSES){
     const chip=document.createElement('span');chip.className='chip';
     const txt=document.createElement('span');txt.textContent=`${p.name||'Unknown'} (${p.osis})`;
-    const rm=document.createElement('button');rm.type='button';rm.textContent='×';rm.title='Remove';
-    rm.addEventListener('click',()=>{if(which==='people')PEOPLE=PEOPLE.filter(x=>x.osis!==p.osis);else WITNESSES=WITNESSES.filter(x=>x.osis!==p.osis);renderChips(which);});
+    const rm=document.createElement('button');rm.type='button';rm.textContent='×';rm.title='Remove student witness';
+    rm.addEventListener('click',()=>{WITNESSES=WITNESSES.filter(x=>x.osis!==p.osis);renderChips('witness');});
+    chip.append(txt,rm);box.appendChild(chip);
+  }
+  for(const p of STAFF_WITNESSES){
+    const chip=document.createElement('span');chip.className='chip';
+    const txt=document.createElement('span');txt.textContent=`${p.name||p.email||'Staff'} (Staff)`;
+    const rm=document.createElement('button');rm.type='button';rm.textContent='×';rm.title='Remove staff witness';
+    rm.addEventListener('click',()=>{STAFF_WITNESSES=STAFF_WITNESSES.filter(x=>x.email!==p.email);renderChips('witness');});
+    chip.append(txt,rm);box.appendChild(chip);
+  }
+  for(const p of FREE_WITNESSES){
+    const chip=document.createElement('span');chip.className='chip';
+    const txt=document.createElement('span');txt.textContent=`${p.name} (Other)`;
+    const rm=document.createElement('button');rm.type='button';rm.textContent='×';rm.title='Remove witness';
+    rm.addEventListener('click',()=>{FREE_WITNESSES=FREE_WITNESSES.filter(x=>witnessKey(x.name)!==witnessKey(p.name));renderChips('witness');});
     chip.append(txt,rm);box.appendChild(chip);
   }
 }
 function addStudent(which,student){
   const p={osis:String(student?.osis||'').trim(),name:String(student?.name||'').trim()};
   if(!p.osis)return;
-  if(which==='people'){if(!PEOPLE.some(x=>x.osis===p.osis))PEOPLE.push(p);}else{if(!WITNESSES.some(x=>x.osis===p.osis))WITNESSES.push(p);}
-  renderChips(which);
-  const input=$(which==='people'?'peopleSearch':'witnessSearch');input.value='';
-  const results=$(which==='people'?'peopleResults':'witnessResults');results.hidden=true;results.innerHTML='';
-}
-function renderSearchResults(which,rows){
-  const box=$(which==='people'?'peopleResults':'witnessResults');box.innerHTML='';
-  if(!rows.length){box.hidden=true;return;}
-  for(const row of rows){
-    const b=document.createElement('button');b.type='button';
-    const name=document.createElement('strong');name.textContent=row.name||'(Unknown student)';
-    const meta=document.createElement('span');meta.className='osis';meta.textContent=`OSIS ${row.osis}`;
-    b.append(name,meta);b.addEventListener('click',()=>addStudent(which,row));box.appendChild(b);
+  if(which==='people'){
+    if(!PEOPLE.some(x=>x.osis===p.osis))PEOPLE.push(p);
+  }else{
+    if(!WITNESSES.some(x=>x.osis===p.osis))WITNESSES.push(p);
   }
-  box.hidden=false;
+  renderChips(which);
+  clearPicker(which);
 }
-async function searchStudents(which,q){
+function addStaffWitness(staff){
+  const p={email:String(staff?.email||'').trim().toLowerCase(),name:String(staff?.name||'').trim()};
+  if(!p.email&&!p.name)return;
+  const key=p.email||witnessKey(p.name);
+  if(!STAFF_WITNESSES.some(x=>(x.email||witnessKey(x.name))===key))STAFF_WITNESSES.push(p);
+  renderChips('witness');
+  clearPicker('witness');
+}
+function addFreeWitness(name){
+  const clean=String(name||'').trim().replace(/\s+/g,' ').slice(0,200);
+  if(clean.length<2)return;
+  const key=witnessKey(clean);
+  const alreadyStudent=WITNESSES.some(x=>witnessKey(x.name)===key);
+  const alreadyStaff=STAFF_WITNESSES.some(x=>witnessKey(x.name)===key);
+  const alreadyFree=FREE_WITNESSES.some(x=>witnessKey(x.name)===key);
+  if(!alreadyStudent&&!alreadyStaff&&!alreadyFree)FREE_WITNESSES.push({name:clean});
+  renderChips('witness');
+  clearPicker('witness');
+}
+function combinedOtherWitnessesText(){
+  const parts=[];
+  for(const s of STAFF_WITNESSES){
+    const name=String(s?.name||s?.email||'Staff').trim();
+    const email=String(s?.email||'').trim();
+    parts.push(email?`${name} <${email}>`:name);
+  }
+  for(const row of FREE_WITNESSES){
+    const name=String(row?.name||'').trim();
+    if(name)parts.push(name);
+  }
+  const manual=String(otherWitnessesEl.value||'').trim();
+  if(manual)parts.push(manual);
+  return parts.join('; ').slice(0,3000);
+}
+function renderSearchResults(which,rows,query=''){
+  const box=$(which==='people'?'peopleResults':'witnessResults');
+  box.innerHTML='';
+  const list=Array.isArray(rows)?rows:[];
+
+  for(const row of list){
+    const kind=String(row?.kind||(which==='people'?'student':'')).toLowerCase();
+    if(which==='people'&&kind&&kind!=='student')continue;
+
+    const b=document.createElement('button');b.type='button';
+    const name=document.createElement('strong');
+    const meta=document.createElement('span');meta.className='osis';
+
+    if(kind==='staff'){
+      name.textContent=row.name||row.email||'(Unknown staff member)';
+      const bits=['Staff'];if(row.email)bits.push(row.email);if(row.department)bits.push(row.department);
+      meta.textContent=bits.join(' • ');
+      b.addEventListener('click',()=>addStaffWitness(row));
+    }else{
+      name.textContent=row.name||'(Unknown student)';
+      meta.textContent=`Student • OSIS ${row.osis||''}`;
+      b.addEventListener('click',()=>addStudent(which,row));
+    }
+    b.append(name,meta);box.appendChild(b);
+  }
+
+  if(which==='witness'){
+    const clean=String(query||'').trim().replace(/\s+/g,' ').slice(0,200);
+    const exact=list.some(row=>witnessKey(row?.name)===witnessKey(clean));
+    if(clean.length>=2&&!exact){
+      const b=document.createElement('button');b.type='button';
+      const name=document.createElement('strong');name.textContent=`Add “${clean}” as another witness`;
+      const meta=document.createElement('span');meta.className='osis';meta.textContent='Unlisted / visitor / family / community / other';
+      b.append(name,meta);b.addEventListener('click',()=>addFreeWitness(clean));box.appendChild(b);
+    }
+  }
+
+  box.hidden=!box.children.length;
+}
+async function searchPicker(which,q){
   const query=String(q||'').trim();
-  if(query.length<2){renderSearchResults(which,[]);return;}
-  const r=await adminFetch(`/admin/roster/search?q=${encodeURIComponent(query)}`,{method:'GET'});
+  if(query.length<2){renderSearchResults(which,[],query);return;}
+  const endpoint=which==='witness'?'/admin/incident/witness_search':'/admin/roster/search';
+  const r=await adminFetch(`${endpoint}?q=${encodeURIComponent(query)}`,{method:'GET'});
   const j=await r.json().catch(()=>({}));
-  if(!r.ok||!j?.ok)throw new Error(j?.error||`roster_search_http_${r.status}`);
-  renderSearchResults(which,Array.isArray(j.results)?j.results:[]);
+  if(!r.ok||!j?.ok)throw new Error(j?.error||`picker_search_http_${r.status}`);
+  const rows=Array.isArray(j.results)?j.results:[];
+  renderSearchResults(which,rows,query);
 }
 function wirePicker(which){
   const input=$(which==='people'?'peopleSearch':'witnessSearch');
-  input.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>searchStudents(which,input.value).catch(e=>showError(`Student search failed: ${e.message||e}`)),180);});
-  input.addEventListener('focus',()=>{if(input.value.trim().length>=2)searchStudents(which,input.value).catch(()=>{});});
+  input.addEventListener('input',()=>{
+    clearTimeout(searchTimer);
+    searchTimer=setTimeout(()=>searchPicker(which,input.value).catch(e=>showError(`Search failed: ${e.message||e}`)),180);
+  });
+  input.addEventListener('focus',()=>{if(input.value.trim().length>=2)searchPicker(which,input.value).catch(()=>{});});
+  if(which==='witness'){
+    input.addEventListener('keydown',(ev)=>{
+      if(ev.key!=='Enter')return;
+      const clean=String(input.value||'').trim();
+      if(clean.length<2)return;
+      ev.preventDefault();
+      addFreeWitness(clean);
+    });
+  }
 }
 
 async function loadConfig(){
@@ -198,7 +314,7 @@ async function preselectStudent(osis){
   const exact=(j.results||[]).find(x=>String(x.osis)===String(osis));if(exact)addStudent('people',exact);
 }
 function resetForm({preserveLaunch=true}={}){
-  SUBMITTED=false;form.reset();PEOPLE=[];WITNESSES=[];renderChips('people');renderChips('witnesses');fileList.innerHTML='';clearNotices();
+  SUBMITTED=false;form.reset();PEOPLE=[];WITNESSES=[];STAFF_WITNESSES=[];FREE_WITNESSES=[];renderChips('people');renderChips('witness');fileList.innerHTML='';clearNotices();
   dateEl.value=CONFIG?.ny_date||'';timeEl.value=nowHHMM();
   if(CONFIG?.location_categories?.length)locationCategoryEl.value=CONFIG.location_categories[0];
   if(preserveLaunch){const osis=applyLaunchContext();void preselectStudent(osis);} 
@@ -215,7 +331,7 @@ async function submitIncident(ev){
   ev.preventDefault();if(BUSY)return;clearNotices();
   let files;try{files=validateForm();}catch(e){showError(e.message||e);return;}
   const fd=new FormData();
-  fd.set('client_submission_id',newSubmissionId());fd.set('incident_date',dateEl.value);fd.set('incident_time',timeEl.value||'');fd.set('location_category',locationCategoryEl.value);fd.set('location_detail',locationDetailEl.value.trim());fd.set('description',descriptionEl.value.trim());fd.set('people_json',JSON.stringify(PEOPLE));fd.set('witnesses_json',JSON.stringify(WITNESSES));fd.set('other_people_involved',otherPeopleEl.value.trim());fd.set('other_witnesses',otherWitnessesEl.value.trim());fd.set('source',SOURCE);fd.set('source_context_json',JSON.stringify(SOURCE_CONTEXT||{}));fd.set('refer_to_dean',referToDeanEl?.checked?'1':'0');for(const f of files)fd.append('evidence',f,f.name);
+  fd.set('client_submission_id',newSubmissionId());fd.set('incident_date',dateEl.value);fd.set('incident_time',timeEl.value||'');fd.set('location_category',locationCategoryEl.value);fd.set('location_detail',locationDetailEl.value.trim());fd.set('description',descriptionEl.value.trim());fd.set('people_json',JSON.stringify(PEOPLE));fd.set('witnesses_json',JSON.stringify(WITNESSES));fd.set('other_people_involved',otherPeopleEl.value.trim());fd.set('other_witnesses',combinedOtherWitnessesText());fd.set('source',SOURCE);fd.set('source_context_json',JSON.stringify(SOURCE_CONTEXT||{}));fd.set('refer_to_dean',referToDeanEl?.checked?'1':'0');for(const f of files)fd.append('evidence',f,f.name);
   setBusy(true);
   try{
     const r=await adminFetch('/admin/incident/create',{method:'POST',body:fd});
