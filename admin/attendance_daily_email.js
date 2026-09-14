@@ -11,6 +11,47 @@
   let loadTimer=null;
   let loadingPreview=false;
 
+
+  const CONFIRMED_SEND_STORAGE_KEY='attendance_daily_email_confirmed_send_v1';
+
+  function readConfirmedSend(){
+    try{
+      const raw=localStorage.getItem(CONFIRMED_SEND_STORAGE_KEY)||'';
+      if(!raw)return null;
+      const data=JSON.parse(raw);
+      return data&&typeof data==='object'?data:null;
+    }catch{return null;}
+  }
+
+  function writeConfirmedSend(lastSend,date){
+    if(!lastSend?.last_sent_at_iso)return;
+    const doc={date:String(date||lastSend.date||'').trim(),last_send:lastSend};
+    try{localStorage.setItem(CONFIRMED_SEND_STORAGE_KEY,JSON.stringify(doc));}catch{}
+  }
+
+  function clearConfirmedSend(){
+    try{localStorage.removeItem(CONFIRMED_SEND_STORAGE_KEY);}catch{}
+  }
+
+  function mergeConfirmedSend(preview){
+    if(!preview||typeof preview!=='object')return preview;
+    const confirmed=readConfirmedSend();
+    if(!confirmed?.last_send?.last_sent_at_iso)return preview;
+    const previewDate=String(preview.date||'').trim();
+    const confirmedDate=String(confirmed.date||confirmed.last_send?.date||'').trim();
+    if(!previewDate||!confirmedDate||previewDate!==confirmedDate){
+      if(previewDate&&confirmedDate&&previewDate>confirmedDate)clearConfirmedSend();
+      return preview;
+    }
+    const backendIso=String(preview?.last_send?.last_sent_at_iso||'').trim();
+    const confirmedIso=String(confirmed.last_send.last_sent_at_iso||'').trim();
+    if(backendIso&&backendIso>=confirmedIso){
+      clearConfirmedSend();
+      return preview;
+    }
+    return {...preview,last_send:confirmed.last_send};
+  }
+
   function getSid(){
     try{
       for(const key of SESSION_KEYS){
@@ -111,7 +152,7 @@
       const response=await dailyAdminFetch('/admin/attendance_outreach/email_preview',{method:'GET'});
       if(response.status===401){return PREVIEW;}
       const data=await jsonOrThrow(response);
-      PREVIEW=data;
+      PREVIEW=mergeConfirmedSend(data);
       setInlineError('');
       renderCard();
       if(!$('dailyEmailBackdrop')?.hidden)renderReviewModal();
@@ -264,6 +305,11 @@
         method:'POST',headers:{'content-type':'application/json'},
         body:JSON.stringify({confirm_incomplete:confirmIncomplete,confirm_resend:confirmResend})
       }));
+      if(data?.last_send?.last_sent_at_iso){
+        writeConfirmedSend(data.last_send,data.date||PREVIEW?.date);
+        PREVIEW={...(PREVIEW||{}),last_send:data.last_send};
+        renderCard();
+      }
       setModalStatus(`Sent to ${data.recipient||PREVIEW.recipient}.`);
       await loadDailyEmailPreview();
       renderReviewModal();

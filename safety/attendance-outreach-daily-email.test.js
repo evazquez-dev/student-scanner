@@ -171,3 +171,12 @@ test('daily email preview edits override log defaults without rewriting the Atte
   assert.equal(edited.absent[0].phone, '');
   assert.equal(base.communications[0].notes, 'Parent said student is sick');
 });
+
+test('SAFETY: successful attendance email send stays visibly sent while KV catches up', () => {
+  const js = read(FRONT_JS);
+  assert.match(js, /CONFIRMED_SEND_STORAGE_KEY/);
+  assert.match(js, /function mergeConfirmedSend/);
+  assert.match(js, /writeConfirmedSend\(data\.last_send/);
+  assert.match(js, /PREVIEW=mergeConfirmedSend\(data\)/);
+  assert.match(js, /last_send:confirmed\.last_send/);
+});
