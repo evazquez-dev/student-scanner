@@ -49,6 +49,7 @@ test('fidelity service summarizes normal events instead of keeping a raw permane
 test('operational health frontend is smaller and uses D1 dashboard endpoints', () => {
   assert.match(html, /Operational Health/);
   assert.match(html, /Room \/ Period Health/);
+  assert.match(html, /By Teacher/);
   assert.match(html, /Kiosk Health \/ Devices/);
   assert.match(html, /Exceptions/);
   assert.match(js, /\/admin\/fidelity_dashboard/);
@@ -66,3 +67,13 @@ test('non-heartbeat Fidelity events satisfy NOT NULL heartbeat-state columns wit
   assert.match(service, /clock_skew_warning = CASE WHEN excluded\.last_heartbeat_at_iso <> '' THEN excluded\.clock_skew_warning ELSE fidelity_device_daily\.clock_skew_warning END/);
 });
 
+test('fidelity dashboard derives scheduled teacher accountability from room-period evidence', () => {
+  assert.match(service, /function buildFidelityTeacherHealth/);
+  assert.match(service, /missing_attendance_periods/);
+  assert.match(service, /attendance_coverage_pct/);
+  assert.match(service, /teacher_health: teacherHealth/);
+  assert.match(html, /By Teacher/);
+  assert.match(html, /teacherHealthBody/);
+  assert.match(js, /function renderTeacherHealth/);
+  assert.match(js, /data\.teacher_health/);
+});

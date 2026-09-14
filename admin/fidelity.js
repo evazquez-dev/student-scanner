@@ -14,6 +14,7 @@ const refreshBtn = document.getElementById('refreshBtn');
 const statusText = document.getElementById('statusText');
 const summaryCards = document.getElementById('summaryCards');
 const roomPeriodBody = document.getElementById('roomPeriodBody');
+const teacherHealthBody = document.getElementById('teacherHealthBody');
 const deviceBody = document.getElementById('deviceBody');
 const exceptionBody = document.getElementById('exceptionBody');
 const kioskHealthSummary = document.getElementById('kioskHealthSummary');
@@ -87,6 +88,8 @@ function renderSummary(counts={}, selectedDate='') {
     ['Healthy periods', counts.healthy_room_periods ?? 0, `${counts.expected_room_periods ?? 0} expected`],
     ['Need attention', counts.needs_attention_room_periods ?? 0, 'partial / error evidence'],
     ['Missing evidence', counts.missing_evidence_room_periods ?? 0, 'no scans + no attendance'],
+    ['Teachers clear', counts.healthy_teachers ?? 0, `${counts.teachers ?? 0} scheduled teachers`],
+    ['Teacher follow-up', counts.teachers_needing_attention ?? 0, counts.unassigned_teacher_periods ? `${counts.unassigned_teacher_periods} expected periods unassigned` : 'missing attendance / fidelity flags'],
     ['Exceptions', counts.exceptions ?? 0, 'for selected date']
   ];
   summaryCards.innerHTML = cards.map(([title,big,small]) => `<div class="card"><h2>${esc(title)}</h2><div class="big">${esc(big)}</div><div class="small">${esc(small)}</div></div>`).join('');
@@ -98,6 +101,44 @@ function renderRoomPeriods(rows=[]) {
     return `<tr><td class="mono">${esc(row.period_local || '')}</td><td>${esc(row.room || '')}</td><td>${esc(teachers)}</td><td>${esc(sections)}</td><td>${esc(row.expected_students ?? 0)}</td><td>${esc(row.scan_success_count ?? 0)}${row.manual_scan_count ? `<div class="muted">${esc(row.manual_scan_count)} manual</div>`:''}</td><td>${esc(row.teacher_submit_count ?? 0)}</td><td>${statusChip(row.status)}</td><td>${(row.flags||[]).length ? (row.flags||[]).map(x=>chip(x,/no |not |error/i.test(x)?'warn':'info')).join('') : chip('None','ok')}</td></tr>`;
   }).join('') : `<tr><td colspan="9" class="empty">No room/period health rows for this date yet.</td></tr>`;
 }
+
+function renderTeacherHealth(rows=[]) {
+  teacherHealthBody.innerHTML = rows.length ? rows.map(row => {
+    const periods = Array.isArray(row.periods) ? row.periods : [];
+    const followUp = periods.filter(period =>
+      Number(period.teacher_submit_count || 0) <= 0 ||
+      Number(period.teacher_submit_error_count || 0) > 0 ||
+      Number(period.scan_success_count || 0) <= 0 ||
+      Number(period.scan_error_count || 0) > 0
+    );
+
+    const followUpHtml = followUp.length ? followUp.map(period => {
+      const sections = (period.sections || []).join(', ');
+      const reasons = [];
+      if (Number(period.teacher_submit_count || 0) <= 0) reasons.push('attendance');
+      if (Number(period.teacher_submit_error_count || 0) > 0) reasons.push('submit error');
+      if (Number(period.scan_success_count || 0) <= 0) reasons.push('no scans');
+      if (Number(period.scan_error_count || 0) > 0) reasons.push('scan error');
+      const label = `${period.period_local || '—'} • ${period.room || '—'}${sections ? ` • ${sections}` : ''} — ${reasons.join(', ')}`;
+      return chip(label, reasons.some(reason => /error|attendance/.test(reason)) ? 'warn' : 'info');
+    }).join('') : chip('None','ok');
+
+    const attendancePct = Number(row.attendance_coverage_pct || 0);
+    const scanPct = Number(row.scan_coverage_pct || 0);
+
+    return `<tr>
+      <td><strong>${esc(row.teacher_name || '—')}</strong></td>
+      <td>${esc(row.assigned_periods ?? 0)}</td>
+      <td>${esc(row.periods_with_attendance ?? 0)} / ${esc(row.assigned_periods ?? 0)}<div class="muted">${esc(attendancePct)}%</div></td>
+      <td>${Number(row.missing_attendance_periods || 0) > 0 ? chip(`${row.missing_attendance_periods} missing`,'bad') : chip('0','ok')}${Number(row.teacher_submit_error_count || 0) > 0 ? `<div class="muted">${esc(row.teacher_submit_error_count)} submit errors</div>` : ''}</td>
+      <td>${esc(row.periods_with_scan_evidence ?? 0)} / ${esc(row.assigned_periods ?? 0)}<div class="muted">${esc(scanPct)}% • ${esc(row.scan_success_count ?? 0)} scans</div></td>
+      <td>${esc(row.expected_student_periods ?? 0)}</td>
+      <td>${statusChip(row.status)}</td>
+      <td>${followUpHtml}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="8" class="empty">No scheduled teacher responsibility rows for this date yet.</td></tr>`;
+}
+
 function versionChip(row) {
   const reported = String(row.service_worker_version || '').trim();
   if (!reported) return chip('Not reporting','warn');
@@ -156,6 +197,7 @@ async function loadDashboard(date='') {
     dateInput.value = data.date || date || localTodayKey();
     renderSummary(data.counts || {}, data.date || date || localTodayKey());
     renderRoomPeriods(data.room_periods || []);
+    renderTeacherHealth(data.teacher_health || []);
     renderDevices(data.devices || [], data);
     renderExceptions(data.exceptions || []);
     statusText.textContent = `D1 • ${data.date || ''} • updated ${new Date(data.generated_at_iso || Date.now()).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}`;
