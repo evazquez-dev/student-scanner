@@ -58,3 +58,22 @@ test('System Administration can assign the three cart RFID cards', () => {
   assert.match(js, /loadResourceAssets/);
   assert.match(js, /\/admin\/resource_assets/);
 });
+
+test('SuperAdmin can manually report a ChromeCart back home', () => {
+  const service = read('cf-redcake/red-cake-77d5/src/services/resource-assets.js');
+  const route = read('cf-redcake/red-cake-77d5/src/routes/resource-assets.js');
+  const html = read('student-scanner/admin/index.html');
+  const js = read('student-scanner/admin/admin.js');
+
+  assert.match(service, /RESOURCE_ASSET_HOME\s*=\s*'Main Office'/);
+  assert.match(service, /reportResourceAssetHome/);
+  assert.match(service, /manual:super_admin_home/);
+  assert.match(route, /report_home/);
+  assert.match(route, /resource_asset_report_home/);
+  assert.match(route, /super_admin_required/);
+  assert.match(route, /viewAsReadOnlyResponse/);
+  assert.match(html, /Last reported/);
+  assert.match(js, /Mark Main Office/);
+  assert.match(js, /data-resource-home/);
+});
+

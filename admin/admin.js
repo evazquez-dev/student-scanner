@@ -1995,8 +1995,9 @@ function renderResourceAssets(rows){
     return `<tr data-resource="${esc(resource)}">
       <td><strong>${esc(resource)}</strong></td>
       <td><input class="resourceAssetRfid" type="text" inputmode="numeric" autocomplete="off" maxlength="64" value="${esc(rfid)}" placeholder="Scan/paste numeric RFID"></td>
-      <td>${location ? `<strong>${esc(location)}</strong>` : '<span class="muted">Not scanned yet</span>'}</td>
+      <td>${location ? `<strong>${esc(location)}</strong>` : '<span class="muted">Not reported yet</span>'}</td>
       <td>${esc(formatResourceAssetSeen(seen))}</td>
+      <td><button class="btn ghost resourceAssetHomeBtn" type="button" data-resource-home="${esc(resource)}">Mark Main Office</button></td>
     </tr>`;
   }).join('');
 }
@@ -2026,6 +2027,38 @@ function gatherResourceAssets(){
 }
 
 btnLoadResourceAssets?.addEventListener('click', loadResourceAssets);
+
+// EAGLENEST_RESOURCE_ASSET_HOME_V1
+resourceAssetsTbody?.addEventListener('click', async (event) => {
+  const btn = event.target?.closest?.('[data-resource-home]');
+  if (!btn || !resourceAssetsTbody.contains(btn) || !resourceAssetsOut) return;
+
+  const resource = String(btn.dataset.resourceHome || '').trim();
+  if (!RESOURCE_ASSET_NAMES_UI.includes(resource)) return;
+
+  const confirmed = window.confirm(`Mark ${resource} as back home in the Main Office?`);
+  if (!confirmed) return;
+
+  btn.disabled = true;
+  resourceAssetsOut.textContent = `Reporting ${resource} back in the Main Office…`;
+
+  try {
+    const r = await adminFetch('/admin/resource_assets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'report_home', resource })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+
+    renderResourceAssets(j.assets);
+    resourceAssetsOut.textContent =
+      `${resource} marked home in Main Office at ${formatResourceAssetSeen(j.reported_at_iso)}.`;
+  } catch (e) {
+    resourceAssetsOut.textContent = `Home report failed: ${e?.message || e}`;
+    btn.disabled = false;
+  }
+});
 
 btnSaveResourceAssets?.addEventListener('click', async () => {
   if (!resourceAssetsOut) return;
