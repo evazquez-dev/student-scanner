@@ -361,3 +361,206 @@ const swInit=setInterval(()=>{
   }
 },150);
 setTimeout(()=>clearInterval(swInit),12000);
+
+/* EAGLENEST_MTSS_SOCIAL_WORK_CLAIM_V1 */
+let swMtssData=null;
+let swMtssView='unclaimed';
+
+function swMtssInjectUi(){
+  if($('swMtssSection'))return;
+  const dashboardView=$('dashboardView');
+  if(!dashboardView)return;
+
+  const section=document.createElement('section');
+  section.id='swMtssSection';
+  section.className='card';
+  section.hidden=true;
+  section.innerHTML=`
+    <div class="sectionHead">
+      <div>
+        <h2>Attendance MTSS</h2>
+        <div class="muted small">Automatic Tier 2/3 attendance cases routed to Social Work. Any Social Work team member can claim an unclaimed case.</div>
+      </div>
+      <button id="swMtssRefresh" type="button">Refresh cases</button>
+    </div>
+
+    <div id="swMtssKpis" class="swReferralKpis"></div>
+
+    <div class="swReferralFilters">
+      <label>View
+        <select id="swMtssView">
+          <option value="unclaimed">Unclaimed</option>
+          <option value="mine">My cases</option>
+          <option value="team">Team claimed</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="swMtssList" class="swReferralList">
+      <div class="emptyState">Loading Attendance MTSS cases…</div>
+    </div>`;
+
+  const referral=$('swReferralSection');
+  dashboardView.insertBefore(section,referral||dashboardView.firstChild);
+
+  $('swMtssRefresh')?.addEventListener('click',loadSocialWorkMtss);
+  $('swMtssView')?.addEventListener('change',(e)=>{
+    swMtssView=String(e.target.value||'unclaimed');
+    renderSocialWorkMtss();
+  });
+}
+
+function swMtssFmtDate(v){
+  const raw=String(v||'');
+  const m=raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?`${Number(m[2])}/${Number(m[3])}/${m[1]}`:(raw||'—');
+}
+
+async function loadSocialWorkMtss(){
+  swMtssInjectUi();
+  const section=$('swMtssSection');
+  if(activeTeam!=='social_work'){
+    if(section)section.hidden=true;
+    return;
+  }
+  section.hidden=false;
+
+  try{
+    swMtssData=await api('/admin/mtss/social_work_queue');
+    renderSocialWorkMtss();
+  }catch(e){
+    if($('swMtssList')){
+      $('swMtssList').innerHTML=`<div class="emptyState">Could not load Attendance MTSS: ${esc(e.message)}</div>`;
+    }
+  }
+}
+
+function renderSocialWorkMtss(){
+  if(!swMtssData)return;
+  const summary=swMtssData.summary||{};
+
+  if($('swMtssKpis')){
+    $('swMtssKpis').innerHTML=[
+      ['Unclaimed',summary.unclaimed||0],
+      ['Tier 2 waiting',summary.unclaimed_tier2||0],
+      ['Tier 3 waiting',summary.unclaimed_tier3||0],
+      ['My cases',summary.mine||0]
+    ].map(([label,value])=>
+      `<div class="swReferralKpi"><span>${esc(label)}</span><strong>${Number(value||0)}</strong></div>`
+    ).join('');
+  }
+
+  let rows=[];
+  if(swMtssView==='mine')rows=Array.isArray(swMtssData.mine)?swMtssData.mine:[];
+  else if(swMtssView==='team')rows=Array.isArray(swMtssData.team_claimed)?swMtssData.team_claimed:[];
+  else rows=Array.isArray(swMtssData.unclaimed)?swMtssData.unclaimed:[];
+
+  const list=$('swMtssList');
+  if(!list)return;
+  if(!rows.length){
+    list.innerHTML=`<div class="emptyState">${
+      swMtssView==='mine'
+        ? 'You do not currently own an automatic Attendance MTSS case.'
+        : swMtssView==='team'
+          ? 'No automatic Attendance MTSS cases have been claimed yet.'
+          : 'No automatic Attendance MTSS cases are waiting to be claimed.'
+    }</div>`;
+    return;
+  }
+
+  list.innerHTML=rows.map((r)=>{
+    const collaborators=Array.isArray(r.collaborator_emails)?r.collaborator_emails:[];
+    const owner=r.owner_email?` • Owner ${esc(r.owner_email)}`:'';
+    const advisor=collaborators.length?` • Advisor/collaborator ${esc(collaborators.join(', '))}`:'';
+    return `<article class="swReferralCard">
+      <div class="swReferralHead">
+        <div>
+          <strong>${esc(r.student_name_snapshot||r.student_number)}</strong>
+          <div class="swReferralMeta">Grade ${esc(r.grade_snapshot||'—')} • OSIS ${esc(r.student_number)}</div>
+        </div>
+        <span class="swReferralStatus assigned">Tier ${Number(r.tier||2)}</span>
+      </div>
+
+      <div class="swReferralText">${esc(r.reason||r.title||'Automatic attendance MTSS case')}</div>
+      <div class="swReferralMeta">
+        Opened ${esc(swMtssFmtDate(r.opened_at_iso))}
+        • Review ${esc(swMtssFmtDate(r.next_review_date))}
+        ${owner}${advisor}
+      </div>
+
+      <div class="toolbar end" style="margin-top:9px">
+        ${r.claimable&&!isReadOnly()
+          ? `<button type="button" class="primary" data-sw-mtss-claim="${esc(r.case_id)}">Claim case</button>`
+          : ''}
+        <button type="button" data-sw-mtss-student="${esc(r.student_number)}" data-sw-mtss-name="${esc(r.student_name_snapshot||'')}">Open Student</button>
+        <button type="button" data-sw-mtss-open="${esc(r.student_number)}">Open MTSS</button>
+      </div>
+    </article>`;
+  }).join('');
+
+  list.querySelectorAll('[data-sw-mtss-claim]').forEach((btn)=>{
+    btn.addEventListener('click',()=>claimSocialWorkMtss(btn.dataset.swMtssClaim));
+  });
+  list.querySelectorAll('[data-sw-mtss-student]').forEach((btn)=>{
+    btn.addEventListener('click',()=>{
+      openStudent({
+        student_number:btn.dataset.swMtssStudent,
+        name:btn.dataset.swMtssName||btn.dataset.swMtssStudent
+      });
+    });
+  });
+  list.querySelectorAll('[data-sw-mtss-open]').forEach((btn)=>{
+    btn.addEventListener('click',()=>{
+      const osis=encodeURIComponent(btn.dataset.swMtssOpen||'');
+      window.location.href=`./mtss.html?osis=${osis}`;
+    });
+  });
+}
+
+async function claimSocialWorkMtss(caseId){
+  if(isReadOnly()||!caseId)return;
+  try{
+    const result=await api('/admin/mtss/case/claim',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({case_id:caseId})
+    });
+    swMtssView='mine';
+    if($('swMtssView'))$('swMtssView').value='mine';
+    await loadSocialWorkMtss();
+    setStatus(result?.already_claimed?'This case is already yours.':'Attendance MTSS case claimed.','good');
+  }catch(e){
+    setStatus(
+      e?.payload?.owner_email
+        ? `Could not claim case: already claimed by ${e.payload.owner_email}.`
+        : `Could not claim case: ${e.message}`,
+      'error'
+    );
+    await loadSocialWorkMtss();
+  }
+}
+
+/* Layer the MTSS queue onto the existing Social Work dashboard integration. */
+swMtssInjectUi();
+
+const swMtssBaseSetActiveTeam=setActiveTeam;
+setActiveTeam=function(team,opts={}){
+  swMtssBaseSetActiveTeam(team,opts);
+  if($('swMtssSection'))$('swMtssSection').hidden=team!=='social_work';
+  if(team==='social_work')setTimeout(loadSocialWorkMtss,0);
+};
+
+const swMtssBaseLoadDashboard=loadDashboard;
+loadDashboard=async function(){
+  await swMtssBaseLoadDashboard();
+  if(activeTeam==='social_work')await loadSocialWorkMtss();
+  else if($('swMtssSection'))$('swMtssSection').hidden=true;
+};
+
+const swMtssInit=setInterval(()=>{
+  if(typeof access!=='undefined'&&access&&typeof activeTeam!=='undefined'&&activeTeam){
+    clearInterval(swMtssInit);
+    if(activeTeam==='social_work')loadSocialWorkMtss().catch(()=>{});
+  }
+},150);
+setTimeout(()=>clearInterval(swMtssInit),12000);
