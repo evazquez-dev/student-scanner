@@ -527,7 +527,7 @@ function renderContacts() {
     return;
   }
 
-  for (const contact of rows) {
+  for (const [index, contact] of rows.entries()) {
     const card = document.createElement('article');
     card.className = 'card contactCard';
     const displayName = contact.display?.name || contact.source?.display_name || 'Unnamed Contact';
@@ -537,6 +537,10 @@ function renderContacts() {
       ? `<div class="sourceHint">PowerSchool: ${esc(contact.source?.name || 'No name')}</div>` : '';
     const relSourceHint = contact.my_overrides?.relationship && contact.source?.relationship !== displayRel
       ? `<div class="sourceHint">PowerSchool: ${esc(contact.source?.relationship || 'Not set')}</div>` : '';
+    const recommendedRank = Number(contact.eaglenest_rank || (index + 1));
+    const tierLabel = String(contact.eaglenest_tier_label || relShown || 'Contact');
+    const psPriority = String(contact.contact_priority || '').trim();
+    const recommendationMeta = [tierLabel, psPriority ? `PS priority ${psPriority}` : ''].filter(Boolean).join(' • ');
 
     card.innerHTML = `
       <div class="contactTop">
@@ -544,7 +548,7 @@ function renderContacts() {
           <div class="contactName">${esc(displayName)}</div>${nameSourceHint}
           <div class="relationship">${esc(relShown)}</div>${relSourceHint}
         </div>
-        <div class="priority">Priority ${esc(contact.contact_priority || '—')}</div>
+        <div class="priority">Recommended #${esc(recommendedRank)}<div class="sourceHint">${esc(recommendationMeta)}</div></div>
       </div>
       <div class="detailList">
         <div class="detail"><div class="detailLabel">Phone</div><div class="detailValue">${phoneMarkup(contact)}</div></div>

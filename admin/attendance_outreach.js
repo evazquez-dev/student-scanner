@@ -397,7 +397,8 @@ function contactKey(contact, index) {
 
 function renderContacts(data) {
   CONTACT_MAP.clear();
-  const contacts = Array.isArray(data?.contacts) ? data.contacts : [];
+  const contacts = Array.isArray(data?.contacts) ? data.contacts.slice() : [];
+  contacts.sort((a,b) => Number(a?.eaglenest_rank || 9999) - Number(b?.eaglenest_rank || 9999));
   const items = [{ key:'general', contact:null }];
   contacts.forEach((contact, index) => items.push({ key:contactKey(contact, index), contact }));
   contactChoices.innerHTML = '';
@@ -408,6 +409,8 @@ function renderContacts(data) {
     const name = contact?.display?.name || 'General / No specific contact';
     const relationship = contact?.display?.relationship || '';
     const phone = String(contact?.display?.phone || '').trim();
+    const recommendationRank = contact ? Number(contact?.eaglenest_rank || 0) : 0;
+    const recommendationLabel = contact && recommendationRank ? ` • Recommended #${recommendationRank}` : '';
     if (contact) CONTACT_MAP.set(item.key, contact);
     if (!firstPhoneKey && phone) firstPhoneKey = item.key;
     const label = document.createElement('label');
@@ -415,7 +418,7 @@ function renderContacts(data) {
     const safePhone = phone.replace(/[^+\d]/g, '');
     label.innerHTML = `
       <input type="radio" name="attendanceContact" value="${esc(item.key)}">
-      <div><strong>${esc(name)}</strong><div class="subline">${esc(relationship && relationship.toLowerCase() !== 'not set' ? relationship : (contact ? 'Relationship not set' : 'Use when no specific person was reached'))}</div></div>
+      <div><strong>${esc(name)}</strong><div class="subline">${esc((relationship && relationship.toLowerCase() !== 'not set' ? relationship : (contact ? 'Relationship not set' : 'Use when no specific person was reached')) + recommendationLabel)}</div></div>
       <div class="contactPhone">${phone ? `<a href="tel:${esc(safePhone)}">${esc(phone)}</a><button class="copyBtn" type="button" data-phone="${esc(phone)}">Copy</button>` : '<span class="muted">No phone</span>'}</div>`;
     contactChoices.appendChild(label);
   }
