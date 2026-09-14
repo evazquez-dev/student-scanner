@@ -64,3 +64,42 @@ test('MTSS rule UI labels streak in plain English', () => {
   assert.match(js, /Consecutive absences/);
   assert.match(js, /isStreak/);
 });
+
+test('five consecutive absence days matches Tier 3 streak rule', () => {
+  const tier3Rule = {
+    signal_key: 'consecutive_absence_days',
+    operator: 'gte',
+    threshold: 5,
+    min_captured_days: 5,
+    window_days: 0,
+    min_event_count: 0
+  };
+  assert.equal(mtssRuleMatches(tier3Rule, {
+    captured_days: 5,
+    consecutive_absence_days: 5,
+    windows: {}
+  }), true);
+});
+
+test('four consecutive absence days does not match Tier 3 streak rule', () => {
+  const tier3Rule = {
+    signal_key: 'consecutive_absence_days',
+    operator: 'gte',
+    threshold: 5,
+    min_captured_days: 5,
+    window_days: 0,
+    min_event_count: 0
+  };
+  assert.equal(mtssRuleMatches(tier3Rule, {
+    captured_days: 5,
+    consecutive_absence_days: 4,
+    windows: {}
+  }), false);
+});
+
+test('Tier 3 consecutive-absence migration is enabled and escalates', () => {
+  const sql = read('cf-redcake/red-cake-77d5/migrations/0018_mtss_consecutive_absence_tier3.sql');
+  assert.match(sql, /attendance_consecutive_absences_t3/);
+  assert.match(sql, /consecutive_absence_days/);
+  assert.match(sql, /'gte',\s*5,\s*5,\s*0,\s*0,\s*1,\s*1,\s*1/);
+});
