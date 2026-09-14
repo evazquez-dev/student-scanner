@@ -132,14 +132,29 @@
     try{ const data=await api('/admin/mtss/rules?domain=attendance'); state.rules=data.rules||[]; renderRules(); }
     catch(e){ $('rulesStatus').textContent=`Rules unavailable: ${e.message}`; }
   }
+  function signalLabel(key){
+    const labels={
+      absence_rate:'Absence rate',
+      attendance_rate:'Attendance rate',
+      late_count:'Late count',
+      consecutive_absence_days:'Consecutive absences'
+    };
+    return labels[String(key||'')]||String(key||'').replace(/_/g,' ');
+  }
   function renderRules(){
     $('rulesBody').innerHTML=state.rules.map(r=>{
-      const isRate=String(r.signal_key).includes('rate'); const threshold=isRate?(Number(r.threshold)*100):Number(r.threshold);
+      const isRate=String(r.signal_key).includes('rate');
+      const isStreak=String(r.signal_key)==='consecutive_absence_days';
+      const threshold=isRate?(Number(r.threshold)*100):Number(r.threshold);
+      const signalNote=isStreak
+        ? '<div class="small muted">current official-school-day streak</div>'
+        : (r.window_days?`<div class="small muted">last ${r.window_days} finalized days</div>`:'');
+      const windowDisabled=isStreak||!canEditRules()||isReadOnly();
       return `<tr data-rule-id="${esc(r.rule_id)}"><td><input class="ruleEnabled" type="checkbox" ${r.enabled?'checked':''} ${canEditRules()&&!isReadOnly()?'':'disabled'}></td>
-        <td><strong>${esc(r.name)}</strong><div class="small muted">${esc(r.description||'')}</div></td><td>Tier ${r.tier}</td><td>${esc(r.signal_key)}${r.window_days?`<div class="small muted">last ${r.window_days} finalized days</div>`:''}</td>
-        <td><input class="${isRate?'rulePct':'ruleInput'} ruleThreshold" type="number" step="${isRate?'0.1':'1'}" min="0" value="${esc(threshold)}" ${canEditRules()&&!isReadOnly()?'':'disabled'}>${isRate?' %':''}</td>
+        <td><strong>${esc(r.name)}</strong><div class="small muted">${esc(r.description||'')}</div></td><td>Tier ${r.tier}</td><td>${esc(signalLabel(r.signal_key))}${signalNote}</td>
+        <td><input class="${isRate?'rulePct':'ruleInput'} ruleThreshold" type="number" step="${isRate?'0.1':'1'}" min="0" value="${esc(threshold)}" ${canEditRules()&&!isReadOnly()?'':'disabled'}>${isRate?' %':isStreak?' days':''}</td>
         <td><input class="ruleInput ruleMinDays" type="number" min="0" value="${r.min_captured_days}" ${canEditRules()&&!isReadOnly()?'':'disabled'}></td>
-        <td><input class="ruleInput ruleWindow" type="number" min="0" value="${r.window_days}" ${canEditRules()&&!isReadOnly()?'':'disabled'}></td>
+        <td><input class="ruleInput ruleWindow" type="number" min="0" value="${r.window_days}" ${windowDisabled?'disabled':''}>${isStreak?'<div class="small muted">fixed: current streak</div>':''}</td>
         <td><span class="small">Open ${r.auto_open?'✓':'—'} · Escalate ${r.auto_escalate?'✓':'—'}</span></td>
         <td>${canEditRules()&&!isReadOnly()?'<button class="btn saveRule" type="button">Save</button>':''}</td></tr>`;
     }).join('');
@@ -147,7 +162,7 @@
   async function saveRule(row){
     const id=row.dataset.ruleId; const r=state.rules.find(x=>x.rule_id===id); if(!r)return;
     const raw=Number(row.querySelector('.ruleThreshold').value); const threshold=String(r.signal_key).includes('rate')?raw/100:raw;
-    const body={rule_id:id,enabled:row.querySelector('.ruleEnabled').checked,threshold,min_captured_days:Number(row.querySelector('.ruleMinDays').value||0),window_days:Number(row.querySelector('.ruleWindow').value||0)};
+    const body={rule_id:id,enabled:row.querySelector('.ruleEnabled').checked,threshold,min_captured_days:Number(row.querySelector('.ruleMinDays').value||0),window_days:String(r.signal_key)==='consecutive_absence_days'?0:Number(row.querySelector('.ruleWindow').value||0)};
     try{ $('rulesStatus').textContent=`Saving ${r.name}…`; await api('/admin/mtss/rules',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); $('rulesStatus').textContent='Rule saved.'; await loadRules(); }
     catch(e){ $('rulesStatus').textContent=`Save failed: ${e.message}`; }
   }
@@ -169,7 +184,7 @@
   function renderCaseDetails(data){
     const c=data.case; state.currentCase=data; $('caseDomainLabel').textContent=domainLabel(c.domain); $('caseModalTitle').textContent=c.student_name_snapshot||c.student_number;
     $('caseMeta').textContent=`OSIS ${c.student_number} · Grade ${c.grade_snapshot||'—'} · Tier ${c.tier} · ${titleCase(c.status)}`;
-    const m=data.metrics||null; $('caseMetrics').innerHTML=m?`<div class="metric"><span>Finalized days</span><strong>${m.captured_days}</strong></div><div class="metric"><span>Attendance rate</span><strong>${pct(m.attendance_rate)}</strong></div><div class="metric"><span>Absences</span><strong>${m.absence_count}</strong></div><div class="metric"><span>Lates</span><strong>${m.late_count}</strong></div>`:'';
+    const m=data.metrics||null; $('caseMetrics').innerHTML=m?`<div class="metric"><span>Finalized days</span><strong>${m.captured_days}</strong></div><div class="metric"><span>Attendance rate</span><strong>${pct(m.attendance_rate)}</strong></div><div class="metric"><span>Absences</span><strong>${m.absence_count}</strong></div><div class="metric"><span>Lates</span><strong>${m.late_count}</strong></div><div class="metric"><span>Current absence streak</span><strong>${Number(m.consecutive_absence_days||0)}</strong></div>`:'';
     $('caseDetails').innerHTML=`<div class="detailRows">
       <div class="detailRow"><span>Domain</span><strong>${esc(domainLabel(c.domain))}</strong></div><div class="detailRow"><span>Tier</span><strong>Tier ${c.tier}</strong></div>
       <div class="detailRow"><span>Status</span><strong>${esc(titleCase(c.status))}</strong></div><div class="detailRow"><span>Owner</span><strong>${esc(c.owner_email||'Unassigned')}</strong></div>
