@@ -94,8 +94,13 @@
     if(assigned)$('scopeBanner').textContent='You are viewing MTSS cases assigned to you or your advisor team. Schoolwide case management is limited to authorized support/operations staff.';
     $('btnNewCase').hidden=!data?.permissions?.manage_all||isReadOnly();
     $('attendanceTools').hidden=!data?.permissions?.manage_all;
-    $('btnBackfill').hidden=!data?.permissions?.edit_rules||isReadOnly();
     $('rulesCard').hidden=!data?.permissions?.manage_all;
+    if(!$('attendanceTools').hidden){
+      const src=data?.attendance_source||{};
+      const last=src?.last_sync?.synced_at_iso?fmtTime(src.last_sync.synced_at_iso):'not synced yet';
+      const range=src.first_date&&src.last_date?`${fmtDate(src.first_date)}–${fmtDate(src.last_date)}`:'no official days yet';
+      $('automationStatus').textContent=`Official PowerSchool days: ${Number(src.captured_days||0)} · ${range} · last sync ${last}`;
+    }
   }
 
   function caseSignal(c){
@@ -201,7 +206,7 @@
   }
 
   async function runAutomation(path,label){
-    try{ $('automationStatus').textContent=`${label}…`; const r=await api(path,{method:'POST',headers:{'content-type':'application/json'},body:'{}'}); $('automationStatus').textContent=path.includes('backfill')?`Backfill complete: ${r.archives_applied||0} finalized days applied.`:`Evaluation complete: ${(r.actions||[]).length} case action(s).`; await loadDashboard(); }
+    try{ $('automationStatus').textContent=`${label}…`; const r=await api(path,{method:'POST',headers:{'content-type':'application/json'},body:'{}'}); $('automationStatus').textContent=`Evaluation complete: ${(r.actions||[]).length} case action(s).`; await loadDashboard(); }
     catch(e){ $('automationStatus').textContent=`${label} failed: ${e.message}`; }
   }
 
@@ -215,7 +220,6 @@
     $('interventionForm').addEventListener('submit',(e)=>{e.preventDefault();addIntervention();});
     $('reviewForm').addEventListener('submit',(e)=>{e.preventDefault();addReview();});
     $('btnEvaluate').addEventListener('click',()=>runAutomation('/admin/mtss/evaluate','Evaluating attendance rules'));
-    $('btnBackfill').addEventListener('click',()=>{if(confirm('Backfill MTSS attendance from finalized absentee/late email archives for the current school year?'))runAutomation('/admin/mtss/attendance/backfill_archives','Backfilling finalized attendance days');});
     document.addEventListener('click',(e)=>{const b=e.target.closest('[data-close]');if(b)close(b.dataset.close);});
   }
 

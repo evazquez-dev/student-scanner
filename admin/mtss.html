@@ -84,10 +84,14 @@
 
       <section id="attendanceTools" class="card" hidden>
         <div class="sectionHead">
-          <div><h2>Attendance automation</h2><p class="muted">Cases evaluate from finalized absentee/late email days—not live mid-day scanner state.</p></div>
-          <div class="buttonRow"><button id="btnEvaluate" class="btn" type="button">Re-evaluate now</button><button id="btnBackfill" class="btn" type="button" hidden>Backfill finalized days</button></div>
+          <div>
+            <h2>Attendance automation</h2>
+            <p class="muted">Official source: PowerSchool daily attendance via HS Attendance Data GAS. SY26-27 MTSS reporting begins 9/8/2026; later PowerSchool excuse-code/comment changes reconcile back into the same MTSS day.</p>
+          </div>
+          <div class="buttonRow"><button id="btnEvaluate" class="btn" type="button">Re-evaluate now</button></div>
         </div>
-        <div id="automationStatus" class="statusText">Ready.</div>
+        <div id="automationStatus" class="statusText">Waiting for PowerSchool sync status…</div>
+        <div class="small muted">To force a source refresh: HS Attendance Data → PS Attendance → MTSS PowerSchool Sync → Sync official attendance now.</div>
       </section>
 
       <section id="rulesCard" class="card" hidden>
