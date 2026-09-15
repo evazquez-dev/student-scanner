@@ -17,6 +17,33 @@
     'student_scans_admin_session_v1'
   ];
 
+  // EAGLENEST_GRANDSTREAM_PHASE3_2_1_STREAM_CLEANUP
+  const STREAM_TAB_ID_KEY = 'eaglenest_phone_live_tab_id_v1';
+  let cachedStreamClientId = '';
+
+  function streamClientId() {
+    if (cachedStreamClientId) return cachedStreamClientId;
+    try {
+      const existing = String(sessionStorage.getItem(STREAM_TAB_ID_KEY) || '').trim();
+      if (/^tab-[A-Za-z0-9_-]{8,80}$/.test(existing)) {
+        cachedStreamClientId = existing;
+        return cachedStreamClientId;
+      }
+    } catch {}
+    let token = '';
+    try { token = crypto.randomUUID().replace(/-/g, ''); } catch {}
+    if (!token) token = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+    cachedStreamClientId = `tab-${token}`.slice(0, 84);
+    try { sessionStorage.setItem(STREAM_TAB_ID_KEY, cachedStreamClientId); } catch {}
+    return cachedStreamClientId;
+  }
+
+  function liveStreamUrl() {
+    const url = new URL('/admin/integrations/grandstream/live/stream', API_BASE);
+    url.searchParams.set('client_id', streamClientId());
+    return url;
+  }
+
   let aborter = null;
   let reconnectTimer = null;
   let reconnectMs = 1000;
@@ -264,7 +291,7 @@
     aborter = new AbortController();
 
     try {
-      const response = await fetch(new URL('/admin/integrations/grandstream/live/stream', API_BASE), {
+      const response = await fetch(liveStreamUrl(), {
         method: 'GET',
         headers: apiHeaders({ 'accept': 'application/x-ndjson' }),
         credentials: 'include',
@@ -309,8 +336,24 @@
     return response.json();
   }
 
+  function sendDisconnect() {
+    try {
+      const url = new URL('/admin/integrations/grandstream/live/disconnect', API_BASE);
+      url.searchParams.set('client_id', streamClientId());
+      fetch(url, {
+        method: 'POST',
+        headers: apiHeaders({ 'content-type': 'application/json' }),
+        credentials: 'include',
+        cache: 'no-store',
+        keepalive: true,
+        body: '{}'
+      }).catch(() => {});
+    } catch {}
+  }
+
   function stop() {
     stopped = true;
+    sendDisconnect();
     if (reconnectTimer) clearTimeout(reconnectTimer);
     reconnectTimer = null;
     try { aborter?.abort(); } catch {}
