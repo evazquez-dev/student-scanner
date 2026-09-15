@@ -67,6 +67,9 @@ const toast = $('toast');
 
 const managerControls = $('managerControls');
 const managerControlHint = $('managerControlHint');
+const testEmailControls = $('testEmailControls');
+const testEmailBtn = $('testEmailBtn');
+const testEmailStatus = $('testEmailStatus');
 const endIncidentBtn = $('endIncidentBtn');
 const endGuardPanel = $('endGuardPanel');
 const endGuardMessage = $('endGuardMessage');
@@ -103,6 +106,7 @@ let ARCHIVE_REQUEST_ATTEMPTED = false;
 let END_GUARD_COUNT = null;
 let END_GUARD_PHRASE = '';
 let END_IN_FLIGHT = false;
+let TEST_EMAIL_IN_FLIGHT = false;
 const PENDING_OSIS = new Set();
 
 function esc(value){
@@ -261,6 +265,10 @@ function canManage(){
   return ESAS_STATUS?.can_manage === true;
 }
 
+function canTestEmail(){
+  return ESAS_STATUS?.can_test_email === true && !isEsasGuestMode();
+}
+
 function actorEmail(){
   return cleanEmail(SESSION?.email);
 }
@@ -312,6 +320,51 @@ function closeEndGuard(){
   if (endGuardPanel) endGuardPanel.hidden = true;
   if (endGuardPhraseLabel) endGuardPhraseLabel.hidden = true;
   if (confirmEndBtn) confirmEndBtn.disabled = false;
+}
+
+function renderTestEmailControls(){
+  if (!testEmailControls) return;
+  const allowed = !isActive() && canTestEmail() && !isViewAsReadOnly();
+  testEmailControls.hidden = !allowed;
+  if (!allowed) return;
+
+  if (testEmailBtn) {
+    testEmailBtn.disabled = TEST_EMAIL_IN_FLIGHT;
+    testEmailBtn.textContent = TEST_EMAIL_IN_FLIGHT ? 'Sending test email…' : 'Send test email to me';
+  }
+  if (testEmailStatus && !TEST_EMAIL_IN_FLIGHT && !testEmailStatus.textContent) {
+    testEmailStatus.textContent = actorEmail()
+      ? `Superadmin test recipient: ${actorEmail()}`
+      : 'Superadmin test recipient: current signed-in account';
+  }
+}
+
+async function sendTestEmail(){
+  if (TEST_EMAIL_IN_FLIGHT || !canTestEmail() || isViewAsReadOnly()) return;
+  TEST_EMAIL_IN_FLIGHT = true;
+  if (testEmailStatus) testEmailStatus.textContent = `Sending test email to ${actorEmail() || 'your account'}…`;
+  renderTestEmailControls();
+
+  try{
+    const result = await getJson('/admin/esas/test_email', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body:'{}'
+    });
+    const recipient = cleanEmail(result?.recipient || actorEmail());
+    if (testEmailStatus) {
+      testEmailStatus.textContent = `Sent ${Number(result?.sent_count || 0)} test email${Number(result?.sent_count || 0) === 1 ? '' : 's'}${recipient ? ` to ${recipient}` : ''}.`;
+    }
+    showToast(recipient
+      ? `ESAS test email sent to ${recipient}.`
+      : 'ESAS test email sent.');
+  }catch(error){
+    if (testEmailStatus) testEmailStatus.textContent = `Test failed: ${error?.message || error}`;
+    showToast(`ESAS test email failed: ${error?.message || error}`);
+  }finally{
+    TEST_EMAIL_IN_FLIGHT = false;
+    renderTestEmailControls();
+  }
 }
 
 function renderManagerControls(){
@@ -498,6 +551,7 @@ function renderIncident(){
     activeApp.hidden = true;
     inactiveCard.hidden = false;
     tabOps.hidden = true;
+    renderTestEmailControls();
     renderManagerControls();
     renderArchiveSummary();
     return;
@@ -528,6 +582,7 @@ function renderIncident(){
   inactiveCard.hidden = true;
   activeApp.hidden = false;
   tabOps.hidden = false;
+  renderTestEmailControls();
   renderManagerControls();
   renderArchiveSummary();
 
@@ -937,6 +992,7 @@ async function boot(){
   tabSearch.addEventListener('click', () => setView('search'));
   tabOps.addEventListener('click', () => setView('ops'));
   refreshBtn.addEventListener('click', () => refreshAll());
+  testEmailBtn?.addEventListener('click', () => sendTestEmail().catch(() => {}));
   endIncidentBtn?.addEventListener('click', openEndGuard);
   cancelEndBtn?.addEventListener('click', closeEndGuard);
   confirmEndBtn?.addEventListener('click', () => endCurrentIncident().catch(() => {}));

@@ -80,6 +80,10 @@
         <h2>No ESAS incident is active</h2>
         <p>This page will keep checking automatically. When an authorized Ops/Admin user activates a drill or emergency, authenticated EagleNEST staff pages are redirected here.</p>
         <p class="muted">ESAS does not replace established emergency procedures or offline accountability.</p>
+        <div id="testEmailControls" class="end-guard__actions" hidden>
+          <button id="testEmailBtn" class="end-guard-btn end-guard-btn--secondary" type="button">Send test email to me</button>
+          <span id="testEmailStatus" class="muted"></span>
+        </div>
       </section>
 
       <section id="archiveSummaryCard" class="archive-summary" hidden>
@@ -197,6 +201,6 @@
     </main>
   </div>
 
-  <script type="module" src="./esas.js?v=20260915-email-access"></script>
+  <script type="module" src="./esas.js?v=20260915-superadmin-test-email"></script>
 </body>
 </html>
