@@ -574,9 +574,13 @@ function renderIncident(){
   const warningText = Array.isArray(incident.warnings) && incident.warnings.length
     ? ` · ${incident.warnings.join(' · ')}`
     : '';
+  const officialAttendanceText = incident.context?.official_daily_attendance_active === true
+    ? ` · Official Daily Attendance baseline${incident.context?.official_daily_attendance_sent_at_iso ? ` ${esc(formatStarted(incident.context.official_daily_attendance_sent_at_iso))}` : ''}`
+    : ' · Pre-official attendance fallback';
   contextStrip.innerHTML =
     `<strong>Frozen snapshot:</strong> ${esc(scheduleText(incident))}` +
     `${incident.context?.classes_date ? ` · Classes ${esc(incident.context.classes_date)}` : ''}` +
+    officialAttendanceText +
     `${warningText ? `<span class="student-status--warn">${esc(warningText)}</span>` : ''}`;
 
   inactiveCard.hidden = true;
@@ -628,7 +632,11 @@ function studentStatusHtml(student){
     return `<div class="student-status student-status--ok">✓ Accounted${by ? ` by ${esc(by)}` : ''}${at ? ` · ${esc(at)}` : ''}</div>`;
   }
   if (student.initial_expected === false || student.off_campus_snapshot === true) {
-    const why = student.off_campus_label || student.off_campus_source || 'explicit off-campus state';
+    const basis = String(student.attendance_basis || '');
+    const why = student.off_campus_label || student.attendance_detail || student.off_campus_source || 'initial exclusion';
+    if (basis === 'official_daily_absent') {
+      return `<div class="student-status student-status--warn">Initially excluded by official daily attendance: ${esc(student.official_attendance_code_label || student.attendance_detail || 'Absent')}. If physically present, accounting them will add them to Expected.</div>`;
+    }
     return `<div class="student-status student-status--warn">Initially excluded as off campus: ${esc(why)}. If physically present, accounting them will add them to Expected.</div>`;
   }
   return `<div class="student-status student-status--bad">Not yet accounted for</div>`;
