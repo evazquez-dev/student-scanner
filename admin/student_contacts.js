@@ -11,6 +11,12 @@ const ADMIN_SESSION_HEADER = 'x-admin-session';
 const PAGE_PARAMS = new URLSearchParams(window.location.search);
 const PAGE_SOURCE = String(PAGE_PARAMS.get('source') || 'student_contacts').trim() || 'student_contacts';
 const PAGE_PREFILL_CATEGORY = String(PAGE_PARAMS.get('category') || '').trim();
+const PAGE_PREFILL_CONTACT_ASSOC_ID = String(PAGE_PARAMS.get('contact_assoc_id') || '').trim();
+const PAGE_PREFILL_COMM_METHOD = String(PAGE_PARAMS.get('comm_method') || '').trim();
+const PAGE_PREFILL_COMM_DIRECTION = String(PAGE_PARAMS.get('comm_direction') || '').trim();
+const PAGE_PREFILL_COMM_AT = String(PAGE_PARAMS.get('comm_at') || '').trim();
+const PAGE_PREFILL_COMM_OUTCOME = String(PAGE_PARAMS.get('comm_outcome') || '').trim();
+const PAGE_PREFILL_COMM_NOTES = String(PAGE_PARAMS.get('comm_notes') || '').trim();
 const DEFAULT_COMMUNICATION_CATEGORIES = ['Attendance','Behavior','Academic','Enrollment','Positive Contact','General','Other'];
 let communicationCategories = DEFAULT_COMMUNICATION_CATEGORIES.slice();
 let showDeletedCommunications = false; // COMMUNICATION_SOFT_DELETE_V1
@@ -993,7 +999,7 @@ async function loadCommunicationCategories(){
   }
 }
 
-function openCommunication(contact = null) {
+function openCommunication(contact = null, prefill = {}) {
   if (!currentStudent) return;
   communicatingWith = contact;
   communicationSubmissionId = makeClientSubmissionId('communication');
@@ -1009,7 +1015,11 @@ function openCommunication(contact = null) {
   commCategory.value = requestedCategory || (communicationCategories.includes('General') ? 'General' : (communicationCategories[0] || ''));
   commOutcome.value = 'Spoke/Connected';
   commIncident.value = '';
-  commNotes.value = '';
+  commNotes.value = String(prefill.notes || '').slice(0, 4000);
+  if (prefill.method && [...commMethod.options].some((o) => o.value === prefill.method)) commMethod.value = prefill.method;
+  if (prefill.direction && [...commDirection.options].some((o) => o.value === prefill.direction)) commDirection.value = prefill.direction;
+  if (prefill.outcome && [...commOutcome.options].some((o) => o.value === prefill.outcome)) commOutcome.value = prefill.outcome;
+  if (prefill.at && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(prefill.at)) commAt.value = prefill.at.slice(0, 16);
   commFollowUp.checked = false;
   followUpFields.hidden = true;
   commFollowUpAt.value = '';
@@ -1174,11 +1184,21 @@ async function boot() {
 
     if (bootUrl.searchParams.get('action') === 'log-communication') {
       // Consume the one-time action so a refresh does not reopen the modal.
+      const requestedAssoc = PAGE_PREFILL_CONTACT_ASSOC_ID;
+      const requestedContact = requestedAssoc
+        ? (currentData?.contacts || []).find((row) => String(row?.contact_assoc_id || '') === requestedAssoc) || null
+        : null;
       const cleanUrl = new URL(location.href);
       cleanUrl.searchParams.delete('action');
-      cleanUrl.searchParams.delete('category');
+      for (const key of ['category','contact_assoc_id','comm_method','comm_direction','comm_at','comm_outcome','comm_notes']) cleanUrl.searchParams.delete(key);
       history.replaceState(null, '', cleanUrl);
-      openCommunication(null);
+      openCommunication(requestedContact, {
+        method: PAGE_PREFILL_COMM_METHOD || 'Phone',
+        direction: PAGE_PREFILL_COMM_DIRECTION || 'Outgoing',
+        at: PAGE_PREFILL_COMM_AT,
+        outcome: PAGE_PREFILL_COMM_OUTCOME || 'Spoke/Connected',
+        notes: PAGE_PREFILL_COMM_NOTES
+      });
     }
   }
 }

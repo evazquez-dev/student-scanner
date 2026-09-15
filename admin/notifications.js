@@ -12,6 +12,7 @@ const showDefaultExternalLinks=$('showDefaultExternalLinks'),defaultExternalLink
 const addPersonalExternalLinkBtn=$('addPersonalExternalLinkBtn'),savePersonalExternalLinksBtn=$('savePersonalExternalLinksBtn'),externalLinksSaveOut=$('externalLinksSaveOut');
 let ACCESS=null,CONFIG=null,REG=null,CURRENT_SUB=null,BUSY=false;
 let EXTERNAL_LINK_PREFS={show_defaults:true,default_links:[],personal_links:[]};
+let CALL_CONFIG=null; // EAGLENEST_GRANDSTREAM_CALLS_DASHBOARD_V1
 
 function getStoredAdminSessionSid(){try{for(const k of [ADMIN_SESSION_KEY,...ADMIN_SESSION_FALLBACK_KEYS]){const v=String(sessionStorage.getItem(k)||localStorage.getItem(k)||'').trim();if(v)return v;}}catch{}return '';}
 function setStoredAdminSessionSid(sid){const v=String(sid||'').trim();if(!v)return;try{for(const k of [ADMIN_SESSION_KEY,...ADMIN_SESSION_FALLBACK_KEYS]){sessionStorage.setItem(k,v);localStorage.setItem(k,v);}}catch{}}
@@ -137,6 +138,44 @@ async function saveDefaultExternalLinkVisibility(){
   finally{setBusy(false);}
 }
 
+async function loadCallSettings(){
+  const card=$('call-settings'); if(!card)return;
+  const r=await adminFetch('/admin/calls/config',{method:'GET'});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===403){card.hidden=true;return null}
+  if(!r.ok||!j?.ok)throw new Error(j?.error||`call_settings_http_${r.status}`);
+  CALL_CONFIG=j; card.hidden=false;
+  const p=j.preferences||{};
+  $('callExtensionSummary').textContent=j.my_extension?`Your official extension: ${j.my_extension}`:(j.admin_like?'No personal extension assigned. Admin scope options are available.':'');
+  $('callIncludeInternal').checked=!!p.include_internal;
+  $('callIncludeIncoming').checked=!!p.include_external_incoming;
+  $('callIncludeOutgoing').checked=!!p.include_external_outgoing;
+  const root=$('callScopeControls'); root.replaceChildren();
+  if(j.admin_like){
+    const wrap=document.createElement('label');wrap.className='callScopeSelect';wrap.textContent='Dashboard scope ';
+    const select=document.createElement('select');select.id='callScopeSelect';select.className='classReminderSelect';
+    for(const item of j.available_scopes||[]){select.appendChild(new Option(item.label,item.key))}
+    select.value=p.scope||((j.my_extension&&'my_extension')||'all');wrap.appendChild(select);root.appendChild(wrap);
+    const campuses=document.createElement('div');campuses.id='callCampusChoices';campuses.className='callCampusChoices';
+    for(const campus of j.campuses||[]){const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.value=campus;input.checked=(p.campuses||[]).includes(campus);label.append(input,document.createTextNode(campus));campuses.appendChild(label)}
+    root.appendChild(campuses);const sync=()=>{campuses.hidden=select.value!=='campus'};select.addEventListener('change',sync);sync();
+  }else{
+    const info=document.createElement('div');info.className='callScopeSelect';info.innerHTML='<strong>Scope: My extension</strong><div class="muted small">Your dashboard is server-filtered to calls involving your official extension.</div>';root.appendChild(info);
+  }
+  return j;
+}
+async function saveCallSettings(){
+  if(!CALL_CONFIG)return;
+  const button=$('saveCallSettings'),out=$('callSettingsOut');button.disabled=true;out.textContent='Saving…';
+  try{
+    const scope=CALL_CONFIG.admin_like?String($('callScopeSelect')?.value||'all'):'my_extension';
+    const campuses=[...document.querySelectorAll('#callCampusChoices input:checked')].map(el=>el.value);
+    const payload={preferences:{scope,campuses,include_internal:$('callIncludeInternal').checked,include_external_incoming:$('callIncludeIncoming').checked,include_external_outgoing:$('callIncludeOutgoing').checked}};
+    const r=await adminFetch('/admin/calls/preferences',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.error||`call_settings_http_${r.status}`);
+    CALL_CONFIG=j;out.textContent='Saved. Your Calls dashboard will use these settings on every device.';await loadCallSettings();
+  }catch(e){out.textContent=`Could not save: ${e?.message||e}`}finally{button.disabled=false}
+}
 async function savePreference(key,enabled){
   setBusy(true);
   prefSaveOut.textContent='Saving…';
@@ -169,5 +208,5 @@ async function refreshState(){showNotice('');platformHint.textContent=platformMe
 async function enableNotifications(){setBusy(true);showNotice('');try{if(!CONFIG?.configured)await loadConfig();await ensureRegistration();const permission=await Notification.requestPermission();if(permission!=='granted')throw new Error(permission==='denied'?'Notification permission was blocked. Change the site notification setting in your browser to enable it.':'Notification permission was not granted.');let sub=await REG.pushManager.getSubscription();if(!sub){sub=await REG.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64urlToUint8Array(CONFIG.vapid_public_key)});}const r=await adminFetch('/admin/push/subscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subscription:sub.toJSON()})});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.error||`push_subscribe_http_${r.status}`);showNotice('Notifications enabled on this device.','ok');await refreshState();}catch(e){showNotice(e?.message||String(e),'bad');}finally{setBusy(false);}}
 async function disableNotifications(){setBusy(true);showNotice('');try{await ensureRegistration();const sub=await REG.pushManager.getSubscription();if(sub){const r=await adminFetch('/admin/push/unsubscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.error||`push_unsubscribe_http_${r.status}`);await sub.unsubscribe();}showNotice('Notifications disabled on this device.','ok');await refreshState();}catch(e){showNotice(e?.message||String(e),'bad');}finally{setBusy(false);}}
 async function sendTest(){setBusy(true);testOut.textContent='Sending…';try{const r=await adminFetch('/admin/push/test',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.delivery?.error||j?.error||`push_test_http_${r.status}`);const sent=Number(j?.delivery?.sent||0);testOut.textContent=`Sent to ${sent} enabled device${sent===1?'':'s'}.`;showNotice('Test push sent. You should receive an EagleNEST notification shortly.','ok');}catch(e){testOut.textContent='';showNotice(e?.message||String(e),'bad');}finally{setBusy(false);}}
-async function boot(){enableBtn.addEventListener('click',enableNotifications);disableBtn.addEventListener('click',disableNotifications);refreshBtn.addEventListener('click',()=>{setBusy(true);refreshState().catch(e=>showNotice(e?.message||e,'bad')).finally(()=>setBusy(false));});testBtn.addEventListener('click',sendTest);prefList?.addEventListener('change',(ev)=>{const el=ev.target?.closest?.('.prefToggle');if(!el)return;savePreference(String(el.dataset.prefKey||''),!!el.checked);});addPersonalExternalLinkBtn?.addEventListener('click',()=>addPersonalExternalLinkRow());savePersonalExternalLinksBtn?.addEventListener('click',savePersonalExternalLinks);showDefaultExternalLinks?.addEventListener('change',saveDefaultExternalLinkVisibility);ACCESS=await getAccess();if(!ACCESS){loginOut.textContent='Please sign in.';const gsi=await waitForGoogle();gsi.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async(resp)=>{try{loginOut.textContent='Signing in…';await doLogin(resp.credential);location.reload();}catch(e){loginOut.textContent=`Login failed: ${e.message||e}`;}}});gsi.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return;}if(!ACCESS?.can?.notifications&&!ACCESS?.can?.teacher_attendance&&!ACCESS?.can?.admin)throw new Error('forbidden');loginCard.hidden=true;app.hidden=false;viewerPill.textContent=ACCESS.email||'Staff';await Promise.all([refreshState(),loadExternalLinkPreferences()]);}
+async function boot(){enableBtn.addEventListener('click',enableNotifications);disableBtn.addEventListener('click',disableNotifications);refreshBtn.addEventListener('click',()=>{setBusy(true);refreshState().catch(e=>showNotice(e?.message||e,'bad')).finally(()=>setBusy(false));});testBtn.addEventListener('click',sendTest);prefList?.addEventListener('change',(ev)=>{const el=ev.target?.closest?.('.prefToggle');if(!el)return;savePreference(String(el.dataset.prefKey||''),!!el.checked);});addPersonalExternalLinkBtn?.addEventListener('click',()=>addPersonalExternalLinkRow());savePersonalExternalLinksBtn?.addEventListener('click',savePersonalExternalLinks);showDefaultExternalLinks?.addEventListener('change',saveDefaultExternalLinkVisibility);$('saveCallSettings')?.addEventListener('click',saveCallSettings);ACCESS=await getAccess();if(!ACCESS){loginOut.textContent='Please sign in.';const gsi=await waitForGoogle();gsi.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async(resp)=>{try{loginOut.textContent='Signing in…';await doLogin(resp.credential);location.reload();}catch(e){loginOut.textContent=`Login failed: ${e.message||e}`;}}});gsi.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return;}if(!ACCESS?.can?.notifications&&!ACCESS?.can?.teacher_attendance&&!ACCESS?.can?.admin)throw new Error('forbidden');loginCard.hidden=true;app.hidden=false;viewerPill.textContent=ACCESS.email||'Staff';await Promise.all([refreshState(),loadExternalLinkPreferences(),loadCallSettings()]);}
 boot().catch(e=>{loginOut.textContent=String(e?.message||e);showNotice(e?.message||e,'bad');});

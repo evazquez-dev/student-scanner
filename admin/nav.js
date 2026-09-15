@@ -29,6 +29,7 @@
     scan_injector: 'Scan Injector',
     student_view: 'Student Snapshot',
     communications: 'Communications',
+    calls: 'Calls',
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
     counselor_dashboard: 'Counselor Dashboard', // EAGLENEST_COUNSELOR_DASHBOARD_V1
@@ -488,6 +489,7 @@
           { key:'student_view', label: MODULES.student_view || 'Student Snapshot', href:'./student_view.html', badge:'location & attendance' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', badge:'scan & bathroom' },
           { key:'communications', label: MODULES.communications || 'Communications', href:'./communications.html', badge:'outreach & follow-ups' },
+          { key:'calls', label: MODULES.calls || 'Calls', href:'./calls.html', badge:'phone history & follow-up' },
           { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', badge:'contacts & communication' },
           { key:'conference_scheduler', label: MODULES.conference_scheduler || 'Student & Family Conferences', href:'./conferences.html', badge:'conference scheduling' }, // EAGLENEST_FAMILY_CONFERENCES_V1
         ]

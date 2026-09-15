@@ -138,7 +138,7 @@
           color-scheme:light;
         }
       }
-      #eaglenestPhoneLiveCard[data-show="1"]{display:block}
+      #eaglenestPhoneLiveCard[data-show="1"]{display:block;cursor:pointer}
       .enPhoneTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
       .enPhoneEyebrow{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--en-phone-info)}
       .enPhoneTitle{font-size:19px;font-weight:950;line-height:1.2;margin-top:3px;color:var(--en-phone-fg)}
@@ -258,6 +258,12 @@
         <button type="button" class="enPhoneBtn" data-en-phone-dismiss="1">Dismiss</button>
       </div>`;
     card.dataset.show = '1';
+    card.title = 'Open Calls dashboard';
+    card.onclick = (event) => {
+      if (event.target?.closest?.('button,a')) return;
+      location.href = new URL('./calls.html', location.href).toString();
+    };
+
 
     card.querySelector('[data-en-phone-open]')?.addEventListener('click', (event) => {
       const osis = String(event.currentTarget.getAttribute('data-en-phone-open') || '').trim();
