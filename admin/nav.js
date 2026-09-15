@@ -738,9 +738,10 @@
   }
 
   // EAGLENEST_GRANDSTREAM_PHASE3_PHONE_LIVE
+  // EAGLENEST_PHONE_LIVE_SUPERADMIN_ONLY_V1
   function bootPhoneLive(access){
     const role = String(access?.role || '').trim().toLowerCase();
-    if (role !== 'admin' && role !== 'super_admin') return;
+    if (role !== 'super_admin') return;
     if (access?.view_as?.active === true || access?.view_as?.read_only === true) return;
     if (document.getElementById('eaglenestPhoneLiveScript')) return;
     const script = document.createElement('script');
