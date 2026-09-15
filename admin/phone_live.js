@@ -52,20 +52,85 @@
     const style = document.createElement('style');
     style.id = 'eaglenestPhoneLiveStyle';
     style.textContent = `
-      #eaglenestPhoneLiveCard{position:fixed;right:18px;bottom:18px;z-index:2147483644;width:min(390px,calc(100vw - 36px));border:1px solid rgba(148,163,184,.34);border-radius:18px;background:var(--panel,#0f172a);color:var(--fg,#e5e7eb);box-shadow:0 22px 60px rgba(0,0,0,.34);padding:15px;display:none}
+      /* EAGLENEST_GRANDSTREAM_PHASE3_1_THEME */
+      #eaglenestPhoneLiveCard{
+        --en-phone-bg:#0f172a;
+        --en-phone-surface:#111827;
+        --en-phone-fg:#e5e7eb;
+        --en-phone-muted:#94a3b8;
+        --en-phone-info:#93c5fd;
+        --en-phone-border:rgba(148,163,184,.34);
+        --en-phone-soft-border:rgba(148,163,184,.24);
+        --en-phone-button-border:rgba(148,163,184,.30);
+        --en-phone-primary:#4f46e5;
+        --en-phone-shadow:0 22px 60px rgba(0,0,0,.34);
+        --en-phone-hover:rgba(148,163,184,.10);
+        position:fixed;
+        right:18px;
+        bottom:18px;
+        z-index:2147483644;
+        width:min(390px,calc(100vw - 36px));
+        border:1px solid var(--en-phone-border);
+        border-radius:18px;
+        background:var(--en-phone-bg);
+        color:var(--en-phone-fg);
+        box-shadow:var(--en-phone-shadow);
+        padding:15px;
+        display:none;
+        color-scheme:dark;
+        transition:background-color .16s ease,color .16s ease,border-color .16s ease,box-shadow .16s ease;
+      }
+      :root[data-theme="light"] #eaglenestPhoneLiveCard{
+        --en-phone-bg:#ffffff;
+        --en-phone-surface:#f8fafc;
+        --en-phone-fg:#0f172a;
+        --en-phone-muted:#64748b;
+        --en-phone-info:#1d4ed8;
+        --en-phone-border:rgba(100,116,139,.30);
+        --en-phone-soft-border:rgba(100,116,139,.22);
+        --en-phone-button-border:rgba(100,116,139,.30);
+        --en-phone-primary:#4338ca;
+        --en-phone-shadow:0 18px 46px rgba(15,23,42,.16);
+        --en-phone-hover:rgba(15,23,42,.055);
+        color-scheme:light;
+      }
+      :root[data-theme="dark"] #eaglenestPhoneLiveCard{color-scheme:dark}
+      @media (prefers-color-scheme:light){
+        :root:not([data-theme]) #eaglenestPhoneLiveCard{
+          --en-phone-bg:#ffffff;
+          --en-phone-surface:#f8fafc;
+          --en-phone-fg:#0f172a;
+          --en-phone-muted:#64748b;
+          --en-phone-info:#1d4ed8;
+          --en-phone-border:rgba(100,116,139,.30);
+          --en-phone-soft-border:rgba(100,116,139,.22);
+          --en-phone-button-border:rgba(100,116,139,.30);
+          --en-phone-primary:#4338ca;
+          --en-phone-shadow:0 18px 46px rgba(15,23,42,.16);
+          --en-phone-hover:rgba(15,23,42,.055);
+          color-scheme:light;
+        }
+      }
       #eaglenestPhoneLiveCard[data-show="1"]{display:block}
       .enPhoneTop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-      .enPhoneEyebrow{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--info,#93c5fd)}
-      .enPhoneTitle{font-size:19px;font-weight:950;line-height:1.2;margin-top:3px}
-      .enPhoneMeta{font-size:12px;color:var(--muted,#94a3b8);margin-top:5px;line-height:1.45}
-      .enPhoneMatch{margin-top:12px;padding:11px;border:1px solid rgba(148,163,184,.24);border-radius:13px;background:var(--panel2,#111827)}
-      .enPhoneMatch strong{display:block;font-size:15px}.enPhoneMatch span{display:block;margin-top:3px;font-size:12px;color:var(--muted,#94a3b8)}
+      .enPhoneEyebrow{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--en-phone-info)}
+      .enPhoneTitle{font-size:19px;font-weight:950;line-height:1.2;margin-top:3px;color:var(--en-phone-fg)}
+      .enPhoneMeta{font-size:12px;color:var(--en-phone-muted);margin-top:5px;line-height:1.45}
+      .enPhoneMatch{margin-top:12px;padding:11px;border:1px solid var(--en-phone-soft-border);border-radius:13px;background:var(--en-phone-surface);color:var(--en-phone-fg)}
+      .enPhoneMatch strong{display:block;font-size:15px;color:var(--en-phone-fg)}
+      .enPhoneMatch span{display:block;margin-top:3px;font-size:12px;color:var(--en-phone-muted)}
       .enPhoneActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-      .enPhoneBtn{border:1px solid rgba(148,163,184,.3);border-radius:10px;padding:8px 10px;background:transparent;color:inherit;font:inherit;font-size:12px;font-weight:850;cursor:pointer}
-      .enPhoneBtn.primary{background:var(--accent,#4f46e5);color:#fff;border-color:transparent}
-      .enPhoneClose{border:0;background:transparent;color:inherit;font-size:20px;line-height:1;cursor:pointer;opacity:.72}
-      .enPhoneDot{display:inline-block;width:8px;height:8px;border-radius:999px;background:#22c55e;margin-right:6px}
+      .enPhoneBtn{border:1px solid var(--en-phone-button-border);border-radius:10px;padding:8px 10px;background:transparent;color:var(--en-phone-fg);font:inherit;font-size:12px;font-weight:850;cursor:pointer;transition:background-color .12s ease,border-color .12s ease,transform .12s ease}
+      .enPhoneBtn:hover{background:var(--en-phone-hover)}
+      .enPhoneBtn:active{transform:translateY(1px)}
+      .enPhoneBtn:focus-visible,.enPhoneClose:focus-visible{outline:3px solid color-mix(in srgb,var(--en-phone-primary) 35%,transparent);outline-offset:2px}
+      .enPhoneBtn.primary{background:var(--en-phone-primary);color:#fff;border-color:transparent}
+      .enPhoneBtn.primary:hover{filter:brightness(1.06)}
+      .enPhoneClose{border:0;background:transparent;color:var(--en-phone-fg);font-size:20px;line-height:1;cursor:pointer;opacity:.72;border-radius:8px;padding:3px 5px}
+      .enPhoneClose:hover{opacity:1;background:var(--en-phone-hover)}
+      .enPhoneDot{display:inline-block;width:8px;height:8px;border-radius:999px;background:#22c55e;margin-right:6px;box-shadow:0 0 0 3px rgba(34,197,94,.13)}
       @media(max-width:600px){#eaglenestPhoneLiveCard{right:10px;bottom:10px;width:calc(100vw - 20px)}}
+      @media(prefers-reduced-motion:reduce){#eaglenestPhoneLiveCard,.enPhoneBtn{transition:none}}
     `;
     document.head.appendChild(style);
   }
