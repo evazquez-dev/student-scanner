@@ -737,6 +737,19 @@
     try { if (localStorage.getItem(LS_OPEN) === '1') setOpen(true); } catch {}
   }
 
+  // EAGLENEST_GRANDSTREAM_PHASE3_PHONE_LIVE
+  function bootPhoneLive(access){
+    const role = String(access?.role || '').trim().toLowerCase();
+    if (role !== 'admin' && role !== 'super_admin') return;
+    if (access?.view_as?.active === true || access?.view_as?.read_only === true) return;
+    if (document.getElementById('eaglenestPhoneLiveScript')) return;
+    const script = document.createElement('script');
+    script.id = 'eaglenestPhoneLiveScript';
+    script.src = './phone_live.js';
+    script.defer = true;
+    document.head.appendChild(script);
+  }
+
   async function bootNav() {
     // Poll briefly so it appears right after a user logs in via popup
     for (let i = 0; i < 40; i++) {
@@ -745,6 +758,7 @@
         const esas = await refreshEsasTakeover();
         if (esas?.active === true && esas?.incident?.incident_id) return;
         mountNav(access);
+        bootPhoneLive(access);
         return;
       }
       await sleep(500);
