@@ -973,7 +973,7 @@ async function boot(){
       SESSION = {
         ok:true,
         email:String(status?.guest_email || '').trim().toLowerCase(),
-        role:'teacher',
+        role:'staff',
         guest:true,
         guest_expires_at_iso:String(status?.guest_expires_at_iso || '')
       };
