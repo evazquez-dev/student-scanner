@@ -191,10 +191,14 @@
     const matches = Array.isArray(call?.matches) ? call.matches : [];
     const first = matches[0] || null;
     const state = String(call?.state || '').toLowerCase();
-    const heading = state === 'connected' ? 'Call connected' : 'Incoming call';
+    const campus=String(call?.campus||'').trim();
+    const headingBase = state === 'connected' ? 'Call connected' : 'Incoming call';
+    const heading = campus ? `${headingBase} — ${campus}` : headingBase;
     const phone = call?.phone_last4 ? `Caller ending ••••${call.phone_last4}` : 'Caller number unavailable';
     const staff = [call?.staff_name, call?.staff_extension ? `Ext. ${call.staff_extension}` : '']
       .map((v) => String(v || '').trim()).filter(Boolean).join(' • ');
+    const route=String(call?.route_target_name||call?.route_target||'').trim(), trunk=String(call?.inbound_trunk_name||'').trim();
+    const routing=campus?'':(route?`Route ${route}`:(trunk?`Via ${trunk}`:''));
     const extraCalls = calls.length > 1 ? `${calls.length} active incoming calls` : '';
     const uniqueStudents = [...new Set(matches.map((m) => String(m?.student_number || '')).filter(Boolean))];
 
@@ -217,7 +221,7 @@
         <div>
           <div class="enPhoneEyebrow"><span class="enPhoneDot"></span>PBX live</div>
           <div class="enPhoneTitle">${esc(heading)}</div>
-          <div class="enPhoneMeta">${esc([phone, staff, extraCalls].filter(Boolean).join(' • '))}</div>
+          <div class="enPhoneMeta">${esc([routing, phone, staff, extraCalls].filter(Boolean).join(' • '))}</div>
         </div>
         <button type="button" class="enPhoneClose" aria-label="Dismiss caller card">×</button>
       </div>

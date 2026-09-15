@@ -277,7 +277,10 @@
       const staff = staffLabel(row);
       const talk = Number(row?.billsec_sec || 0);
       const total = Number(row?.duration_sec || 0);
+      const campus=String(row?.campus||'').trim(), route=String(row?.route_target||'').trim(), trunk=String(row?.source_trunk_name||'').trim();
+      const routing=campus?campus:(trunk?`Via ${trunk}`:(route?`Route ${route}`:''));
       const details = [
+        routing,
         directionLabel(row?.direction),
         localDateTime(row?.start_local),
         staff,
