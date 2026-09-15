@@ -181,9 +181,10 @@
     return 10;
   }
 
-  function incomingCalls(snapshot) {
+  // EAGLENEST_GRANDSTREAM_LIVE_SCOPE_V1
+  function visibleCalls(snapshot) {
     return (Array.isArray(snapshot?.active_calls) ? snapshot.active_calls : [])
-      .filter((call) => String(call?.direction || '').toLowerCase() === 'incoming')
+      .filter((call) => ['incoming','outgoing','internal'].includes(String(call?.direction || '').toLowerCase()))
       .sort((a, b) => callRank(b) - callRank(a) ||
         String(b?.started_at || '').localeCompare(String(a?.started_at || '')));
   }
@@ -202,7 +203,7 @@
   function render(snapshot) {
     latestSnapshot = snapshot;
     const card = ensureCard();
-    const calls = incomingCalls(snapshot);
+    const calls = visibleCalls(snapshot);
     if (!calls.length) {
       card.dataset.show = '0';
       dismissedCall = '';
@@ -219,11 +220,23 @@
     const first = matches[0] || null;
     const state = String(call?.state || '').toLowerCase();
     const campus=String(call?.campus||'').trim();
-    const headingBase = state === 'connected' ? 'Call connected' : 'Incoming call';
+    const direction = String(call?.direction || '').toLowerCase();
+    const headingBase = direction === 'internal'
+      ? (state === 'connected' ? 'Internal call connected' : 'Internal call')
+      : direction === 'outgoing'
+        ? (state === 'connected' ? 'Outgoing call connected' : 'Outgoing call')
+        : (state === 'connected' ? 'Call connected' : 'Incoming call');
     const heading = campus ? `${headingBase} — ${campus}` : headingBase;
-    const phone = call?.phone_last4 ? `Caller ending ••••${call.phone_last4}` : 'Caller number unavailable';
-    const staff = [call?.staff_name, call?.staff_extension ? `Ext. ${call.staff_extension}` : '']
-      .map((v) => String(v || '').trim()).filter(Boolean).join(' • ');
+    const phone = direction === 'internal'
+      ? ''
+      : (call?.phone_last4 ? `External ending ••••${call.phone_last4}` : 'External number unavailable');
+    const endpoint = direction === 'internal'
+      ? [
+          [call?.src_name, call?.src_extension ? `Ext. ${call.src_extension}` : ''].filter(Boolean).join(' • '),
+          [call?.dst_name, call?.dst_extension ? `Ext. ${call.dst_extension}` : ''].filter(Boolean).join(' • ')
+        ].filter(Boolean).join(' → ')
+      : [call?.staff_name, call?.staff_extension ? `Ext. ${call.staff_extension}` : '']
+          .map((v) => String(v || '').trim()).filter(Boolean).join(' • ');
     const route=String(call?.route_target_name||call?.route_target||'').trim(), trunk=String(call?.inbound_trunk_name||'').trim();
     const routing=campus?'':(route?`Route ${route}`:(trunk?`Via ${trunk}`:''));
     const extraCalls = calls.length > 1 ? `${calls.length} active incoming calls` : '';
@@ -248,7 +261,7 @@
         <div>
           <div class="enPhoneEyebrow"><span class="enPhoneDot"></span>PBX live</div>
           <div class="enPhoneTitle">${esc(heading)}</div>
-          <div class="enPhoneMeta">${esc([routing, phone, staff, extraCalls].filter(Boolean).join(' • '))}</div>
+          <div class="enPhoneMeta">${esc([routing, phone, endpoint, extraCalls].filter(Boolean).join(' • '))}</div>
         </div>
         <button type="button" class="enPhoneClose" aria-label="Dismiss caller card">×</button>
       </div>
@@ -366,6 +379,12 @@
     aborter = null;
     ensureCard().dataset.show = '0';
   }
+
+  window.addEventListener('eaglenest-call-preferences-change', () => {
+    dismissedCall = '';
+    reconnectMs = 1000;
+    connect();
+  });
 
   window.EagleNESTPhoneLive = {
     status,

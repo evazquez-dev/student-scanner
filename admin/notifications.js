@@ -173,7 +173,9 @@ async function saveCallSettings(){
     const payload={preferences:{scope,campuses,include_internal:$('callIncludeInternal').checked,include_external_incoming:$('callIncludeIncoming').checked,include_external_outgoing:$('callIncludeOutgoing').checked}};
     const r=await adminFetch('/admin/calls/preferences',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.error||`call_settings_http_${r.status}`);
-    CALL_CONFIG=j;out.textContent='Saved. Your Calls dashboard will use these settings on every device.';await loadCallSettings();
+    CALL_CONFIG=j;out.textContent='Saved. Your Calls dashboard and live caller cards will use these settings on every device.';
+    try { window.dispatchEvent(new CustomEvent('eaglenest-call-preferences-change')); } catch {}
+    await loadCallSettings();
   }catch(e){out.textContent=`Could not save: ${e?.message||e}`}finally{button.disabled=false}
 }
 async function savePreference(key,enabled){

@@ -398,6 +398,7 @@
           dreamer_of_week: true,
           dow_manage: isAdminLike,
           phone_pass: isAdminLike,
+          phone_dashboard: isAdminLike,
           teacher_trace_lookup: isAdminLike,
           attendance_change: isSuperAdmin,
           excused_apply: isSuperAdmin // legacy alias
@@ -416,6 +417,15 @@
       try {
         const pr = await adminFetch('/admin/phone_pass/options', { method: 'GET' });
         out.can.phone_pass = pr.ok;
+      } catch {}
+
+      try {
+        const cr = await adminFetch('/admin/calls/config', { method: 'GET' });
+        out.can.phone_dashboard = cr.ok;
+        if (cr.ok) {
+          const cj = await cr.json().catch(() => ({}));
+          out.phone_extension = cj?.my_extension || null;
+        }
       } catch {}
 
       return out;
@@ -489,7 +499,7 @@
           { key:'student_view', label: MODULES.student_view || 'Student Snapshot', href:'./student_view.html', badge:'location & attendance' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', badge:'scan & bathroom' },
           { key:'communications', label: MODULES.communications || 'Communications', href:'./communications.html', badge:'outreach & follow-ups' },
-          { key:'calls', label: MODULES.calls || 'Calls', href:'./calls.html', badge:'phone history & follow-up' },
+          { key:'phone_dashboard', label: MODULES.calls || 'Calls', href:'./calls.html', badge:'phone history & follow-up' },
           { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', badge:'contacts & communication' },
           { key:'conference_scheduler', label: MODULES.conference_scheduler || 'Student & Family Conferences', href:'./conferences.html', badge:'conference scheduling' }, // EAGLENEST_FAMILY_CONFERENCES_V1
         ]
@@ -740,10 +750,9 @@
   }
 
   // EAGLENEST_GRANDSTREAM_PHASE3_PHONE_LIVE
-  // EAGLENEST_PHONE_LIVE_SUPERADMIN_ONLY_V1
+  // EAGLENEST_GRANDSTREAM_LIVE_SCOPE_V1
   function bootPhoneLive(access){
-    const role = String(access?.role || '').trim().toLowerCase();
-    if (role !== 'super_admin') return;
+    if (access?.can?.phone_dashboard !== true) return;
     if (access?.view_as?.active === true || access?.view_as?.read_only === true) return;
     if (document.getElementById('eaglenestPhoneLiveScript')) return;
     const script = document.createElement('script');
