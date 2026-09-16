@@ -753,6 +753,7 @@
   // EAGLENEST_GRANDSTREAM_LIVE_SCOPE_V1
   function bootPhoneLive(access){
     if (access?.can?.phone_dashboard !== true) return;
+    if (/calls\.html$/i.test(location.pathname || '')) return;
     if (access?.view_as?.active === true || access?.view_as?.read_only === true) return;
     if (document.getElementById('eaglenestPhoneLiveScript')) return;
     const script = document.createElement('script');

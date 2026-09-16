@@ -44,11 +44,14 @@
 
         <hr style="margin:18px 0;">
 
-        <label for="officeStaffBox"><strong>Office Staff Emails</strong></label>
-        <p class="muted">Office Staff can use Attendance Outreach, Attendance Status, Attendance Change, Early Dismissal/Undo, Student Lookup, Student Contacts, and Student Scan Report. This does not grant the whole-school Communications dashboard, Hallway, Visitor Desk, Phone Pass, Staff Pull, Coverage Planner, or admin tools.</p>
-        <textarea id="officeStaffBox" rows="8" style="width:100%;margin-top:8px;" spellcheck="false" placeholder="office.staff@theamericandreamschool.org"></textarea>
+        <strong>Office Staff by Campus</strong>
+        <p class="muted">Campus assignment controls shared front-office phone calls as well as identifying Office Staff. Put an email in both lists for Both Campuses. Existing legacy Office Staff entries default to High School until this section is saved once.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;">
+          <label><strong>High School Office Staff</strong><textarea id="officeStaffHsBox" rows="8" style="width:100%;margin-top:8px;" spellcheck="false"></textarea></label>
+          <label><strong>Middle School Office Staff</strong><textarea id="officeStaffMsBox" rows="8" style="width:100%;margin-top:8px;" spellcheck="false"></textarea></label>
+        </div>
         <div class="row" style="margin-top:12px;gap:10px;flex-wrap:wrap;">
-          <button id="saveOfficeStaffBtn" class="btn" type="button">Save Office Staff List</button>
+          <button id="saveOfficeStaffBtn" class="btn" type="button">Save Office Staff Campus Lists</button>
         </div>
 
         <hr style="margin:18px 0;">

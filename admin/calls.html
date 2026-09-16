@@ -1,48 +1,52 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow" />
-  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/" />
-  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com" />
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png" />
-  <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./nav.css" />
-  <link rel="stylesheet" href="./calls.css" />
-  <script src="./brand.js" defer></script>
-  <script src="./nav.js" defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="manifest" href="./manifest.webmanifest"><link rel="stylesheet" href="./nav.css"><link rel="stylesheet" href="./calls.css">
+  <script src="./brand.js" defer></script><script src="./nav.js" defer></script>
   <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t}catch(e){}})();</script>
   <title>EagleNEST — Calls</title>
 </head>
 <body data-module="calls">
-  <main class="callsWrap">
-    <section id="loginCard" class="panel loginPanel">
-      <h1>Staff sign-in</h1><p class="muted">Use your school account to view your EagleNEST call history.</p>
-      <div id="g_id_signin"></div><div id="loginOut" class="muted">Loading…</div>
-    </section>
+<main class="wrap">
+  <section id="loginCard" class="panel login"><h1>Staff sign-in</h1><p class="muted">Use your school account to open the EagleNEST phone workspace.</p><div id="g_id_signin"></div><div id="loginOut" class="muted">Loading…</div></section>
+  <section id="app" hidden>
+    <header class="header">
+      <div><p class="eyebrow">Communications</p><h1>Calls</h1><p id="scopeSummary" class="muted">Connecting…</p></div>
+      <div class="headerActions"><span id="liveStatus" class="pill">● Connecting</span><span id="viewerPill" class="pill">—</span><a class="btn" href="./notifications.html#call-settings">My Settings</a></div>
+    </header>
+    <div id="errorBox" class="notice" hidden></div>
 
-    <section id="app" hidden>
-      <header class="callsHeader">
-        <div><p class="eyebrow">Communications</p><h1>Calls</h1><p id="scopeSummary" class="muted">Loading your call view…</p></div>
-        <div class="headerActions"><span id="viewerPill" class="pill">—</span><a class="btn" href="./notifications.html#call-settings">My Settings</a><button id="refreshBtn" class="btn primary" type="button">Refresh</button></div>
-      </header>
-      <div id="errorBox" class="notice bad" hidden></div>
-      <section class="kpiGrid">
-        <article class="panel kpi"><span>Total</span><strong id="kpiTotal">0</strong></article>
-        <article class="panel kpi"><span>Incoming</span><strong id="kpiIncoming">0</strong></article>
-        <article class="panel kpi"><span>Outgoing</span><strong id="kpiOutgoing">0</strong></article>
-        <article class="panel kpi"><span>Internal</span><strong id="kpiInternal">0</strong></article>
-        <article class="panel kpi"><span>Missed</span><strong id="kpiMissed">0</strong></article>
-      </section>
-      <section class="panel controls">
-        <label>Window<select id="daysSelect" class="control"><option value="1">Today</option><option value="7" selected>Last 7 days</option><option value="14">Last 14 days</option><option value="30">Last 30 days</option></select></label>
-        <label class="grow">Search<input id="searchInput" class="control" type="search" placeholder="Student, family contact, extension, campus…" /></label>
-      </section>
-      <section id="callList" class="callList" aria-live="polite"><div class="panel empty">Loading calls…</div></section>
-    </section>
-  </main>
-  <script src="./calls.js"></script>
-</body>
-</html>
+    <div class="sectionTitle"><div><h2>Live Now <span id="liveCount" class="count">0</span></h2><p class="muted">Ringing and connected calls update automatically.</p></div></div>
+    <section id="liveCalls" class="liveGrid"><div class="panel empty">No active calls right now.</div></section>
+
+    <div class="sectionTitle recentTitle">
+      <div><h2>Recent Calls</h2><p class="muted">Calls that just ended appear immediately; PBX history fills in automatically.</p></div>
+      <div class="filters">
+        <label>Window<select id="daysSelect"><option value="1" selected>Today</option><option value="7">Last 7 days</option><option value="14">Last 14 days</option><option value="30">Last 30 days</option></select></label>
+        <label>Search<input id="searchInput" type="search" placeholder="Student, contact, extension, campus…"></label>
+      </div>
+    </div>
+    <section id="recentCalls" class="recentList"><div class="panel empty">Loading recent calls…</div></section>
+  </section>
+</main>
+
+<div id="noteBackdrop" class="backdrop" hidden>
+  <section class="panel modal" role="dialog" aria-modal="true" aria-labelledby="noteTitle">
+    <div class="modalTop"><div><p class="eyebrow">Communication Log</p><h2 id="noteTitle">Phone conversation notes</h2><p id="noteCallSummary" class="muted"></p></div><button id="closeNote" class="iconBtn" type="button">×</button></div>
+    <label>Student<select id="noteStudent"></select></label>
+    <label>Family contact<select id="noteContact"></select></label>
+    <label>Outcome<select id="noteOutcome"><option>Spoke/Connected</option><option>Left Voicemail</option><option>Voicemail</option><option>No Answer</option><option>Resolved</option><option>Follow-up Needed</option><option>Wrong Number</option><option>Other</option></select></label>
+    <label>Notes<textarea id="noteText" rows="8" maxlength="4000" placeholder="Write your notes from the conversation…"></textarea></label>
+    <p class="muted small">Your draft stays on this device until you save or clear it.</p>
+    <div class="modalActions"><button id="clearNote" class="btn" type="button">Clear Draft</button><button id="saveNote" class="btn primary" type="button">Save Communication</button></div>
+    <div id="noteOut" class="muted"></div>
+  </section>
+</div>
+<script src="./calls.js"></script>
+</body></html>

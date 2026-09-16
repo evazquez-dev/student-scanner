@@ -20,7 +20,8 @@
   const hallwayOut = document.getElementById('hallwayOut');
   const phonePassOut = document.getElementById('phonePassOut');
   const visitorDeskBox = document.getElementById('visitorDeskBox');
-  const officeStaffBox = document.getElementById('officeStaffBox');
+  const officeStaffHsBox = document.getElementById('officeStaffHsBox');
+  const officeStaffMsBox = document.getElementById('officeStaffMsBox');
   const officeStaffOut = document.getElementById('officeStaffOut');
   const visitorDeskOut = document.getElementById('visitorDeskOut');
   const staffPullOut = document.getElementById('staffPullOut');
@@ -125,8 +126,12 @@
     visitorDeskBox.value = visitorDesk.join('\n');
     visitorDeskOut.textContent = visitorDesk.length ? visitorDesk.join('\n') : 'None';
     const officeStaff = Array.isArray(j.office_staff) ? j.office_staff : [];
-    officeStaffBox.value = officeStaff.join('\n');
-    officeStaffOut.textContent = officeStaff.length ? officeStaff.join('\n') : 'None';
+    const groups = j.office_staff_campuses || {};
+    const hs = Array.isArray(groups.high_school) ? groups.high_school : officeStaff;
+    const ms = Array.isArray(groups.middle_school) ? groups.middle_school : [];
+    officeStaffHsBox.value = hs.join('\n');
+    officeStaffMsBox.value = ms.join('\n');
+    officeStaffOut.textContent = `High School:\n${hs.length ? hs.join('\n') : 'None'}\n\nMiddle School:\n${ms.length ? ms.join('\n') : 'None'}`;
     const staffRows = Array.isArray(j.staff_pull_roles) ? j.staff_pull_roles : [];
     staffPullOut.textContent = staffRows.length
       ? staffRows.map((row) => `${row.title} — ${row.email}`).join('\n')
@@ -164,18 +169,21 @@
   }
 
   async function saveOfficeStaffList() {
-    const emails = normalizeEmails(officeStaffBox.value);
-    statusOut.textContent = 'Saving Office Staff list…';
+    const high_school = normalizeEmails(officeStaffHsBox.value);
+    const middle_school = normalizeEmails(officeStaffMsBox.value);
+    statusOut.textContent = 'Saving Office Staff campus lists…';
     const r = await adminFetch('/admin/office_staff_allowlist', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ emails })
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({ campuses:{ high_school, middle_school } })
     });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.ok) throw new Error(j?.error || `office_staff_allowlist HTTP ${r.status}`);
-    officeStaffBox.value = emails.join('\n');
-    officeStaffOut.textContent = emails.length ? emails.join('\n') : 'None';
-    statusOut.textContent = `Saved ${emails.length} Office Staff email${emails.length === 1 ? '' : 's'}.`;
+    officeStaffHsBox.value = high_school.join('\n');
+    officeStaffMsBox.value = middle_school.join('\n');
+    officeStaffOut.textContent = `High School:\n${high_school.length ? high_school.join('\n') : 'None'}\n\nMiddle School:\n${middle_school.length ? middle_school.join('\n') : 'None'}`;
+    const count = new Set([...high_school, ...middle_school]).size;
+    statusOut.textContent = `Saved ${count} Office Staff email${count === 1 ? '' : 's'} across campus lists.`;
   }
 
   async function onGoogleCredential(resp) {
