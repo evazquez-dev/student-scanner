@@ -6,13 +6,14 @@
     kiosk: 'Scanner Kiosk',
     my_schedule: 'My Schedule',
     teacher_attendance: 'Teacher Attendance',
-    teacher_trace_lookup: 'Attendance Diagnostics',
+    teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
     attendance_outreach: 'Attendance Outreach',
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
     student_view: 'Student Lookup',
-    communications: 'Communications',
+    communications: 'Parent & Family Communications',
+    calls: 'Calls',
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
     counselor_dashboard: 'Counselor Dashboard', // EAGLENEST_COUNSELOR_DASHBOARD_V1
@@ -28,12 +29,12 @@
     notifications: 'My Settings',
     incident_creator: 'Incident Creator',
     behavior_history: 'Logged Behaviors',
-    fidelity_dashboard: 'Fidelity Dashboard',
-    mtss: 'MTSS', // EAGLENEST_MTSS_V1_BRAND
+    fidelity_dashboard: 'Operational Health',
+    mtss: 'MTSS Case Management', // EAGLENEST_MTSS_V1_BRAND
     reflection_hold: 'Reflection Hold',
     dreamer_of_week: 'Dreamer of the Week',
-    attendance_change: 'Attendance Change',
-    excused_apply: 'Attendance Change', // legacy alias
+    attendance_change: 'Attendance Corrections',
+    excused_apply: 'Attendance Corrections', // legacy alias
     admin_roles: 'Roles & Access',
     admin: 'System Administration'
   };

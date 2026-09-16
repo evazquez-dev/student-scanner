@@ -16,7 +16,7 @@ const access = read('cf-redcake/red-cake-77d5/src/services/admin-session.js');
   assert.match(html, /data-module="attendance_outreach"/);
   assert.match(brand, /attendance_outreach:\s*'Attendance Outreach'/);
   assert.match(nav, /attendance_outreach\.html/);
-  assert.match(nav, /morning calls/);
+  assert.match(nav, /Morning absence and late outreach/);
   assert.match(access, /attendance_outreach:\s*canOfficeStaff/);
 });
 

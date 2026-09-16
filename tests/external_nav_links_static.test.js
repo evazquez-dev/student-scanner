@@ -21,10 +21,12 @@ test('worker persists and exposes super-admin managed external nav links', () =>
 test('shared nav renders configured links at the bottom and opens safely in a new tab', () => {
   const nav = read('student-scanner/admin/nav.js');
   assert.match(nav, /access\?\.external_links/);
-  assert.match(nav, /sectionTitle\.textContent = 'External Links'/);
+  assert.match(nav, /details\.dataset\.sectionKey\s*=\s*'external_links'/);
+  assert.match(nav, /label\.textContent = 'External Links'/);
   assert.match(nav, /a\.target = '_blank'/);
   assert.match(nav, /a\.rel = 'noopener noreferrer'/);
   assert.match(nav, /ssNavExternalSection/);
+  assert.match(nav, /ssNavSectionCollapsible/);
 });
 
 test('super admin dashboard supports add, edit, reorder, remove, load, and save', () => {

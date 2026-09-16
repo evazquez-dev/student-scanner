@@ -66,7 +66,7 @@ assert.match(notifyJs, /Notification\.requestPermission\(\)/);
 assert.match(notifyJs, /pushManager\.subscribe/);
 assert.match(notifyJs, /\/admin\/push\/subscribe/);
 assert.match(notifyJs, /\/admin\/push\/test/);
-assert.match(nav, /href:'\.\/notifications\.html'/);
+assert.match(nav, /settingsLink\.href\s*=\s*'\.\/notifications\.html'/);
 assert.match(brand, /notifications:\s*'My Settings'/);
 assert.equal(adminManifest.scope, './');
 assert.equal(adminManifest.display, 'standalone');

@@ -5,6 +5,7 @@
   const DEMO_MODE = new URLSearchParams(location.search).get('demo') === '1';
 
   const LS_OPEN = 'ss_nav_open_v1';
+  const LS_SECTION_OPEN = 'ss_nav_sections_open_v1'; // EAGLENEST_COMPACT_ACCORDION_NAV_V1
   const ESAS_TAKEOVER_POLL_MS = 4000;
   // Give authenticated admin pages a consistent installable Staff PWA identity.
   if (!document.querySelector('link[rel="manifest"]')) {
@@ -21,14 +22,14 @@
   const MODULES = window.EAGLENEST_BRAND?.modules || {
     my_schedule: 'My Schedule',
     teacher_attendance: 'Teacher Attendance',
-    teacher_trace_lookup: 'Attendance Diagnostics',
+    teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
     attendance_outreach: 'Attendance Outreach',
     senior_lunch_audit: 'Senior Lunch Audit',
     student_scans: 'Student Scan Report',
     scan_injector: 'Scan Injector',
     student_view: 'Student Snapshot',
-    communications: 'Communications',
+    communications: 'Parent & Family Communications',
     calls: 'Calls',
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
@@ -45,13 +46,13 @@
     notifications: 'My Settings',
     incident_creator: 'Incident Creator',
     behavior_history: 'Logged Behaviors',
-    fidelity_dashboard: 'Fidelity Dashboard',
-    mtss: 'MTSS', // EAGLENEST_MTSS_V1_NAV_LABEL
-    attendance_change: 'Attendance Change',
+    fidelity_dashboard: 'Operational Health',
+    mtss: 'MTSS Case Management', // EAGLENEST_MTSS_V1_NAV_LABEL
+    attendance_change: 'Attendance Corrections',
     supervised_lunch: 'Supervised Lunch',
     reflection_hold: 'Reflection Hold',
     dreamer_of_week: 'Dreamer of the Week',
-    excused_apply: 'Attendance Change', // legacy alias
+    excused_apply: 'Attendance Corrections', // legacy alias
     admin_roles: 'Roles & Access',
     admin: 'System Administration'
   };
@@ -477,169 +478,219 @@
 
     const sections = [
       {
+        section_key: 'emergency',
         title: 'Emergency',
+        always_open: true,
         items: [
-          { key:'esas', label: MODULES.esas || 'Emergency Accountability', href:'./esas.html', badge:'live accountability' },
+          { key:'esas', label: MODULES.esas || 'Emergency Accountability', href:'./esas.html', description:'Live emergency student accountability' },
         ]
       },
       {
-        title: 'Attendance',
+        section_key: 'attendance',
+        title: 'Attendance & Today',
         items: [
-          { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', badge:"today's classes" },
-          { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', badge:'class attendance' },
-          { key:'attendance_status', label: MODULES.attendance_status || 'Attendance Status', href:'./attendance_status.html', badge:'period audit' },
-          { key:'attendance_outreach', label: MODULES.attendance_outreach || 'Attendance Outreach', href:'./attendance_outreach.html', badge:'morning calls' },
-          { key:'attendance_change', label: (MODULES.attendance_change || MODULES.excused_apply || 'Attendance Change'), href:'./attendance_change.html', badge:'bulk changes' },
-          { key:'coverage_planner', label: MODULES.coverage_planner || 'Coverage Planner', href:'./coverage_planner.html', badge:"today's gaps" },
+          { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', description:"Today's classes and schedule" },
+          { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', description:'Class attendance and roster actions' },
+          { key:'attendance_status', label: MODULES.attendance_status || 'Attendance Status', href:'./attendance_status.html', description:'Period attendance audit and status' },
+          { key:'attendance_outreach', label: MODULES.attendance_outreach || 'Attendance Outreach', href:'./attendance_outreach.html', description:'Morning absence and late outreach' },
+          { key:'attendance_change', label: MODULES.attendance_change || MODULES.excused_apply || 'Attendance Corrections', href:'./attendance_change.html', description:'Bulk attendance-code corrections' },
+          { key:'coverage_planner', label: MODULES.coverage_planner || 'Coverage Planner', href:'./coverage_planner.html', description:"Today's staff coverage gaps" },
         ]
       },
       {
-        title: 'Student Information',
+        section_key: 'students_families',
+        title: 'Students & Families',
         items: [
-          { key:'student_view', label: MODULES.student_view || 'Student Snapshot', href:'./student_view.html', badge:'location & attendance' },
-          { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', badge:'scan & bathroom' },
-          { key:'communications', label: MODULES.communications || 'Communications', href:'./communications.html', badge:'outreach & follow-ups' },
-          { key:'phone_dashboard', label: MODULES.calls || 'Calls', href:'./calls.html', badge:'phone history & follow-up' },
-          { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', badge:'contacts & communication' },
-          { key:'conference_scheduler', label: MODULES.conference_scheduler || 'Student & Family Conferences', href:'./conferences.html', badge:'conference scheduling' }, // EAGLENEST_FAMILY_CONFERENCES_V1
+          { key:'student_view', label: MODULES.student_view || 'Student Lookup', href:'./student_view.html', description:'Student dashboard, location and attendance' },
+          { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },
+          { key:'communications', label: MODULES.communications || 'Parent & Family Communications', href:'./communications.html', description:'Outreach, required communication and follow-ups' },
+          { key:'phone_dashboard', label: MODULES.calls || 'Calls', href:'./calls.html', description:'Live calls, recent calls and follow-up logging' },
+          { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', description:'Family contacts and communication tools' },
+          { key:'conference_scheduler', label: MODULES.conference_scheduler || 'Student & Family Conferences', href:'./conferences.html', description:'Conference scheduling and appointments' },
         ]
       },
       {
-        title: 'Student Support',
+        section_key: 'support_culture',
+        title: 'Support & Culture',
         items: [
-          { key:'counselor_dashboard', label: MODULES.counselor_dashboard || 'Counselor Dashboard', href:'./counselor_dashboard.html', badge:'notes & follow-ups' }, // EAGLENEST_COUNSELOR_DASHBOARD_V1
-          { key:'mtss', label: MODULES.mtss || 'MTSS', href:'./mtss.html', badge:'tiers & interventions' }, // EAGLENEST_MTSS_V1_NAV_ITEM
-          { key:'supervised_lunch', label: MODULES.supervised_lunch || 'Supervised Lunch', href:'./supervised_lunch.html', badge:'lunch assignments' },
-          { key:'reflection_hold', label: MODULES.reflection_hold || 'Reflection Hold', href:'./reflection_hold.html', badge:'after-school holds' },
-          { key:'incident_creator', label: MODULES.incident_creator || 'Incident Creator', href:'./incident_creator.html', badge:'submit incident report' },
-          { key:'behavior_history', label: MODULES.behavior_history || 'Logged Behaviors', href:'./behavior_history.html', badge:'review & edit logs' },
+          { key:'counselor_dashboard', label: MODULES.counselor_dashboard || 'Counselor Dashboard', href:'./counselor_dashboard.html', description:'Counselor notes and follow-ups' },
+          { key:'mtss', label: MODULES.mtss || 'MTSS Case Management', href:'./mtss.html', description:'MTSS tiers, cases and interventions' },
+          { key:'supervised_lunch', label: MODULES.supervised_lunch || 'Supervised Lunch', href:'./supervised_lunch.html', description:'Supervised lunch assignments' },
+          { key:'reflection_hold', label: MODULES.reflection_hold || 'Reflection Hold', href:'./reflection_hold.html', description:'After-school reflection holds' },
+          { key:'incident_creator', label: MODULES.incident_creator || 'Incident Creator', href:'./incident_creator.html', description:'Create and submit incident reports' },
+          { key:'behavior_history', label: MODULES.behavior_history || 'Logged Behaviors', href:'./behavior_history.html', description:'Review and edit behavior logs' },
+          { key:'dreamer_of_week', label: MODULES.dreamer_of_week || 'Dreamer of the Week', href:'./dreamer_of_week.html', description:'Student recognition selections and history' },
         ]
       },
       {
-        title: 'Recognition',
+        section_key: 'operations',
+        title: 'Operations',
         items: [
-          { key:'dreamer_of_week', label: MODULES.dreamer_of_week || 'Dreamer of the Week', href:'./dreamer_of_week.html', badge:'select recipients' },
+          { key:'hallway', label: MODULES.hallway || 'Hallway Monitor', href:'./hallway.html', description:'Live student locations' },
+          { key:'staff_pull', label: MODULES.staff_pull || 'Staff Pull', href:'./staff_pull.html', description:'Pull and release students' },
+          { key:'phone_pass', label: MODULES.phone_pass || 'Phone Pass', href:'./phone_pass.html', description:'Phone checkout, pickup and return workflow' },
+          { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', description:'Senior lunch-out compliance' },
+          { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', description:'After-school attendance and holds' },
+          { key:'visitor_desk', label: MODULES.visitor_desk || 'Visitor Desk', href:'./visitor_desk.html', description:'Visitor check-in, queue and history' },
+          { key:'early_dismissal', label: MODULES.early_dismissal || 'Early Dismissal', href:'./early_dismissal.html', description:'Student early-dismissal workflow' },
         ]
       },
       {
-        title: 'Movement & Operations',
-        items: [
-          { key:'hallway', label: MODULES.hallway || 'Hallway Monitor', href:'./hallway.html', badge:'live locations' },
-          { key:'staff_pull', label: MODULES.staff_pull || 'Staff Pull', href:'./staff_pull.html', badge:'pull & release' },
-          { key:'phone_pass', label: MODULES.phone_pass || 'Phone Pass', href:'./phone_pass.html', badge:'grant & return' },
-          { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', badge:'lunch-out compliance' },
-          { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', badge:'attendance & holds' },
-        ]
-      },
-      {
-        title: 'Front Desk',
-        items: [
-          { key:'visitor_desk', label: MODULES.visitor_desk || 'Visitor Desk', href:'./visitor_desk.html', badge:'check-in & history' },
-          { key:'early_dismissal', label: MODULES.early_dismissal || 'Early Dismissal', href:'./early_dismissal.html', badge:"today's dismissals" },
-        ]
-      },
-      {
-        title: 'Account',
-        items: [
-          { key:'notifications', label: MODULES.notifications || 'My Settings', href:'./notifications.html', badge:'alerts & links' },
-        ]
-      },
-      {
+        section_key: 'administration',
         title: 'Administration',
         items: [
-          { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Diagnostics', href:'./teacher_trace_lookup.html', badge:'submission traces' },
-          { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', badge:'review suggestions' },
-          { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Fidelity Dashboard', href:'./fidelity.html', badge:'historical fidelity' },
-          { key:'scan_injector', label: MODULES.scan_injector || 'Scan Injector', href:'./scan_injector.html', badge:'simulate scan-ins' },
-          { key:'admin_roles', label: MODULES.admin_roles || 'Roles & Access', href:'./admin_roles.html', badge:'permissions & access' },
-          { key:'admin_dashboard', label: MODULES.admin || 'System Administration', href:'./index.html', badge:'system configuration' },
+          { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', description:'Trace attendance submissions and diagnostics' },
+          { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', description:'Review contact-data correction suggestions' },
+          { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Operational Health', href:'./fidelity.html', description:'Attendance fidelity and operational health' },
+          { key:'scan_injector', label: MODULES.scan_injector || 'Scan Injector', href:'./scan_injector.html', description:'Admin scan simulation and testing' },
+          { key:'admin_roles', label: MODULES.admin_roles || 'Roles & Access', href:'./admin_roles.html', description:'Permissions and staff access' },
+          { key:'admin_dashboard', label: MODULES.admin || 'System Administration', href:'./index.html', description:'System mode and configuration' },
         ]
       }
     ];
 
     const cur = currentFile();
 
-    for (const section of sections) {
-      const visibleItems = section.items.filter((it) => !!(
-        access?.can?.[it.key] ||
-        (it.key === 'conference_scheduler' && access?.can?.student_contacts) || // EAGLENEST_FAMILY_CONFERENCES_V1
-        (it.key === 'esas' && !!access?.email) ||
-        (it.key === 'attendance_change' && access?.can?.excused_apply) ||
-        (it.key === 'scan_injector' && (access?.role === 'super_admin' || access?.role === 'admin'))
-      ));
-      if (!visibleItems.length) continue;
+    const itemIsCurrent = (it) => {
+      const targetFile = String(it?.href || '').split('/').pop();
+      return it?.key === 'attendance_change'
+        ? (cur === 'attendance_change.html' || cur === 'excused_apply.html')
+        : !!(targetFile && targetFile === cur);
+    };
 
-      const sectionEl = document.createElement('div');
-      sectionEl.className = 'ssNavSection';
+    const savedSectionOpen = (() => {
+      try {
+        const raw = JSON.parse(localStorage.getItem(LS_SECTION_OPEN) || '{}');
+        return raw && typeof raw === 'object' ? raw : {};
+      } catch {
+        return {};
+      }
+    })();
 
-      const sectionTitle = document.createElement('div');
-      sectionTitle.className = 'ssNavSectionTitle';
-      sectionTitle.textContent = section.title;
-      sectionEl.appendChild(sectionTitle);
+    const saveSectionOpen = (key, open) => {
+      if (!key) return;
+      savedSectionOpen[key] = !!open;
+      try { localStorage.setItem(LS_SECTION_OPEN, JSON.stringify(savedSectionOpen)); } catch {}
+    };
 
-      for (const it of visibleItems) {
-        const a = document.createElement('a');
-        a.className = 'ssNavLink';
-        a.href = it.href;
+    const visibleByAccess = (it) => !!(
+      access?.can?.[it.key] ||
+      (it.key === 'conference_scheduler' && access?.can?.student_contacts) ||
+      (it.key === 'esas' && !!access?.email) ||
+      (it.key === 'attendance_change' && access?.can?.excused_apply) ||
+      (it.key === 'scan_injector' && (access?.role === 'super_admin' || access?.role === 'admin'))
+    );
 
-        const left = document.createElement('span');
-        left.textContent = it.label;
+    const appendNavLink = (parent, it) => {
+      const a = document.createElement('a');
+      a.className = 'ssNavLink';
+      a.href = it.href;
 
-        const right = document.createElement('span');
-        right.className = 'ssNavBadge';
-        right.textContent = it.badge;
+      const left = document.createElement('span');
+      left.textContent = it.label;
+      a.appendChild(left);
 
-        a.appendChild(left);
-        a.appendChild(right);
-
-        const targetFile = it.href.split('/').pop();
-        const isCurrent = (it.key === 'attendance_change')
-          ? (cur === 'attendance_change.html' || cur === 'excused_apply.html')
-          : (targetFile && targetFile === cur);
-        if (isCurrent) a.setAttribute('aria-current', 'page');
-
-        sectionEl.appendChild(a);
+      // Keep the useful descriptor, but move it out of the visible drawer.
+      // Hover/focus still exposes it as a native tooltip/accessible label.
+      if (it.description) {
+        a.title = it.description;
+        a.setAttribute('aria-label', `${it.label}. ${it.description}`);
       }
 
-      linksWrap.appendChild(sectionEl);
-    }
+      if (itemIsCurrent(it)) a.setAttribute('aria-current', 'page');
+      parent.appendChild(a);
+    };
 
-    // ===== Super Admin-managed external links =====
+    const appendSection = (section) => {
+      const visibleItems = section.items.filter(visibleByAccess);
+      if (!visibleItems.length) return;
+
+      const sectionHasCurrent = visibleItems.some(itemIsCurrent);
+
+      if (section.always_open) {
+        const sectionEl = document.createElement('div');
+        sectionEl.className = 'ssNavSection ssNavSectionAlwaysOpen';
+
+        const sectionTitle = document.createElement('div');
+        sectionTitle.className = 'ssNavSectionTitle';
+        sectionTitle.textContent = section.title;
+        sectionEl.appendChild(sectionTitle);
+
+        const body = document.createElement('div');
+        body.className = 'ssNavSectionBody';
+        for (const it of visibleItems) appendNavLink(body, it);
+        sectionEl.appendChild(body);
+        linksWrap.appendChild(sectionEl);
+        return;
+      }
+
+      const details = document.createElement('details');
+      details.className = 'ssNavSection ssNavSectionCollapsible';
+      details.dataset.sectionKey = section.section_key;
+      details.open = sectionHasCurrent || savedSectionOpen[section.section_key] === true;
+
+      const summary = document.createElement('summary');
+      summary.className = 'ssNavSectionTitle';
+      const label = document.createElement('span');
+      label.textContent = section.title;
+      const count = document.createElement('span');
+      count.className = 'ssNavSectionCount';
+      count.textContent = String(visibleItems.length);
+      summary.append(label, count);
+      details.appendChild(summary);
+
+      const body = document.createElement('div');
+      body.className = 'ssNavSectionBody';
+      for (const it of visibleItems) appendNavLink(body, it);
+      details.appendChild(body);
+
+      details.addEventListener('toggle', () => saveSectionOpen(section.section_key, details.open));
+      linksWrap.appendChild(details);
+    };
+
+    for (const section of sections) appendSection(section);
+
+    // ===== Collapsible external links =====
     const externalLinks = Array.isArray(access?.external_links) ? access.external_links : [];
-    if (externalLinks.length) {
-      const sectionEl = document.createElement('div');
-      sectionEl.className = 'ssNavSection ssNavExternalSection';
+    const safeExternalLinks = externalLinks.filter((item) => {
+      const label = String(item?.label || '').trim();
+      const href = String(item?.url || item?.href || '').trim();
+      return !!label && /^https?:\/\//i.test(href);
+    });
 
-      const sectionTitle = document.createElement('div');
-      sectionTitle.className = 'ssNavSectionTitle';
-      sectionTitle.textContent = 'External Links';
-      sectionEl.appendChild(sectionTitle);
+    if (safeExternalLinks.length) {
+      const details = document.createElement('details');
+      details.className = 'ssNavSection ssNavSectionCollapsible ssNavExternalSection';
+      details.dataset.sectionKey = 'external_links';
+      details.open = savedSectionOpen.external_links === true;
 
-      for (const item of externalLinks) {
-        const label = String(item?.label || '').trim();
+      const summary = document.createElement('summary');
+      summary.className = 'ssNavSectionTitle';
+      const label = document.createElement('span');
+      label.textContent = 'External Links';
+      const count = document.createElement('span');
+      count.className = 'ssNavSectionCount';
+      count.textContent = String(safeExternalLinks.length);
+      summary.append(label, count);
+      details.appendChild(summary);
+
+      const body = document.createElement('div');
+      body.className = 'ssNavSectionBody';
+      for (const item of safeExternalLinks) {
+        const labelText = String(item?.label || '').trim();
         const href = String(item?.url || item?.href || '').trim();
-        if (!label || !/^https?:\/\//i.test(href)) continue;
-
         const a = document.createElement('a');
         a.className = 'ssNavLink ssNavExternalLink';
         a.href = href;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-
-        const left = document.createElement('span');
-        left.textContent = label;
-
-        const right = document.createElement('span');
-        right.className = 'ssNavBadge';
-        right.textContent = '\u2197';
-        right.setAttribute('aria-hidden', 'true');
-
-        a.appendChild(left);
-        a.appendChild(right);
-        sectionEl.appendChild(a);
+        a.textContent = `${labelText} ↗`;
+        a.title = 'Open external link in a new tab';
+        body.appendChild(a);
       }
-
-      if (sectionEl.querySelector('.ssNavExternalLink')) linksWrap.appendChild(sectionEl);
+      details.appendChild(body);
+      details.addEventListener('toggle', () => saveSectionOpen('external_links', details.open));
+      linksWrap.appendChild(details);
     }
 
     // ===== Theme (shared) =====
@@ -720,6 +771,15 @@
       location.reload();
     });
 
+    if (access?.can?.notifications) {
+      const settingsLink = document.createElement('a');
+      settingsLink.className = 'ssNavBtn ssNavFooterLink';
+      settingsLink.href = './notifications.html';
+      settingsLink.textContent = MODULES.notifications || 'My Settings';
+      settingsLink.title = 'Notifications, call pop-ups, preferences and personal links';
+      if (cur === 'notifications.html') settingsLink.setAttribute('aria-current', 'page');
+      footer.appendChild(settingsLink);
+    }
     footer.appendChild(themeBtn);
     footer.appendChild(logoutBtn);
 

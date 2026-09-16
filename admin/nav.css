@@ -310,3 +310,87 @@ body[data-module="teacher_attendance"]:has(.phoneOutIcon:not([hidden])) .pill-ro
 @media print{
   #ssNavToggle, #ssNavDrawer, #ssNavBackdrop{ display:none !important; }
 }
+
+/* EAGLENEST_COMPACT_ACCORDION_NAV_V1 */
+.ssNavLinks{gap:6px}
+.ssNavSection{gap:0}
+.ssNavSectionTitle{
+  margin:0;
+  padding:8px 8px;
+  border-radius:.7rem;
+  user-select:none;
+}
+.ssNavSectionCollapsible>.ssNavSectionTitle{
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  transition:background 120ms ease,border-color 120ms ease;
+}
+.ssNavSectionCollapsible>.ssNavSectionTitle::-webkit-details-marker{display:none}
+.ssNavSectionCollapsible>.ssNavSectionTitle::before{
+  content:"›";
+  display:inline-block;
+  width:12px;
+  margin-right:2px;
+  transform:rotate(0deg);
+  transition:transform 120ms ease;
+  font-size:1rem;
+  line-height:1;
+}
+.ssNavSectionCollapsible[open]>.ssNavSectionTitle::before{transform:rotate(90deg)}
+.ssNavSectionCollapsible>.ssNavSectionTitle:hover{background:rgba(148,163,184,.08)}
+.ssNavSectionCount{
+  margin-left:auto;
+  min-width:1.35rem;
+  padding:.08rem .34rem;
+  border:1px solid var(--nav-border);
+  border-radius:999px;
+  text-align:center;
+  font-size:.63rem;
+  letter-spacing:0;
+}
+.ssNavSectionBody{
+  display:grid;
+  gap:5px;
+  padding:4px 0 3px;
+}
+.ssNavSectionCollapsible:not([open])>.ssNavSectionBody{display:none}
+.ssNavSectionAlwaysOpen{
+  padding-bottom:5px;
+  margin-bottom:2px;
+  border-bottom:1px solid var(--nav-border);
+}
+.ssNavSectionAlwaysOpen>.ssNavSectionTitle{
+  color:var(--nav-fg);
+  letter-spacing:.09em;
+}
+.ssNavLink{
+  padding:9px 10px;
+  justify-content:flex-start;
+  line-height:1.18;
+}
+.ssNavBadge{display:none!important}
+.ssNavExternalSection{
+  margin-top:2px;
+  padding-top:2px;
+  border-top:1px solid var(--nav-border);
+}
+.ssNavFooter{
+  padding-top:8px;
+  border-top:1px solid var(--nav-border);
+}
+.ssNavFooterLink{
+  display:block;
+  text-align:center;
+  text-decoration:none;
+}
+.ssNavFooterLink[aria-current="page"]{
+  box-shadow:0 0 0 2px rgba(59,130,246,.35);
+  border-color:rgba(59,130,246,.75);
+}
+:root[data-theme="light"] .ssNavSectionCollapsible>.ssNavSectionTitle:hover{
+  background:rgba(15,23,42,.045);
+}

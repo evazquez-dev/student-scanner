@@ -50,7 +50,7 @@ test('frontend exposes scope tabs, required campaigns, follow-up queue, activity
   assert.match(js, /\/admin\/communications\/dashboard/);
   assert.match(js, /\/admin\/communications\/followup\/resolve/);
   assert.match(nav, /key:'communications'/);
-  assert.match(brand, /communications:\s*'Communications'/);
+  assert.match(brand, /communications:\s*'Parent & Family Communications'/);
   assert.match(contacts, /PAGE_PREFILL_CATEGORY/);
   assert.doesNotMatch(js, /action:'log-communication'/);
   assert.doesNotMatch(html, /student_contacts\.html\?action=log-communication/);
