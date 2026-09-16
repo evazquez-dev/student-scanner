@@ -41,7 +41,7 @@ function downloadCsv(filename,rows){
   const headers=[
     ['osis','OSIS'],['first_name','First Name'],['last_name','Last Name'],['full_name','Full Name'],
     ['grade','Grade'],['student_email','Student Email'],['band_label','Grade Band'],['period','DOW Period'],
-    ['cycle_id','Cycle ID'],['course_code','Course Code'],['course_name','Course Name'],['selected_by','Selected By'],
+    ['cycle_id','Cycle ID'],['course_code','Course Code'],['course_name','Course Name'],['selected_by_name','Selected By Name'],['selected_by_email','Selected By Email'],
     ['selected_at_iso','Selected At'],['previous_awards','Previous DOW Awards'],['current_selections','Current DOW Selections']
   ];
   const lines=[headers.map(([,label])=>csvCell(label)).join(',')];
