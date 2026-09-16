@@ -5,6 +5,7 @@ const SID_KEYS=['ss_admin_session_sid_v1','notifications_admin_session_v1','admi
 const SESSION_HEADER='x-admin-session',DRAFT_PREFIX='eaglenest_call_note_draft_v1:',CLIENT_KEY='eaglenest_calls_live_client_v1';
 const $=id=>document.getElementById(id);
 let ACCESS=null,CONFIG=null,HISTORY={rows:[]},LIVE={active_calls:[]},LAST=new Map(),ENDED=[],ABORT=null,MODAL=null,MODAL_KIND='';
+const LIVE_HISTORY=new Map(),LIVE_HISTORY_PENDING=new Set(); // EAGLENEST_LIVE_CALLER_HISTORY_V1
 
 function sid(){try{for(const k of SID_KEYS){const v=String(sessionStorage.getItem(k)||localStorage.getItem(k)||'').trim();if(v)return v}}catch{}return ''}
 function stash(r){try{const v=String(r.headers.get(SESSION_HEADER)||r.headers.get('X-Admin-Session')||'').trim();if(v)for(const k of SID_KEYS){sessionStorage.setItem(k,v);localStorage.setItem(k,v)}}catch{}}
@@ -28,7 +29,94 @@ function statusLine(c){const a=endpointList(c.connected_endpoints),b=endpointLis
 function badgeHtml(c){const d=norm(c.direction).toLowerCase();return`<div class="badges"><span class="badge ${esc(d)}">${esc(dirLabel(d))}</span>${c.campus?`<span class="badge">${esc(c.campus)}</span>`:''}${c.front_office_call?'<span class="badge office">Front Office</span>':''}</div>`}
 
 function renderScope(){const p=CONFIG?.preferences||{},a=[];if(p.scope==='my_extension'&&CONFIG?.my_extension)a.push(`My extension ${CONFIG.my_extension}`);if(p.scope==='campus')a.push((p.campuses||[]).join(', ')||'Selected campus');if(p.scope==='all')a.push('All calls');if(CONFIG?.office_staff_campuses?.length)a.push(`${CONFIG.office_staff_campuses.join(', ')} front office`);$('scopeSummary').textContent=(a.length?a.join(' + '):'Calls')+'. Live and recent calls follow My Settings.';$('viewerPill').textContent=[ACCESS?.email,CONFIG?.my_extension?`Ext. ${CONFIG.my_extension}`:''].filter(Boolean).join(' • ')}
-function renderLive(){const calls=LIVE.active_calls||[];$('liveCount').textContent=calls.length;const el=$('liveCalls');if(!calls.length){el.innerHTML='<div class="panel empty">No active calls right now.</div>';return}el.innerHTML=calls.map(c=>{const st=norm(c.state).toLowerCase(),ss=students(c),can=ss.length&&norm(c.direction).toLowerCase()!=='internal',dr=draft(c,'live');return`<article class="panel liveCard ${esc(st)}"><div class="callTop"><div><div class="callTitle"><span class="pulse"></span>${esc(st==='connected'?'CONNECTED':st==='ringing'?'RINGING':'ACTIVE')} • ${esc(route(c))}</div><div class="muted">${esc(fmtDate(c.started_at))}</div></div><div class="timer" data-timer="${esc(c.call_id)}">${fmtClock(elapsed(c))}</div></div>${badgeHtml(c)}<div class="route">${esc(route(c))}</div>${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}${ss.slice(0,3).map(m=>`<div class="contact"><div><strong>${esc(contactLabel(m))}</strong><span class="muted">${esc(m.student_name||'Student')} • OSIS ${esc(m.student_number)}</span></div><a class="btn small" href="${esc(studentUrl(m))}">Open Student</a></div>`).join('')}<div class="actions">${can?`<button class="btn primary" data-note-live="${esc(c.call_id)}">${dr?'Continue Notes':'Start Notes'}</button>`:''}${dr?'<span class="draft">Draft saved</span>':''}</div></article>`}).join('');for(const b of el.querySelectorAll('[data-note-live]'))b.onclick=()=>{const c=calls.find(x=>x.call_id===b.dataset.noteLive);if(c)openNotes(c,'live')}}
+
+function canSeeLiveCallerHistory(){
+  return CONFIG?.admin_like===true || (Array.isArray(CONFIG?.office_staff_campuses) && CONFIG.office_staff_campuses.length>0);
+}
+function historyStaffLabel(row){
+  const d=norm(row?.direction).toLowerCase();
+  if(d==='outgoing') return norm(row?.src_label||row?.staff_label)||(row?.src_extension?`Ext. ${row.src_extension}`:'School extension unavailable');
+  if(d==='incoming'){
+    if(!row?.answered) return 'No answer at school';
+    return norm(row?.dst_label||row?.staff_label)||(row?.dst_extension?`Ext. ${row.dst_extension}`:'School phone');
+  }
+  return 'School phone';
+}
+function liveCallerHistoryHtml(call){
+  if(!canSeeLiveCallerHistory() || norm(call?.direction).toLowerCase()==='internal') return '';
+  const key=norm(call?.call_id),data=LIVE_HISTORY.get(key);
+  if(!data){
+    return `<div class="callerHistory loading"><div class="callerHistoryTitle">Recent with this number</div><div class="callerHistoryEmpty">Loading recent call history…</div></div>`;
+  }
+  if(data.error){
+    return `<div class="callerHistory"><div class="callerHistoryTitle">Recent with this number</div><div class="callerHistoryEmpty">Recent history unavailable right now.</div></div>`;
+  }
+  const rows=Array.isArray(data.rows)?data.rows:[];
+  const lastSchoolCall=rows.find(r=>norm(r.direction).toLowerCase()==='outgoing');
+  const lastSchoolHtml=lastSchoolCall
+    ? `<div class="lastSchoolCall"><strong>Most recent school call:</strong><span>${esc(fmtDate(lastSchoolCall.start_local))} • ${esc(historyStaffLabel(lastSchoolCall))} • ${fmtClock(lastSchoolCall.billsec_sec||lastSchoolCall.duration_sec||0)}</span></div>`
+    : `<div class="lastSchoolCall"><strong>Most recent school call:</strong><span>No outgoing call found in the last ${Number(data.days||30)} days.</span></div>`;
+  const rowsHtml=rows.length
+    ? rows.map(r=>`<div class="callerHistoryRow"><span>${esc(fmtDate(r.start_local))}</span><strong>${esc(dirLabel(norm(r.direction).toLowerCase()))}</strong><span>${esc(historyStaffLabel(r))}</span><span>${fmtClock(r.billsec_sec||r.duration_sec||0)}</span></div>`).join('')
+    : `<div class="callerHistoryEmpty">No prior calls with this number in the last ${Number(data.days||30)} days.</div>`;
+  return `<div class="callerHistory">${lastSchoolHtml}<details><summary>Recent with this number${rows.length?` (${rows.length})`:''}</summary><div class="callerHistoryRows">${rowsHtml}</div></details></div>`;
+}
+async function loadLiveCallerHistory(call){
+  const id=norm(call?.call_id);
+  if(!id || norm(call?.direction).toLowerCase()==='internal' || !canSeeLiveCallerHistory()) return;
+  if(LIVE_HISTORY.has(id)||LIVE_HISTORY_PENDING.has(id)) return;
+  LIVE_HISTORY_PENDING.add(id);
+  try{
+    const r=await api(`/admin/integrations/grandstream/live/history?call_id=${encodeURIComponent(id)}`);
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok) throw new Error(j.error||`history_http_${r.status}`);
+    LIVE_HISTORY.set(id,j);
+  }catch(e){
+    LIVE_HISTORY.set(id,{error:String(e?.message||e)});
+  }finally{
+    LIVE_HISTORY_PENDING.delete(id);
+    if((LIVE.active_calls||[]).some(c=>norm(c.call_id)===id)) renderLive();
+  }
+}
+function hydrateLiveCallerHistory(calls){
+  if(!canSeeLiveCallerHistory()) return;
+  for(const call of calls||[]) loadLiveCallerHistory(call);
+  const active=new Set((calls||[]).map(c=>norm(c.call_id)).filter(Boolean));
+  for(const key of [...LIVE_HISTORY.keys()]) if(!active.has(key)) LIVE_HISTORY.delete(key);
+}
+
+function renderLive(){
+  const calls=LIVE.active_calls||[];
+  $('liveCount').textContent=calls.length;
+  const el=$('liveCalls');
+  if(!calls.length){
+    el.innerHTML='<div class="panel empty">No active calls right now.</div>';
+    return;
+  }
+  hydrateLiveCallerHistory(calls);
+  el.innerHTML=calls.map(c=>{
+    const st=norm(c.state).toLowerCase(),ss=students(c),can=ss.length&&norm(c.direction).toLowerCase()!=='internal',dr=draft(c,'live');
+    return `<article class="panel liveCard ${esc(st)}">
+      <div class="callTop">
+        <div>
+          <div class="callTitle"><span class="pulse"></span>${esc(st==='connected'?'CONNECTED':st==='ringing'?'RINGING':'ACTIVE')} • ${esc(route(c))}</div>
+          <div class="muted">${esc(fmtDate(c.started_at))}</div>
+        </div>
+        <div class="timer" data-timer="${esc(c.call_id)}">${fmtClock(elapsed(c))}</div>
+      </div>
+      ${badgeHtml(c)}
+      <div class="route">${esc(route(c))}</div>
+      ${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}
+      ${ss.slice(0,3).map(m=>`<div class="contact"><div><strong>${esc(contactLabel(m))}</strong><span class="muted">${esc(m.student_name||'Student')} • OSIS ${esc(m.student_number)}</span></div><a class="btn small" href="${esc(studentUrl(m))}">Open Student</a></div>`).join('')}
+      ${liveCallerHistoryHtml(c)}
+      <div class="actions">${can?`<button class="btn primary" data-note-live="${esc(c.call_id)}">${dr?'Continue Notes':'Start Notes'}</button>`:''}${dr?'<span class="draft">Draft saved</span>':''}</div>
+    </article>`;
+  }).join('');
+  for(const b of el.querySelectorAll('[data-note-live]')) b.onclick=()=>{
+    const c=calls.find(x=>x.call_id===b.dataset.noteLive);
+    if(c) openNotes(c,'live');
+  };
+}
 function endedRow(c){return{...c,_ended:true,answered:c.state==='connected'||(c.connected_endpoints||[]).length>0,start_local:c.started_at,billsec_sec:elapsed(c)}}
 function renderRecent(){const q=norm($('searchInput').value).toLowerCase(),hist=HISTORY.rows||[];let rows=[...ENDED.map(endedRow),...hist];if(q)rows=rows.filter(c=>JSON.stringify({route:route(c),campus:c.campus,matches:matches(c)}).toLowerCase().includes(q));const el=$('recentCalls');if(!rows.length){el.innerHTML='<div class="panel empty">No recent calls in this view.</div>';return}el.innerHTML=rows.slice(0,180).map(c=>{const kind=c._ended?'live':'history',ss=students(c),can=ss.length&&norm(c.direction).toLowerCase()!=='internal';return`<article class="panel recentCard ${c._ended?'syncing':''}"><div class="recentRow"><div><div class="recentTitleText">${esc(route(c))}</div><div class="recentMeta">${esc(fmtDate(c.start_local||c.started_at))} • ${esc(dirLabel(norm(c.direction).toLowerCase()))} • ${fmtClock(c.billsec_sec||c.duration_sec||0)}${c._ended?' • syncing to PBX history':''}</div>${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}</div><div class="actions">${ss[0]?`<a class="btn small" href="${esc(studentUrl(ss[0]))}">Open Student</a>`:''}${can?`<button class="btn small primary" data-note="${esc(kind==='live'?c.call_id:c.call_key)}" data-kind="${kind}">Log Communication</button>`:''}</div></div></article>`}).join('');for(const b of el.querySelectorAll('[data-note]'))b.onclick=()=>{const c=b.dataset.kind==='live'?ENDED.find(x=>x.call_id===b.dataset.note):hist.find(x=>x.call_key===b.dataset.note);if(c)openNotes(c,b.dataset.kind)}}
 function renderAll(){renderLive();renderRecent();renderScope()}
