@@ -204,6 +204,39 @@
     .row .name{ font-weight:700; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
     .row .subline{ font-size:0.8rem; color:var(--muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 
+    /* EAGLENEST_PHONE_PASS_ROW_LAYOUT_V1
+       JS uses row-title / row-sub. Keep operational details above the buttons. */
+    .row-title{
+      font-weight:800;
+      line-height:1.25;
+      overflow-wrap:anywhere;
+    }
+    .row-sub{
+      margin-top:0.2rem;
+      font-size:0.8rem;
+      line-height:1.4;
+      color:var(--muted);
+      white-space:normal;
+      overflow-wrap:anywhere;
+    }
+    #activeList .row,#mineList .row{
+      grid-template-columns:1fr;
+      align-items:stretch;
+      gap:0.5rem;
+    }
+    #activeList .row-actions,#mineList .row-actions{
+      grid-column:1;
+      width:100%;
+      justify-content:flex-start;
+      margin-top:0.1rem;
+    }
+    @media(max-width:640px){
+      #activeList .row-actions .btn,#mineList .row-actions .btn{
+        flex:1 1 100%;
+        width:100%;
+      }
+    }
+
     /* Schedule table */
     .schedTableWrap{
       margin-top:0.25rem;

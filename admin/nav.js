@@ -773,6 +773,29 @@
     document.head.appendChild(script);
   }
 
+  async function bootPhonePickupPopup(access){
+    const campuses=Array.isArray(access?.office_staff_campuses) ? access.office_staff_campuses : [];
+    const mainOffice=campuses.some((value)=>String(value||'').trim().toLowerCase()==='high school');
+    if(!mainOffice)return;
+    if(/phone_pass\.html$/i.test(location.pathname||''))return;
+    if(access?.view_as?.active===true||access?.view_as?.read_only===true)return;
+    if(document.getElementById('eaglenestPhonePickupPopupScript'))return;
+
+    try{
+      const response=await adminFetch('/admin/phone_pass/popup_preferences',{method:'GET'});
+      const pref=await response.json().catch(()=>null);
+      if(!response.ok||!pref?.ok||pref?.enabled !== true)return;
+    }catch{
+      return;
+    }
+
+    const script=document.createElement('script');
+    script.id='eaglenestPhonePickupPopupScript';
+    script.src='./phone_pickup_popup.js';
+    script.defer=true;
+    document.head.appendChild(script);
+  }
+
   async function bootNav() {
     // Poll briefly so it appears right after a user logs in via popup
     for (let i = 0; i < 40; i++) {
@@ -782,6 +805,7 @@
         if (esas?.active === true && esas?.incident?.incident_id) return;
         mountNav(access);
         await bootPhoneLive(access);
+        await bootPhonePickupPopup(access);
         return;
       }
       await sleep(500);

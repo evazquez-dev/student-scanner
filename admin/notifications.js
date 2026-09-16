@@ -138,6 +138,56 @@ async function saveDefaultExternalLinkVisibility(){
   finally{setBusy(false);}
 }
 
+async function loadPhonePickupPopupSettings(){
+  const card=$('phone-pickup-popup-settings');
+  if(!card)return null;
+  const r=await adminFetch('/admin/phone_pass/popup_preferences',{method:'GET'});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===403){card.hidden=true;return null}
+  if(!r.ok||!j?.ok)throw new Error(j?.error||`phone_pickup_popup_settings_http_${r.status}`);
+  card.hidden=false;
+  $('phonePickupPopupEnabled').checked=j.enabled===true;
+  return j;
+}
+
+async function savePhonePickupPopupSettings(){
+  const button=$('savePhonePickupPopupSettings');
+  const out=$('phonePickupPopupSettingsOut');
+  if(!button||!out)return;
+  button.disabled=true;out.textContent='Saving…';
+  try{
+    const enabled=$('phonePickupPopupEnabled')?.checked===true;
+    const r=await adminFetch('/admin/phone_pass/popup_preferences',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({enabled})
+    });
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j?.ok)throw new Error(j?.error||`phone_pickup_popup_settings_http_${r.status}`);
+    out.textContent=enabled
+      ? 'Saved. Phone pickup pop-ups are on for your account.'
+      : 'Saved. Phone pickup pop-ups are off for your account.';
+    try{
+      if(!enabled){
+        window.EagleNESTPhonePickupPopup?.stop?.();
+      }else if(window.EagleNESTPhonePickupPopup?.start){
+        window.EagleNESTPhonePickupPopup.start();
+      }else if(!/phone_pass\.html$/i.test(location.pathname||'')&&!document.getElementById('eaglenestPhonePickupPopupScript')){
+        const script=document.createElement('script');
+        script.id='eaglenestPhonePickupPopupScript';
+        script.src='./phone_pickup_popup.js';
+        script.defer=true;
+        document.head.appendChild(script);
+      }
+    }catch{}
+    await loadPhonePickupPopupSettings();
+  }catch(e){
+    out.textContent=`Could not save: ${e?.message||e}`;
+  }finally{
+    button.disabled=false;
+  }
+}
+
 async function loadCallSettings(){
   const card=$('call-settings'); if(!card)return;
   const r=await adminFetch('/admin/calls/config',{method:'GET'});
@@ -230,5 +280,5 @@ async function refreshState(){showNotice('');platformHint.textContent=platformMe
 async function enableNotifications(){setBusy(true);showNotice('');try{if(!CONFIG?.configured)await loadConfig();await ensureRegistration();const permission=await Notification.requestPermission();if(permission!=='granted')throw new Error(permission==='denied'?'Notification permission was blocked. Change the site notification setting in your browser to enable it.':'Notification permission was not granted.');let sub=await REG.pushManager.getSubscription();if(!sub){sub=await REG.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64urlToUint8Array(CONFIG.vapid_public_key)});}const r=await adminFetch('/admin/push/subscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({subscription:sub.toJSON()})});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.error||`push_subscribe_http_${r.status}`);showNotice('Notifications enabled on this device.','ok');await refreshState();}catch(e){showNotice(e?.message||String(e),'bad');}finally{setBusy(false);}}
 async function disableNotifications(){setBusy(true);showNotice('');try{await ensureRegistration();const sub=await REG.pushManager.getSubscription();if(sub){const r=await adminFetch('/admin/push/unsubscribe',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({endpoint:sub.endpoint})});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.error||`push_unsubscribe_http_${r.status}`);await sub.unsubscribe();}showNotice('Notifications disabled on this device.','ok');await refreshState();}catch(e){showNotice(e?.message||String(e),'bad');}finally{setBusy(false);}}
 async function sendTest(){setBusy(true);testOut.textContent='Sending…';try{const r=await adminFetch('/admin/push/test',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.delivery?.error||j?.error||`push_test_http_${r.status}`);const sent=Number(j?.delivery?.sent||0);testOut.textContent=`Sent to ${sent} enabled device${sent===1?'':'s'}.`;showNotice('Test push sent. You should receive an EagleNEST notification shortly.','ok');}catch(e){testOut.textContent='';showNotice(e?.message||String(e),'bad');}finally{setBusy(false);}}
-async function boot(){enableBtn.addEventListener('click',enableNotifications);disableBtn.addEventListener('click',disableNotifications);refreshBtn.addEventListener('click',()=>{setBusy(true);refreshState().catch(e=>showNotice(e?.message||e,'bad')).finally(()=>setBusy(false));});testBtn.addEventListener('click',sendTest);prefList?.addEventListener('change',(ev)=>{const el=ev.target?.closest?.('.prefToggle');if(!el)return;savePreference(String(el.dataset.prefKey||''),!!el.checked);});addPersonalExternalLinkBtn?.addEventListener('click',()=>addPersonalExternalLinkRow());savePersonalExternalLinksBtn?.addEventListener('click',savePersonalExternalLinks);showDefaultExternalLinks?.addEventListener('change',saveDefaultExternalLinkVisibility);$('saveCallSettings')?.addEventListener('click',saveCallSettings);ACCESS=await getAccess();if(!ACCESS){loginOut.textContent='Please sign in.';const gsi=await waitForGoogle();gsi.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async(resp)=>{try{loginOut.textContent='Signing in…';await doLogin(resp.credential);location.reload();}catch(e){loginOut.textContent=`Login failed: ${e.message||e}`;}}});gsi.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return;}if(!ACCESS?.can?.notifications&&!ACCESS?.can?.teacher_attendance&&!ACCESS?.can?.admin)throw new Error('forbidden');loginCard.hidden=true;app.hidden=false;viewerPill.textContent=ACCESS.email||'Staff';await Promise.all([refreshState(),loadExternalLinkPreferences(),loadCallSettings()]);}
+async function boot(){enableBtn.addEventListener('click',enableNotifications);disableBtn.addEventListener('click',disableNotifications);refreshBtn.addEventListener('click',()=>{setBusy(true);refreshState().catch(e=>showNotice(e?.message||e,'bad')).finally(()=>setBusy(false));});testBtn.addEventListener('click',sendTest);prefList?.addEventListener('change',(ev)=>{const el=ev.target?.closest?.('.prefToggle');if(!el)return;savePreference(String(el.dataset.prefKey||''),!!el.checked);});addPersonalExternalLinkBtn?.addEventListener('click',()=>addPersonalExternalLinkRow());savePersonalExternalLinksBtn?.addEventListener('click',savePersonalExternalLinks);showDefaultExternalLinks?.addEventListener('change',saveDefaultExternalLinkVisibility);$('saveCallSettings')?.addEventListener('click',saveCallSettings);$('savePhonePickupPopupSettings')?.addEventListener('click',savePhonePickupPopupSettings);ACCESS=await getAccess();if(!ACCESS){loginOut.textContent='Please sign in.';const gsi=await waitForGoogle();gsi.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async(resp)=>{try{loginOut.textContent='Signing in…';await doLogin(resp.credential);location.reload();}catch(e){loginOut.textContent=`Login failed: ${e.message||e}`;}}});gsi.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return;}if(!ACCESS?.can?.notifications&&!ACCESS?.can?.teacher_attendance&&!ACCESS?.can?.admin)throw new Error('forbidden');loginCard.hidden=true;app.hidden=false;viewerPill.textContent=ACCESS.email||'Staff';await Promise.all([refreshState(),loadExternalLinkPreferences(),loadCallSettings(),loadPhonePickupPopupSettings()]);}
 boot().catch(e=>{loginOut.textContent=String(e?.message||e);showNotice(e?.message||e,'bad');});
