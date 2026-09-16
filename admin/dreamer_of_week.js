@@ -16,6 +16,7 @@ const teacherIdentity = document.getElementById('teacherIdentity');
 const courseCards = document.getElementById('courseCards');
 const managerArea = document.getElementById('managerArea');
 const managerBands = document.getElementById('managerBands');
+const exportAllDreamersBtn = document.getElementById('exportAllDreamersBtn');
 
 let currentState = null;
 let eventsBound = false;
@@ -29,6 +30,46 @@ function fmtDate(value){
   return d.toLocaleString([], {dateStyle:'medium', timeStyle:'short'});
 }
 function bandLabel(band){ return band === '9_10' ? 'Grades 9–10' : 'Grades 11–12'; }
+
+function csvCell(value){
+  let text=String(value ?? '');
+  if(/^[=+\-@]/.test(text)) text=`'${text}`;
+  return `"${text.replace(/"/g,'""')}"`;
+}
+
+function downloadCsv(filename,rows){
+  const headers=[
+    ['osis','OSIS'],['first_name','First Name'],['last_name','Last Name'],['full_name','Full Name'],
+    ['grade','Grade'],['student_email','Student Email'],['band_label','Grade Band'],['period','DOW Period'],
+    ['cycle_id','Cycle ID'],['course_code','Course Code'],['course_name','Course Name'],['selected_by','Selected By'],
+    ['selected_at_iso','Selected At'],['previous_awards','Previous DOW Awards'],['current_selections','Current DOW Selections']
+  ];
+  const lines=[headers.map(([,label])=>csvCell(label)).join(',')];
+  for(const row of rows||[]) lines.push(headers.map(([key])=>csvCell(row?.[key] ?? '')).join(','));
+  const blob=new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function exportBandCsv(band,data){
+  const rows=Array.isArray(data?.export_rows)?data.export_rows:[];
+  if(!rows.length){setStatus(`No current ${bandLabel(band)} Dreamers have been selected yet.`,'warn');return;}
+  const date=new Date().toLocaleDateString('en-CA');
+  const seq=Number(data?.cycle?.sequence||1);
+  downloadCsv(`dreamers_of_week_${band}_period_${seq}_${date}.csv`,rows);
+  setStatus(`Exported ${rows.length} ${bandLabel(band)} course-recipient row${rows.length===1?'':'s'}.`,'ok');
+}
+
+function exportAllCurrentCsv(){
+  const bands=currentState?.manager?.bands||{};
+  const rows=['9_10','11_12'].flatMap((band)=>Array.isArray(bands?.[band]?.export_rows)?bands[band].export_rows:[]);
+  if(!rows.length){setStatus('No current Dreamers have been selected yet.','warn');return;}
+  const date=new Date().toLocaleDateString('en-CA');
+  downloadCsv(`dreamers_of_week_current_${date}.csv`,rows);
+  setStatus(`Exported ${rows.length} current course-recipient row${rows.length===1?'':'s'}.`,'ok');
+}
 
 function getSid(){
   try{
@@ -98,6 +139,7 @@ async function onGoogleCredential(resp){
 function bindEvents(){
   if(eventsBound) return; eventsBound=true;
   refreshBtn?.addEventListener('click',loadState);
+  exportAllDreamersBtn?.addEventListener('click',exportAllCurrentCsv);
 }
 
 async function loadState(){
@@ -196,19 +238,35 @@ function renderManager(manager){
     }
     card.appendChild(courses);
     const reset=document.createElement('div'); reset.className='resetRow';
-    const note=document.createElement('span'); note.className='resetNote'; note.textContent=data.reset_ready?'Reset archives these recipients as historical awards.':'Every course must have at least 2 recipients before reset.';
-    const btn=document.createElement('button'); btn.type='button'; btn.className='btn danger'; btn.textContent=`Reset ${bandLabel(band)} Period`; btn.disabled=!data.reset_ready; btn.addEventListener('click',()=>resetBand(band,data,btn));
-    reset.append(note,btn); card.appendChild(reset); managerBands.appendChild(card);
+    const exportBtn=document.createElement('button'); exportBtn.type='button'; exportBtn.className='btn secondary'; exportBtn.textContent=`Export ${bandLabel(band)} CSV`; exportBtn.disabled=!(data.export_rows||[]).length; exportBtn.addEventListener('click',()=>exportBandCsv(band,data));
+    const forceReset=!data.reset_ready && data.force_reset_allowed===true;
+    const note=document.createElement('span'); note.className='resetNote';
+    note.textContent=data.reset_ready
+      ? 'Reset archives these recipients as historical awards.'
+      : forceReset
+        ? 'Some courses are incomplete. Dean / Super Admin may force reset; only currently selected recipients will be archived.'
+        : 'Every course must have at least 2 recipients before reset.';
+    const btn=document.createElement('button'); btn.type='button'; btn.className='btn danger';
+    btn.textContent=forceReset?`Force Reset ${bandLabel(band)} Period`:`Reset ${bandLabel(band)} Period`;
+    btn.disabled=!data.reset_ready&&!forceReset;
+    btn.addEventListener('click',()=>resetBand(band,data,btn));
+    reset.append(note,exportBtn,btn); card.appendChild(reset); managerBands.appendChild(card);
   }
 }
 
 async function resetBand(band,data,button){
   const label=bandLabel(band); const seq=Number(data?.cycle?.sequence||1);
-  if(!window.confirm(`Close ${label} DOW Period ${seq}?\n\nCurrent recipients will be archived as historical DOW awards and a new ${label} period will begin.`)) return;
-  button.disabled=true; setStatus(`Closing ${label} period…`,'info');
+  const forceReset=!data?.reset_ready && data?.force_reset_allowed===true;
+  const incomplete=(data?.courses||[]).filter(c=>!c.complete);
+  const incompleteText=incomplete.slice(0,12).map(c=>`${c.name||c.course_code} (${c.selected||0}/${c.min||2})`).join(', ');
+  const message=forceReset
+    ? `FORCE RESET ${label} DOW Period ${seq}?\n\n${incomplete.length} course${incomplete.length===1?' is':'s are'} incomplete${incompleteText?`:\n${incompleteText}`:''}.\n\nOnly recipients currently selected will be archived. Missing course submissions will NOT be invented.\n\nA new ${label} period will begin.`
+    : `Close ${label} DOW Period ${seq}?\n\nCurrent recipients will be archived as historical DOW awards and a new ${label} period will begin.`;
+  if(!window.confirm(message)) return;
+  button.disabled=true; setStatus(`${forceReset?'Force closing':'Closing'} ${label} period…`,'info');
   try{
-    const r=await adminFetch('/admin/dow/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({band})});
-    await readJson(r); await loadState(); setStatus(`${label} period reset successfully. A new period is now active.`,'ok');
+    const r=await adminFetch('/admin/dow/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({band,force:forceReset})});
+    const result=await readJson(r); await loadState(); setStatus(result?.forced_reset?`${label} period force-reset successfully. Only submitted recipients were archived; a new period is now active.`:`${label} period reset successfully. A new period is now active.`,'ok');
   }catch(e){
     if(e?.data?.error==='dow_courses_incomplete'){
       const names=(e.data.incomplete_courses||[]).map(c=>`${c.name||c.course_code} (${c.selected||0}/${c.min||2})`).join(', ');
