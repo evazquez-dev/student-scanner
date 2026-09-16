@@ -1,4 +1,4 @@
-/* EAGLENEST_PHONE_PICKUP_POPUP_V1 — Main Office phone pickup queue popup */
+/* EAGLENEST_PHONE_PICKUP_POPUP_V2 — Main Office Phone Pass pickup + return popup */
 (() => {
   'use strict';
 
@@ -43,6 +43,8 @@
         --pp-info:#b45309;--pp-border:rgba(217,119,6,.40);--pp-soft:rgba(100,116,139,.18);
         --pp-shadow:0 18px 46px rgba(15,23,42,.16);color-scheme:light;
       }
+      #eaglenestPhonePickupPopup[data-kind="return"]{--pp-info:#60a5fa;--pp-border:rgba(59,130,246,.48)}
+      :root[data-theme="light"] #eaglenestPhonePickupPopup[data-kind="return"]{--pp-info:#1d4ed8;--pp-border:rgba(37,99,235,.36)}
       .enPickupEyebrow{font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--pp-info)}
       .enPickupTitle{font-size:19px;font-weight:950;line-height:1.2;margin-top:4px;color:var(--pp-fg)}
       .enPickupMeta{font-size:12px;color:var(--pp-muted);margin-top:5px;line-height:1.45}
@@ -50,12 +52,13 @@
       .enPickupDetail strong{display:block;font-size:14px;color:var(--pp-fg)}
       .enPickupDetail span{display:block;margin-top:3px;font-size:12px;color:var(--pp-muted);line-height:1.4}
       .enPickupHint{margin-top:10px;font-size:11px;color:var(--pp-muted);font-weight:800}
-      .enPickupDot{display:inline-block;width:8px;height:8px;border-radius:999px;background:#f59e0b;margin-right:6px;box-shadow:0 0 0 3px rgba(245,158,11,.13)}
+      .enPickupDot{display:inline-block;width:8px;height:8px;border-radius:999px;background:currentColor;margin-right:6px;box-shadow:0 0 0 3px color-mix(in srgb,currentColor 14%,transparent)}
       @media(max-width:600px){#eaglenestPhonePickupPopup{right:10px;bottom:10px;width:calc(100vw - 20px)}}
       @media(prefers-reduced-motion:reduce){#eaglenestPhonePickupPopup{transition:none}}
     `;
     document.head.appendChild(style);
   }
+
   function ensureCard(){
     ensureStyle();
     let card=document.getElementById('eaglenestPhonePickupPopup');
@@ -72,6 +75,7 @@
     }
     return card;
   }
+
   function position(){
     const card=document.getElementById('eaglenestPhonePickupPopup');
     if(!card||card.dataset.show!=='1')return;
@@ -84,27 +88,61 @@
       card.style.bottom=`${base}px`;
     }
   }
+
+  function pickupMeta(rec){
+    const requested=fmtClock(rec.requested_at||rec.phone_pickup_requested_at);
+    const by=emailLocal(rec.requested_by_email||rec.phone_pickup_requested_by_email)||String(rec.requested_by_title||rec.phone_pickup_requested_by_title||'').trim();
+    const loc=String(rec.cur_label||rec.cur_loc||'').trim();
+    return [locker(rec),requested?`requested ${requested}`:'',by?`sent by ${by}`:'',loc?`now @ ${loc}`:''].filter(Boolean).join(' • ');
+  }
+
+  function returnMeta(rec){
+    const requested=fmtClock(rec.requested_at||rec.phone_return_requested_at);
+    const by=emailLocal(rec.requested_by_email||rec.phone_return_requested_by_email);
+    const loc=String(rec.cur_label||rec.cur_loc||'').trim();
+    const outBy=emailLocal(rec.phone_out_by_email);
+    return [
+      requested?`sent to return ${requested}`:'sent to return phone',
+      by?`sent by ${by}`:'',
+      outBy?`phone issued by ${outBy}`:'',
+      loc?`now @ ${loc}`:''
+    ].filter(Boolean).join(' • ');
+  }
+
   function render(data){
     const card=ensureCard();
-    const rows=Array.isArray(data?.requests)?data.requests:[];
-    if(data?.enabled!==true||!rows.length){card.dataset.show='0';return}
-    const first=rows[0]||{};
-    const requested=fmtClock(first.phone_pickup_requested_at);
-    const by=emailLocal(first.phone_pickup_requested_by_email)||String(first.phone_pickup_requested_by_title||'').trim();
-    const loc=String(first.cur_label||first.cur_loc||'').trim();
-    const extra=rows.length>1?`+${rows.length-1} more waiting`:'';
-    const meta=[locker(first),requested?`requested ${requested}`:'',by?`sent by ${by}`:'',loc?`now @ ${loc}`:''].filter(Boolean).join(' • ');
-    card.innerHTML=`
-      <div class="enPickupEyebrow"><span class="enPickupDot"></span>Main Office phone pickup</div>
-      <div class="enPickupTitle">${esc(first.name||'Student')} was sent to pick up their phone</div>
-      <div class="enPickupMeta">${esc(meta)}</div>
-      ${first.phone_note?`<div class="enPickupDetail"><strong>Note</strong><span>${esc(first.phone_note)}</span></div>`:''}
-      ${extra?`<div class="enPickupDetail"><strong>${esc(extra)}</strong><span>Open Phone Pass to view the pickup queue.</span></div>`:''}
-      <div class="enPickupHint">Click anywhere to open Phone Pass</div>`;
+    const events=Array.isArray(data?.events)?data.events:[];
+    if(data?.enabled!==true||!events.length){card.dataset.show='0';card.dataset.kind='';return}
+
+    const event=events[0]||{};
+    const kind=String(event.kind||'pickup').toLowerCase()==='return'?'return':'pickup';
+    const total=events.length;
+    const pickupCount=Number(data?.pickup_count||events.filter(x=>x.kind==='pickup').length);
+    const returnCount=Number(data?.return_count||events.filter(x=>x.kind==='return').length);
+    const extra=total>1?`${total-1} other pending Phone Pass request${total===2?'':'s'}`:'';
+
+    card.dataset.kind=kind;
+    if(kind==='return'){
+      card.innerHTML=`
+        <div class="enPickupEyebrow"><span class="enPickupDot"></span>Main Office phone return</div>
+        <div class="enPickupTitle">${esc(event.name||'Student')} is coming to return their phone</div>
+        <div class="enPickupMeta">${esc(returnMeta(event))}</div>
+        ${extra?`<div class="enPickupDetail"><strong>${esc(extra)}</strong><span>${esc(`${pickupCount} pickup • ${returnCount} return`)}</span></div>`:''}
+        <div class="enPickupHint">Click anywhere to open Phone Pass</div>`;
+    }else{
+      card.innerHTML=`
+        <div class="enPickupEyebrow"><span class="enPickupDot"></span>Main Office phone pickup</div>
+        <div class="enPickupTitle">${esc(event.name||'Student')} was sent to pick up their phone</div>
+        <div class="enPickupMeta">${esc(pickupMeta(event))}</div>
+        ${event.phone_note?`<div class="enPickupDetail"><strong>Note</strong><span>${esc(event.phone_note)}</span></div>`:''}
+        ${extra?`<div class="enPickupDetail"><strong>${esc(extra)}</strong><span>${esc(`${pickupCount} pickup • ${returnCount} return`)}</span></div>`:''}
+        <div class="enPickupHint">Click anywhere to open Phone Pass</div>`;
+    }
     card.dataset.show='1';
     card.title='Open Phone Pass';
     position();
   }
+
   async function poll(){
     if(stopped)return;
     try{
@@ -112,10 +150,11 @@
         method:'GET',headers:headers(),credentials:'include',cache:'no-store'
       });
       const data=await r.json().catch(()=>null);
-      if(r.status===403||data?.enabled===false){render({enabled:false,requests:[]});stop();return}
+      if(r.status===403||data?.enabled===false){render({enabled:false,events:[]});stop();return}
       if(r.ok&&data?.ok)render(data);
     }catch{}
   }
+
   function start(){
     stopped=false;
     if(timer)clearInterval(timer);
@@ -124,6 +163,7 @@
     if(positionTimer)clearInterval(positionTimer);
     positionTimer=setInterval(position,1000);
   }
+
   function stop(){
     stopped=true;
     if(timer)clearInterval(timer);timer=null;
