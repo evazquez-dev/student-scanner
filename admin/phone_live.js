@@ -2,8 +2,9 @@
 (() => {
   'use strict';
 
-  // ESAS remains visually focused on emergency accountability.
-  if (/\/esas\.html$/i.test(location.pathname || '')) return;
+  // ESAS remains visually focused on emergency accountability. Calls already owns its own live stream.
+  // EAGLENEST_CALLS_SINGLE_LIVE_STREAM_V1
+  if (/\/(?:esas|calls)\.html$/i.test(location.pathname || '')) return;
 
   const API_BASE = ((document.querySelector('meta[name="api-base"]')?.content || location.origin)
     .replace(/\/*$/, '') + '/');

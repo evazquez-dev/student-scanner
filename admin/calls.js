@@ -6,6 +6,7 @@ const SESSION_HEADER='x-admin-session',DRAFT_PREFIX='eaglenest_call_note_draft_v
 const $=id=>document.getElementById(id);
 let ACCESS=null,CONFIG=null,HISTORY={rows:[]},LIVE={active_calls:[]},LAST=new Map(),ENDED=[],ABORT=null,MODAL=null,MODAL_KIND='';
 const LIVE_HISTORY=new Map(),LIVE_HISTORY_PENDING=new Set(); // EAGLENEST_LIVE_CALLER_HISTORY_V1
+let HISTORY_LOADING=false; // EAGLENEST_CALLS_HISTORY_LOAD_GUARD_V1
 
 function sid(){try{for(const k of SID_KEYS){const v=String(sessionStorage.getItem(k)||localStorage.getItem(k)||'').trim();if(v)return v}}catch{}return ''}
 function stash(r){try{const v=String(r.headers.get(SESSION_HEADER)||r.headers.get('X-Admin-Session')||'').trim();if(v)for(const k of SID_KEYS){sessionStorage.setItem(k,v);localStorage.setItem(k,v)}}catch{}}
@@ -127,12 +128,44 @@ function fillContacts(){const n=$('noteStudent').value,rows=matches(MODAL).filte
 function closeNotes(){if(MODAL)putDraft(MODAL,MODAL_KIND,$('noteText').value);$('noteBackdrop').hidden=true;MODAL=null;MODAL_KIND=''}
 async function saveCommunication(){if(!MODAL)return;const notes=norm($('noteText').value);if(!notes){$('noteOut').textContent='Write a note before saving.';return}let m={};try{m=JSON.parse($('noteContact').value||'{}')}catch{}const seconds=Math.max(0,Math.round(MODAL.billsec_sec||MODAL.duration_sec||(MODAL_KIND==='live'?elapsed(MODAL):0))),mins=Math.floor(seconds/60),secs=seconds%60,context=[`${dirLabel(norm(MODAL.direction).toLowerCase())} phone call`,MODAL.campus,seconds?`Duration ${mins}m ${secs}s`:''].filter(Boolean).join(' • ');const body={student_number:m.student_number||$('noteStudent').value,student_name:m.student_name||'',contact_assoc_id:m.contact_assoc_id||'',person_id:m.person_id||'',contact_display_name:m.name||'',contact_relationship:m.relationship||'',method:'Phone',direction:norm(MODAL.direction).toLowerCase()==='incoming'?'Incoming':(norm(MODAL.direction).toLowerCase()==='outgoing'?'Outgoing':'Two-way'),category:'General',outcome:$('noteOutcome').value,notes:`${context}\n\n${notes}`,source:'phone_dashboard'};$('saveNote').disabled=true;$('noteOut').textContent='Saving communication…';try{const r=await api('/admin/communications/create',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}),j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`);putDraft(MODAL,MODAL_KIND,'');$('noteOut').textContent='✓ Communication logged.';setTimeout(closeNotes,500)}catch(e){$('noteOut').textContent=`Could not save: ${e.message||e}`}finally{$('saveNote').disabled=false}}
 
-function captureEnded(next){const map=new Map((next||[]).map(c=>[c.call_id,c]));for(const[id,c]of LAST)if(!map.has(id)&&!ENDED.some(x=>x.call_id===id))ENDED.unshift({...c,_ended_at:new Date().toISOString()});ENDED=ENDED.slice(0,25);LAST=map}
+function captureEnded(next){
+  const map=new Map((next||[]).map(c=>[c.call_id,c]));
+  let changed=false;
+  for(const[id,c]of LAST){
+    if(!map.has(id)&&!ENDED.some(x=>x.call_id===id)){
+      ENDED.unshift({...c,_ended_at:new Date().toISOString()});
+      changed=true;
+    }
+  }
+  ENDED=ENDED.slice(0,25);
+  LAST=map;
+  return changed;
+}
 function clientId(){try{let x=sessionStorage.getItem(CLIENT_KEY);if(/^tab-[A-Za-z0-9_-]{8,80}$/.test(x||''))return x;x='tab-'+crypto.randomUUID().replace(/-/g,'').slice(0,24);sessionStorage.setItem(CLIENT_KEY,x);return x}catch{return'tab-'+Date.now().toString(36)+'calls'}}
 function liveStatus(t,s=''){$('liveStatus').textContent=t;$('liveStatus').dataset.state=s}
-async function connectLive(){if(ABORT)ABORT.abort();ABORT=new AbortController();liveStatus('● Connecting');try{const r=await api(`/admin/integrations/grandstream/live/stream?client_id=${encodeURIComponent(clientId())}`,{signal:ABORT.signal});if(!r.ok||!r.body)throw new Error(`live_http_${r.status}`);liveStatus('● Live','live');const reader=r.body.getReader(),dec=new TextDecoder();let buf='';while(true){const{value,done}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let n;while((n=buf.indexOf('\n'))>=0){const line=buf.slice(0,n).trim();buf=buf.slice(n+1);if(!line)continue;let j;try{j=JSON.parse(line)}catch{continue}if(j.type==='snapshot'){const rows=j.active_calls||[];captureEnded(rows);LIVE=j;renderAll()}}}throw new Error('live_stream_closed')}catch(e){if(e.name==='AbortError')return;liveStatus('● Reconnecting','error');setTimeout(connectLive,2500)}}
+async function connectLive(){if(ABORT)ABORT.abort();ABORT=new AbortController();liveStatus('● Connecting');try{const r=await api(`/admin/integrations/grandstream/live/stream?client_id=${encodeURIComponent(clientId())}`,{signal:ABORT.signal});if(!r.ok||!r.body)throw new Error(`live_http_${r.status}`);liveStatus('● Live','live');const reader=r.body.getReader(),dec=new TextDecoder();let buf='';while(true){const{value,done}=await reader.read();if(done)break;buf+=dec.decode(value,{stream:true});let n;while((n=buf.indexOf('\n'))>=0){const line=buf.slice(0,n).trim();buf=buf.slice(n+1);if(!line)continue;let j;try{j=JSON.parse(line)}catch{continue}if(j.type==='snapshot'){const rows=j.active_calls||[];const recentChanged=captureEnded(rows);LIVE=j;renderLive();if(recentChanged)renderRecent()}}}throw new Error('live_stream_closed')}catch(e){if(e.name==='AbortError')return;liveStatus('● Reconnecting','error');setTimeout(connectLive,2500)}}
 async function loadConfig(){const r=await api('/admin/calls/config'),j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`config_http_${r.status}`);CONFIG=j;renderScope()}
-async function loadHistory(show=true){try{const r=await api(`/admin/calls/list?days=${encodeURIComponent($('daysSelect').value||'1')}&limit=300`),j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`history_http_${r.status}`);HISTORY=j;renderRecent()}catch(e){if(show){$('errorBox').textContent=e.message||e;$('errorBox').hidden=false}}}
+async function loadHistory(show=true){
+  if(HISTORY_LOADING)return;
+  HISTORY_LOADING=true;
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),12000);
+  try{
+    const r=await api(`/admin/calls/list?days=${encodeURIComponent($('daysSelect').value||'1')}&limit=300`,{signal:controller.signal});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok)throw new Error(j.error||`history_http_${r.status}`);
+    HISTORY=j;
+    renderRecent();
+  }catch(e){
+    if(show&&e?.name!=='AbortError'){
+      $('errorBox').textContent=e.message||e;
+      $('errorBox').hidden=false;
+    }
+  }finally{
+    clearTimeout(timeout);
+    HISTORY_LOADING=false;
+  }
+}
 async function getAccess(){const r=await api('/admin/access'),j=await r.json().catch(()=>null);return r.ok&&j?.ok?j:null}
 async function waitGoogle(){for(let i=0;i<160;i++){if(window.google?.accounts?.id)return google.accounts.id;await new Promise(r=>setTimeout(r,50))}throw new Error('Google sign-in failed to load')}
 async function login(token){const r=await api('/admin/session/login_google',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:token}).toString()}),j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`)}
