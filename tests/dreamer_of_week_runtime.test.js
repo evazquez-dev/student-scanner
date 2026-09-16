@@ -60,7 +60,8 @@ function academicRoster() {
     students_by_osis: students,
     staff_mapping_by_email: {
       'teacher1@school.org': { email: 'teacher1@school.org', name: 'Teacher One', teacher_assignment_match: 'T1', status: 'ok' },
-      'teacher2@school.org': { email: 'teacher2@school.org', name: 'Teacher Two', teacher_assignment_match: 'T2', status: 'ok' }
+      'teacher2@school.org': { email: 'teacher2@school.org', name: 'Teacher Two', teacher_assignment_match: 'T2', status: 'ok' },
+      'culture@school.org': { email: 'culture@school.org', name: 'Culture Staff', teacher_assignment_match: '', status: 'not_assigned' }
     },
     teachers_by_email: {
       'teacher1@school.org': {
@@ -176,20 +177,50 @@ test('reset blocks incomplete courses then archives recipients and advances only
   await service.setDowRecipient(env, mode, { email: 'teacher1@school.org', role: 'editor' }, roster, { band: '9_10', course_code: 'MTH100', osis: '200000001', selected: true });
   await service.setDowRecipient(env, mode, { email: 'teacher1@school.org', role: 'editor' }, roster, { band: '9_10', course_code: 'MTH100', osis: '200000002', selected: true });
 
+  // School Culture now acts like a real DOW course, so reset remains blocked
+  // until its shared 2-recipient requirement is satisfied too.
+  reset = await service.resetDowBand(env, mode, { email: 'admin@school.org', role: 'admin' }, roster, '9_10');
+  assert.equal(reset.ok, false);
+  assert.equal(reset.error, 'dow_courses_incomplete');
+  assert.ok(reset.incomplete_courses.some((c) => c.course_code === 'SCHOOL_CULTURE'));
+
+  let culture = await service.setDowRecipient(env, mode, { email: 'culture@school.org', role: 'editor' }, roster, {
+    band: '9_10', course_code: 'SCHOOL_CULTURE', osis: '100000003', selected: true
+  });
+  assert.equal(culture.ok, true);
+  culture = await service.setDowRecipient(env, mode, { email: 'culture@school.org', role: 'editor' }, roster, {
+    band: '9_10', course_code: 'SCHOOL_CULTURE', osis: '100000004', selected: true
+  });
+  assert.equal(culture.ok, true);
+
+  const cultureState = await service.buildDowState(
+    env,
+    mode,
+    { email: 'culture@school.org', role: 'editor' },
+    roster
+  );
+  const cultureCourse = cultureState.courses.find((c) => c.course_code === 'SCHOOL_CULTURE');
+  assert.equal(cultureState.school_culture_access, true);
+  assert.equal(cultureCourse.whole_school, true);
+  assert.equal(cultureCourse.bands['9_10'].students.length, 11);
+  assert.equal(cultureCourse.bands['9_10'].course_selected, 2);
+
   const before1112 = await service.ensureDowCycle(env, mode, '11_12');
   reset = await service.resetDowBand(env, mode, { email: 'admin@school.org', role: 'admin' }, roster, '9_10');
   assert.equal(reset.ok, true);
-  assert.equal(reset.archived_recipients, 4);
+  assert.equal(reset.archived_recipients, 6);
   assert.equal(reset.next_cycle.sequence, 2);
   assert.equal(reset.next_cycle.previous_cycle_id, reset.closed_cycle.cycle_id);
 
   const history = await kv.get('dow:history_counts_v1', { type: 'json' });
-  assert.equal(history.total_awards, 4);
+  assert.equal(history.total_awards, 6);
   assert.equal(history.counts['100000001'], 1);
+  assert.equal(history.counts['100000003'], 1);
   assert.equal(history.counts['200000002'], 1);
 
   const archive = await kv.get(`dow:archive:v1:9_10:${reset.closed_cycle.cycle_id}`, { type: 'json' });
-  assert.equal(archive.recipients.length, 4);
+  assert.equal(archive.recipients.length, 6);
+  assert.equal(archive.recipients.filter((r) => r.course_code === 'SCHOOL_CULTURE').length, 2);
   const after1112 = await service.ensureDowCycle(env, mode, '11_12');
   assert.equal(after1112.cycle_id, before1112.cycle_id);
 });

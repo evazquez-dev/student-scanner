@@ -17,8 +17,11 @@ const courseCards = document.getElementById('courseCards');
 const managerArea = document.getElementById('managerArea');
 const managerBands = document.getElementById('managerBands');
 const exportAllDreamersBtn = document.getElementById('exportAllDreamersBtn');
+const historyArea = document.getElementById('historyArea');
+const historyBatches = document.getElementById('historyBatches');
 
 let currentState = null;
+let currentHistory = null;
 let eventsBound = false;
 
 function show(el){ if(el){ el.classList.remove('hidden'); el.style.display=''; } }
@@ -146,12 +149,14 @@ async function loadState(){
   refreshBtn.disabled=true; setStatus('Loading Dreamer of the Week…','info');
   try{
     const r=await adminFetch('/admin/dow/state',{method:'GET'}); const j=await readJson(r); currentState=j; renderState(j);
+    if(j?.manager?.can_edit_history===true) await loadDowHistory();
+    else { currentHistory=null; hide(historyArea); historyBatches?.replaceChildren(); }
     const health=j.academic_roster?.health||{};
     if(health.status==='error') setStatus(`Ready, but the academic roster has ${Number(health.error_count||0)} configuration error(s). If a class or student is missing, contact Erick or Edwin.`,'warn');
     else if(health.status==='warning') setStatus(`Ready. Academic roster has ${Number(health.issue_count||0)} warning(s).`,'warn');
     else setStatus('Ready. Recipient counts are shared course-wide.','ok');
   }catch(e){
-    currentState=null; hide(teacherArea); hide(managerArea);
+    currentState=null; currentHistory=null; hide(teacherArea); hide(managerArea); hide(historyArea);
     setStatus(e?.message||'Could not load Dreamer of the Week.','error');
   }finally{ refreshBtn.disabled=false; }
 }
@@ -161,7 +166,10 @@ function renderState(state){
   if(teacherOk){
     hide(mappingProblem); show(teacherArea);
     const map=state.teacher_mapping||{};
-    teacherIdentity.textContent=`${map.name||state.who?.email||''}${map.teacher_assignment_match?` · Teacher Assignments Match: ${map.teacher_assignment_match}`:''}`;
+    const cultureOnly=state?.school_culture_access===true && !map.teacher_assignment_match;
+    teacherIdentity.textContent=cultureOnly
+      ? `${map.name||state.who?.email||''} · School Culture staff access`
+      : `${map.name||state.who?.email||''}${map.teacher_assignment_match?` · Teacher Assignments Match: ${map.teacher_assignment_match}`:''}`;
     renderTeacherCourses(state.courses||[]);
   }else{
     show(mappingProblem); mappingProblemText.textContent=state?.teacher_mapping_message||'Please contact Erick or Edwin to have your schedule mapping corrected.';
@@ -169,6 +177,8 @@ function renderState(state){
   }
   if(state?.manager?.can_manage){ show(managerArea); renderManager(state.manager); }
   else { hide(managerArea); managerBands.replaceChildren(); }
+  if(state?.manager?.can_edit_history===true) show(historyArea);
+  else { hide(historyArea); historyBatches?.replaceChildren(); }
 }
 
 function renderTeacherCourses(courses){
@@ -177,7 +187,10 @@ function renderTeacherCourses(courses){
   for(const course of courses){
     const card=document.createElement('article'); card.className='courseCard';
     const head=document.createElement('div'); head.className='courseHead';
-    head.innerHTML=`<div><h3>${esc(course.name||course.course_code)}</h3><div class="courseCode">${esc(course.course_code)}</div><div class="sectionList">Your sections: ${esc((course.sections||[]).join(', ')||'—')}</div></div>`;
+    const scope=course?.whole_school===true
+      ? 'Roster: Whole school'
+      : `Your sections: ${esc((course.sections||[]).join(', ')||'—')}`;
+    head.innerHTML=`<div><h3>${esc(course.name||course.course_code)}</h3><div class="courseCode">${esc(course.course_code)}</div><div class="sectionList">${scope}</div></div>`;
     card.appendChild(head);
     for(const band of ['9_10','11_12']){
       const data=course.bands?.[band]; if(!data) continue;
@@ -192,14 +205,27 @@ function renderBandPanel(course,data){
   const count=Number(data.course_selected||0); const max=Number(data.max||8); const min=Number(data.min||2);
   const counterClass=count>=max?'full':count>=min?'good':'low';
   panel.innerHTML=`<div class="bandTop"><div><div class="bandLabel">${esc(data.label||bandLabel(data.band))}</div><div class="courseHint">Period ${Number(data.cycle?.sequence||1)} · started ${esc(fmtDate(data.cycle?.started_at_iso))}</div></div><div class="counter ${counterClass}">${count} / ${max}</div></div><div class="courseHint">${count<min?`${min-count} more recipient${min-count===1?'':'s'} needed before this period can close.`:count>=max?'Course maximum reached. Remove a recipient before adding another.':'Course requirement met; additional recipients are optional.'}</div>`;
+  if(course?.whole_school===true){
+    const search=document.createElement('input');
+    search.type='search'; search.className='studentSearch'; search.placeholder='Search whole-school roster by name or OSIS…';
+    panel.appendChild(search);
+  }
   const list=document.createElement('div'); list.className='studentList';
   for(const student of data.students||[]) list.appendChild(renderStudentRow(course,data,student));
-  if(!(data.students||[]).length) list.innerHTML='<div class="empty">No students from your sections are in this grade group.</div>';
-  panel.appendChild(list); return panel;
+  if(!(data.students||[]).length) list.innerHTML=`<div class="empty">${course?.whole_school===true?'No students are in this grade group.':'No students from your sections are in this grade group.'}</div>`;
+  panel.appendChild(list);
+  const search=panel.querySelector('.studentSearch');
+  search?.addEventListener('input',()=>{
+    const q=String(search.value||'').trim().toLowerCase();
+    for(const row of list.querySelectorAll('.studentRow')){
+      row.style.display=!q||String(row.dataset.search||'').includes(q)?'':'none';
+    }
+  });
+  return panel;
 }
 
 function renderStudentRow(course,bandData,student){
-  const row=document.createElement('div'); row.className=`studentRow${student.selected?' selected':''}`;
+  const row=document.createElement('div'); row.className=`studentRow${student.selected?' selected':''}`; row.dataset.search=`${student.name||''} ${student.osis||''}`.toLowerCase();
   const left=document.createElement('div');
   left.innerHTML=`<div class="studentName">${esc(student.name||student.osis)}</div><div class="studentMeta">Grade ${esc(student.grade||'—')}</div><div class="studentStats"><span class="statPill">Current DOW selections: ${Number(student.current_selections||0)}</span><span class="statPill">Previous DOW awards: ${Number(student.previous_awards||0)}</span></div>`;
   const btn=document.createElement('button'); btn.type='button'; btn.className=`btn recipientToggle${student.selected?' selected':''}`; btn.textContent=student.selected?'Selected ✓':'Select';
@@ -253,6 +279,126 @@ function renderManager(manager){
     reset.append(note,exportBtn,btn); card.appendChild(reset); managerBands.appendChild(card);
   }
 }
+
+
+async function loadDowHistory(){
+  const r=await adminFetch('/admin/dow/history',{method:'GET'});
+  currentHistory=await readJson(r);
+  renderDowHistory(currentHistory);
+}
+
+function historyStudentsForCourse(history,band,courseCode){
+  const option=(history?.course_options?.[band]||[]).find(c=>c.course_code===courseCode);
+  const studentMap=history?.students||{};
+  return (option?.students||[]).map(osis=>studentMap[osis]).filter(Boolean)
+    .sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),undefined,{sensitivity:'base'}));
+}
+
+function renderDowHistory(history){
+  historyBatches.replaceChildren();
+  const batches=Array.isArray(history?.batches)?history.batches:[];
+  if(!batches.length){ historyBatches.innerHTML='<div class="empty">No closed Dreamer of the Week batches yet.</div>'; return; }
+
+  batches.forEach((batch,index)=>{
+    const details=document.createElement('details'); details.className='historyBatch'; if(index===0) details.open=true;
+    const summary=document.createElement('summary');
+    summary.innerHTML=`<strong>${esc(batch.label||bandLabel(batch.band))} · Period ${Number(batch.cycle?.sequence||1)}</strong><span>${esc(fmtDate(batch.closed_at_iso))} · ${Number(batch.recipient_count||0)} recipient selection${Number(batch.recipient_count||0)===1?'':'s'}${batch.forced_reset?' · force reset':''}</span>`;
+    details.appendChild(summary);
+
+    const body=document.createElement('div'); body.className='historyBody';
+    if(batch.last_edited_at_iso){
+      const edited=document.createElement('div'); edited.className='historyEdited';
+      edited.textContent=`Last corrected ${fmtDate(batch.last_edited_at_iso)} by ${batch.last_edited_by||'unknown'}`;
+      body.appendChild(edited);
+    }
+
+    const courses=document.createElement('div'); courses.className='historyCourses';
+    for(const course of batch.courses||[]){
+      const courseBox=document.createElement('div'); courseBox.className='historyCourse';
+      const title=document.createElement('div'); title.className='historyCourseTitle';
+      title.innerHTML=`<strong>${esc(course.name||course.course_code)}</strong><span>${Number(course.selected||0)} / ${Number(course.max||8)}</span>`;
+      courseBox.appendChild(title);
+
+      if((course.recipients||[]).length){
+        const recips=document.createElement('div'); recips.className='historyRecipients';
+        for(const recipient of course.recipients||[]){
+          const row=document.createElement('div'); row.className='historyRecipient';
+          const who=recipient.selected_by_name||recipient.selected_by_email||'unknown';
+          row.innerHTML=`<div><strong>${esc(recipient.name||recipient.osis)}</strong><span>Grade ${esc(recipient.grade||'—')} · selected by ${esc(who)}${recipient.added_after_close?' · added after close':''}</span></div>`;
+          const remove=document.createElement('button'); remove.type='button'; remove.className='btn danger compact'; remove.textContent='Remove';
+          remove.addEventListener('click',()=>editHistoricalRecipient(batch,course,recipient,false,remove));
+          row.appendChild(remove); recips.appendChild(row);
+        }
+        courseBox.appendChild(recips);
+      }else{
+        const empty=document.createElement('div'); empty.className='historyEmpty'; empty.textContent='No recipients in this course.';
+        courseBox.appendChild(empty);
+      }
+      courses.appendChild(courseBox);
+    }
+    body.appendChild(courses);
+
+    const editor=document.createElement('div'); editor.className='historyEditor';
+    const courseSelect=document.createElement('select'); courseSelect.className='historySelect';
+    const studentSelect=document.createElement('select'); studentSelect.className='historySelect';
+    const add=document.createElement('button'); add.type='button'; add.className='btn secondary'; add.textContent='Add Recipient';
+
+    const courseOptions=history?.course_options?.[batch.band]||[];
+    courseSelect.innerHTML=courseOptions.map(c=>`<option value="${esc(c.course_code)}">${esc(c.name||c.course_code)}</option>`).join('');
+
+    const refreshStudents=()=>{
+      const courseCode=courseSelect.value;
+      const selectedSet=new Set(
+        (batch.courses||[]).find(c=>c.course_code===courseCode)?.recipients?.map(r=>r.osis)||[]
+      );
+      const students=historyStudentsForCourse(history,batch.band,courseCode).filter(s=>!selectedSet.has(s.osis));
+      studentSelect.innerHTML=students.length
+        ? students.map(s=>`<option value="${esc(s.osis)}">${esc(s.name||s.osis)} · Grade ${esc(s.grade||'—')} · ${esc(s.osis)}</option>`).join('')
+        : '<option value="">No eligible unselected students</option>';
+      add.disabled=!students.length;
+    };
+    courseSelect.addEventListener('change',refreshStudents); refreshStudents();
+    add.addEventListener('click',()=>{
+      const course=(courseOptions||[]).find(c=>c.course_code===courseSelect.value);
+      const student=history?.students?.[studentSelect.value];
+      if(!course||!student) return;
+      editHistoricalRecipient(batch,course,student,true,add);
+    });
+
+    const editorLabel=document.createElement('div'); editorLabel.className='historyEditorLabel'; editorLabel.textContent='Correct this closed batch';
+    editor.append(editorLabel,courseSelect,studentSelect,add);
+    body.appendChild(editor);
+    details.appendChild(body);
+    historyBatches.appendChild(details);
+  });
+}
+
+async function editHistoricalRecipient(batch,course,student,selected,button){
+  const action=selected?'add':'remove';
+  if(!window.confirm(`${selected?'Add':'Remove'} ${student.name||student.osis} ${selected?'to':'from'} ${course.name||course.course_code} in ${batch.label||bandLabel(batch.band)} Period ${Number(batch.cycle?.sequence||1)}?`)) return;
+  button.disabled=true; setStatus(`${selected?'Adding':'Removing'} historical recipient…`,'info');
+  try{
+    const r=await adminFetch('/admin/dow/history/recipient',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        band:batch.band,
+        cycle_id:batch.cycle?.cycle_id,
+        course_code:course.course_code,
+        osis:student.osis,
+        selected
+      })
+    });
+    await readJson(r);
+    await loadState();
+    setStatus(`Past DOW batch updated. Historical award counts were rebuilt.`,'ok');
+  }catch(e){
+    if(e?.data?.error==='course_recipient_limit_reached') setStatus(`That archived course already has ${e.data.max||8} recipients.`,'warn');
+    else setStatus(e?.message||`Could not ${action} historical recipient.`,'error');
+    button.disabled=false;
+  }
+}
+
 
 async function resetBand(band,data,button){
   const label=bandLabel(band); const seq=Number(data?.cycle?.sequence||1);
