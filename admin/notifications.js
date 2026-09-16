@@ -150,6 +150,7 @@ async function loadCallSettings(){
   $('callIncludeInternal').checked=!!p.include_internal;
   $('callIncludeIncoming').checked=!!p.include_external_incoming;
   $('callIncludeOutgoing').checked=!!p.include_external_outgoing;
+  $('callFloatingPopups').checked=p.show_floating_popups!==false;
   const root=$('callScopeControls'); root.replaceChildren();
   if(j.admin_like){
     const wrap=document.createElement('label');wrap.className='callScopeSelect';wrap.textContent='Dashboard scope ';
@@ -170,11 +171,30 @@ async function saveCallSettings(){
   try{
     const scope=CALL_CONFIG.admin_like?String($('callScopeSelect')?.value||'all'):'my_extension';
     const campuses=[...document.querySelectorAll('#callCampusChoices input:checked')].map(el=>el.value);
-    const payload={preferences:{scope,campuses,include_internal:$('callIncludeInternal').checked,include_external_incoming:$('callIncludeIncoming').checked,include_external_outgoing:$('callIncludeOutgoing').checked}};
+    const payload={preferences:{
+      scope,campuses,
+      include_internal:$('callIncludeInternal').checked,
+      include_external_incoming:$('callIncludeIncoming').checked,
+      include_external_outgoing:$('callIncludeOutgoing').checked,
+      show_floating_popups:$('callFloatingPopups').checked
+    }};
     const r=await adminFetch('/admin/calls/preferences',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
     const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.error||`call_settings_http_${r.status}`);
     CALL_CONFIG=j;out.textContent='Saved. Your Calls dashboard and live caller cards will use these settings on every device.';
-    try { window.dispatchEvent(new CustomEvent('eaglenest-call-preferences-change')); } catch {}
+    try {
+      if (j?.preferences?.show_floating_popups === false) {
+        window.EagleNESTPhoneLive?.stop?.();
+      } else if (window.EagleNESTPhoneLive?.reconnect) {
+        window.EagleNESTPhoneLive.reconnect();
+      } else if (!/calls\.html$/i.test(location.pathname || '') && !document.getElementById('eaglenestPhoneLiveScript')) {
+        const script=document.createElement('script');
+        script.id='eaglenestPhoneLiveScript';
+        script.src='./phone_live.js';
+        script.defer=true;
+        document.head.appendChild(script);
+      }
+      window.dispatchEvent(new CustomEvent('eaglenest-call-preferences-change'));
+    } catch {}
     await loadCallSettings();
   }catch(e){out.textContent=`Could not save: ${e?.message||e}`}finally{button.disabled=false}
 }

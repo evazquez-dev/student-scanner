@@ -751,11 +751,21 @@
 
   // EAGLENEST_GRANDSTREAM_PHASE3_PHONE_LIVE
   // EAGLENEST_GRANDSTREAM_LIVE_SCOPE_V1
-  function bootPhoneLive(access){
+  async function bootPhoneLive(access){
     if (access?.can?.phone_dashboard !== true) return;
     if (/calls\.html$/i.test(location.pathname || '')) return;
     if (access?.view_as?.active === true || access?.view_as?.read_only === true) return;
     if (document.getElementById('eaglenestPhoneLiveScript')) return;
+
+    // EAGLENEST_CALL_POPUP_PREF_V1
+    try {
+      const response = await adminFetch('/admin/calls/config', { method:'GET' });
+      const config = await response.json().catch(() => null);
+      if (!response.ok || !config?.ok || config?.preferences?.show_floating_popups === false) return;
+    } catch {
+      return; // fail closed: no floating PBX stream when preference cannot be confirmed
+    }
+
     const script = document.createElement('script');
     script.id = 'eaglenestPhoneLiveScript';
     script.src = './phone_live.js';
@@ -771,7 +781,7 @@
         const esas = await refreshEsasTakeover();
         if (esas?.active === true && esas?.incident?.incident_id) return;
         mountNav(access);
-        bootPhoneLive(access);
+        await bootPhoneLive(access);
         return;
       }
       await sleep(500);
