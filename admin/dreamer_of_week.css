@@ -38,3 +38,20 @@ body{margin:0;padding:1rem;background:var(--bg);color:var(--fg);font-family:syst
 .historyEditor{display:grid;grid-template-columns:minmax(150px,.7fr) minmax(220px,1.3fr) auto;gap:.5rem;align-items:end;margin-top:.8rem;padding-top:.8rem;border-top:1px solid var(--line)}
 .historyEditorLabel{grid-column:1/-1;font-weight:800;font-size:.82rem}.btn.compact{padding:.35rem .55rem;font-size:.76rem}
 @media(max-width:760px){.historyBatch>summary{display:block}.historyBatch>summary span{display:block;margin-top:.25rem}.historyEditor{grid-template-columns:1fr}.historyRecipient{grid-template-columns:1fr}.historyRecipient .btn{width:100%}}
+
+/* EAGLENEST_DOW_COLLAPSIBLE_LONG_SECTIONS_V1 */
+.schoolCultureRoster{border:1px solid var(--line);border-radius:11px;background:var(--soft);overflow:hidden}
+.schoolCultureRoster>summary{cursor:pointer;list-style:auto;padding:.65rem .75rem;font-weight:800;display:flex;justify-content:space-between;gap:.75rem;align-items:center}
+.schoolCultureRoster>summary:hover{background:color-mix(in srgb,var(--blue) 6%,transparent)}
+.rosterSummaryMeta{color:var(--muted);font-size:.74rem;font-weight:700}
+.schoolCultureRosterBody{padding:.7rem;border-top:1px solid var(--line)}
+.schoolCultureRosterBody .studentSearch{margin:0 0 .65rem}
+.historyControls{display:flex;gap:.45rem;flex-wrap:wrap}
+.historyBatch:not([open]){box-shadow:none}
+.historyBatch:not([open])>summary{border-bottom:0}
+@media(max-width:560px){
+  .schoolCultureRoster>summary{display:block}
+  .rosterSummaryMeta{display:block;margin-top:.2rem}
+  .historyControls{width:100%}
+  .historyControls .btn{flex:1}
+}

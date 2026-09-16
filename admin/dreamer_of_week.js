@@ -19,6 +19,8 @@ const managerBands = document.getElementById('managerBands');
 const exportAllDreamersBtn = document.getElementById('exportAllDreamersBtn');
 const historyArea = document.getElementById('historyArea');
 const historyBatches = document.getElementById('historyBatches');
+const historyExpandAllBtn = document.getElementById('historyExpandAllBtn');
+const historyCollapseAllBtn = document.getElementById('historyCollapseAllBtn');
 
 let currentState = null;
 let currentHistory = null;
@@ -143,6 +145,8 @@ function bindEvents(){
   if(eventsBound) return; eventsBound=true;
   refreshBtn?.addEventListener('click',loadState);
   exportAllDreamersBtn?.addEventListener('click',exportAllCurrentCsv);
+  historyExpandAllBtn?.addEventListener('click',()=>historyBatches?.querySelectorAll('.historyBatch').forEach((details)=>{details.open=true;}));
+  historyCollapseAllBtn?.addEventListener('click',()=>historyBatches?.querySelectorAll('.historyBatch').forEach((details)=>{details.open=false;}));
 }
 
 async function loadState(){
@@ -205,22 +209,34 @@ function renderBandPanel(course,data){
   const count=Number(data.course_selected||0); const max=Number(data.max||8); const min=Number(data.min||2);
   const counterClass=count>=max?'full':count>=min?'good':'low';
   panel.innerHTML=`<div class="bandTop"><div><div class="bandLabel">${esc(data.label||bandLabel(data.band))}</div><div class="courseHint">Period ${Number(data.cycle?.sequence||1)} · started ${esc(fmtDate(data.cycle?.started_at_iso))}</div></div><div class="counter ${counterClass}">${count} / ${max}</div></div><div class="courseHint">${count<min?`${min-count} more recipient${min-count===1?'':'s'} needed before this period can close.`:count>=max?'Course maximum reached. Remove a recipient before adding another.':'Course requirement met; additional recipients are optional.'}</div>`;
-  if(course?.whole_school===true){
-    const search=document.createElement('input');
-    search.type='search'; search.className='studentSearch'; search.placeholder='Search whole-school roster by name or OSIS…';
-    panel.appendChild(search);
-  }
+
   const list=document.createElement('div'); list.className='studentList';
   for(const student of data.students||[]) list.appendChild(renderStudentRow(course,data,student));
   if(!(data.students||[]).length) list.innerHTML=`<div class="empty">${course?.whole_school===true?'No students are in this grade group.':'No students from your sections are in this grade group.'}</div>`;
-  panel.appendChild(list);
-  const search=panel.querySelector('.studentSearch');
-  search?.addEventListener('input',()=>{
-    const q=String(search.value||'').trim().toLowerCase();
-    for(const row of list.querySelectorAll('.studentRow')){
-      row.style.display=!q||String(row.dataset.search||'').includes(q)?'':'none';
-    }
-  });
+
+  if(course?.whole_school===true){
+    const rosterDetails=document.createElement('details'); rosterDetails.className='schoolCultureRoster';
+    const summary=document.createElement('summary');
+    summary.innerHTML=`<span>Show whole-school roster</span><span class="rosterSummaryMeta">${Number((data.students||[]).length)} students · ${count} selected</span>`;
+    rosterDetails.appendChild(summary);
+
+    const rosterBody=document.createElement('div'); rosterBody.className='schoolCultureRosterBody';
+    const search=document.createElement('input');
+    search.type='search'; search.className='studentSearch'; search.placeholder='Search whole-school roster by name or OSIS…';
+    rosterBody.append(search,list);
+    rosterDetails.appendChild(rosterBody);
+    panel.appendChild(rosterDetails);
+
+    search.addEventListener('input',()=>{
+      const q=String(search.value||'').trim().toLowerCase();
+      for(const row of list.querySelectorAll('.studentRow')){
+        row.style.display=!q||String(row.dataset.search||'').includes(q)?'':'none';
+      }
+    });
+  }else{
+    panel.appendChild(list);
+  }
+
   return panel;
 }
 
@@ -300,7 +316,7 @@ function renderDowHistory(history){
   if(!batches.length){ historyBatches.innerHTML='<div class="empty">No closed Dreamer of the Week batches yet.</div>'; return; }
 
   batches.forEach((batch,index)=>{
-    const details=document.createElement('details'); details.className='historyBatch'; if(index===0) details.open=true;
+    const details=document.createElement('details'); details.className='historyBatch';
     const summary=document.createElement('summary');
     summary.innerHTML=`<strong>${esc(batch.label||bandLabel(batch.band))} · Period ${Number(batch.cycle?.sequence||1)}</strong><span>${esc(fmtDate(batch.closed_at_iso))} · ${Number(batch.recipient_count||0)} recipient selection${Number(batch.recipient_count||0)===1?'':'s'}${batch.forced_reset?' · force reset':''}</span>`;
     details.appendChild(summary);
