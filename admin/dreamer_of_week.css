@@ -55,3 +55,13 @@ body{margin:0;padding:1rem;background:var(--bg);color:var(--fg);font-family:syst
   .historyControls{width:100%}
   .historyControls .btn{flex:1}
 }
+
+/* EAGLENEST_DOW_RECIPIENT_FEEDBACK_V1 */
+.recipientToggle{display:inline-flex;align-items:center;justify-content:center;gap:.42rem;transition:background 140ms ease,border-color 140ms ease,color 140ms ease,transform 140ms ease}
+.recipientToggle.saving{opacity:1!important;cursor:wait;border-color:color-mix(in srgb,var(--blue) 55%,var(--line));color:var(--blue)}
+.studentRow.saving{border-color:color-mix(in srgb,var(--blue) 40%,var(--line))}
+.recipientToggle.confirmed{opacity:1!important;background:color-mix(in srgb,var(--green) 14%,var(--card2));border-color:color-mix(in srgb,var(--green) 60%,var(--line));color:var(--green);transform:scale(1.02)}
+.studentRow.confirmed{border-color:color-mix(in srgb,var(--green) 60%,var(--line));box-shadow:0 0 0 2px color-mix(in srgb,var(--green) 10%,transparent)}
+.recipientSpinner{width:.85rem;height:.85rem;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;animation:dowRecipientSpin .7s linear infinite}
+@keyframes dowRecipientSpin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.recipientSpinner{animation-duration:1.4s}.recipientToggle{transition:none}}

@@ -24,6 +24,7 @@ const historyCollapseAllBtn = document.getElementById('historyCollapseAllBtn');
 
 let currentState = null;
 let currentHistory = null;
+const DOW_RECIPIENT_PENDING=new Set(); // EAGLENEST_DOW_RECIPIENT_FEEDBACK_V1
 let eventsBound = false;
 
 function show(el){ if(el){ el.classList.remove('hidden'); el.style.display=''; } }
@@ -240,27 +241,111 @@ function renderBandPanel(course,data){
   return panel;
 }
 
-function renderStudentRow(course,bandData,student){
-  const row=document.createElement('div'); row.className=`studentRow${student.selected?' selected':''}`; row.dataset.search=`${student.name||''} ${student.osis||''}`.toLowerCase();
-  const left=document.createElement('div');
-  left.innerHTML=`<div class="studentName">${esc(student.name||student.osis)}</div><div class="studentMeta">Grade ${esc(student.grade||'—')}</div><div class="studentStats"><span class="statPill">Current DOW selections: ${Number(student.current_selections||0)}</span><span class="statPill">Previous DOW awards: ${Number(student.previous_awards||0)}</span></div>`;
-  const btn=document.createElement('button'); btn.type='button'; btn.className=`btn recipientToggle${student.selected?' selected':''}`; btn.textContent=student.selected?'Selected ✓':'Select';
-  const atMax=Number(bandData.course_selected||0)>=Number(bandData.max||8);
-  if(atMax&&!student.selected){ btn.disabled=true; btn.title='This course already has 8 recipients.'; }
-  btn.addEventListener('click',()=>toggleRecipient(course,bandData,student,btn));
-  row.append(left,btn); return row;
+function recipientRequestKey(course,bandData,student){
+  return `${String(bandData?.band||'')}|${String(course?.course_code||'')}|${String(student?.osis||'')}`;
 }
-
+function recipientButtonMarkup(label,loading=false){
+  return loading?`<span class="recipientSpinner" aria-hidden="true"></span><span>${esc(label)}</span>`:`<span>${esc(label)}</span>`;
+}
+function recipientHintText(bandData){
+  const count=Number(bandData?.course_selected||0),min=Number(bandData?.min||2),max=Number(bandData?.max||8);
+  return count<min?`${min-count} more recipient${min-count===1?'':'s'} needed before this period can close.`:count>=max?'Course maximum reached. Remove a recipient before adding another.':'Course requirement met; additional recipients are optional.';
+}
+function syncBandRecipientUi(button,bandData){
+  const panel=button?.closest?.('.bandPanel'); if(!panel)return;
+  const count=Number(bandData?.course_selected||0),min=Number(bandData?.min||2),max=Number(bandData?.max||8);
+  const counter=panel.querySelector('.counter');
+  if(counter){counter.textContent=`${count} / ${max}`;counter.classList.toggle('low',count<min);counter.classList.toggle('good',count>=min&&count<max);counter.classList.toggle('full',count>=max);}
+  const hints=panel.querySelectorAll('.courseHint'); if(hints.length>1)hints[hints.length-1].textContent=recipientHintText(bandData);
+  const summary=panel.querySelector('.rosterSummaryMeta'); if(summary){summary.textContent=`${panel.querySelectorAll('.studentRow').length} students · ${count} selected`;}
+  for(const other of panel.querySelectorAll('.recipientToggle')){
+    if(other.dataset.busy==='1')continue;
+    const selected=other.dataset.selected==='1';
+    other.disabled=count>=max&&!selected;
+    other.title=other.disabled?'This course already has 8 recipients.':'';
+  }
+}
+function syncStudentSelectionCount(osis,count){
+  for(const row of document.querySelectorAll(`.studentRow[data-osis="${CSS.escape(String(osis||''))}"]`)){
+    const el=row.querySelector('[data-dow-current-count]'); if(el)el.textContent=String(Number(count||0));
+  }
+}
+function applyRecipientResult(course,bandData,student,button,result){
+  const selected=result?.selected===true;
+  student.selected=selected;
+  student.current_selections=Number(result?.current_student_selections||0);
+  bandData.course_selected=Number(result?.course_selected||0);
+  const row=button.closest('.studentRow');
+  row?.classList.toggle('selected',selected);
+  row?.classList.remove('saving');
+  row?.classList.add('confirmed');
+  button.classList.toggle('selected',selected);
+  button.classList.remove('saving');
+  button.classList.add('confirmed');
+  button.dataset.selected=selected?'1':'0';
+  button.removeAttribute('aria-busy');
+  syncStudentSelectionCount(student.osis,student.current_selections);
+  syncBandRecipientUi(button,bandData);
+}
+function renderStudentRow(course,bandData,student){
+  const row=document.createElement('div');
+  row.className=`studentRow${student.selected?' selected':''}`;
+  row.dataset.search=`${student.name||''} ${student.osis||''}`.toLowerCase();
+  row.dataset.osis=String(student.osis||'');
+  const left=document.createElement('div');
+  left.innerHTML=`<div class="studentName">${esc(student.name||student.osis)}</div><div class="studentMeta">Grade ${esc(student.grade||'—')}</div><div class="studentStats"><span class="statPill">Current DOW selections: <span data-dow-current-count>${Number(student.current_selections||0)}</span></span><span class="statPill">Previous DOW awards: ${Number(student.previous_awards||0)}</span></div>`;
+  const btn=document.createElement('button');
+  btn.type='button';
+  btn.className=`btn recipientToggle${student.selected?' selected':''}`;
+  btn.dataset.selected=student.selected?'1':'0';
+  btn.innerHTML=recipientButtonMarkup(student.selected?'Selected ✓':'Select');
+  const atMax=Number(bandData.course_selected||0)>=Number(bandData.max||8);
+  if(atMax&&!student.selected){btn.disabled=true;btn.title='This course already has 8 recipients.';}
+  btn.addEventListener('click',()=>toggleRecipient(course,bandData,student,btn));
+  row.append(left,btn);
+  return row;
+}
 async function toggleRecipient(course,bandData,student,button){
-  const next=!student.selected; button.disabled=true;
-  setStatus(`${next?'Selecting':'Removing'} ${student.name||student.osis}…`,'info');
+  const requestKey=recipientRequestKey(course,bandData,student);
+  if(DOW_RECIPIENT_PENDING.has(requestKey))return;
+  const next=!student.selected,oldSelected=student.selected===true;
+  DOW_RECIPIENT_PENDING.add(requestKey);
+  button.dataset.busy='1';
+  button.disabled=true;
+  button.setAttribute('aria-busy','true');
+  button.classList.remove('confirmed');
+  button.classList.add('saving');
+  button.closest('.studentRow')?.classList.add('saving');
+  button.innerHTML=recipientButtonMarkup(next?'Submitting…':'Removing…',true);
+  setStatus(`${next?'Submitting':'Removing'} ${student.name||student.osis}…`,'info');
   try{
     const r=await adminFetch('/admin/dow/recipient',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({band:bandData.band,course_code:course.course_code,osis:student.osis,selected:next})});
-    await readJson(r); await loadState();
+    const result=await readJson(r);
+    applyRecipientResult(course,bandData,student,button,result);
+    button.innerHTML=recipientButtonMarkup(result.selected===true?'Logged ✓':'Removed ✓');
+    setStatus(result.selected===true?`✓ ${student.name||student.osis} was officially logged for ${course.name||course.course_code}.`:`✓ ${student.name||student.osis} was removed from ${course.name||course.course_code}.`,'ok');
+    window.setTimeout(()=>{
+      if(!button.isConnected)return;
+      button.classList.remove('confirmed');
+      button.closest('.studentRow')?.classList.remove('confirmed');
+      button.innerHTML=recipientButtonMarkup(student.selected?'Selected ✓':'Select');
+      button.dataset.busy='0';
+      syncBandRecipientUi(button,bandData);
+    },1100);
   }catch(e){
-    if(e?.data?.error==='course_recipient_limit_reached') setStatus(`This course already has ${e.data.max||8} recipients. Remove one before adding another.`,'warn');
-    else setStatus(e?.message||'Could not update recipient.','error');
-    button.disabled=false;
+    student.selected=oldSelected;
+    button.classList.remove('saving','confirmed');
+    button.closest('.studentRow')?.classList.remove('saving','confirmed');
+    button.removeAttribute('aria-busy');
+    button.dataset.busy='0';
+    button.dataset.selected=oldSelected?'1':'0';
+    button.innerHTML=recipientButtonMarkup(oldSelected?'Selected ✓':'Select');
+    if(e?.data?.error==='course_recipient_limit_reached')setStatus(`This course already has ${e.data.max||8} recipients. Remove one before adding another.`,'warn');
+    else setStatus(e?.message||'Could not update recipient. Nothing was changed.','error');
+    syncBandRecipientUi(button,bandData);
+  }finally{
+    DOW_RECIPIENT_PENDING.delete(requestKey);
+    if(button.isConnected&&button.dataset.busy!=='1')syncBandRecipientUi(button,bandData);
   }
 }
 
