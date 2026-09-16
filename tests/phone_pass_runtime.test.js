@@ -79,7 +79,18 @@ class FakeStudentLocationNamespace {
           const whenISO = String(body.whenISO || new Date().toISOString());
           const next = { ...prev, osis, student_name: body.student_name || prev.student_name || '', phone_state_date:date, date };
           if (action === 'send_to_pickup') Object.assign(next, { zone:'hallway', loc:'hallway', location_label:'Hallway', phone_out:false, phone_pickup_requested:true, phone_pickup_requested_at:whenISO, phone_pickup_requested_by_email:body.actor_email, phone_return_requested:false });
-          if (action === 'pickup') Object.assign(next, { zone:'hallway', loc:'cellphone_locker', location_label:'Cellphone Locker', phone_out:true, phone_out_since:whenISO, phone_out_by_email:body.actor_email, phone_pickup_requested:false, phone_return_requested:false });
+          if (action === 'pickup') Object.assign(next, {
+            zone:'hallway',
+            loc:'cellphone_locker',
+            location_label:'Cellphone Locker',
+            phone_out:true,
+            phone_out_since:whenISO,
+            phone_out_by_email:body.actor_email,
+            phone_pickup_requested:false,
+            phone_pickup_requested_at:prev.phone_pickup_requested_at || null,
+            phone_pickup_requested_by_email:prev.phone_pickup_requested_by_email || null,
+            phone_return_requested:false
+          });
           if (action === 'send_to_return') Object.assign(next, { zone:'hallway', loc:'hallway', location_label:'Hallway', phone_return_requested:true, phone_return_requested_at:whenISO, phone_return_requested_by_email:body.actor_email });
           if (action === 'return') Object.assign(next, { zone:'hallway', loc:'cellphone_locker', location_label:'Cellphone Locker', phone_out:false, phone_out_since:null, phone_out_by_email:null, phone_pickup_requested:false, phone_return_requested:false, phone_returned_at:whenISO });
           state.set(osis, next);
@@ -242,17 +253,36 @@ test('Teacher Attendance sends student to pickup; physical pickup is confirmed s
 });
 
 
-test("dedicated Phone Pass teacher can send their own granted phone to return but not another staff member's", async () => {
+test("dedicated Phone Pass teacher requests pickup, keeps ownership after handoff, and cannot manage another staff member's phone", async () => {
   const { handlePhonePassRequest } = await loadRoute();
   const env = makeEnv({ teacherPhoneGrant: true });
   const collector = ctxCollector();
 
+  // A grant-only teacher SENDS the student to pickup; they do not physically
+  // mark the phone out from the dedicated Phone Pass page.
   let response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
-    method: 'POST', body: { osis: '123456789' }
+    method: 'POST', body: { osis: '123456789', source: 'phone_pass' }
   }), env, collector.ctx);
   assert.equal(response.status, 200);
-  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_out_by_email, 'teacher@school.org');
+  let state = env.STUDENT_LOC.state('GLOBAL', '123456789');
+  assert.equal(state.phone_out, false);
+  assert.equal(state.phone_pickup_requested, true);
+  assert.equal(state.phone_pickup_requested_by_email, 'teacher@school.org');
 
+  // Physical handoff is confirmed separately (the kiosk uses the same pickup
+  // mutation). The physical confirmer becomes phone_out_by_email, while the
+  // original teacher request attribution remains preserved.
+  response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
+    method: 'POST', sid: 'super-sid', body: { osis: '123456789', source: 'phone_pass' }
+  }), env, collector.ctx);
+  assert.equal(response.status, 200);
+  state = env.STUDENT_LOC.state('GLOBAL', '123456789');
+  assert.equal(state.phone_out, true);
+  assert.equal(state.phone_out_by_email, 'boss@school.org');
+  assert.equal(state.phone_pickup_requested, false);
+  assert.equal(state.phone_pickup_requested_by_email, 'teacher@school.org');
+
+  // The original requesting teacher may still send their own student back.
   response = await handlePhonePassRequest(request('/admin/phone_pass/send_to_return', {
     method: 'POST', body: { osis: '123456789', source: 'phone_pass' }
   }), env, collector.ctx);
@@ -260,8 +290,10 @@ test("dedicated Phone Pass teacher can send their own granted phone to return bu
   assert.equal((await json(response)).ok, true);
   assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_return_requested, true);
 
+  // A phone physically handed out by someone else, with no teacher pickup
+  // request attribution, is not owned by this teacher.
   response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
-    method: 'POST', sid: 'super-sid', body: { osis: '987654321' }
+    method: 'POST', sid: 'super-sid', body: { osis: '987654321', source: 'phone_pass' }
   }), env, collector.ctx);
   assert.equal(response.status, 200);
   assert.equal(env.STUDENT_LOC.state('GLOBAL', '987654321').phone_out_by_email, 'boss@school.org');
@@ -361,7 +393,7 @@ test('Practice mode isolates state/logs and simulates return notifications', asy
 });
 
 
-test('Phone Pass retries are idempotent and phone state date is independent from physical date', async () => {
+test('Phone Pass teacher pickup-request retries are idempotent and phone state date is independent from physical date', async () => {
   const { handlePhonePassRequest } = await loadRoute();
   const env = makeEnv({ teacherPhoneGrant: true });
   const collector = ctxCollector();
@@ -371,8 +403,10 @@ test('Phone Pass retries are idempotent and phone state date is independent from
   }), env, collector.ctx);
   assert.equal(response.status, 200);
   const first = env.STUDENT_LOC.state('GLOBAL', '123456789');
-  const firstSince = first.phone_out_since;
+  const firstRequestedAt = first.phone_pickup_requested_at;
   assert.equal(first.phone_state_date, todayNY());
+  assert.equal(first.phone_pickup_requested, true);
+  assert.equal(first.phone_out, false);
 
   response = await handlePhonePassRequest(request('/admin/phone_pass/grant', {
     method: 'POST', body: { osis: '123456789', source: 'phone_pass' }
@@ -380,13 +414,15 @@ test('Phone Pass retries are idempotent and phone state date is independent from
   assert.equal(response.status, 200);
   const secondBody = await json(response);
   assert.equal(secondBody.already, true);
-  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_out_since, firstSince);
+  assert.equal(env.STUDENT_LOC.state('GLOBAL', '123456789').phone_pickup_requested_at, firstRequestedAt);
 
   const row = env.STUDENT_LOC.state('GLOBAL', '123456789');
   row.date = '2099-01-01';
   assert.equal(row.phone_state_date, todayNY());
   const context = await handlePhonePassRequest(request('/admin/phone_pass/context?osis=123456789'), env, collector.ctx);
-  assert.equal((await json(context)).state.phone_out, true);
+  const contextBody = await json(context);
+  assert.equal(contextBody.state.phone_pickup_requested, true);
+  assert.equal(contextBody.state.phone_out, false);
 });
 
 test('Teacher Attendance phone mutation fails closed when student is not in supplied room/period', async () => {

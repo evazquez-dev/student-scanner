@@ -9,7 +9,7 @@ const helper = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/phone_pass
 const html = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/phone_pass.html'), 'utf8');
 
 test('Phone Pass return actions are isolated in a helper and the original page logic remains unchanged', () => {
-  assert.match(html, /phone_pass\.js" defer><\/script>[\s\S]*phone_pass_return_actions\.js" defer><\/script>/);
+  assert.match(html, /phone_pass\.js(?:\?[^"]*)?" defer><\/script>[\s\S]*phone_pass_return_actions\.js" defer><\/script>/);
   assert.match(helper, /\/admin\/phone_pass\/send_to_return/);
   assert.match(helper, /source: 'phone_pass'/);
   assert.doesNotMatch(mainJs, /phone-pass-return-action/);

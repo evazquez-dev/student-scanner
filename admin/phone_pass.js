@@ -148,7 +148,7 @@ const activeCount = document.getElementById('activeCount');
 
 
 let WHO = null;
-let CAPS = { can_grant:false, can_return:false };
+let CAPS = { can_grant:false, can_return:false, grant_mode:'confirm_pickup' };
 let ALL = []; // [{osis,name}]
 let SELECTED_OSIS = '';
 let lastRefreshTs = 0;
@@ -555,8 +555,23 @@ async function loadOptions(){
   if(!r.ok || !data?.ok) throw new Error(data?.error || `phone_pass/options HTTP ${r.status}`);
 
   WHO = data.who || WHO;
-  CAPS = { can_grant: !!data.can_grant, can_return: !!data.can_return };
+  CAPS = {
+    can_grant: !!data.can_grant,
+    can_return: !!data.can_return,
+    grant_mode: String(data.grant_mode || 'confirm_pickup')
+  };
   ALL = Array.isArray(data.students) ? data.students : [];
+
+  if(CAPS.can_grant){
+    const requestMode = CAPS.grant_mode === 'request_pickup';
+    grantBtn.textContent = requestMode ? 'Send Student to Pick Up Phone' : 'Student Picked Up Phone';
+    const mineTitle = mineCard?.querySelector('h2 span:first-child');
+    const mineHelp = mineCard?.querySelector('.muted');
+    if(mineTitle) mineTitle.textContent = requestMode ? 'My Phone Pass Students' : 'Phone Pickup Confirmed by Me';
+    if(mineHelp) mineHelp.textContent = requestMode
+      ? 'Students you sent to the phone locker. Pending requests stay here and remain yours after the kiosk confirms pickup.'
+      : 'Students whose phone pickup you confirmed. Use Send Student to Return Phone when they should bring it back.';
+  }
 
   // Gate UI
   if(!CAPS.can_grant){
@@ -602,12 +617,16 @@ async function loadMine(){
 
     const sub = document.createElement('div');
     sub.className = 'row-sub';
+    const pickupPending = s.phone_pickup_requested === true;
     const since = s.phone_out_since ? `since ${fmtClock(s.phone_out_since)}` : '';
+    const pickupText = pickupPending
+      ? `pickup requested${s.phone_pickup_requested_at ? (' @ ' + fmtClock(s.phone_pickup_requested_at)) : ''}`
+      : '';
     const loc = s.cur_label ? `@ ${s.cur_label}` : (s.cur_loc ? `@ ${s.cur_loc}` : '');
     const requested = s.phone_return_requested
       ? `student sent to return${requestedByLabel(s) ? (' by ' + requestedByLabel(s)) : ''}`
       : '';
-    sub.textContent = [lockerLabel(s), since, loc, requested].filter(Boolean).join(' • ') || '—';
+    sub.textContent = [lockerLabel(s), pickupText, since, loc, requested].filter(Boolean).join(' • ') || '—';
 
     left.appendChild(nm);
     left.appendChild(sub);
@@ -661,17 +680,24 @@ async function loadSelectedContext(){
 
   selectedMeta.textContent = `${SELECTED_OSIS} • ${lockerText}`;
 
-  // Enable button (only if not already out)
-  grantBtn.disabled = !CAPS.can_grant || !SELECTED_OSIS || out;
+  // Request-mode teachers cannot re-submit while a pickup request is already pending.
+  const requestMode = CAPS.grant_mode === 'request_pickup';
+  grantBtn.disabled = !CAPS.can_grant || !SELECTED_OSIS || out || (requestMode && pickupRequested);
+  if(requestMode){
+    grantBtn.textContent = pickupRequested ? 'Pickup Requested ✓' : 'Send Student to Pick Up Phone';
+  }else{
+    grantBtn.textContent = 'Student Picked Up Phone';
+  }
 }
 
 
 async function grantPhone(osis){
   const note = String(noteInput?.value || '').trim();
+  const source = CAPS.grant_mode === 'request_pickup' ? 'phone_pass_request' : 'phone_pass';
   const r = await adminFetch('/admin/phone_pass/grant', {
     method:'POST',
     headers:{ 'content-type':'application/json' },
-    body: JSON.stringify({ osis, note, source:'phone_pass' })
+    body: JSON.stringify({ osis, note, source })
   });
   const data = await r.json().catch(()=>null);
   if(!r.ok || !data?.ok) throw new Error(data?.error || `phone_pass/grant HTTP ${r.status}`);

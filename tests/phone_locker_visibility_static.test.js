@@ -21,7 +21,7 @@ test('shared Phone Pass API projects effective locker assignment', () => {
 test('dedicated Phone Pass UI shows locker location throughout the workflow', () => {
   assert.match(phonePass, /function lockerLabel/);
   assert.match(phonePass, /opt\.textContent = `\$\{s\.name\} — \$\{s\.osis\} — \$\{lockerLabel\(s\)\}`/);
-  assert.match(phonePass, /\[lockerLabel\(s\), since, loc, requested\]/);
+  assert.match(phonePass, /\[lockerLabel\(s\), pickupText, since, loc, requested\]/);
   assert.match(phonePass, /const lockerText = lockerLabel\(locker\)/);
   assert.match(phonePass, /\[lockerLabel\(s\), by \? `allowed by/);
 });
