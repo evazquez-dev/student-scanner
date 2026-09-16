@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.9.0-2026-09-04'; // wrong-room redirect + kiosk health reporting
+const VERSION = 'v20.10.0-2026-09-16'; // true network bypass for live/admin surfaces
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [
@@ -30,9 +30,16 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   const url = new URL(req.url);
 
-  // Bypass admin, visitor, and scanner lab routes so live records/forms/test code are never cached.
-  if (url.pathname.includes('/admin/') || url.pathname.includes('/visitor/') || url.pathname.includes('/phone-kiosk/') || url.pathname.includes('/scanner-lab/')) {
-    event.respondWith(fetch(req, { cache: 'no-store' }));
+  // EAGLENEST_SW_TRUE_NETWORK_BYPASS_V1
+  // These live/network app surfaces must bypass the scanner service worker
+  // entirely. In particular, Grandstream's long-lived /admin/.../live/stream
+  // request must be owned directly by the page/browser, not proxied through SW.
+  if (
+    url.pathname.includes('/admin/') ||
+    url.pathname.includes('/visitor/') ||
+    url.pathname.includes('/phone-kiosk/') ||
+    url.pathname.includes('/scanner-lab/')
+  ) {
     return;
   }
 

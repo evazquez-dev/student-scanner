@@ -81,7 +81,14 @@ test('SAFETY: System Settings exposes two equivalent scanner configuration-menu 
 test('SAFETY: Config-card menu hook cannot be silently pinned to the prior cached brand.js', () => {
   assert.match(kioskIndex, /brand\.js\?v=[^"'\\s>]+/);
   assert.doesNotMatch(kioskIndex, /brand\.js\?v=2026\.09\.02\.9/);
-  assert.match(kioskSw, /v20\.9\.0-2026-09-04/);
+
+  // Do not pin this safety test to one historical SW version. The worker must
+  // remain versioned so legitimate cache-generation bumps do not fail release.
+  assert.match(kioskSw, /const VERSION = ['"]v\d+\.\d+\.\d+-\d{4}-\d{2}-\d{2}['"]/);
+  assert.match(kioskSw, /const STATIC_CACHE = `static-\$\{VERSION\}`/);
+
+  // brand.js must continue to be network-first/no-store so scanner config-card
+  // behavior cannot silently remain on an old cached implementation.
   assert.match(kioskSw, /networkFirst\(req\)/);
   assert.match(kioskSw, /fetch\(req, \{ cache: 'no-store' \}\)/);
 });
