@@ -3,22 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="robots" content="noindex,nofollow">
-  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
-  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
-  <link rel="apple-touch-icon" href="../icons/icon-192.png">
-  <title>EagleNEST — Grades</title>
-  <link rel="stylesheet" href="./nav.css">
+  <title>Grades · EagleNEST</title>
+  <meta name="api-base" content="/">
+  <meta name="google-client-id" content="">
   <link rel="stylesheet" href="./grades.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}})();</script>
+  <script>(()=>{try{const t=localStorage.getItem('ss_theme_v1')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}})();</script>
 </head>
 <body data-module="grades">
   <div class="wrap">
-    <section id="loginCard" class="card">
+    <section id="loginCard" class="card loginCard">
       <h2>Staff sign-in</h2>
       <p class="muted">Use your American Dream School staff account.</p>
       <div id="g_id_signin"></div>
@@ -26,68 +21,110 @@
     </section>
 
     <main id="app" hidden>
-      <section class="card topbar">
+      <section class="card pageHero">
         <div>
-          <h1>Grades</h1>
-          <div id="snapshotMeta" class="muted">Loading current grade snapshot…</div>
+          <div class="eyebrow" id="modeEyebrow">Grades</div>
+          <h1 id="pageTitle">Grades</h1>
+          <p id="pageSubtitle" class="muted pageSubtitle">Your students and current grade data.</p>
+          <div id="snapshotMeta" class="snapshotMeta muted">Loading current grade snapshot…</div>
         </div>
-        <div class="topActions">
+        <div class="heroActions">
           <span id="passingPill" class="pill good">Passing: 70%+</span>
           <span id="viewerPill" class="pill">—</span>
           <button id="refreshBtn" class="btn" type="button">Refresh</button>
         </div>
       </section>
 
-      <section class="card groupCard">
+      <section id="teacherScopeCard" class="card scopeCard" hidden>
         <div class="sectionHead">
           <div>
-            <h2>My Groups</h2>
-            <p class="muted">Choose one or more advisories, courses, or individual sections. Multiple selections are combined.</p>
+            <h2>My Students</h2>
+            <p class="muted">Your assignments are your navigation. Pick a class, section, advisory, or combine multiple classes.</p>
           </div>
-          <div class="groupActions">
-            <button id="allMineBtn" class="btn primary" type="button">All My Students</button>
-            <button id="clearGroupsBtn" class="btn ghost" type="button">Clear</button>
-          </div>
+          <button id="allMineBtn" class="btn primary" type="button">All My Students</button>
         </div>
-        <div id="myGroups" class="groupGrid"></div>
-        <div id="leadershipWrap" hidden>
-          <h3>Leadership Groups</h3>
-          <div id="leadershipGroups" class="chipRow"></div>
-        </div>
-        <div id="selectedWrap" class="selectedWrap">
-          <span class="muted small">Viewing:</span>
-          <div id="selectedGroups" class="chipRow"></div>
+        <div id="teacherAdvisories" class="scopeStrip"></div>
+        <div id="teacherCourses" class="courseNav"></div>
+        <div id="teacherSelectedWrap" class="viewingBar" hidden>
+          <span class="muted small">Viewing</span>
+          <div id="teacherSelectedGroups" class="chipRow"></div>
         </div>
       </section>
 
-      <section class="card filtersCard">
+      <section id="leadershipCard" class="card leadershipCard" hidden>
         <div class="sectionHead">
-          <div><h2>Filters</h2><p class="muted">These narrow the students inside the selected groups.</p></div>
+          <div>
+            <div class="eyebrow">Leadership Scope</div>
+            <h2>Team View</h2>
+            <p class="muted">Switch into your authorized Grade Team Lead or District Chair scope without cluttering your everyday class view.</p>
+          </div>
+          <button id="backToMineBtn" class="btn ghost" type="button">Back to My Students</button>
         </div>
-        <div class="filters">
-          <label><span>Student</span><input id="searchInput" type="search" placeholder="Name or OSIS…"></label>
-          <label><span>Grade</span><select id="gradeFilter"><option value="">All grades</option></select></label>
-          <label><span>Status</span><select id="statusFilter"><option value="all">All grade statuses</option></select></label>
+        <div id="leadershipGroups" class="leadershipOptions"></div>
+      </section>
+
+      <section id="adminScopeCard" class="card adminScopeCard" hidden>
+        <div class="sectionHead">
+          <div>
+            <div class="eyebrow">Administrative Scope</div>
+            <h2>Schoolwide Explorer</h2>
+            <p class="muted">Start with the whole school, or combine authorized scopes. Multiple selections are a union.</p>
+          </div>
+          <button id="wholeSchoolBtn" class="btn primary" type="button">Whole School</button>
         </div>
-        <div id="adminGroupsWrap" class="adminGroups" hidden>
-          <label>
-            <span>School-wide group picker (Admin)</span>
-            <select id="adminGroupPicker" multiple size="7"></select>
-          </label>
-          <p class="muted small">Use Command/Ctrl-click to add multiple school-wide courses, sections, advisories, or whole-school scope.</p>
+
+        <div class="adminScopeGrid">
+          <label><span>Grade</span><select id="adminGradePicker"><option value="">Add a grade…</option></select></label>
+          <label><span>Department</span><select id="adminDepartmentPicker"><option value="">Add a department…</option></select></label>
+          <label><span>Teacher</span><select id="adminTeacherPicker"><option value="">Add a teacher…</option></select></label>
+          <label><span>Course</span><select id="adminCoursePicker"><option value="">Add a course…</option></select></label>
+          <label><span>Section</span><select id="adminSectionPicker"><option value="">Add a section…</option></select></label>
+          <label><span>Advisory</span><select id="adminAdvisoryPicker"><option value="">Add an advisory…</option></select></label>
+        </div>
+
+        <div class="viewingBar adminViewingBar">
+          <span class="muted small">Current scope</span>
+          <div id="adminSelectedGroups" class="chipRow"></div>
         </div>
       </section>
 
-      <section class="kpiGrid">
-        <div class="kpi"><span>Students</span><strong id="kpiStudents">0</strong><small>in filtered view</small></div>
-        <div class="kpi"><span>Below Passing</span><strong id="kpiBelow">0</strong><small id="kpiBelowLabel">below 70%</small></div>
-        <div class="kpi"><span>Passing</span><strong id="kpiPassing">0</strong><small id="kpiPassingLabel">70% and above</small></div>
-        <div class="kpi"><span>Missing Grades</span><strong id="kpiMissing">0</strong><small>students with missing numeric grades</small></div>
+      <section class="card quickFilterCard">
+        <div class="quickFilterTop">
+          <label class="searchLabel">
+            <span>Find a student</span>
+            <input id="searchInput" type="search" placeholder="Name or OSIS…">
+          </label>
+          <label id="adminGradeFilterWrap" class="gradeFilterLabel" hidden>
+            <span>Student grade level</span>
+            <select id="gradeFilter"><option value="">All grade levels</option></select>
+          </label>
+        </div>
+        <div class="quickStatusWrap">
+          <span class="muted small">Show</span>
+          <div id="statusQuick" class="segmented" role="group" aria-label="Grade status filter"></div>
+        </div>
+      </section>
+
+      <section id="teacherKpis" class="kpiGrid teacherKpis" hidden>
+        <div class="kpi"><span>Students</span><strong id="kpiStudents">0</strong><small>in this view</small></div>
+        <div class="kpi attention"><span>Need Attention</span><strong id="kpiBelow">0</strong><small id="kpiBelowLabel">below 70%</small></div>
+        <div class="kpi warning"><span>Missing Grades</span><strong id="kpiMissing">0</strong><small>missing numeric grade data</small></div>
+      </section>
+
+      <section id="adminKpis" class="kpiGrid adminKpis" hidden>
+        <div class="kpi"><span>Students</span><strong id="adminKpiStudents">0</strong><small>in filtered view</small></div>
+        <div class="kpi attention"><span>Below Passing</span><strong id="adminKpiBelow">0</strong><small id="adminKpiBelowLabel">below 70%</small></div>
+        <div class="kpi success"><span>Passing</span><strong id="adminKpiPassing">0</strong><small id="adminKpiPassingLabel">70% and above</small></div>
+        <div class="kpi warning"><span>Missing Grades</span><strong id="adminKpiMissing">0</strong><small>missing numeric grade data</small></div>
       </section>
 
       <section class="card resultsCard">
-        <div class="sectionHead">
-          <div><h2>Students</h2><p id="resultMeta" class="muted">Choose a group to begin.</p></div>
+        <div class="sectionHead resultsHead">
+          <div>
+            <h2 id="resultsTitle">Students</h2>
+            <p id="resultMeta" class="muted">Loading…</p>
+          </div>
+          <div id="activeScopeSummary" class="scopeSummary"></div>
         </div>
         <div id="results" class="tableWrap"></div>
       </section>
