@@ -30,6 +30,21 @@ function putDraft(c,k,v){try{const key=DRAFT_PREFIX+idOf(c,k);v?localStorage.set
 function endpointList(rows){return(Array.isArray(rows)?rows:[]).map(x=>[x.name,x.extension?`Ext. ${x.extension}`:''].map(norm).filter(Boolean).join(' • ')).filter(Boolean).join(', ')}
 function route(c){const d=norm(c.direction).toLowerCase();if(d==='internal'){const a=[c.src_name,c.src_extension?`Ext. ${c.src_extension}`:''].map(norm).filter(Boolean).join(' • ')||'Internal extension',b=[c.dst_name,c.dst_extension?`Ext. ${c.dst_extension}`:''].map(norm).filter(Boolean).join(' • ')||'Internal extension';return`${a} → ${b}`}const m=matches(c)[0],outside=m?contactLabel(m):((c.phone_last4||c.external_phone_last4)?`External ••••${c.phone_last4||c.external_phone_last4}`:'External caller'),staff=[c.staff_name,c.staff_extension?`Ext. ${c.staff_extension}`:''].map(norm).filter(Boolean).join(' • ')||'School phone';return d==='outgoing'?`${staff} → ${outside}`:`${outside} → ${staff}`}
 function statusLine(c){const a=endpointList(c.connected_endpoints),b=endpointList(c.ringing_endpoints);return a?`Connected: ${a}`:(b?`Ringing: ${b}`:'')}
+
+// EAGLENEST_CALLS_HISTORY_TRANSFER_DETAIL_V1
+function transferEndpoint(name,extension){
+  const n=norm(name),e=norm(extension);
+  return [n,e?`Ext. ${e}`:''].filter(Boolean).join(' • ') || (e?`Ext. ${e}`:'');
+}
+function transferDetail(c){
+  if(c?.transferred!==true)return'';
+  const from=transferEndpoint(c?.transfer_from_name,c?.transfer_from_extension);
+  const to=transferEndpoint(c?.transfer_to_name,c?.transfer_to_extension);
+  if(from&&to)return`Answered by ${from} • Transferred to ${to}`;
+  if(to)return`Transferred to ${to}`;
+  return'';
+}
+
 function badgeHtml(c){const d=norm(c.direction).toLowerCase();return`<div class="badges"><span class="badge ${esc(d)}">${esc(dirLabel(d))}</span>${c.campus?`<span class="badge">${esc(c.campus)}</span>`:''}${c.front_office_call?'<span class="badge office">Front Office</span>':''}</div>`}
 
 function renderScope(){const p=CONFIG?.preferences||{},a=[];if(p.scope==='my_extension'&&CONFIG?.my_extension)a.push(`My extension ${CONFIG.my_extension}`);if(p.scope==='campus')a.push((p.campuses||[]).join(', ')||'Selected campus');if(p.scope==='all')a.push('All calls');if(CONFIG?.office_staff_campuses?.length)a.push(`${CONFIG.office_staff_campuses.join(', ')} front office`);$('scopeSummary').textContent=(a.length?a.join(' + '):'Calls')+'. Live and recent calls follow My Settings.';$('viewerPill').textContent=[ACCESS?.email,CONFIG?.my_extension?`Ext. ${CONFIG.my_extension}`:''].filter(Boolean).join(' • ')}
@@ -214,7 +229,7 @@ function reconcileRecentBridge(hist){
   ENDED=ENDED.filter(live=>!rows.some(row=>recentBridgeMatchesHistory(live,row)));
   if(ENDED.length!==before)persistRecentBridge()
 }
-function renderRecent(){const q=norm($('searchInput').value).toLowerCase(),hist=HISTORY.rows||[];let rows=[...ENDED.map(endedRow),...hist];if(q)rows=rows.filter(c=>JSON.stringify({route:route(c),campus:c.campus,matches:matches(c)}).toLowerCase().includes(q));const el=$('recentCalls');if(!rows.length){el.innerHTML='<div class="panel empty">No recent calls in this view.</div>';return}el.innerHTML=rows.slice(0,180).map(c=>{const kind=c._ended?'live':'history',ss=students(c),can=ss.length&&norm(c.direction).toLowerCase()!=='internal';return`<article class="panel recentCard ${c._ended?'syncing':''}"><div class="recentRow"><div><div class="recentTitleText">${esc(route(c))}</div><div class="recentMeta">${esc(fmtDate(c.start_local||c.started_at))} • ${esc(dirLabel(norm(c.direction).toLowerCase()))} • ${fmtClock(c.billsec_sec||c.duration_sec||0)}${c._ended?' • syncing to PBX history':''}</div>${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}</div><div class="actions">${ss[0]?`<a class="btn small" href="${esc(studentUrl(ss[0]))}">Open Student</a>`:''}${can?`<button class="btn small primary" data-note="${esc(kind==='live'?c.call_id:c.call_key)}" data-kind="${kind}">Log Communication</button>`:''}</div></div></article>`}).join('');for(const b of el.querySelectorAll('[data-note]'))b.onclick=()=>{const c=b.dataset.kind==='live'?ENDED.find(x=>x.call_id===b.dataset.note):hist.find(x=>x.call_key===b.dataset.note);if(c)openNotes(c,b.dataset.kind)}}
+function renderRecent(){const q=norm($('searchInput').value).toLowerCase(),hist=HISTORY.rows||[];let rows=[...ENDED.map(endedRow),...hist];if(q)rows=rows.filter(c=>JSON.stringify({route:route(c),campus:c.campus,matches:matches(c)}).toLowerCase().includes(q));const el=$('recentCalls');if(!rows.length){el.innerHTML='<div class="panel empty">No recent calls in this view.</div>';return}el.innerHTML=rows.slice(0,180).map(c=>{const kind=c._ended?'live':'history',ss=students(c),can=ss.length&&norm(c.direction).toLowerCase()!=='internal';return`<article class="panel recentCard ${c._ended?'syncing':''}"><div class="recentRow"><div><div class="recentTitleText">${esc(route(c))}</div><div class="recentMeta">${esc(fmtDate(c.start_local||c.started_at))} • ${esc(dirLabel(norm(c.direction).toLowerCase()))} • ${fmtClock(c.billsec_sec||c.duration_sec||0)}${c._ended?' • syncing to PBX history':''}</div>${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}${transferDetail(c)?`<div class="endpoint">${esc(transferDetail(c))}</div>`:''}</div><div class="actions">${ss[0]?`<a class="btn small" href="${esc(studentUrl(ss[0]))}">Open Student</a>`:''}${can?`<button class="btn small primary" data-note="${esc(kind==='live'?c.call_id:c.call_key)}" data-kind="${kind}">Log Communication</button>`:''}</div></div></article>`}).join('');for(const b of el.querySelectorAll('[data-note]'))b.onclick=()=>{const c=b.dataset.kind==='live'?ENDED.find(x=>x.call_id===b.dataset.note):hist.find(x=>x.call_key===b.dataset.note);if(c)openNotes(c,b.dataset.kind)}}
 function renderAll(){renderLive();renderRecent();renderScope()}
 function tick(){for(const e of document.querySelectorAll('[data-timer]')){const c=(LIVE.active_calls||[]).find(x=>x.call_id===e.dataset.timer);if(c)e.textContent=fmtClock(elapsed(c))}}
 
