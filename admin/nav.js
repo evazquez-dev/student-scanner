@@ -21,6 +21,7 @@
   const BRAND = window.EAGLENEST_BRAND?.name || 'EagleNEST';
   const MODULES = window.EAGLENEST_BRAND?.modules || {
     my_schedule: 'My Schedule',
+    grades: 'Grades',
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
@@ -64,6 +65,7 @@
     'ss_admin_session_sid_v1',
     'teacher_att_admin_session_v1',
     'my_schedule_admin_session_v1',
+    'grades_admin_session_v1',
     'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
     'attendance_outreach_admin_session_v1',
@@ -382,6 +384,7 @@
           visitor_desk: isAdminLike,
           early_dismissal: true,
           teacher_attendance: true,
+          grades: true,
           attendance_status: isAdminLike,
           attendance_outreach: isAdminLike,
           coverage_planner: isAdminLike,
@@ -502,6 +505,7 @@
         title: 'Students & Families',
         items: [
           { key:'student_view', label: MODULES.student_view || 'Student Lookup', href:'./student_view.html', description:'Student dashboard, location and attendance' },
+          { key:'grades', label: MODULES.grades || 'Grades', href:'./grades.html', description:'Current grades, sections, advisories and grade history' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },
           { key:'communications', label: MODULES.communications || 'Parent & Family Communications', href:'./communications.html', description:'Outreach, required communication and follow-ups' },
           { key:'phone_dashboard', label: MODULES.calls || 'Calls', href:'./calls.html', description:'Live calls, recent calls and follow-up logging' },

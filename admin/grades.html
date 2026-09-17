@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <title>EagleNEST — Grades</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./grades.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}})();</script>
+</head>
+<body data-module="grades">
+  <div class="wrap">
+    <section id="loginCard" class="card">
+      <h2>Staff sign-in</h2>
+      <p class="muted">Use your American Dream School staff account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="muted">Loading…</pre>
+    </section>
+
+    <main id="app" hidden>
+      <section class="card topbar">
+        <div>
+          <h1>Grades</h1>
+          <div id="snapshotMeta" class="muted">Loading current grade snapshot…</div>
+        </div>
+        <div class="topActions">
+          <span id="passingPill" class="pill good">Passing: 70%+</span>
+          <span id="viewerPill" class="pill">—</span>
+          <button id="refreshBtn" class="btn" type="button">Refresh</button>
+        </div>
+      </section>
+
+      <section class="card groupCard">
+        <div class="sectionHead">
+          <div>
+            <h2>My Groups</h2>
+            <p class="muted">Choose one or more advisories, courses, or individual sections. Multiple selections are combined.</p>
+          </div>
+          <div class="groupActions">
+            <button id="allMineBtn" class="btn primary" type="button">All My Students</button>
+            <button id="clearGroupsBtn" class="btn ghost" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="myGroups" class="groupGrid"></div>
+        <div id="leadershipWrap" hidden>
+          <h3>Leadership Groups</h3>
+          <div id="leadershipGroups" class="chipRow"></div>
+        </div>
+        <div id="selectedWrap" class="selectedWrap">
+          <span class="muted small">Viewing:</span>
+          <div id="selectedGroups" class="chipRow"></div>
+        </div>
+      </section>
+
+      <section class="card filtersCard">
+        <div class="sectionHead">
+          <div><h2>Filters</h2><p class="muted">These narrow the students inside the selected groups.</p></div>
+        </div>
+        <div class="filters">
+          <label><span>Student</span><input id="searchInput" type="search" placeholder="Name or OSIS…"></label>
+          <label><span>Grade</span><select id="gradeFilter"><option value="">All grades</option></select></label>
+          <label><span>Status</span><select id="statusFilter"><option value="all">All grade statuses</option></select></label>
+        </div>
+        <div id="adminGroupsWrap" class="adminGroups" hidden>
+          <label>
+            <span>School-wide group picker (Admin)</span>
+            <select id="adminGroupPicker" multiple size="7"></select>
+          </label>
+          <p class="muted small">Use Command/Ctrl-click to add multiple school-wide courses, sections, advisories, or whole-school scope.</p>
+        </div>
+      </section>
+
+      <section class="kpiGrid">
+        <div class="kpi"><span>Students</span><strong id="kpiStudents">0</strong><small>in filtered view</small></div>
+        <div class="kpi"><span>Below Passing</span><strong id="kpiBelow">0</strong><small id="kpiBelowLabel">below 70%</small></div>
+        <div class="kpi"><span>Passing</span><strong id="kpiPassing">0</strong><small id="kpiPassingLabel">70% and above</small></div>
+        <div class="kpi"><span>Missing Grades</span><strong id="kpiMissing">0</strong><small>students with missing numeric grades</small></div>
+      </section>
+
+      <section class="card resultsCard">
+        <div class="sectionHead">
+          <div><h2>Students</h2><p id="resultMeta" class="muted">Choose a group to begin.</p></div>
+        </div>
+        <div id="results" class="tableWrap"></div>
+      </section>
+
+      <section id="errorCard" class="card errorCard" hidden>
+        <h2>Error</h2>
+        <div id="errorOut"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="studentDialog" class="studentDialog">
+    <div class="dialogHead">
+      <div>
+        <h2 id="studentDialogTitle">Student Grades</h2>
+        <div id="studentDialogMeta" class="muted">—</div>
+      </div>
+      <button id="studentDialogClose" class="btn ghost" type="button">Close</button>
+    </div>
+    <div id="studentCurrent" class="studentCurrent"></div>
+    <section class="historySection">
+      <div class="sectionHead"><div><h3>Grade History</h3><p class="muted">Every stored EagleNEST grade snapshot for this student.</p></div></div>
+      <div id="studentHistory"></div>
+    </section>
+  </dialog>
+
+  <script src="./grades.js"></script>
+</body>
+</html>
