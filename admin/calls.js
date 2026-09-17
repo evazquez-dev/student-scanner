@@ -3,6 +3,7 @@ const API_BASE=(document.querySelector('meta[name="api-base"]')?.content||'').re
 const GOOGLE_CLIENT_ID=document.querySelector('meta[name="google-client-id"]')?.content||'';
 const SID_KEYS=['ss_admin_session_sid_v1','notifications_admin_session_v1','admin_session_v1','admin_session_sid'];
 const SESSION_HEADER='x-admin-session',DRAFT_PREFIX='eaglenest_call_note_draft_v1:',CLIENT_KEY='eaglenest_calls_live_client_v1';
+const RECENT_BRIDGE_KEY='eaglenest_calls_recent_bridge_v1',RECENT_BRIDGE_TTL_MS=30*60*1000; // EAGLENEST_CALLS_RECENT_SESSION_BRIDGE_V1
 const $=id=>document.getElementById(id);
 let ACCESS=null,CONFIG=null,HISTORY={rows:[]},LIVE={active_calls:[]},LAST=new Map(),ENDED=[],ABORT=null,MODAL=null,MODAL_KIND='';
 const LIVE_HISTORY=new Map(),LIVE_HISTORY_PENDING=new Set(); // EAGLENEST_LIVE_CALLER_HISTORY_V1
@@ -121,6 +122,98 @@ function renderLive(){
   };
 }
 function endedRow(c){return{...c,_ended:true,answered:c.state==='connected'||(c.connected_endpoints||[]).length>0,start_local:c.live_started_at||c.started_at,billsec_sec:elapsed(c)}}
+
+// EAGLENEST_CALLS_RECENT_SESSION_BRIDGE_V1
+// The authoritative Recent Calls history is D1/CDR-backed, but Grandstream CDR
+// can lag behind a live hangup. Preserve only a short-lived, PII-minimized bridge
+// in sessionStorage so navigating away from Calls does not make the just-ended
+// call disappear before the next CDR sync.
+//
+// Deliberately NOT stored here: matches/contact data, student names/numbers,
+// person/contact IDs, notes, raw phone numbers, or server-only phone hashes.
+function recentBridgeSafe(c){
+  return{
+    call_id:norm(c?.call_id),
+    state:norm(c?.state),
+    direction:norm(c?.direction).toLowerCase(),
+    staff_extension:norm(c?.staff_extension),
+    staff_name:norm(c?.staff_name),
+    src_extension:norm(c?.src_extension),
+    src_name:norm(c?.src_name),
+    dst_extension:norm(c?.dst_extension),
+    dst_name:norm(c?.dst_name),
+    campus:norm(c?.campus),
+    front_office_call:c?.front_office_call===true,
+    ringing_endpoints:(Array.isArray(c?.ringing_endpoints)?c.ringing_endpoints:[])
+      .slice(0,20).map(x=>({extension:norm(x?.extension),name:norm(x?.name)})),
+    connected_endpoints:(Array.isArray(c?.connected_endpoints)?c.connected_endpoints:[])
+      .slice(0,20).map(x=>({extension:norm(x?.extension),name:norm(x?.name)})),
+    live_started_at:norm(c?.live_started_at),
+    started_at:norm(c?.started_at),
+    phone_last4:norm(c?.phone_last4).replace(/\D/g,'').slice(-4),
+    _ended_at:norm(c?._ended_at)||new Date().toISOString()
+  }
+}
+function recentBridgeTime(v){
+  const s=norm(v);
+  if(!s)return NaN;
+  const d=new Date(s.includes('T')?s:s.replace(' ','T'));
+  return d.getTime()
+}
+function recentBridgeExtensions(c){
+  return new Set([
+    c?.staff_extension,c?.src_extension,c?.dst_extension,
+    ...(Array.isArray(c?.ringing_endpoints)?c.ringing_endpoints.map(x=>x?.extension):[]),
+    ...(Array.isArray(c?.connected_endpoints)?c.connected_endpoints.map(x=>x?.extension):[])
+  ].map(v=>norm(v).replace(/\D/g,'')).filter(Boolean))
+}
+function recentBridgeMatchesHistory(live,hist){
+  if(norm(live?.direction).toLowerCase()!==norm(hist?.direction).toLowerCase())return false;
+  const a=recentBridgeTime(live?.live_started_at||live?.started_at),
+        b=recentBridgeTime(hist?.start_local||hist?.started_at);
+  if(Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)>120000)return false;
+  const le=recentBridgeExtensions(live),he=recentBridgeExtensions(hist);
+  if(le.size&&he.size&&![...le].some(x=>he.has(x)))return false;
+  return true
+}
+function persistRecentBridge(){
+  try{
+    const now=Date.now();
+    const rows=ENDED
+      .filter(c=>{
+        const t=recentBridgeTime(c?._ended_at);
+        return Number.isFinite(t)&&now-t<=RECENT_BRIDGE_TTL_MS
+      })
+      .slice(0,25)
+      .map(recentBridgeSafe);
+    if(rows.length)sessionStorage.setItem(RECENT_BRIDGE_KEY,JSON.stringify({saved_at:new Date().toISOString(),rows}));
+    else sessionStorage.removeItem(RECENT_BRIDGE_KEY)
+  }catch{}
+}
+function restoreRecentBridge(){
+  try{
+    const raw=sessionStorage.getItem(RECENT_BRIDGE_KEY);
+    if(!raw)return;
+    const parsed=JSON.parse(raw),now=Date.now();
+    const rows=(Array.isArray(parsed?.rows)?parsed.rows:[])
+      .filter(c=>{
+        const t=recentBridgeTime(c?._ended_at);
+        return Number.isFinite(t)&&now-t<=RECENT_BRIDGE_TTL_MS&&norm(c?.call_id)
+      })
+      .slice(0,25)
+      .map(recentBridgeSafe);
+    ENDED=rows;
+    if(rows.length!==Number(parsed?.rows?.length||0))persistRecentBridge()
+  }catch{
+    try{sessionStorage.removeItem(RECENT_BRIDGE_KEY)}catch{}
+  }
+}
+function reconcileRecentBridge(hist){
+  const rows=Array.isArray(hist)?hist:[];
+  const before=ENDED.length;
+  ENDED=ENDED.filter(live=>!rows.some(row=>recentBridgeMatchesHistory(live,row)));
+  if(ENDED.length!==before)persistRecentBridge()
+}
 function renderRecent(){const q=norm($('searchInput').value).toLowerCase(),hist=HISTORY.rows||[];let rows=[...ENDED.map(endedRow),...hist];if(q)rows=rows.filter(c=>JSON.stringify({route:route(c),campus:c.campus,matches:matches(c)}).toLowerCase().includes(q));const el=$('recentCalls');if(!rows.length){el.innerHTML='<div class="panel empty">No recent calls in this view.</div>';return}el.innerHTML=rows.slice(0,180).map(c=>{const kind=c._ended?'live':'history',ss=students(c),can=ss.length&&norm(c.direction).toLowerCase()!=='internal';return`<article class="panel recentCard ${c._ended?'syncing':''}"><div class="recentRow"><div><div class="recentTitleText">${esc(route(c))}</div><div class="recentMeta">${esc(fmtDate(c.start_local||c.started_at))} • ${esc(dirLabel(norm(c.direction).toLowerCase()))} • ${fmtClock(c.billsec_sec||c.duration_sec||0)}${c._ended?' • syncing to PBX history':''}</div>${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}</div><div class="actions">${ss[0]?`<a class="btn small" href="${esc(studentUrl(ss[0]))}">Open Student</a>`:''}${can?`<button class="btn small primary" data-note="${esc(kind==='live'?c.call_id:c.call_key)}" data-kind="${kind}">Log Communication</button>`:''}</div></div></article>`}).join('');for(const b of el.querySelectorAll('[data-note]'))b.onclick=()=>{const c=b.dataset.kind==='live'?ENDED.find(x=>x.call_id===b.dataset.note):hist.find(x=>x.call_key===b.dataset.note);if(c)openNotes(c,b.dataset.kind)}}
 function renderAll(){renderLive();renderRecent();renderScope()}
 function tick(){for(const e of document.querySelectorAll('[data-timer]')){const c=(LIVE.active_calls||[]).find(x=>x.call_id===e.dataset.timer);if(c)e.textContent=fmtClock(elapsed(c))}}
@@ -141,6 +234,7 @@ function captureEnded(next){
   }
   ENDED=ENDED.slice(0,25);
   LAST=map;
+  if(changed)persistRecentBridge();
   return changed;
 }
 function clientId(){try{let x=sessionStorage.getItem(CLIENT_KEY);if(/^tab-[A-Za-z0-9_-]{8,80}$/.test(x||''))return x;x='tab-'+crypto.randomUUID().replace(/-/g,'').slice(0,24);sessionStorage.setItem(CLIENT_KEY,x);return x}catch{return'tab-'+Date.now().toString(36)+'calls'}}
@@ -157,6 +251,7 @@ async function loadHistory(show=true){
     const j=await r.json().catch(()=>({}));
     if(!r.ok||!j.ok)throw new Error(j.error||`history_http_${r.status}`);
     HISTORY=j;
+    reconcileRecentBridge(j.rows||[]);
     renderRecent();
   }catch(e){
     if(show&&e?.name!=='AbortError'){
@@ -171,6 +266,6 @@ async function loadHistory(show=true){
 async function getAccess(){const r=await api('/admin/access'),j=await r.json().catch(()=>null);return r.ok&&j?.ok?j:null}
 async function waitGoogle(){for(let i=0;i<160;i++){if(window.google?.accounts?.id)return google.accounts.id;await new Promise(r=>setTimeout(r,50))}throw new Error('Google sign-in failed to load')}
 async function login(token){const r=await api('/admin/session/login_google',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:token}).toString()}),j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`)}
-async function boot(){ACCESS=await getAccess();if(!ACCESS){$('loginOut').textContent='Please sign in.';const g=await waitGoogle();g.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async r=>{try{await login(r.credential);location.reload()}catch(e){$('loginOut').textContent=e.message||e}}});g.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return}if(!ACCESS.can?.phone_dashboard)throw new Error('phone_dashboard_extension_or_office_access_required');$('loginCard').hidden=true;$('app').hidden=false;$('daysSelect').onchange=()=>loadHistory();$('searchInput').oninput=renderRecent;$('closeNote').onclick=closeNotes;$('noteBackdrop').onclick=e=>{if(e.target===$('noteBackdrop'))closeNotes()};$('noteText').oninput=()=>{if(MODAL)putDraft(MODAL,MODAL_KIND,$('noteText').value)};$('clearNote').onclick=()=>{if(MODAL){$('noteText').value='';putDraft(MODAL,MODAL_KIND,'')}};$('saveNote').onclick=saveCommunication;await Promise.all([loadConfig(),loadHistory()]);connectLive();setInterval(tick,1000);setInterval(()=>loadHistory(false),30000)}
-window.addEventListener('beforeunload',()=>{try{ABORT?.abort()}catch{}});
+async function boot(){ACCESS=await getAccess();if(!ACCESS){$('loginOut').textContent='Please sign in.';const g=await waitGoogle();g.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async r=>{try{await login(r.credential);location.reload()}catch(e){$('loginOut').textContent=e.message||e}}});g.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return}if(!ACCESS.can?.phone_dashboard)throw new Error('phone_dashboard_extension_or_office_access_required');$('loginCard').hidden=true;$('app').hidden=false;restoreRecentBridge();renderRecent();$('daysSelect').onchange=()=>loadHistory();$('searchInput').oninput=renderRecent;$('closeNote').onclick=closeNotes;$('noteBackdrop').onclick=e=>{if(e.target===$('noteBackdrop'))closeNotes()};$('noteText').oninput=()=>{if(MODAL)putDraft(MODAL,MODAL_KIND,$('noteText').value)};$('clearNote').onclick=()=>{if(MODAL){$('noteText').value='';putDraft(MODAL,MODAL_KIND,'')}};$('saveNote').onclick=saveCommunication;await Promise.all([loadConfig(),loadHistory()]);connectLive();setInterval(tick,1000);setInterval(()=>loadHistory(false),30000)}
+window.addEventListener('beforeunload',()=>{persistRecentBridge();try{ABORT?.abort()}catch{}});
 boot().catch(e=>{$('loginOut').textContent=String(e.message||e);$('errorBox').textContent=e.message||e;$('errorBox').hidden=false});
