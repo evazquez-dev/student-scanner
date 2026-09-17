@@ -19,10 +19,10 @@ test('Office Staff allowlist is managed and exposed through access capabilities'
   assert.match(route, /\/admin\/office_staff_allowlist/);
 });
 
-test('Office Staff does not inherit the whole-school Communications dashboard', () => {
+test('Office Staff inherits the Parent & Family Communications dashboard', () => {
   const session = read('cf-redcake/red-cake-77d5/src/services/admin-session.js');
   const dashboard = read('cf-redcake/red-cake-77d5/src/routes/communications-dashboard.js');
-  assert.match(session, /communications:\s*isAdminLike \|\| !canOfficeStaff/);
+  assert.match(session, /communications:\s*true/);
   assert.match(dashboard, /if \(!access\?\.can\?\.communications\)/);
   assert.doesNotMatch(dashboard, /!access\?\.can\?\.communications && !access\?\.can\?\.student_contacts/);
 });

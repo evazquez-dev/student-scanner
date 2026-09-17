@@ -21,7 +21,7 @@ test('communications dashboard is a modular routed staff feature', () => {
   assert.match(index, /handleCommunicationsDashboardRequest/);
   assert.match(route, /'\/admin\/communications\/dashboard'/);
   assert.match(route, /'\/admin\/communications\/followup\/resolve'/);
-  assert.match(access, /communications:\s*isAdminLike \|\| !canOfficeStaff/);
+  assert.match(access, /communications:\s*true/);
 });
 
 test('role scopes use staff profile, advisor ownership, and academic department rosters', () => {
