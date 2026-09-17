@@ -16,7 +16,9 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 function dirLabel(v){return v==='incoming'?'Incoming':v==='outgoing'?'Outgoing':v==='internal'?'Internal':'Unknown'}
 function fmtDate(v){const s=norm(v);if(!s)return'—';const d=new Date(s.includes('T')?s:s.replace(' ','T'));return Number.isFinite(d.getTime())?d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):s}
 function fmtClock(sec){const n=Math.max(0,Math.floor(Number(sec||0))),m=Math.floor(n/60),s=n%60;return`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`}
-function elapsed(c){const s=norm(c.started_at||c.start_local);if(!s)return Number(c.billsec_sec||c.duration_sec||0);const d=new Date(s.includes('T')?s:s.replace(' ','T'));return Number.isFinite(d.getTime())?Math.max(0,(Date.now()-d.getTime())/1000):Number(c.billsec_sec||c.duration_sec||0)}
+// EAGLENEST_CALLS_LIVE_TIMER_V2
+// Live calls use the Worker's timezone-safe first-seen ISO anchor.
+function elapsed(c){const s=norm(c.live_started_at||c.started_at||c.start_local);if(!s)return Number(c.billsec_sec||c.duration_sec||0);const d=new Date(s.includes('T')?s:s.replace(' ','T'));return Number.isFinite(d.getTime())?Math.max(0,(Date.now()-d.getTime())/1000):Number(c.billsec_sec||c.duration_sec||0)}
 function matches(c){return Array.isArray(c.matches)?c.matches:(Array.isArray(c.contact_matches)?c.contact_matches:[])}
 function contactLabel(m){return[m.name,m.relationship].map(norm).filter(Boolean).join(' • ')||'Matched family contact'}
 function students(c){const out=[],seen=new Set();for(const m of matches(c)){const n=norm(m.student_number);if(n&&!seen.has(n)){seen.add(n);out.push(m)}}return out}
@@ -101,7 +103,7 @@ function renderLive(){
       <div class="callTop">
         <div>
           <div class="callTitle"><span class="pulse"></span>${esc(st==='connected'?'CONNECTED':st==='ringing'?'RINGING':'ACTIVE')} • ${esc(route(c))}</div>
-          <div class="muted">${esc(fmtDate(c.started_at))}</div>
+          <div class="muted">${esc(fmtDate(c.live_started_at||c.started_at))}</div>
         </div>
         <div class="timer" data-timer="${esc(c.call_id)}">${fmtClock(elapsed(c))}</div>
       </div>
@@ -118,7 +120,7 @@ function renderLive(){
     if(c) openNotes(c,'live');
   };
 }
-function endedRow(c){return{...c,_ended:true,answered:c.state==='connected'||(c.connected_endpoints||[]).length>0,start_local:c.started_at,billsec_sec:elapsed(c)}}
+function endedRow(c){return{...c,_ended:true,answered:c.state==='connected'||(c.connected_endpoints||[]).length>0,start_local:c.live_started_at||c.started_at,billsec_sec:elapsed(c)}}
 function renderRecent(){const q=norm($('searchInput').value).toLowerCase(),hist=HISTORY.rows||[];let rows=[...ENDED.map(endedRow),...hist];if(q)rows=rows.filter(c=>JSON.stringify({route:route(c),campus:c.campus,matches:matches(c)}).toLowerCase().includes(q));const el=$('recentCalls');if(!rows.length){el.innerHTML='<div class="panel empty">No recent calls in this view.</div>';return}el.innerHTML=rows.slice(0,180).map(c=>{const kind=c._ended?'live':'history',ss=students(c),can=ss.length&&norm(c.direction).toLowerCase()!=='internal';return`<article class="panel recentCard ${c._ended?'syncing':''}"><div class="recentRow"><div><div class="recentTitleText">${esc(route(c))}</div><div class="recentMeta">${esc(fmtDate(c.start_local||c.started_at))} • ${esc(dirLabel(norm(c.direction).toLowerCase()))} • ${fmtClock(c.billsec_sec||c.duration_sec||0)}${c._ended?' • syncing to PBX history':''}</div>${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}</div><div class="actions">${ss[0]?`<a class="btn small" href="${esc(studentUrl(ss[0]))}">Open Student</a>`:''}${can?`<button class="btn small primary" data-note="${esc(kind==='live'?c.call_id:c.call_key)}" data-kind="${kind}">Log Communication</button>`:''}</div></div></article>`}).join('');for(const b of el.querySelectorAll('[data-note]'))b.onclick=()=>{const c=b.dataset.kind==='live'?ENDED.find(x=>x.call_id===b.dataset.note):hist.find(x=>x.call_key===b.dataset.note);if(c)openNotes(c,b.dataset.kind)}}
 function renderAll(){renderLive();renderRecent();renderScope()}
 function tick(){for(const e of document.querySelectorAll('[data-timer]')){const c=(LIVE.active_calls||[]).find(x=>x.call_id===e.dataset.timer);if(c)e.textContent=fmtClock(elapsed(c))}}
