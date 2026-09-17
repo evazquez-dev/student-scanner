@@ -13,7 +13,9 @@ test('auth heartbeat probe is isolated from the production Calls socket',()=>{
   assert.match(worker,/EAGLENEST_GRANDSTREAM_WS_AUTH_HEARTBEAT_PROBE_V1/);
 
   const start=worker.indexOf('async _probePbxWebSocketAuth()');
-  const end=worker.indexOf('// EAGLENEST_GRANDSTREAM_WS_DIAGNOSTICS_PASSIVE_V2',start);
+  const canaryEnd=worker.indexOf('// EAGLENEST_GRANDSTREAM_NATIVE_WS_SUPERADMIN_CANARY_V1',start);
+  const legacyEnd=worker.indexOf('// EAGLENEST_GRANDSTREAM_WS_DIAGNOSTICS_PASSIVE_V2',start);
+  const end=canaryEnd>start ? canaryEnd : legacyEnd;
   assert.ok(start>=0 && end>start);
   const probe=worker.slice(start,end);
 
@@ -37,7 +39,9 @@ test('auth heartbeat probe is isolated from the production Calls socket',()=>{
 
 test('auth probe exposes only sanitized authentication evidence',()=>{
   const start=worker.indexOf('async _probePbxWebSocketAuth()');
-  const end=worker.indexOf('// EAGLENEST_GRANDSTREAM_WS_DIAGNOSTICS_PASSIVE_V2',start);
+  const canaryEnd=worker.indexOf('// EAGLENEST_GRANDSTREAM_NATIVE_WS_SUPERADMIN_CANARY_V1',start);
+  const legacyEnd=worker.indexOf('// EAGLENEST_GRANDSTREAM_WS_DIAGNOSTICS_PASSIVE_V2',start);
+  const end=canaryEnd>start ? canaryEnd : legacyEnd;
   const probe=worker.slice(start,end);
 
   assert.match(probe,/https_api_cookie_valid/);
