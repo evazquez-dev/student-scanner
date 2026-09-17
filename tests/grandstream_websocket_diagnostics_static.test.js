@@ -26,11 +26,13 @@ test('Grandstream WebSocket diagnostics expose sanitized lifecycle data',()=>{
   assert.match(worker,/current_connection_age_ms:/);
 });
 
-test('WebSocket close event captures code reason and clean flag',()=>{
-  assert.match(worker,/ws\.addEventListener\('close', \(event\) => this\._handlePbxDisconnect/);
+test('WebSocket close event passively records code reason and clean flag before disconnect handling',()=>{
+  assert.match(worker,/ws\.addEventListener\('close', \(event\) => \{/);
+  assert.match(worker,/this\._recordPbxDisconnect\('websocket_closed'/);
   assert.match(worker,/close_code: Number\(event\?\.code \|\| 0\)/);
   assert.match(worker,/close_reason: clean\(event\?\.reason, 160\)/);
   assert.match(worker,/was_clean: event\?\.wasClean === true/);
+  assert.match(worker,/this\._handlePbxDisconnect\('websocket_closed'\);/);
 });
 
 test('diagnostic events do not log PBX cookie or raw caller data',()=>{
