@@ -54,10 +54,18 @@ function canSeeLiveCallerHistory(){
 }
 function historyStaffLabel(row){
   const d=norm(row?.direction).toLowerCase();
-  if(d==='outgoing') return norm(row?.src_label||row?.staff_label)||(row?.src_extension?`Ext. ${row.src_extension}`:'School extension unavailable');
+  if(d==='outgoing'){
+    const label=norm(row?.src_label||row?.staff_label);
+    if(label)return label;
+    const name=norm(row?.src_name||row?.staff_name),ext=norm(row?.src_extension||row?.staff_extension);
+    return [name,ext?`Ext. ${ext}`:''].filter(Boolean).join(' • ')||'School extension unavailable';
+  }
   if(d==='incoming'){
     if(!row?.answered) return 'No answer at school';
-    return norm(row?.dst_label||row?.staff_label)||(row?.dst_extension?`Ext. ${row.dst_extension}`:'School phone');
+    const label=norm(row?.dst_label||row?.staff_label);
+    if(label)return label;
+    const name=norm(row?.dst_name||row?.staff_name),ext=norm(row?.dst_extension||row?.staff_extension);
+    return [name,ext?`Ext. ${ext}`:''].filter(Boolean).join(' • ')||'School phone';
   }
   return 'School phone';
 }
@@ -71,9 +79,19 @@ function liveCallerHistoryHtml(call){
     return `<div class="callerHistory"><div class="callerHistoryTitle">Recent with this number</div><div class="callerHistoryEmpty">Recent history unavailable right now.</div></div>`;
   }
   const rows=Array.isArray(data.rows)?data.rows:[];
-  const lastSchoolCall=rows.find(r=>norm(r.direction).toLowerCase()==='outgoing');
+  // EAGLENEST_LIVE_CALLER_HISTORY_ANSWER_V2
+  // The backend independently guarantees this answer so a multi-leg incoming
+  // ring group can never crowd the last school-originated call out of LIMIT 5.
+  const lastSchoolCall=data?.most_recent_school_outgoing
+    || rows.find(r=>norm(r.direction).toLowerCase()==='outgoing');
+  const lastSchoolStatus=lastSchoolCall
+    ? (lastSchoolCall.answered===true?'Connected':'No answer')
+    : '';
+  const lastSchoolSync=norm(lastSchoolCall?.source)==='live_recent'
+    ? ' • syncing to PBX history'
+    : '';
   const lastSchoolHtml=lastSchoolCall
-    ? `<div class="lastSchoolCall"><strong>Most recent school call:</strong><span>${esc(fmtDate(lastSchoolCall.start_local))} • ${esc(historyStaffLabel(lastSchoolCall))} • ${fmtClock(lastSchoolCall.billsec_sec||lastSchoolCall.duration_sec||0)}</span></div>`
+    ? `<div class="lastSchoolCall"><strong>Most recent school call:</strong><span>${esc(fmtDate(lastSchoolCall.start_local))} • ${esc(historyStaffLabel(lastSchoolCall))} • ${esc(lastSchoolStatus)} • ${fmtClock(lastSchoolCall.billsec_sec||lastSchoolCall.duration_sec||0)}${esc(lastSchoolSync)}</span></div>`
     : `<div class="lastSchoolCall"><strong>Most recent school call:</strong><span>No outgoing call found in the last ${Number(data.days||30)} days.</span></div>`;
   const rowsHtml=rows.length
     ? rows.map(r=>`<div class="callerHistoryRow"><span>${esc(fmtDate(r.start_local))}</span><strong>${esc(dirLabel(norm(r.direction).toLowerCase()))}</strong><span>${esc(historyStaffLabel(r))}</span><span>${fmtClock(r.billsec_sec||r.duration_sec||0)}</span></div>`).join('')
