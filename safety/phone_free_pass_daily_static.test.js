@@ -54,7 +54,10 @@ test('SAFETY: free list management is Admin/Super Admin only', () => {
 
 test('SAFETY: kiosk UI visibly distinguishes free pickup from a submitted pass', () => {
   assert.match(kioskUi, /FREE PHONE PICKUP/);
-  assert.match(kioskUi, /free_pickup/);
+  assert.match(kioskUi, /const freePickup = data\.flow === 'free_pickup'/);
+  assert.match(kioskUi, /const pickup = data\.flow === 'pickup' \|\| freePickup/);
+  assert.match(kioskUi, /Hold to confirm FREE phone handed to student/);
+  assert.match(kioskUi, /Free phone pickup used/);
 });
 
 test('SAFETY: modular route is intercepted before legacy fallback', () => {
