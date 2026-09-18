@@ -44,6 +44,7 @@
     after_school_monitor: 'After-School Monitor',
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
+    phone_free_pass: 'Free Phone Pass', // EAGLENEST_DAILY_FREE_PHONE_PASS_V1
     notifications: 'My Settings',
     incident_creator: 'Incident Creator',
     behavior_history: 'Logged Behaviors',
@@ -74,6 +75,7 @@
     'visitor_desk_admin_session_v1',
     'staff_pull_admin_session_v1',
     'phone_pass_admin_session_v1',
+    'phone_free_pass_admin_session_v1',
     'notifications_admin_session_v1',
     'student_scans_admin_session_v1',
     'conference_scheduler_admin_session_v1', // EAGLENEST_FAMILY_CONFERENCES_V1
@@ -402,6 +404,7 @@
           dreamer_of_week: true,
           dow_manage: isAdminLike,
           phone_pass: isAdminLike,
+          phone_free_pass: isAdminLike,
           phone_dashboard: isAdminLike,
           teacher_trace_lookup: isAdminLike,
           attendance_change: isSuperAdmin,
@@ -533,6 +536,7 @@
           { key:'hallway', label: MODULES.hallway || 'Hallway Monitor', href:'./hallway.html', description:'Live student locations' },
           { key:'staff_pull', label: MODULES.staff_pull || 'Staff Pull', href:'./staff_pull.html', description:'Pull and release students' },
           { key:'phone_pass', label: MODULES.phone_pass || 'Phone Pass', href:'./phone_pass.html', description:'Phone checkout, pickup and return workflow' },
+          { key:'phone_free_pass', label: MODULES.phone_free_pass || 'Free Phone Pass', href:'./phone_free_pass.html', description:'Build today’s one-free-pickup student list' },
           { key:'senior_lunch_audit', label: MODULES.senior_lunch_audit || 'Senior Lunch Audit', href:'./senior_lunch_audit.html', description:'Senior lunch-out compliance' },
           { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', description:'After-school attendance and holds' },
           { key:'visitor_desk', label: MODULES.visitor_desk || 'Visitor Desk', href:'./visitor_desk.html', description:'Visitor check-in, queue and history' },

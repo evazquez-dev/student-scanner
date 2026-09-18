@@ -216,15 +216,20 @@
 
   function showFlow(data) {
     CURRENT = data;
-    const pickup = data.flow === 'pickup';
+    const freePickup = data.flow === 'free_pickup';
+    const pickup = data.flow === 'pickup' || freePickup;
     $('flowEmoji').textContent = pickup ? '📲' : '📥';
-    $('flowType').textContent = pickup ? 'PHONE PICKUP' : 'PHONE RETURN';
+    $('flowType').textContent = freePickup ? 'FREE PHONE PICKUP' : (pickup ? 'PHONE PICKUP' : 'PHONE RETURN');
     $('flowStudent').textContent = data.student?.name || 'Student';
-    $('flowInstruction').textContent = pickup
-      ? 'Your phone request is ready. Please wait for office staff.'
-      : (data.return_requested ? 'You were sent to return your phone. Please wait for office staff.' : 'Ready to return your phone. Please wait for office staff.');
+    $('flowInstruction').textContent = freePickup
+      ? 'You have one free phone pickup today. Please wait for office staff.'
+      : (pickup
+          ? 'Your phone request is ready. Please wait for office staff.'
+          : (data.return_requested ? 'You were sent to return your phone. Please wait for office staff.' : 'Ready to return your phone. Please wait for office staff.'));
     $('lockerValue').textContent = lockerText(data.locker);
-    confirmText.textContent = pickup ? 'Hold to confirm phone handed to student' : 'Hold to confirm phone returned';
+    confirmText.textContent = freePickup
+      ? 'Hold to confirm FREE phone handed to student'
+      : (pickup ? 'Hold to confirm phone handed to student' : 'Hold to confirm phone returned');
     setStatus($('flowStatus'), data.practice ? 'Practice Mode — no live office notification sent.' : '', data.practice ? 'warn' : '');
     show(flowScreen);
     clearResetTimer();
@@ -261,10 +266,11 @@
         method: 'POST',
         body: { osis: CURRENT.student.osis, flow: CURRENT.flow }
       });
-      const pickup = data.flow === 'pickup';
-      $('successTitle').textContent = pickup ? 'Phone checked out' : 'Phone returned';
+      const freePickup = data.flow === 'free_pickup';
+      const pickup = data.flow === 'pickup' || freePickup;
+      $('successTitle').textContent = freePickup ? 'Free phone pickup used' : (pickup ? 'Phone checked out' : 'Phone returned');
       $('successText').textContent = pickup
-        ? 'You’re all set. Return your phone here when you’re finished.'
+        ? (freePickup ? 'You’re all set. Your one free pickup for today has been used. Return your phone here when you’re finished.' : 'You’re all set. Return your phone here when you’re finished.')
         : 'Thank you. Your phone has been returned.';
       show(successScreen);
       scheduleReset(6500);

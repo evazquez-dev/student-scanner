@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — Free Phone Pass</title>
+
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./shared_auth.js"></script>
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./phone_free_pass.js?v=20260918-1" defer></script>
+
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg1:#020617;--bg2:#000;--fg:#e5e7eb;--muted:#9ca3af;--border:#1f2937;
+      --card1:rgba(15,23,42,.96);--card2:rgba(15,23,42,.90);--surface:rgba(2,6,23,.35);
+      --control:#0b1220;--table-head:rgba(2,6,23,.78);--hover:rgba(148,163,184,.08);
+      --accent:#3b82f6;--accent-soft:rgba(59,130,246,.17);--good:#22c55e;--good-soft:rgba(34,197,94,.13);
+      --warn:#f59e0b;--warn-soft:rgba(245,158,11,.14);--bad:#ef4444;--bad-soft:rgba(239,68,68,.14);
+    }
+    :root[data-theme="light"]{
+      color-scheme:light;--bg1:#fff;--bg2:#e2e8f0;--fg:#0f172a;--muted:#475569;--border:#cbd5e1;
+      --card1:rgba(255,255,255,.99);--card2:rgba(241,245,249,.98);--surface:rgba(148,163,184,.10);
+      --control:#fff;--table-head:rgba(241,245,249,.95);--hover:rgba(148,163,184,.16);
+    }
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;padding:1rem;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(circle at top,var(--bg1),var(--bg2));color:var(--fg)}
+    .wrap{max-width:1240px;margin:0 auto;padding-top:56px}.card{border:1px solid var(--border);border-radius:14px;background:linear-gradient(145deg,var(--card1),var(--card2));padding:14px;margin-bottom:12px;box-shadow:0 8px 20px rgba(2,6,23,.10)}
+    h1{margin:0 0 8px;font-size:1.18rem}h2{margin:0 0 8px;font-size:.98rem}.muted,.hint{color:var(--muted)}.hint{font-size:.84rem;line-height:1.45}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grow{flex:1 1 auto}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
+    .pill{display:inline-flex;gap:7px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-size:.82rem}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+    input[type="text"],textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--fg);font:inherit}textarea{min-height:120px;resize:vertical}input[type="file"]{width:100%;padding:8px;border:1px dashed var(--border);border-radius:10px;background:var(--surface);color:var(--fg)}input[type="checkbox"]{accent-color:var(--accent)}
+    button{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:800}button:hover{box-shadow:0 0 0 2px rgba(148,163,184,.18)}button.primary{border-color:var(--accent);background:var(--accent-soft)}button.danger{border-color:var(--bad);background:var(--bad-soft)}button[disabled]{opacity:.55;cursor:not-allowed}
+    .listBox{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}.listHead{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px}.listBody{max-height:470px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}th{position:sticky;top:0;z-index:2;background:var(--table-head)}tr:hover td{background:var(--hover)}
+    .status{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface);white-space:pre-wrap}.status.ok{border-color:rgba(34,197,94,.55);background:var(--good-soft)}.status.bad{border-color:rgba(239,68,68,.55);background:var(--bad-soft)}.status.warn{border-color:rgba(245,158,11,.55);background:var(--warn-soft)}
+    .badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:.76rem;font-weight:850;border:1px solid var(--border)}.badge.available{border-color:rgba(34,197,94,.5);background:var(--good-soft)}.badge.used_today,.badge.free_phone_out,.badge.free_phone_out_return_pending{border-color:rgba(59,130,246,.55);background:var(--accent-soft)}.badge.regular_pickup_pending,.badge.regular_phone_out,.badge.regular_phone_out_return_pending{border-color:rgba(245,158,11,.55);background:var(--warn-soft)}.badge.pending-save{border-color:rgba(168,85,247,.55);background:rgba(168,85,247,.13)}.badge.remove-save{border-color:rgba(239,68,68,.55);background:var(--bad-soft)}
+  </style>
+</head>
+<body data-module="phone_free_pass">
+  <button id="themeToggle" class="pill" style="position:fixed;top:12px;right:12px;z-index:10000">Theme</button>
+  <div class="wrap">
+    <div class="card">
+      <h1>Free Phone Pass — Daily List</h1>
+      <div class="muted">Build this list fresh every school day. If a selected student reaches the Phone Kiosk with no active submitted Phone Pass, they may use one free pickup and its matching return. The free pickup is consumed only when office staff confirms the physical handoff.</div>
+    </div>
+
+    <div id="authCard" class="card" style="display:none">
+      <h2>Admin sign-in required</h2>
+      <div class="muted">Sign in from an EagleNEST admin page, then refresh. Only Admin and Super Admin accounts can rebuild this daily list.</div>
+    </div>
+
+    <div id="app" style="display:none">
+      <div class="card">
+        <div class="row">
+          <div class="pill">School date: <span id="dateLabel" class="mono">—</span></div>
+          <div class="pill">Saved today: <span id="savedCount" class="mono">0</span></div>
+          <div class="pill">Selected to save: <span id="selectedCount" class="mono">0</span></div>
+          <div class="grow"></div>
+          <button id="reloadBtn" type="button">Reload Today</button>
+          <button id="freshBtn" type="button">Start Fresh Locally</button>
+          <button id="saveBtn" class="primary" type="button">Save Today's List (Replace)</button>
+          <button id="clearSavedBtn" class="danger" type="button">Clear Today's Saved List</button>
+        </div>
+        <div class="hint" style="margin-top:8px">Tomorrow automatically starts with an empty list because the saved list is keyed to the New York school date. “Start Fresh Locally” only clears your current selections; “Clear Today's Saved List” actually saves an empty list for today.</div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="pill">Available: <span id="availableCount" class="mono">0</span></div>
+          <div class="pill">Used today: <span id="usedCount" class="mono">0</span></div>
+          <div class="pill">Currently out: <span id="outCount" class="mono">0</span></div>
+          <div class="pill">Regular request pending: <span id="regularPendingCount" class="mono">0</span></div>
+          <div class="grow"></div>
+          <span id="savedMeta" class="hint">Not saved today.</span>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>1) Select students from the roster</h2>
+          <div class="row" style="margin-bottom:8px">
+            <input id="rosterSearch" type="text" placeholder="Search by name or OSIS…">
+            <button id="selectVisibleBtn" type="button">Select visible</button>
+            <button id="clearVisibleBtn" type="button">Clear visible</button>
+          </div>
+          <div class="listBox">
+            <div class="listHead"><span class="muted">Full roster</span><span class="mono">Checked: <span id="checkedCount">0</span></span></div>
+            <div class="listBody">
+              <table>
+                <thead><tr><th style="width:44px">Pick</th><th>Name</th><th>OSIS</th><th>Grade</th><th>Today's status</th></tr></thead>
+                <tbody id="rosterBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>2) Paste OSIS</h2>
+          <textarea id="osisText" placeholder="240123456\n240999999\n\nor comma-separated"></textarea>
+          <div class="hint" style="margin:7px 0 14px">Pasted OSIS are added to the checked roster selection when the final list is calculated.</div>
+          <h2>3) Upload CSV</h2>
+          <input id="csvFile" type="file" accept=".csv,text/csv">
+          <div id="csvHint" class="hint" style="margin-top:8px">No CSV loaded.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>List that will be saved</h2>
+        <div id="previewBox" class="status">No students selected.</div>
+      </div>
+
+      <div class="card">
+        <h2>Result</h2>
+        <div id="resultBox" class="status">Ready.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -64,7 +64,8 @@ for (const route of ['grant', 'send_to_return', 'return']) {
   assert.match(phonePassRoute, new RegExp(`'/admin/phone_pass/${route}'`));
 }
 assert.match(phonePass, /action = sentByTeacher \? 'send_to_pickup' : 'pickup'/);
-assert.match(phonePass, /source = sentByTeacher \? 'phone_pass_send_to_pickup' : 'phone_pass_pickup'/);
+assert.match(phonePass, /source = sentByTeacher \? 'phone_pass_send_to_pickup' : \(freePass \? 'phone_free_pass_pickup' : 'phone_pass_pickup'\)/);
+assert.match(phonePass, /allowed = sentByTeacher \? 'phone_pickup_requested' : \(freePass \? 'phone_free_pass_used' : 'phone_out'\)/);
 assert.match(phonePass, /'phone_pass_send_to_return'/);
 assert.match(phonePass, /'phone_pass_return'/);
 assert.match(phonePass, /studentViewOperationalDoName\(modeInfo, 'GLOBAL'\)/);
