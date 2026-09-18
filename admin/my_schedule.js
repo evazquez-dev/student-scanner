@@ -14,9 +14,17 @@ const scheduleArea=document.getElementById('scheduleArea');
 const teacherName=document.getElementById('teacherName');
 const teacherMatch=document.getElementById('teacherMatch');
 const scheduleDate=document.getElementById('scheduleDate');
+const scheduleMode=document.getElementById('scheduleMode');
 const scheduleSubtitle=document.getElementById('scheduleSubtitle');
 const periodList=document.getElementById('periodList');
+const dateNav=document.getElementById('dateNav');
+const prevDateBtn=document.getElementById('prevDateBtn');
+const nextDateBtn=document.getElementById('nextDateBtn');
+const todayDateBtn=document.getElementById('todayDateBtn');
+const dateSelect=document.getElementById('dateSelect');
 let refreshTimer=null;
+let selectedDate='';
+let availableDates=[];
 
 function show(el){if(el){el.classList.remove('hidden');el.style.display='';}}
 function hide(el){if(el){el.classList.add('hidden');el.style.display='none';}}
@@ -30,8 +38,9 @@ async function waitForGoogle(timeoutMs=8000){const start=Date.now();while(!windo
 function setStatus(text,kind='info'){pageStatus.className=`statusBanner ${kind}`;pageStatus.textContent=text;}
 function attendanceHref(room,period,advisor=''){const u=new URL('./teacher_attendance.html',location.href);u.searchParams.set('room',room);u.searchParams.set('period',period);if(advisor)u.searchParams.set('advisor',advisor);return u.href;}
 function displayDate(iso){if(!iso)return '—';const d=new Date(`${iso}T12:00:00`);return Number.isFinite(d.getTime())?d.toLocaleDateString([],{weekday:'long',month:'long',day:'numeric',year:'numeric'}):iso;}
+function shortDate(iso){if(!iso)return '—';const d=new Date(`${iso}T12:00:00`);return Number.isFinite(d.getTime())?d.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}):iso;}
 
-function renderClassCard(c,p){
+function renderClassCard(c,p,linksEnabled=true){
   const isAdvisory=c.kind==='advisory';
   const isCoverage=c.kind==='coverage';
   const names=(c.sections||[]).map(s=>s.name||s.code).filter(Boolean);
@@ -48,94 +57,99 @@ function renderClassCard(c,p){
       c.coverage_kind==='advisory'?'Advisory':String(c.coverage_kind||'').trim(),
       coverFor.length?`for ${coverFor.join(' / ')}`:''
     ].filter(Boolean).join(' · ');
-    return `<div class="classLink coverageAssignment" role="group" aria-label="Coverage assignment for Period ${esc(p.id)}, Room ${esc(room)}">
-      <div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(room)}</span></div>
-      <div class="sectionCodes">${esc(detail)}</div>
-    </div>`;
+    return `<div class="classLink coverageAssignment" role="group"><div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(room)}</span></div><div class="sectionCodes">${esc(detail)}</div></div>`;
   }
 
+  const inner=`<div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(room)}</span></div>${isAdvisory?'<div class="sectionCodes">Advisory</div>':(codes.length?`<div class="sectionCodes">${esc(codes.join(' • '))}</div>`:'')}`;
+  if(!linksEnabled)return `<div class="classLink previewClass" role="group">${inner}<div class="previewOnlyLabel">Preview only</div></div>`;
   const href=attendanceHref(room,String(p.id||''),isAdvisory?String(c.advisor_label||''):'');
-  return `<a class="classLink" href="${esc(href)}" aria-label="Open Teacher Attendance for Period ${esc(p.id)}, Room ${esc(room)}${isAdvisory?`, Advisor ${esc(c.advisor_label||'')}`:''}">
-    <div class="classTop"><span class="classTitle">${esc(title)}</span><span class="roomPill">Room ${esc(room)}</span></div>
-    ${isAdvisory?'<div class="sectionCodes">Advisory</div>':(codes.length?`<div class="sectionCodes">${esc(codes.join(' • '))}</div>`:'')}
-  </a>`;
+  return `<a class="classLink" href="${esc(href)}" aria-label="Open Teacher Attendance for Period ${esc(p.id)}, Room ${esc(room)}">${inner}</a>`;
 }
 
 // EAGLENEST_RESOURCE_ASSET_RFID_V1_MY_SCHEDULE_UI
-function formatResourceAssetSeen(iso){
-  const raw=String(iso||'').trim();
-  if(!raw)return '';
-  const d=new Date(raw);
-  if(!Number.isFinite(d.getTime()))return raw;
-  return d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
-}
+function formatResourceAssetSeen(iso){const raw=String(iso||'').trim();if(!raw)return '';const d=new Date(raw);if(!Number.isFinite(d.getTime()))return raw;return d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
+function renderResourceBookingChip(booking){const resource=String(booking?.resource||'ChromeCart').trim()||'ChromeCart';const room=String(booking?.room||'').trim();const reservationMismatch=booking?.room_mismatch===true;const scheduledRooms=Array.isArray(booking?.scheduled_rooms)?booking.scheduled_rooms.filter(Boolean):[];const assetLocation=String(booking?.asset_location||'').trim();const assetSeen=String(booking?.asset_last_scanned_at_iso||'').trim();const assetMismatch=booking?.asset_location_mismatch===true;const anyMismatch=reservationMismatch||assetMismatch;const reservationDetail=reservationMismatch?`Booked for Room ${room||'—'} · schedule shows ${scheduledRooms.length?scheduledRooms.join(' / '):'another room'}`:(room?`Reserved for Room ${room}`:'Reserved for this period');const assetDetail=assetLocation?`${assetMismatch?'⚠️ ':'📍 '}Last seen: ${assetLocation}${assetSeen?` · ${formatResourceAssetSeen(assetSeen)}`:''}`:'📍 No kiosk scan recorded for this cart yet';return `<div class="resourceBooking ${anyMismatch?'resourceBookingMismatch':''}" role="status"><div class="resourceBookingTop"><span class="resourceBookingTitle">💻 ${esc(resource)} reserved</span>${room?`<span class="resourceRoomPill">Room ${esc(room)}</span>`:''}</div><div class="resourceBookingDetail">${reservationMismatch?'⚠️ ':''}${esc(reservationDetail)}</div><div class="resourceAssetLine ${assetMismatch?'resourceAssetMismatch':''}">${esc(assetDetail)}</div></div>`;}
 
-function renderResourceBookingChip(booking){
-  const resource=String(booking?.resource||'ChromeCart').trim()||'ChromeCart';
-  const room=String(booking?.room||'').trim();
-  const reservationMismatch=booking?.room_mismatch===true;
-  const scheduledRooms=Array.isArray(booking?.scheduled_rooms)?booking.scheduled_rooms.filter(Boolean):[];
-  const assetLocation=String(booking?.asset_location||'').trim();
-  const assetSeen=String(booking?.asset_last_scanned_at_iso||'').trim();
-  const assetMismatch=booking?.asset_location_mismatch===true;
-  const anyMismatch=reservationMismatch||assetMismatch;
-  const reservationDetail=reservationMismatch
-    ? `Booked for Room ${room||'—'} · schedule shows ${scheduledRooms.length?scheduledRooms.join(' / '):'another room'}`
-    : (room?`Reserved for Room ${room}`:'Reserved for this period');
-  const assetDetail=assetLocation
-    ? `${assetMismatch?'⚠️ ':'📍 '}Last seen: ${assetLocation}${assetSeen?` · ${formatResourceAssetSeen(assetSeen)}`:''}`
-    : '📍 No kiosk scan recorded for this cart yet';
-  return `<div class="resourceBooking ${anyMismatch?'resourceBookingMismatch':''}" role="status">
-    <div class="resourceBookingTop"><span class="resourceBookingTitle">💻 ${esc(resource)} reserved</span>${room?`<span class="resourceRoomPill">Room ${esc(room)}</span>`:''}</div>
-    <div class="resourceBookingDetail">${reservationMismatch?'⚠️ ':''}${esc(reservationDetail)}</div>
-    <div class="resourceAssetLine ${assetMismatch?'resourceAssetMismatch':''}">${esc(assetDetail)}</div>
-  </div>`;
+function renderDateNavigator(data){
+  const rows=Array.isArray(data?.available_dates)?data.available_dates.filter(r=>r?.date):[];
+  availableDates=rows;
+  selectedDate=String(data?.date||selectedDate||'');
+  if(!rows.length){hide(dateNav);return;}
+  show(dateNav);
+  dateSelect.innerHTML=rows.map(r=>{const custom=r.custom===true||String(r.day_type||'NORMAL')!=='NORMAL';const suffix=custom?' · Custom':(r.schedule_key?` · ${r.schedule_key}`:'');return `<option value="${esc(r.date)}" ${r.date===selectedDate?'selected':''}>${esc(shortDate(r.date)+suffix)}</option>`;}).join('');
+  const idx=rows.findIndex(r=>r.date===selectedDate);
+  prevDateBtn.disabled=idx<=0;
+  nextDateBtn.disabled=idx<0||idx>=rows.length-1;
+  todayDateBtn.disabled=idx===0&&rows[0]?.date===selectedDate;
 }
 
 function render(data){
+  renderDateNavigator(data);
   if(!data.teacher_mapping_ok){hide(scheduleArea);show(mappingProblem);mappingProblemText.textContent=data.mapping_message||'Please contact Erick or Edwin for a fix.';setStatus('Teacher assignment mapping needs attention.','error');return;}
   hide(mappingProblem);show(scheduleArea);
+  const preview=data.preview===true;
+  const linksEnabled=data.attendance_links_enabled!==false&&!preview;
+  scheduleArea.classList.toggle('preview',preview);
   teacherName.textContent=data.teacher_name||data.who?.email||'—';
   teacherMatch.textContent=data.teacher_assignment_match||'—';
   scheduleDate.textContent=displayDate(data.schedule_date||data.date);
-  scheduleSubtitle.textContent=`${displayDate(data.date)} teaching schedule`;
-  const stale=!!data.schedule_stale;
-  scheduleArea.classList.toggle('stale',stale);
-  if(!data.schedule_configured){setStatus("Today's teacher schedule has not been pushed to EagleNEST yet.",'warn');}
-  else if(stale){setStatus(`The latest teacher schedule is dated ${displayDate(data.schedule_date)}. Attendance links are disabled until today's schedule is pushed.`,'warn');}
-  else if(data.highlight_kind==='current'){setStatus(`Period ${data.current_period_local} is in progress and highlighted below.`,'good');}
-  else if(data.highlight_kind==='up_next'){setStatus(`Transition time — Period ${data.current_period_local} is highlighted as up next.`,'info');}
-  else if(Number(data.coverage_assignment_count||0)>0){setStatus(`Today's schedule is loaded with ${Number(data.coverage_assignment_count)} coverage assignment${Number(data.coverage_assignment_count)===1?'':'s'}.`,'good');}
-  else if(Number(data.resource_booking_count||0)>0){setStatus(`Today's schedule is loaded with ${Number(data.resource_booking_count)} ChromeCart reservation${Number(data.resource_booking_count)===1?'':'s'}.`,'good');}
-  else{setStatus("Today's schedule is loaded.",'good');}
+  scheduleMode.textContent=preview?String(data.projection_status||'PLANNED').replaceAll('_',' '):'LIVE';
+  scheduleSubtitle.textContent=preview?`${displayDate(data.date)} schedule preview`:`${displayDate(data.date)} teaching schedule`;
+
+  const status=String(data.projection_status||'');
+  if(preview&&status==='CUSTOM_NOT_PUBLISHED')setStatus(data.projection_note||'Custom schedule day. Detailed bells are not published yet.','warn');
+  else if(preview&&status==='CUSTOM_POTENTIAL')setStatus(data.projection_note||'Custom day — potential schedule.','warn');
+  else if(preview&&status==='NO_SESSION')setStatus(data.projection_note||'No student session scheduled.','info');
+  else if(preview&&status==='SCHEDULE_NOT_PUBLISHED')setStatus(data.projection_note||'Schedule details have not been published yet.','warn');
+  else if(preview)setStatus(data.projection_note||'Planned schedule preview. Final assignments may change.','good');
+  else if(!data.schedule_configured)setStatus("Today's teacher schedule has not been pushed to EagleNEST yet.",'warn');
+  else if(data.schedule_stale)setStatus(`The latest teacher schedule is dated ${displayDate(data.schedule_date)}. Attendance links are disabled until today's schedule is pushed.`,'warn');
+  else if(data.highlight_kind==='current')setStatus(`Period ${data.current_period_local} is in progress and highlighted below.`,'good');
+  else if(data.highlight_kind==='up_next')setStatus(`Transition time — Period ${data.current_period_local} is highlighted as up next.`,'info');
+  else if(Number(data.coverage_assignment_count||0)>0)setStatus(`Today's schedule is loaded with ${Number(data.coverage_assignment_count)} coverage assignment${Number(data.coverage_assignment_count)===1?'':'s'}.`,'good');
+  else if(Number(data.resource_booking_count||0)>0)setStatus(`Today's schedule is loaded with ${Number(data.resource_booking_count)} ChromeCart reservation${Number(data.resource_booking_count)===1?'':'s'}.`,'good');
+  else setStatus("Today's schedule is loaded.",'good');
 
   const periods=Array.isArray(data.periods)?data.periods:[];
+  if(!periods.length){
+    const msg=preview&&status==='CUSTOM_NOT_PUBLISHED'?'This is a custom schedule day. Bell details have not been published yet.':(preview&&status==='NO_SESSION'?'No student session is scheduled for this date.':'No bell periods are configured for this date.');
+    periodList.innerHTML=`<section class="scheduleCard"><p class="muted">${esc(msg)}</p></section>`;
+    return;
+  }
   periodList.innerHTML=periods.map(p=>{
     const classes=Array.isArray(p.classes)?p.classes:[];
     const badge=p.highlight_kind==='current'?'Current period':(p.highlight_kind==='up_next'?'Up next':'');
-    const classHtml=classes.length?classes.map(c=>renderClassCard(c,p)).join(''):'<div class="emptyClass">No class assigned</div>';
+    const classHtml=p.assignment_unknown===true
+      ? '<div class="emptyClass unknownAssignment"><strong>Assignment not available yet</strong><span>This custom block does not match a known regular period.</span></div>'
+      : (classes.length?classes.map(c=>renderClassCard(c,p,linksEnabled)).join(''):'<div class="emptyClass">No class assigned</div>');
     const bookings=Array.isArray(p.resource_bookings)?p.resource_bookings:[];
     const bookingHtml=bookings.map(renderResourceBookingChip).join('');
-    return `<section class="periodRow ${p.is_highlighted?'highlighted':''}">
-      <div class="periodBadge">
-        <span class="periodNumber">Period ${esc(p.id)}</span>
-        <span class="periodTime">${esc(p.time_label||'')}</span>
-        ${badge?`<span class="nowPill">${esc(badge)}</span>`:''}
-      </div>
-      <div class="classes">${classHtml}${bookingHtml}</div>
-    </section>`;
-  }).join('')||'<section class="scheduleCard"><p class="muted">No bell periods are configured for today.</p></section>';
+    return `<section class="periodRow ${p.is_highlighted?'highlighted':''}"><div class="periodBadge"><span class="periodNumber">${/^\d+$/.test(String(p.id||''))?'Period ':''}${esc(p.id)}</span><span class="periodTime">${esc(p.time_label||'')}</span>${badge?`<span class="nowPill">${esc(badge)}</span>`:''}</div><div class="classes">${classHtml}${bookingHtml}</div></section>`;
+  }).join('');
 }
 
-async function loadSchedule(){
-  try{setStatus("Loading today's schedule…",'info');const r=await adminFetch('/admin/my_schedule',{method:'GET'});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.detail||j?.error||`HTTP ${r.status}`);render(j);}catch(e){setStatus(`Could not load schedule: ${e?.message||e}`,'error');}
+function navigateToIndex(delta){const idx=availableDates.findIndex(r=>r.date===selectedDate);const next=availableDates[idx+delta];if(next?.date)loadSchedule(next.date);}
+async function loadSchedule(date=''){
+  try{
+    const requested=String(date||selectedDate||'').trim();
+    setStatus(requested?`Loading ${displayDate(requested)} schedule…`:"Loading today's schedule…",'info');
+    const path=requested?`/admin/my_schedule?date=${encodeURIComponent(requested)}`:'/admin/my_schedule';
+    const r=await adminFetch(path,{method:'GET'});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)throw new Error(j?.detail||j?.error||`HTTP ${r.status}`);
+    selectedDate=String(j.date||requested||'');
+    const u=new URL(location.href);if(selectedDate)u.searchParams.set('date',selectedDate);history.replaceState(null,'',u);
+    render(j);
+  }catch(e){setStatus(`Could not load schedule: ${e?.message||e}`,'error');}
 }
-async function bootstrapSession(){try{const r=await adminFetch('/admin/session/check',{method:'GET'});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)return false;hide(loginCard);show(appShell);await loadSchedule();return true;}catch{return false;}}
-async function onGoogleCredential(resp){try{loginOut.textContent='Signing in…';const r=await adminFetch('/admin/session/login_google',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:resp.credential}).toString()});const j=await r.json().catch(()=>({}));stashSid(r,j);if(j?.sid)setSid(j.sid);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);hide(loginCard);show(appShell);await loadSchedule();}catch(e){show(loginCard);hide(appShell);loginOut.textContent=`Login failed: ${e?.message||e}`;}}
+async function bootstrapSession(){try{const r=await adminFetch('/admin/session/check',{method:'GET'});const j=await r.json().catch(()=>({}));if(!r.ok||!j?.ok)return false;hide(loginCard);show(appShell);const initial=new URL(location.href).searchParams.get('date')||'';await loadSchedule(initial);return true;}catch{return false;}}
+async function onGoogleCredential(resp){try{loginOut.textContent='Signing in…';const r=await adminFetch('/admin/session/login_google',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:resp.credential}).toString()});const j=await r.json().catch(()=>({}));stashSid(r,j);if(j?.sid)setSid(j.sid);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);hide(loginCard);show(appShell);const initial=new URL(location.href).searchParams.get('date')||'';await loadSchedule(initial);}catch(e){show(loginCard);hide(appShell);loginOut.textContent=`Login failed: ${e?.message||e}`;}}
 
 window.addEventListener('DOMContentLoaded',async()=>{
-  refreshBtn?.addEventListener('click',loadSchedule);
-  if(await bootstrapSession()){refreshTimer=setInterval(()=>{if(!document.hidden)loadSchedule();},60000);return;}
+  refreshBtn?.addEventListener('click',()=>loadSchedule(selectedDate));
+  prevDateBtn?.addEventListener('click',()=>navigateToIndex(-1));
+  nextDateBtn?.addEventListener('click',()=>navigateToIndex(1));
+  todayDateBtn?.addEventListener('click',()=>{const first=availableDates[0];if(first?.date)loadSchedule(first.date);else loadSchedule('');});
+  dateSelect?.addEventListener('change',()=>loadSchedule(dateSelect.value));
+  if(await bootstrapSession()){refreshTimer=setInterval(()=>{if(!document.hidden)loadSchedule(selectedDate);},60000);return;}
   try{if(!GOOGLE_CLIENT_ID)throw new Error('Missing google-client-id meta.');const gsi=await waitForGoogle();gsi.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,ux_mode:'popup',use_fedcm_for_prompt:true});gsi.renderButton(document.getElementById('g_id_signin'),{theme:'outline',size:'large'});hide(appShell);show(loginCard);loginOut.textContent='Please sign in…';}catch(e){hide(appShell);show(loginCard);loginOut.textContent=`Sign-in initialization failed: ${e?.message||e}`;}
 });
 window.addEventListener('beforeunload',()=>{if(refreshTimer)clearInterval(refreshTimer);});

@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
   <link rel="stylesheet" href="./nav.css">
-  <link rel="stylesheet" href="./my_schedule.css?v=20260918-future-preview-v1">
+  <link rel="stylesheet" href="./my_schedule.css?v=20260912-cart-rfid-v1">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script>
@@ -48,16 +48,6 @@
 
       <section id="pageStatus" class="statusBanner info">Loading today's schedule…</section>
 
-      <section id="dateNav" class="scheduleCard dateNav hidden" aria-label="Schedule date navigation">
-        <button id="prevDateBtn" class="btn secondary dateNavBtn" type="button" aria-label="Previous available date">←</button>
-        <label class="datePickerLabel" for="dateSelect">
-          <span>View schedule for</span>
-          <select id="dateSelect" class="dateSelect"></select>
-        </label>
-        <button id="todayDateBtn" class="btn secondary" type="button">Today</button>
-        <button id="nextDateBtn" class="btn secondary dateNavBtn" type="button" aria-label="Next available date">→</button>
-      </section>
-
       <p class="muted" style="margin:10px 2px 16px;font-size:.86rem;">Class notifications are available in <a href="./notifications.html">My Settings</a>.</p>
 
       <section id="mappingProblem" class="scheduleCard problemCard hidden">
@@ -79,16 +69,12 @@
             <span class="metaLabel">Schedule date</span>
             <strong id="scheduleDate">—</strong>
           </div>
-          <div>
-            <span class="metaLabel">Mode</span>
-            <strong id="scheduleMode">—</strong>
-          </div>
         </div>
 
         <div id="periodList" class="periodList" aria-live="polite"></div>
       </section>
     </div>
   </main>
-  <script src="./my_schedule.js?v=20260918-future-preview-v1" type="module"></script>
+  <script src="./my_schedule.js?v=20260912-cart-rfid-v1" type="module"></script>
 </body>
 </html>
