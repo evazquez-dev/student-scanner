@@ -555,43 +555,6 @@
           <pre id="resourceAssetsOut" class="pane">—</pre>
         </section>
 
-        <!-- EAGLENEST_ATTENDANCE_BADGE_ELIGIBILITY_V1 -->
-        <section class="card" id="badgeAttendanceAdminCard">
-          <h2>Attendance Badge — eligibility settings</h2>
-          <p class="muted">ONE Attendance Badge with TWO requirements. Both must be met. Change the percentage requirements independently; results recalculate without granting or revoking a badge.</p>
-          <div class="row" style="gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:10px;">
-            <label class="col" for="badgeDailyThreshold">Daily attendance requirement (%)<br>
-              <input id="badgeDailyThreshold" type="number" min="0" max="100" step="0.01" value="90" style="max-width:160px" aria-label="Minimum daily attendance percentage">
-            </label>
-            <label class="col" for="badgeClassThreshold">On-time class attendance requirement (%)<br>
-              <input id="badgeClassThreshold" type="number" min="0" max="100" step="0.01" value="90" style="max-width:160px" aria-label="Minimum on-time class attendance percentage">
-            </label>
-            <button id="badgeLoadRules" class="btn ghost" type="button">Reload settings</button>
-            <button id="badgeSaveRules" class="btn primary" type="button">Save requirements</button>
-          </div>
-          <p class="muted" id="badgeRulesRevision">Loading settings…</p>
-          <h3>Attendance Badge eligibility preview</h3>
-          <p class="muted">Daily: Present and Late count as attended. Class: only on-time Present counts; full-day Absent days are excluded from class opportunities. Missing official exports show Pending data.</p>
-          <div class="row" style="gap:8px;align-items:flex-end;flex-wrap:wrap;">
-            <label for="badgeStart">From<br><input id="badgeStart" type="date"></label>
-            <label for="badgeEnd">Through<br><input id="badgeEnd" type="date"></label>
-            <label for="badgeStudentNumber">OSIS (optional)<br><input id="badgeStudentNumber" type="text" inputmode="numeric" placeholder="All students" style="max-width:155px"></label>
-            <button id="badgeLoadPreview" class="btn primary" type="button">Calculate eligibility</button>
-          </div>
-          <p class="muted" id="badgeAttendanceAdminMessage" role="status">Sign in to load the requirements.</p>
-          <strong id="badgeAttendanceCounts">—</strong>
-          <div class="row" style="margin-top:12px;">
-            <label for="badgeAttendanceSearch">Filter loaded students<br><input id="badgeAttendanceSearch" type="search" placeholder="Name or OSIS"></label>
-          </div>
-          <div class="tableWrap" style="margin-top:10px;max-height:540px;overflow:auto;">
-            <table><thead><tr><th>Student</th><th>Daily attendance</th><th>Daily requirement</th>
-              <th>On-time classes</th><th>Class requirement</th><th>Overall Attendance Badge</th></tr></thead>
-              <tbody id="badgeAttendancePreviewBody"><tr><td colspan="6">Choose a date range and calculate.</td></tr></tbody>
-            </table>
-          </div>
-          <p class="muted" id="badgeAttendanceCoverage">Official PowerSchool source coverage will appear here.</p>
-        </section>
-
         <!-- Class kiosk attendance -->
         <section class="card" id="attendanceCard">
           <h2>Class kiosk attendance</h2>
@@ -767,6 +730,5 @@
   </main>
 
   <script src="./admin.js?v=20260601-chair-reminder-toggle" type="module"></script>
-  <script src="./attendance_badge_admin.js?v=20260919-v1" defer></script> <!-- EAGLENEST_ATTENDANCE_BADGE_ELIGIBILITY_V1 -->
 </body>
 </html>
