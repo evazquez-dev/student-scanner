@@ -43,6 +43,20 @@
     <p class="fleetMuted" id="explain121b3">For the second test, first call 121 from 113 or another handset and keep 121 ringing while clicking Observe. The test takes three short read-only samples. Do not answer until observations complete.</p>
     <pre class="fleetReport" id="report121b3" aria-live="polite">No Phase 4B.3 diagnostic run. Neither test controls the phone.</pre>
   </section>
+  <!-- EAGLENEST_GRANDSTREAM_PHONE_FLEET_121_PHASE4B4_V1 -->
+  <section class="fleetPanel fleet207" aria-label="Supervised GXP2135 extension 121 pilot">
+    <div class="fleetHead"><div><p class="fleetEyebrow">Phase 4B.4 · One-phone GXP2135 experiment</p>
+      <h2>📞 Extension 121 · Physical Answer &amp; Place Call</h2>
+      <p class="fleetMuted">Requires independently verified SIP account 121, authenticated phone status, fresh native UCM live call, and your explicit physical supervision. The GXP2135 line-status HTTP 401 is <strong>not</strong> fixed or bypassed.</p>
+    </div><span class="fleetPill" id="pilot121b4Pill">Pilot disabled</span></div>
+    <div class="fleet207Actions">
+      <button class="fleetBtn" type="button" id="pilot121b4Read" disabled>🔎 Fresh 121 control preflight</button>
+      <button class="fleetBtn fleetAnswer" type="button" id="pilot121b4Answer" disabled>📞 Supervised Answer · 121</button>
+      <button class="fleetBtn fleetPrimary" type="button" id="pilot121b4Dial" disabled>↗ Place Internal Call · 121 → 113</button>
+    </div>
+    <p class="fleetMuted" id="pilot121b4Explain">Check the separate GXP2135 pilot configuration. Start with a read-only preflight.</p>
+    <pre class="fleetReport" id="pilot121b4Report" aria-live="polite">No Phase 4B.4 control preflight run. No physical command sent.</pre>
+  </section>
   <p class="fleetMuted fleetFooter">The model is taken from each fresh UCM registration, not the prior spreadsheet/inventory. For unregistered phones, model remains unconfirmed. Generic diagnostics never send a CTI secret or call-control command.</p>
 </main>
 <script src="./phone_fleet.js"></script>

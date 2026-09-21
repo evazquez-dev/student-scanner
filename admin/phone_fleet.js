@@ -132,6 +132,71 @@ async function run121B3(observe){
   }catch(e){$('report121b3').textContent=String(e.message||e);error(e);}
   finally{busy(false);enable121B3Buttons();}
 }
+// EAGLENEST_GRANDSTREAM_PHONE_FLEET_121_PHASE4B4_V1
+let CONFIG121B4=null, PREFLIGHT121B4=null, PREFLIGHT121B4_AT=0;
+const B4_LIFETIME=10000;
+function buttons121B4(){
+  const configured=!!CONFIG121B4?.read_enabled&&!!CONFIG121B4?.secret_configured;
+  const enabled=configured&&!!CONFIG121B4?.supervised_enabled;
+  const fresh=!!PREFLIGHT121B4?.ok && Date.now()-PREFLIGHT121B4_AT<B4_LIFETIME;
+  $('pilot121b4Read').disabled=state.loading||!configured;
+  $('pilot121b4Answer').disabled=state.loading||!enabled||!fresh||PREFLIGHT121B4?.answer_preflight_ready!==true;
+  $('pilot121b4Dial').disabled=state.loading||!enabled||!fresh||PREFLIGHT121B4?.dial_preflight_ready!==true;
+  $('pilot121b4Dial').textContent=CONFIG121B4?.destination?`↗ Place Internal Call · 121 → ${CONFIG121B4.destination}`:'↗ Place Internal Call · 121';
+  const pill=$('pilot121b4Pill');pill.className='fleetPill '+(enabled?'ok':configured?'wait':'bad');
+  pill.textContent=enabled?'SUPERVISED 121 ENABLED':configured?'121 read-only preflight':'121 not configured';
+  $('pilot121b4Explain').textContent=enabled?
+    'READ ONLY first. For Answer, call 121 from another handset and run preflight while it rings. For Dial, 121 must be available with no other UCM calls. Preflight buttons expire after 10 seconds; the Worker always rechecks.':
+    'Enable GRANDSTREAM_PHONE_FLEET_121_SUPERVISED_ENABLED only while supervising this one 121 handset. Existing 113/207 pilots are unaffected.';
+}
+async function load121B4(){
+  try {CONFIG121B4=await api('/admin/integrations/grandstream/phone_fleet_121/control_pilot_config');}
+  catch(e){CONFIG121B4=null;$('pilot121b4Report').textContent='121 pilot config: '+String(e.message||e);}
+  buttons121B4();
+}
+async function read121B4(){
+  if(state.loading||!CONFIG121B4?.read_enabled||!CONFIG121B4?.secret_configured)return;
+  busy(true);PREFLIGHT121B4=null;buttons121B4();$('fleetError').hidden=true;
+  $('pilot121b4Report').textContent='Checking live UCM, independently registered 121 account, handset status and native WebSocket call identity…';
+  try{
+    const report=await api('/admin/integrations/grandstream/phone_fleet_121/control_pilot_readiness',{});
+    PREFLIGHT121B4=report;PREFLIGHT121B4_AT=Date.now();
+    $('pilot121b4Report').textContent=JSON.stringify(report,null,2);
+  }catch(e){PREFLIGHT121B4=null;$('pilot121b4Report').textContent=String(e.message||e);error(e);}
+  finally{busy(false);buttons121B4();}
+}
+async function apiReport121B4(path,body){
+  // Preserve the sanitized server report even when a physical command returns
+  // HTTP 409 (e.g. outcome unknown). Never repeat a command automatically.
+  const headers=new Headers({'content-type':'application/json'}),session=sid();
+  if(session)headers.set('x-admin-session',session);
+  const response=await fetch(new URL(path,BASE),{method:'POST',headers,
+    body:JSON.stringify(body),credentials:'include',cache:'no-store'});
+  stash(response);
+  const data=await response.json().catch(()=>({ok:false,error:'invalid_response'}));
+  return {endpoint_http_status:response.status,...data};
+}
+async function control121B4(action){
+  const pre=PREFLIGHT121B4;
+  if(state.loading||!CONFIG121B4?.supervised_enabled||!pre?.ok||Date.now()-PREFLIGHT121B4_AT>=B4_LIFETIME)return;
+  const dest=CONFIG121B4.destination;
+  const display=action==='acceptcall'?'ANSWER the incoming call on physical 121':`PLACE AN INTERNAL CALL from physical 121 to ${dest}`;
+  if(!confirm(`SUPERVISED PHYSICAL HANDSET TEST ONLY\n\n${display}\n\nHave you physically verified extension 121 and are you watching the handset? No command will retry automatically.`))return;
+  const phrase=action==='acceptcall'?'I AUTHORIZE 121 ACCEPTCALL':`I AUTHORIZE 121 CALL ${dest}`;
+  if(prompt(`Type the exact one-time confirmation:\n\n${phrase}`)!==phrase)return;
+  busy(true);PREFLIGHT121B4=null;buttons121B4();$('fleetError').hidden=true;
+  $('pilot121b4Report').textContent=`Sending ONE ${action} command to the physical GXP2135. If the result is uncertain, inspect the phone. Never blindly retry.`;
+  try{
+    const report=await apiReport121B4('/admin/integrations/grandstream/phone_fleet_121/control_pilot_action',{
+      extension:'121',action,operator_at_phone:true,intentionally_testing:true,confirmation:phrase,
+      ...(action==='place_internal_call'?{destination:dest}:{})
+    });
+    $('pilot121b4Report').textContent=JSON.stringify(report,null,2)+
+      (report?.command_attempted===true&&report?.command_accepted!==true?'\n\nCheck physical 121 and UCM. Do NOT retry an uncertain command.':'');
+    if(!report.ok)error(new Error(String(report.error||'phone_control_test_failed')));
+  }catch(e){$('pilot121b4Report').textContent=String(e.message||e)+'\n\nCheck 121 and UCM before any new test. No automatic retries.';error(e);}
+  finally{busy(false);buttons121B4();}
+}
 function exportCsv(){
   if(!state.refreshedAt)return;
   const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';
@@ -155,9 +220,12 @@ async function init(){try{const access=await api('/admin/access');if(access.role
   $('credential121').addEventListener('click',read121);
   $('diagnose121b3').addEventListener('click',()=>run121B3(false));
   $('ringing121b3').addEventListener('click',()=>run121B3(true));
+  $('pilot121b4Read').addEventListener('click',read121B4);
+  $('pilot121b4Answer').addEventListener('click',()=>control121B4('acceptcall'));
+  $('pilot121b4Dial').addEventListener('click',()=>control121B4('place_internal_call'));
   $('answer207').addEventListener('click',()=>control207('acceptcall'));
   $('dial207').addEventListener('click',()=>control207('place_internal_call'));
-  await load();await load121Config();enable121B3Buttons();
+  await load();await load121Config();enable121B3Buttons();await load121B4();setInterval(buttons121B4,1000);
 }catch(e){error(e);$('fleet207Explain').textContent='Sign in through EagleNEST Calls as Super Admin, then open this page again.';}}
 init();
 })();
