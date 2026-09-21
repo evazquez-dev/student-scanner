@@ -34,6 +34,74 @@
 body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg,#101924);color:var(--text,#f5f7fb)}
 .wrap{max-width:1350px;margin:38px auto;padding:0 22px 65px}.card{background:var(--panel,#182532);border:1px solid var(--border,#354456);border-radius:16px;padding:20px;margin-bottom:16px}.muted{color:var(--muted,#b4c2cf)}
 .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}h1{margin:0 0 5px;font-size:27px}h2{margin:0 0 12px;font-size:20px}h3{margin:18px 0 8px}.input,select{background:var(--panel2,#132333);color:inherit;border:1px solid var(--border,#354456);border-radius:9px;padding:10px;min-width:130px}.btn{border:1px solid var(--border,#607389);color:inherit;background:var(--panel2,#26384b);border-radius:9px;padding:9px 13px;cursor:pointer}.btn:disabled{opacity:.6}.btn.primary{background:#2966a0;color:#fff}.notice{padding:11px;border-radius:9px;border:1px solid var(--border,#354456);margin-top:10px}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border,#354456);vertical-align:top}th{position:sticky;top:0;background:var(--panel,#182532)}.scroll{overflow:auto;max-height:620px}.pill{border:1px solid currentColor;border-radius:50px;padding:2px 8px;display:inline-block}.small{font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.grid .card{margin:0}.stack>*{margin-right:7px;margin-bottom:7px}.hide{display:none!important}@media(max-width:680px){.wrap{padding:0 10px;margin-top:18px}.card{padding:12px}}
+/* EAGLENEST_OUTSIDE_LUNCH_STATUS_UI_V3: high-contrast, semantic status language. */
+:root{
+  --ol-good-fg:#bbf7d0;--ol-good-bg:rgba(34,197,94,.15);--ol-good-border:rgba(74,222,128,.50);
+  --ol-bad-fg:#fecaca;--ol-bad-bg:rgba(239,68,68,.16);--ol-bad-border:rgba(248,113,113,.54);
+  --ol-warn-fg:#fde68a;--ol-warn-bg:rgba(245,158,11,.15);--ol-warn-border:rgba(251,191,36,.52);
+  --ol-info-fg:#bfdbfe;--ol-info-bg:rgba(96,165,250,.14);--ol-info-border:rgba(96,165,250,.48);
+  --ol-detail-fg:#b7c7db;--ol-neutral-bg:rgba(148,163,184,.10);
+}
+:root[data-theme="light"]{
+  --ol-good-fg:#166534;--ol-good-bg:#ecfdf3;--ol-good-border:#86efac;
+  --ol-bad-fg:#991b1b;--ol-bad-bg:#fef2f2;--ol-bad-border:#fca5a5;
+  --ol-warn-fg:#92400e;--ol-warn-bg:#fffbeb;--ol-warn-border:#fcd34d;
+  --ol-info-fg:#1e40af;--ol-info-bg:#eff6ff;--ol-info-border:#93c5fd;
+  --ol-detail-fg:#42546a;--ol-neutral-bg:#f1f5f9;
+}
+/* Badges encode a word AND a colored dot; never depend on color alone. */
+.ol-status{
+  display:inline-flex;align-items:center;gap:7px;max-width:100%;
+  padding:4px 10px;border:1px solid;border-radius:999px;font-size:12px;
+  font-weight:800;line-height:1.35;white-space:normal;vertical-align:middle;
+}
+.ol-status::before{content:"";display:inline-block;width:7px;height:7px;min-width:7px;border-radius:50%;background:currentColor}
+.ol-status--good{color:var(--ol-good-fg);background:var(--ol-good-bg);border-color:var(--ol-good-border)}
+.ol-status--bad{color:var(--ol-bad-fg);background:var(--ol-bad-bg);border-color:var(--ol-bad-border)}
+.ol-status--warn{color:var(--ol-warn-fg);background:var(--ol-warn-bg);border-color:var(--ol-warn-border)}
+.ol-status--info{color:var(--ol-info-fg);background:var(--ol-info-bg);border-color:var(--ol-info-border)}
+.ol-status--neutral{color:var(--text);background:var(--ol-neutral-bg);border-color:var(--border)}
+.ol-stat{
+  min-width:0;padding:17px 18px;border-radius:14px;border:1px solid;
+  display:flex;flex-direction:column;gap:7px;
+}
+.ol-stat--good{background:var(--ol-good-bg);border-color:var(--ol-good-border)}
+.ol-stat--bad{background:var(--ol-bad-bg);border-color:var(--ol-bad-border)}
+.ol-stat--warn{background:var(--ol-warn-bg);border-color:var(--ol-warn-border)}
+.ol-stat--info{background:var(--ol-info-bg);border-color:var(--ol-info-border)}
+.ol-stat-label{font-size:11px;font-weight:850;letter-spacing:.075em;text-transform:uppercase;color:var(--text)}
+.ol-stat-value{font-size:22px;font-weight:900;letter-spacing:-.025em;line-height:1.16;overflow-wrap:anywhere;color:var(--text)}
+.ol-stat--good .ol-stat-value{color:var(--ol-good-fg)}
+.ol-stat--bad .ol-stat-value{color:var(--ol-bad-fg)}
+.ol-stat--warn .ol-stat-value{color:var(--ol-warn-fg)}
+.ol-stat--info .ol-stat-value{color:var(--ol-info-fg)}
+.ol-stat-meta{font-size:12px;line-height:1.48;color:var(--ol-detail-fg)}
+.ol-outcome{border:1px solid;border-left-width:5px;border-radius:12px;padding:15px 17px;margin:13px 0 18px}
+.ol-outcome--good{background:var(--ol-good-bg);border-color:var(--ol-good-border)}
+.ol-outcome--bad{background:var(--ol-bad-bg);border-color:var(--ol-bad-border)}
+.ol-outcome-title{font-size:17px;font-weight:900;line-height:1.35;color:var(--text)}
+.ol-outcome--good .ol-outcome-title{color:var(--ol-good-fg)}
+.ol-outcome--bad .ol-outcome-title{color:var(--ol-bad-fg)}
+.ol-outcome-body{margin-top:8px;color:var(--text);font-size:13px;font-weight:650}
+.ol-reasons{margin:8px 0 0;padding-left:20px;display:grid;gap:5px}
+.ol-reasons li{padding-left:2px}
+.ol-override{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--text)}
+.ol-cell{display:flex;align-items:flex-start;flex-direction:column;gap:5px;min-width:105px}
+.ol-primary{font-size:14px;font-weight:850;color:var(--text);line-height:1.25}
+.ol-detail{font-size:12px;color:var(--ol-detail-fg);line-height:1.4}
+.ol-eyebrow{font-size:11px;font-weight:850;letter-spacing:.08em;text-transform:uppercase;color:var(--ol-detail-fg)}
+.ol-period{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;margin:2px 8px 2px 0}
+.ol-period .ol-status{padding:2px 7px;font-size:11px}
+#adminBoard .ol-student-button{font-size:13px;font-weight:850;text-align:left;border-color:var(--border)}
+#adminBoard .ol-student-button:hover,#adminBoard .ol-student-button:focus-visible{border-color:var(--ol-info-border);box-shadow:0 0 0 2px var(--ol-info-bg)}
+#board table tbody tr:hover td,#student table tbody tr:hover td{background:var(--ol-neutral-bg)}
+#board table td,#student table td{color:var(--text)}
+#board .ol-status,#student .ol-status{letter-spacing:0}
+#student .ol-section-title{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:24px}
+#student .ol-section-title::before{content:"";display:block;width:4px;height:20px;border-radius:10px;background:var(--ol-info-fg)}
+#counts{font-weight:750;color:var(--text)}
+#counts .ol-status{margin:3px 4px 3px 0}
+@media(max-width:680px){.ol-stat{padding:14px}.ol-stat-value{font-size:20px}.ol-outcome{padding:12px}.ol-status{font-size:11px}}
 </style></head><body data-module="outside_lunch"><main class="wrap">
 <section id="login" class="card"><h1>Outside Lunch</h1><p>Sign in with your school account to check eligibility.</p><div id="g_id_signin"></div><p id="loginStatus" class="muted">Checking existing session…</p></section>
 <section id="app" hidden>
