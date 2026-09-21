@@ -3,13 +3,37 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
 <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+<script>/* EAGLENEST_OUTSIDE_LUNCH_SHARED_THEME_V2: set theme before first paint; shared nav continues to own toggles. */
+(()=>{try{
+  const stored=String(localStorage.getItem('ss_theme_v1')||'').toLowerCase();
+  const legacy=String(localStorage.getItem('teacher_att_theme')||localStorage.getItem('staff_pull_theme')||'').toLowerCase();
+  const pick=(stored==='light'||stored==='dark')?stored:(legacy==='light'||legacy==='dark')?legacy:
+    (window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';
+  document.documentElement.dataset.theme=pick;
+}catch{document.documentElement.dataset.theme='dark';}})();
+</script>
 <script src="./shared_auth.js"></script><script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="stylesheet" href="./nav.css"><script src="./brand.js" defer></script><script src="./nav.js" defer></script>
 <title>EagleNEST — Outside Lunch Eligibility</title>
 <style>
-:root{color-scheme:dark}body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg,#101924);color:var(--text,#f5f7fb)}
+/* EAGLENEST_OUTSIDE_LUNCH_SHARED_THEME_V2: nav.js owns html[data-theme]. */
+:root{
+  color-scheme:dark;
+  --bg:#101924;--text:#f5f7fb;--fg:#f5f7fb;
+  --panel:#182532;--panel2:#132333;--border:#354456;
+  --muted:#b4c2cf;--surface:#152333;--control:#132333;
+  --good:#60d4a0;--bad:#ffb0a8;--warn:#f5c973;
+}
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f4f7fb;--text:#17253b;--fg:#17253b;
+  --panel:#ffffff;--panel2:#f1f5f9;--border:#c8d4e1;
+  --muted:#52647a;--surface:#f1f5f9;--control:#ffffff;
+  --good:#166534;--bad:#b42318;--warn:#92400e;
+}
+body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg,#101924);color:var(--text,#f5f7fb)}
 .wrap{max-width:1350px;margin:38px auto;padding:0 22px 65px}.card{background:var(--panel,#182532);border:1px solid var(--border,#354456);border-radius:16px;padding:20px;margin-bottom:16px}.muted{color:var(--muted,#b4c2cf)}
-.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}h1{margin:0 0 5px;font-size:27px}h2{margin:0 0 12px;font-size:20px}h3{margin:18px 0 8px}.input,select{background:var(--panel2,#132333);color:inherit;border:1px solid var(--border,#354456);border-radius:9px;padding:10px;min-width:130px}.btn{border:1px solid var(--border,#607389);color:inherit;background:var(--panel2,#26384b);border-radius:9px;padding:9px 13px;cursor:pointer}.btn:disabled{opacity:.6}.btn.primary{background:#2966a0;color:#fff}.notice{padding:11px;border-radius:9px;border:1px solid var(--border,#354456);margin-top:10px}.good{color:#60d4a0}.bad{color:#ffb0a8}.warn{color:#f5c973}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border,#354456);vertical-align:top}th{position:sticky;top:0;background:var(--panel,#182532)}.scroll{overflow:auto;max-height:620px}.pill{border:1px solid currentColor;border-radius:50px;padding:2px 8px;display:inline-block}.small{font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.grid .card{margin:0}.stack>*{margin-right:7px;margin-bottom:7px}.hide{display:none!important}@media(max-width:680px){.wrap{padding:0 10px;margin-top:18px}.card{padding:12px}}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.row>*{min-width:0}h1{margin:0 0 5px;font-size:27px}h2{margin:0 0 12px;font-size:20px}h3{margin:18px 0 8px}.input,select{background:var(--panel2,#132333);color:inherit;border:1px solid var(--border,#354456);border-radius:9px;padding:10px;min-width:130px}.btn{border:1px solid var(--border,#607389);color:inherit;background:var(--panel2,#26384b);border-radius:9px;padding:9px 13px;cursor:pointer}.btn:disabled{opacity:.6}.btn.primary{background:#2966a0;color:#fff}.notice{padding:11px;border-radius:9px;border:1px solid var(--border,#354456);margin-top:10px}.good{color:var(--good)}.bad{color:var(--bad)}.warn{color:var(--warn)}table{width:100%;border-collapse:collapse;min-width:680px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border,#354456);vertical-align:top}th{position:sticky;top:0;background:var(--panel,#182532)}.scroll{overflow:auto;max-height:620px}.pill{border:1px solid currentColor;border-radius:50px;padding:2px 8px;display:inline-block}.small{font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.grid .card{margin:0}.stack>*{margin-right:7px;margin-bottom:7px}.hide{display:none!important}@media(max-width:680px){.wrap{padding:0 10px;margin-top:18px}.card{padding:12px}}
 </style></head><body data-module="outside_lunch"><main class="wrap">
 <section id="login" class="card"><h1>Outside Lunch</h1><p>Sign in with your school account to check eligibility.</p><div id="g_id_signin"></div><p id="loginStatus" class="muted">Checking existing session…</p></section>
 <section id="app" hidden>
