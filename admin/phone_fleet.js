@@ -110,6 +110,28 @@ async function read121(){
   } catch(e){$('fleet121Report').textContent=String(e.message||e);error(e);}
   finally {busy(false);$('credential121').disabled=!CONFIG121?.read_enabled||!CONFIG121?.secret_configured;}
 }
+// EAGLENEST_GRANDSTREAM_PHONE_FLEET_121_PHASE4B3_V1
+function enable121B3Buttons(){
+  const enabled=!!CONFIG121?.read_enabled&&!!CONFIG121?.secret_configured&&!state.loading;
+  $('diagnose121b3').disabled=!enabled;
+  $('ringing121b3').disabled=!enabled;
+}
+async function run121B3(observe){
+  if(state.loading||!CONFIG121?.read_enabled||!CONFIG121?.secret_configured)return;
+  if(observe&&!confirm('READ-ONLY ringing observation for 121. Have you called the physical 121 handset and confirmed it is actively ringing? No Answer/Dial command will be sent.'))return;
+  busy(true);enable121B3Buttons();$('fleetError').hidden=true;
+  $('report121b3').textContent=observe?'Reading authenticated 121 phone status and UCM ringing events (three short snapshots)…':
+    'Checking 121 authenticated line-status HTTP 401, HTTPS transport, and current phone/UCM status…';
+  const path=observe?'ringing_observation':'line_diagnostic';
+  try {
+    const report=await api('/admin/integrations/grandstream/phone_fleet_121/'+path,{});
+    $('report121b3').textContent=JSON.stringify(report,null,2);
+    $('explain121b3').textContent=report?.correlation?.both_ringing_observed===true?
+      'The authenticated phone-status and UCM live-event snapshots both observed ringing; line-status remains a separate readiness issue. Still no call control enabled.':
+      'This is a read-only observation. If ringing was not captured, repeat only while the 121 handset is visibly ringing; do not enable Answer control yet.';
+  }catch(e){$('report121b3').textContent=String(e.message||e);error(e);}
+  finally{busy(false);enable121B3Buttons();}
+}
 function exportCsv(){
   if(!state.refreshedAt)return;
   const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';
@@ -131,9 +153,11 @@ async function init(){try{const access=await api('/admin/access');if(access.role
   $('refresh').addEventListener('click',load);$('export').addEventListener('click',exportCsv);$('fleetSearch').addEventListener('input',renderRows);
   $('credential207').addEventListener('click',read207);
   $('credential121').addEventListener('click',read121);
+  $('diagnose121b3').addEventListener('click',()=>run121B3(false));
+  $('ringing121b3').addEventListener('click',()=>run121B3(true));
   $('answer207').addEventListener('click',()=>control207('acceptcall'));
   $('dial207').addEventListener('click',()=>control207('place_internal_call'));
-  await load();await load121Config();
+  await load();await load121Config();enable121B3Buttons();
 }catch(e){error(e);$('fleet207Explain').textContent='Sign in through EagleNEST Calls as Super Admin, then open this page again.';}}
 init();
 })();

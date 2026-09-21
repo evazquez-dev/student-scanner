@@ -30,6 +30,19 @@
     <p class="fleetMuted" id="fleet121Explain">Obtain/confirm GXP2135 CTI/web-administrator credentials with CTS and configure the separate Worker secret before enabling the test.</p>
     <pre class="fleetReport" id="fleet121Report" aria-live="polite">No authenticated test run on 121.</pre>
   </section>
+  <!-- EAGLENEST_GRANDSTREAM_PHONE_FLEET_121_PHASE4B3_V1 -->
+  <section class="fleetPanel fleet207" aria-label="GXP2135 extension 121 line status investigation">
+    <div class="fleetHead"><div><p class="fleetEyebrow">Phase 4B.3 · GXP2135 investigation</p>
+      <h2>Extension 121 · Line Status / Ringing</h2>
+      <p class="fleetMuted">Authenticated phone status and independent SIP identity passed. Line status returned HTTP 401 with no WWW-Authenticate challenge. Investigate this without sending Answer or Dial.</p>
+    </div><span class="fleetPill">READ ONLY</span></div>
+    <div class="fleet207Actions">
+      <button class="fleetBtn" id="diagnose121b3" type="button" disabled>🔎 Diagnose line-status 401 · 121</button>
+      <button class="fleetBtn fleetPrimary" id="ringing121b3" type="button" disabled>📞 Observe while 121 rings</button>
+    </div>
+    <p class="fleetMuted" id="explain121b3">For the second test, first call 121 from 113 or another handset and keep 121 ringing while clicking Observe. The test takes three short read-only samples. Do not answer until observations complete.</p>
+    <pre class="fleetReport" id="report121b3" aria-live="polite">No Phase 4B.3 diagnostic run. Neither test controls the phone.</pre>
+  </section>
   <p class="fleetMuted fleetFooter">The model is taken from each fresh UCM registration, not the prior spreadsheet/inventory. For unregistered phones, model remains unconfirmed. Generic diagnostics never send a CTI secret or call-control command.</p>
 </main>
 <script src="./phone_fleet.js"></script>
