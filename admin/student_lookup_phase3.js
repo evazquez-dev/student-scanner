@@ -18,6 +18,7 @@
     osis: '',
     access: null,
     dashboard: null,
+    phoneGrantMode: '', // EAGLENEST_STUDENT_LOOKUP_PHONE_ACTIONS_20260921
     refreshTimer: null
   };
 
@@ -288,6 +289,8 @@
     const locker = phoneLockerLabel(data?.roster || {});
     const canGrant = !!opts?.can_grant;
     const canReturn = !!opts?.can_return;
+    const requestPickup = opts?.grant_mode === 'request_pickup';
+    state.phoneGrantMode = requestPickup ? 'request_pickup' : 'confirm_pickup';
     if (!canGrant && !canReturn) return hideUnavailable('phase3Phone');
 
     const out = st.phone_out === true;
@@ -300,8 +303,18 @@
       ? [locker, since ? `Picked up ${since}` : '', by ? `Confirmed by ${by}` : '', returnRequested ? 'Return requested' : ''].filter(Boolean).join(' • ')
       : [locker, pickup ? 'Student was sent to pick up the phone.' : 'No active phone checkout.'].filter(Boolean).join(' • ');
     let buttons = '';
+    const me = String(opts?.who?.email || '').trim().toLowerCase();
+    const pickupOwner = String(st.phone_pickup_requested_by_email || '').trim().toLowerCase();
+    const outOwner = String(st.phone_out_by_email || '').trim().toLowerCase();
+    // Only an owner/admin may request a return; the Office confirms physical return.
+    const maySendBack = out && !returnRequested && canGrant &&
+      (actorIsAdmin(opts?.who) || (!!me && (me === outOwner || me === pickupOwner)));
     if (!isReadOnly() && out && canReturn) buttons += button('Student Returned Phone', 'phone-return', true);
-    if (!isReadOnly() && !out && canGrant) buttons += button('Grant Phone', 'phone-grant', true);
+    if (!isReadOnly() && maySendBack) buttons += button('Send Student to Return Phone', 'phone-send-back', !canReturn);
+    if (!isReadOnly() && !out && canGrant) {
+      if (requestPickup && pickup) buttons += button('Pickup Requested ✓', 'phone-grant', false, true);
+      else buttons += button(requestPickup ? 'Send Student to Pickup Phone' : 'Student Picked Up Phone', 'phone-grant', true);
+    }
     buttons += button('Open Phone Pass', 'phone-open');
     setCard('phase3Phone', { title:'Phone Pass', status, detail, tone: out || pickup || returnRequested ? 'emphasis' : '', buttons });
   }
@@ -442,11 +455,21 @@
         date:ctx.date
       });
       if (action === 'phone-grant') return void mutate(
-        'Phone grant',
-        `Grant phone access to ${studentName()}?`,
+        state.phoneGrantMode === 'request_pickup' ? 'Phone pickup request' : 'Phone pickup',
+        state.phoneGrantMode === 'request_pickup'
+          ? `Send ${studentName()} to pick up their phone? This does not confirm the phone was handed over.`
+          : `Confirm that ${studentName()} physically picked up their phone?`,
         () => jsonRequest('/admin/phone_pass/grant', {
           method:'POST', headers:{'content-type':'application/json'},
-          body:JSON.stringify({ osis:state.osis, note:'', source:'student_lookup' })
+          body:JSON.stringify({ osis:state.osis, note:'', source:state.phoneGrantMode === 'request_pickup' ? 'phone_pass_request' : 'phone_pass' })
+        })
+      );
+      if (action === 'phone-send-back') return void mutate(
+        'Phone return request',
+        `Send ${studentName()} to return their phone? This does not confirm a physical return.`,
+        () => jsonRequest('/admin/phone_pass/send_to_return', {
+          method:'POST', headers:{'content-type':'application/json'},
+          body:JSON.stringify({ osis:state.osis, source:'phone_pass' })
         })
       );
       if (action === 'phone-return') return void mutate(

@@ -564,7 +564,7 @@ async function loadOptions(){
 
   if(CAPS.can_grant){
     const requestMode = CAPS.grant_mode === 'request_pickup';
-    grantBtn.textContent = requestMode ? 'Send Student to Pick Up Phone' : 'Student Picked Up Phone';
+    grantBtn.textContent = requestMode ? 'Send Student to Pickup Phone' : 'Student Picked Up Phone';
     const mineTitle = mineCard?.querySelector('h2 span:first-child');
     const mineHelp = mineCard?.querySelector('.muted');
     if(mineTitle) mineTitle.textContent = requestMode ? 'My Phone Pass Students' : 'Phone Pickup Confirmed by Me';
@@ -684,7 +684,7 @@ async function loadSelectedContext(){
   const requestMode = CAPS.grant_mode === 'request_pickup';
   grantBtn.disabled = !CAPS.can_grant || !SELECTED_OSIS || out || (requestMode && pickupRequested);
   if(requestMode){
-    grantBtn.textContent = pickupRequested ? 'Pickup Requested ✓' : 'Send Student to Pick Up Phone';
+    grantBtn.textContent = pickupRequested ? 'Pickup Requested ✓' : 'Send Student to Pickup Phone';
   }else{
     grantBtn.textContent = 'Student Picked Up Phone';
   }

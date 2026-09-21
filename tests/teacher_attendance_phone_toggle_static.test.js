@@ -12,7 +12,7 @@ test('Teacher Attendance behavior menu exposes state-aware phone controls', () =
   assert.match(teacher, /PHONE_PASS_CONTEXT_ENDPOINT\s*=\s*'\/admin\/phone_pass\/context'/);
   assert.match(teacher, /PHONE_PASS_GRANT_ENDPOINT\s*=\s*'\/admin\/phone_pass\/grant'/);
   assert.match(teacher, /PHONE_PASS_SEND_BACK_ENDPOINT\s*=\s*'\/admin\/phone_pass\/send_to_return'/);
-  assert.match(teacher, /Send Student to Pick Up Phone/);
+  assert.match(teacher, /Send Student to Pickup Phone/);
   assert.match(teacher, /Send Student to Return Phone/);
   assert.match(teacher, /Student Sent to Return Phone/);
   assert.match(teacher, /source:\s*'teacher_attendance'/);

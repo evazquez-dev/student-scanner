@@ -54,7 +54,7 @@ test('Phone Pass separates sent-to-pickup from physical pickup and both are stud
   assert.match(worker, /physicalSource = "phone_pass_pickup"/);
   assert.match(worker, /targetLabel = "Cellphone Locker"/);
   assert.match(phone, /projectPhoneAwayEvidence/);
-  assert.match(teacher, /Send Student to Pick Up Phone/);
+  assert.match(teacher, /Send Student to Pickup Phone/);
   assert.match(teacher, /Send Student to Return Phone/);
 });
 

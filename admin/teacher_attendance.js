@@ -499,7 +499,7 @@ function secretPhoneMenuHtml_(baseBtnStyle, subtle){
     if (ps.pickupRequested) {
       return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="pickup_requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Pick Up Phone</button>`;
     }
-    return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="grant" style="${baseBtnStyle}font-weight:600;">Send Student to Pick Up Phone</button>`;
+    return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="grant" style="${baseBtnStyle}font-weight:600;">Send Student to Pickup Phone</button>`;
   }
   if (ps.returnRequested) {
     return `${sep}${statusHtml}${lockerHtml}<button data-act="phone" data-phone-action="requested" disabled style="${baseBtnStyle}font-weight:600;opacity:.55;cursor:not-allowed;">Student Sent to Return Phone</button>`;

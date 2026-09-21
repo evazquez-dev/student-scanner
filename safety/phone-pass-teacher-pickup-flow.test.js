@@ -38,7 +38,7 @@ test('SAFETY: a teacher can still manage a phone after the kiosk confirms pickup
 
 test('SAFETY: Phone Pass UI clearly distinguishes request vs physical confirmation',()=>{
   assert.match(ui,/grant_mode/);
-  assert.match(ui,/Send Student to Pick Up Phone/);
+  assert.match(ui,/Send Student to Pickup Phone/);
   assert.match(ui,/phone_pass_request/);
   assert.match(ui,/Pickup Requested ✓/);
 });
