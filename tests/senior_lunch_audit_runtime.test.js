@@ -323,98 +323,15 @@ test('Senior Lunch routes retain Admin/Super Admin/token access while ordinary e
   assert.equal(response.status, 200);
 });
 
-test('Forgive preserves form contract, View-as/origin guards, and exact StudentLocation patch behavior', async () => {
-  const { route, service } = await modules();
-  const today = service.getNYCDate();
-  const kv = seedKv(today);
-  const loc = new FakeStudentLoc({
-    GLOBAL: {
-      '1001': {
-        date: today,
-        student_name: 'Senior One',
-        senior_outin_out_active: true,
-        senior_outin_out_date: today,
-        senior_outin_out_period_id: 'LCH1',
-        senior_outin_out_period_end_min: 690,
-        senior_outin_out_since: `${today}T15:00:00.000Z`,
-        senior_outin_penalty_pending: true,
-        senior_outin_last_violation_type: 'late_return',
-        senior_outin_last_violation_date: today,
-        senior_outin_last_violation_at: `${today}T15:35:00.000Z`
-      }
-    }
-  });
-  const env = envFor(kv, loc);
-
-  let response = await route.handleSeniorLunchAuditRequest(request('/admin/senior_outin_forgive', {
-    sid: 'view', method: 'POST', body: 'osis=1001'
-  }), env, {});
-  let data = await response.json();
-  assert.equal(response.status, 403);
-  assert.equal(data.error, 'view_as_read_only');
-
-  response = await route.handleSeniorLunchAuditRequest(request('/admin/senior_outin_forgive', {
-    sid: 'super', method: 'POST', body: 'osis=1001', origin: 'https://evil.example'
-  }), env, {});
-  data = await response.json();
-  assert.equal(response.status, 403);
-  assert.equal(data.error, 'origin_forbidden');
-
-  response = await route.handleSeniorLunchAuditRequest(request('/admin/senior_outin_forgive', {
-    sid: 'admin', method: 'POST', body: ''
-  }), env, {});
-  assert.equal(response.status, 400);
-  assert.equal((await response.json()).error, 'missing_osis');
-
-  response = await route.handleSeniorLunchAuditRequest(request('/admin/senior_outin_forgive', {
-    sid: 'admin', method: 'POST', body: 'osis=9999'
-  }), env, {});
-  assert.equal(response.status, 404);
-  assert.equal((await response.json()).error, 'student_state_not_found');
-
-  response = await route.handleSeniorLunchAuditRequest(request('/admin/senior_outin_forgive', {
-    sid: 'admin', method: 'POST', body: 'osis=1001'
-  }), env, {});
-  data = await response.json();
-  assert.equal(response.status, 200);
-  assert.equal(data.forgiven, true);
-  assert.equal(data.forgiven_by, 'admin@school.org');
-
-  const update = loc.calls.find((call) => call.name === 'GLOBAL' && call.path === '/update');
-  assert.ok(update);
-  const patch = JSON.parse(update.body);
-  assert.equal(patch.osis, '1001');
-  assert.equal(patch.senior_outin_out_active, false);
-  assert.equal(patch.senior_outin_out_date, null);
-  assert.equal(patch.senior_outin_penalty_pending, false);
-  assert.equal(patch.senior_outin_penalty_date, null);
-  assert.equal(patch.senior_outin_last_violation_type, 'late_return');
-  assert.equal(patch.senior_outin_last_forgiven_by, 'admin@school.org');
-});
-
-test('Practice Forgive writes only the Practice StudentLocationDO namespace', async () => {
-  const { route, service } = await modules();
-  const today = service.getNYCDate();
-  const practiceName = `PRACTICE:${today}:GLOBAL`;
-  const kv = seedKv(today, { 'system:mode:v1': { mode: 'practice', practice_day: today } });
-  const loc = new FakeStudentLoc({
-    GLOBAL: {
-      '1001': { date: today, senior_outin_penalty_pending: true }
-    },
-    [practiceName]: {
-      '1001': {
-        date: today,
-        senior_outin_penalty_pending: true,
-        senior_outin_last_violation_type: 'late_return'
-      }
-    }
-  });
-  const env = envFor(kv, loc);
-
-  const response = await route.handleSeniorLunchAuditRequest(request('/admin/senior_outin_forgive', {
-    sid: 'admin', method: 'POST', body: 'osis=1001'
-  }), env, {});
-  assert.equal(response.status, 200);
-  assert.equal(loc.calls.some((call) => call.name === 'GLOBAL' && call.path === '/update'), false);
-  assert.equal(loc.calls.some((call) => call.name === practiceName && call.path === '/update'), true);
+test('retired Senior Lunch Forgive never executes an admin mutation', async () => {
+  const {route,service}=await modules();
+  const today=service.getNYCDate();
+  const kv=seedKv(today);
+  const loc=new FakeStudentLoc({GLOBAL:{'1001':{date:today,senior_outin_penalty_pending:true}}});
+  const env=envFor(kv,loc);
+  const response=await route.handleSeniorLunchAuditRequest(request('/admin/senior_outin_forgive',{
+    sid:'admin',method:'POST',body:'osis=1001'
+  }),env,{});
+  assert.equal(response,null);
+  assert.equal(loc.calls.some(c=>c.path==='/update'),false);
 });

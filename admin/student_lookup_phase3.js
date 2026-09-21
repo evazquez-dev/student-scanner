@@ -162,6 +162,7 @@
       </div>
       <div id="phase3ContextStatus" class="phase3ContextStatus" aria-live="polite"></div>
       <div class="phase3Grid">
+        <article id="phase3OutsideLunch" class="phase3ActionCard" hidden></article>
         <article id="phase3Phone" class="phase3ActionCard" hidden></article>
         <article id="phase3StaffPull" class="phase3ActionCard" hidden></article>
         <article id="phase3Reflection" class="phase3ActionCard" hidden></article>
@@ -207,6 +208,7 @@
 
   function loadingCards(){
     for (const [id, title] of [
+      ['phase3OutsideLunch','Outside Lunch'],
       ['phase3Phone','Phone Pass'],
       ['phase3StaffPull','Staff Pull'],
       ['phase3Reflection','Reflection Hold'],
@@ -443,6 +445,7 @@
       if (!btn || btn.disabled || !state.osis) return;
       const action = String(btn.dataset.p3Action || '');
       const ctx = dashboardContext();
+      if (action === 'outside-lunch-open') return openUrl('./outside_lunch.html', { osis:state.osis, source:'student_lookup' });
       if (action === 'phone-open') return openUrl('./phone_pass.html', { osis:state.osis, source:'student_lookup' });
       if (action === 'staff-open') return openUrl('./staff_pull.html', { osis:state.osis, source:'student_lookup' });
       if (action === 'reflection-open') return openUrl('./reflection_hold.html', { osis:state.osis, source:'student_lookup' });
@@ -552,12 +555,20 @@
       jsonRequest('/admin/staff_pull/options', { method:'GET' }),
       jsonRequest(`/admin/staff_pull/context?osis=${encodeURIComponent(osis)}`, { method:'GET' }),
       jsonRequest('/admin/reflection_hold/options', { method:'GET' }),
-      jsonRequest('/admin/early_dismissals', { method:'GET' })
+      jsonRequest('/admin/early_dismissals', { method:'GET' }),
+      jsonRequest(`/admin/outside_lunch/status?osis=${encodeURIComponent(osis)}`, {method:'GET'}) // EAGLENEST_OUTSIDE_LUNCH_V1
     ]);
     if (seq !== state.seq) return;
 
-    const [dashboardResult, phoneOptions, phoneContext, staffOptions, staffContext, reflection, early] = requests;
+    const [dashboardResult, phoneOptions, phoneContext, staffOptions, staffContext, reflection, early, outsideLunch] = requests;
     state.dashboard = dashboardResult.status === 'fulfilled' ? dashboardResult.value : null;
+    const lunch = outsideLunch.status === 'fulfilled' ? outsideLunch.value : null;
+    setCard('phase3OutsideLunch', lunch ? {
+      title:'Outside Lunch', status:lunch.eligible ? 'Eligible' : 'Not eligible',
+      detail:lunch.reason || (lunch.eligible ? 'All requirements satisfied.' : 'Review eligibility details.'),
+      tone:lunch.eligible ? 'good' : 'emphasis',
+      buttons:`<button class="btn secondary small" type="button" data-p3-action="outside-lunch-open">Full eligibility details</button>`
+    } : {title:'Outside Lunch',status:'Status unavailable',detail:'Eligibility cannot be confirmed right now.',tone:'emphasis'});
     renderIncident();
     renderPhone(phoneContext, phoneOptions);
     renderStaffPull(staffContext, staffOptions);
