@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — Physical Phone Testing</title>
+  <link rel="manifest" href="./manifest.webmanifest"><link rel="icon" href="../icons/icon-32.png">
+  <link rel="stylesheet" href="./nav.css"><link rel="stylesheet" href="./phone_fleet.css">
+  <script src="./shared_auth.js"></script><script src="./brand.js" defer></script><script src="./nav.js" defer></script>
+  <script>(function(){try{const t=localStorage.getItem('ss_theme_v1')|| (matchMedia('(prefers-color-scheme:light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch{}})();</script>
+</head>
+<body data-module="phone_fleet">
+<main class="fleetWrap">
+  <header class="fleetHeader"><div><p class="fleetEyebrow">Integrations / Grandstream</p><h1>Physical Phone Testing</h1><p class="fleetMuted">31 targeted staff and classroom phones · Live UCM inventory · Read-only model diagnostics</p></div><div class="fleetHeaderLinks"><a class="fleetBtn" href="./calls.html">← Calls</a><button class="fleetBtn" id="export" type="button" disabled>Export scan CSV</button><button class="fleetBtn fleetPrimary" id="refresh" type="button">Refresh UCM registry</button></div></header>
+  <section class="fleetBanner" role="note">🔒 Super Admin diagnostic workspace. Reading a phone does <strong>not</strong> authorize control. The only new supervised control candidate is extension <strong>207</strong>; no other extensions can Answer or Dial from this page.</section>
+  <div id="fleetError" role="alert" class="fleetError" hidden></div>
+  <section class="fleetStats" id="fleetStats" aria-live="polite"><div class="fleetStat"><strong>31</strong><span>Target extensions</span></div><div class="fleetStat"><strong>—</strong><span>Registered handsets</span></div><div class="fleetStat"><strong>—</strong><span>Known models</span></div><div class="fleetStat"><strong>—</strong><span>Last refresh</span></div></section>
+  <section class="fleetPanel"><div class="fleetHead"><div><h2>Staff desk phones</h2><p class="fleetMuted">15 target extensions</p></div><input id="fleetSearch" type="search" placeholder="Filter by extension or model" aria-label="Filter phones"></div><div class="fleetTableWrap"><table><thead><tr><th>Extension</th><th>Live model</th><th>Registration</th><th>Reachability / CTI</th><th>Control</th><th>Action</th></tr></thead><tbody id="staffRows"><tr><td colspan="6">Refresh to load live UCM registrations.</td></tr></tbody></table></div></section>
+  <section class="fleetPanel"><div class="fleetHead"><div><h2>Classroom phones</h2><p class="fleetMuted">16 target extensions</p></div></div><div class="fleetTableWrap"><table><thead><tr><th>Extension</th><th>Live model</th><th>Registration</th><th>Reachability / CTI</th><th>Control</th><th>Action</th></tr></thead><tbody id="classRows"><tr><td colspan="6">Refresh to load live UCM registrations.</td></tr></tbody></table></div></section>
+  <section class="fleetPanel"><h2>Read-only handset diagnostics</h2><p class="fleetMuted" id="fleetProbeTitle">Choose Diagnostics for an individual extension above.</p><pre class="fleetReport" id="fleetProbeReport" aria-live="polite">No probe run.</pre></section>
+  <section class="fleetPanel fleet207"><div class="fleetHead"><div><p class="fleetEyebrow">First expansion pilot</p><h2>Extension 207 · GXP1628</h2><p class="fleetMuted">Live device must remain 10.1.30.20 / GXP1628. Authenticated 207 diagnostics and control use separate flags and the existing Worker CTI secret.</p></div><span class="fleetPill" id="configPill">Checking pilot flags…</span></div>
+    <div class="fleet207Actions"><button class="fleetBtn" id="credential207" type="button" disabled>🔎 Authenticated Read-Only · 207</button><button class="fleetBtn fleetAnswer" id="answer207" type="button" disabled>📞 Answer on 207</button><button class="fleetBtn fleetPrimary" id="dial207" type="button" disabled>↗ Place Internal Call from 207</button></div>
+    <p class="fleetMuted" id="fleet207Explain">Refresh the registry, then run the authenticated read-only check on 207. The control buttons are disabled unless the Worker allows supervised testing.</p>
+    <pre class="fleetReport" id="fleet207Report" aria-live="polite">No authenticated test run.</pre>
+  </section>
+  <p class="fleetMuted fleetFooter">The model is taken from each fresh UCM registration, not the prior spreadsheet/inventory. For unregistered phones, model remains unconfirmed. Generic diagnostics never send a CTI secret or call-control command.</p>
+</main>
+<script src="./phone_fleet.js"></script>
+</body></html>
