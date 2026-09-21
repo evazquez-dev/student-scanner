@@ -62,6 +62,27 @@
         <div class="miniStat"><span>Scope</span><strong id="statScope">—</strong></div>
       </section>
 
+      <!-- EAGLENEST_MTSS_ACADEMIC_V1 -->
+      <section id="academicEarlyWarning" class="card" hidden>
+        <div class="sectionHead"><div><div class="eyebrow">Academic MTSS</div><h2>Academic early-warning queue</h2>
+          <p class="muted">Read-only PowerSchool signals. Leadership approves the case and tier; grade changes never automatically open or escalate an MTSS case.</p></div>
+          <span id="academicWarningCount" class="countBadge">—</span>
+        </div>
+        <div class="filters academicFilters">
+          <label><span>Search student</span><input id="academicSearch" type="search" placeholder="Student or OSIS"></label>
+          <label><span>Grade</span><select id="academicGrade"><option value="">All grades</option><option>9</option><option>10</option><option>11</option><option>12</option></select></label>
+        </div>
+        <div id="academicWarningStatus" class="statusText">Loading PowerSchool signals…</div>
+        <form id="academicSettingsForm" class="academicSettings" hidden>
+          <label class="field"><span>Decline warning (points)</span><input id="academicDeclinePoints" type="number" step="0.5" min="0.5" max="100" required></label>
+          <label class="field"><span>Multiple-course review threshold</span><input id="academicMultipleCourses" type="number" min="2" max="12" required></label>
+          <button class="btn" type="submit">Save academic alert thresholds</button>
+          <span id="academicSettingsStatus" class="small muted"></span>
+        </form>
+        <div class="tableWrap"><table><thead><tr><th>Student</th><th>Failing</th><th>Declining</th><th>Course signals</th><th>Case status</th><th>Action</th></tr></thead>
+          <tbody id="academicWarningsBody"></tbody></table></div>
+      </section>
+
       <section class="card">
         <div class="sectionHead">
           <div><h2>Cases</h2><p class="muted">Tier 1 is universal support. Cases are opened for targeted Tier 2/3 support.</p></div>
@@ -133,6 +154,32 @@
           <section class="subcard"><h3>Add intervention</h3><form id="interventionForm"><label class="field"><span>Intervention</span><select id="interventionName" required></select></label><div class="twoCol"><label class="field"><span>Method</span><select id="interventionMethod"></select></label><label class="field"><span>Frequency</span><select id="interventionFrequency"></select></label></div><label id="contentAreaField" class="field"><span>Content area</span><select id="interventionContent"></select></label><label class="field"><span>Notes</span><textarea id="interventionNotes" rows="2"></textarea></label><button id="btnAddIntervention" class="btn primary" type="submit">Add intervention</button></form></section>
           <section class="subcard"><h3>Progress review</h3><form id="reviewForm"><label class="field"><span>Outcome</span><select id="reviewOutcome"><option value="maintain">Maintain current tier</option><option value="improving">Improving / continue</option><option value="escalate">Escalate to Tier 3</option><option value="step_down">Step down</option><option value="close">Close case</option></select></label><label class="field"><span>Notes</span><textarea id="reviewNotes" rows="3" required></textarea></label><label class="field"><span>Next review</span><input id="reviewNextDate" type="date"></label><button id="btnAddReview" class="btn primary" type="submit">Save review</button></form></section>
         </div>
+        <!-- EAGLENEST_MTSS_ACADEMIC_V1 -->
+        <section id="academicCaseSection" class="subcard academicSection" hidden>
+          <div class="sectionHead"><div><h3>Academic skills and progress monitoring</h3>
+            <p class="small muted">Multiple focused goals can live in one academic MTSS case. Skill assessments are distinct from course grades.</p></div><span id="academicGoalCount" class="countBadge">0 goals</span></div>
+          <div id="academicGradeSnapshot" class="academicGradeSnapshot"></div>
+          <details class="academicGradeHistory"><summary>Historical PowerSchool grade snapshots</summary><div id="academicGradeHistoryRows" class="academicMeasureList"></div></details>
+          <div id="academicGoals" class="academicGoals"></div>
+          <form id="academicGoalForm" class="academicGoalForm">
+            <h3>Create measurable skill goal</h3>
+            <div class="academicFormGrid">
+              <label class="field"><span>Content area</span><select name="content_area" required><option value="">Select</option><option>ELA</option><option>Math</option><option>Science</option><option>History</option><option>Spanish</option><option>Other</option></select></label>
+              <label class="field"><span>Target skill</span><input name="skill" maxlength="400" required placeholder="e.g. Solve multi-step equations"></label>
+              <label class="field"><span>Assessment / measure</span><input name="measure_name" maxlength="240" required placeholder="e.g. Weekly algebra exit ticket"></label>
+              <label class="field"><span>Unit</span><input name="measure_unit" maxlength="30" value="%" required></label>
+              <label class="field"><span>Baseline</span><input name="baseline_value" type="number" step="any" required></label>
+              <label class="field"><span>Target</span><input name="target_value" type="number" step="any" required></label>
+              <label class="field"><span>Direction</span><select name="direction"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></label>
+              <label class="field"><span>Frequency</span><select name="frequency"><option>Weekly</option><option>Twice weekly</option><option>Daily</option><option>Bi-weekly</option><option>Monthly</option></select></label>
+              <label class="field"><span>Baseline date</span><input id="academicGoalBaselineDate" name="baseline_date" type="date" required></label>
+              <label class="field"><span>Target date</span><input id="academicGoalTargetDate" name="target_date" type="date" required></label>
+              <label class="field"><span>Provider email (optional)</span><input name="provider_email" type="email" placeholder="Defaults to you"></label>
+            </div>
+            <button class="btn primary" type="submit">Add academic goal</button>
+          </form>
+          <div id="academicGoalStatus" class="statusText" role="status"></div>
+        </section>
         <section class="subcard timelineCard"><div class="sectionHead"><h3>Timeline</h3><span id="timelineCount" class="countBadge"></span></div><div id="caseTimeline" class="timeline"></div></section>
         <div id="caseModalStatus" class="statusText"></div>
       </div>
@@ -140,5 +187,6 @@
   </div>
 
   <script src="./mtss.js" defer></script>
+  <script src="./mtss-academic.js" defer></script>
 </body>
 </html>

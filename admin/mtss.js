@@ -122,7 +122,7 @@
 
   async function loadDashboard(){
     const seq=++state.seq; $('caseStatus').textContent='Loading cases…';
-    try{ const data=await api(dashboardUrl()); if(seq!==state.seq)return; state.dashboard=data; renderSummary(data); renderCases(data); if(! $('rulesCard').hidden)await loadRules(); }
+    try{ const data=await api(dashboardUrl()); if(seq!==state.seq)return; state.dashboard=data; renderSummary(data); renderCases(data); document.dispatchEvent(new CustomEvent('eaglenest:mtss:dashboard-loaded')); if(! $('rulesCard').hidden)await loadRules(); }
     catch(e){ if(seq!==state.seq)return; $('caseStatus').textContent=`Could not load MTSS: ${e.message}`; }
   }
 
@@ -204,7 +204,7 @@
 
   async function openCase(id){
     $('caseBackdrop').hidden=false; $('caseModalStatus').textContent='Loading case…';
-    try{ const data=await api(`/admin/mtss/case?id=${encodeURIComponent(id)}`); await loadCatalog(data.case); renderCaseDetails(data); const cat=state.catalog||{}; $('interventionName').innerHTML=options(cat.interventions||[]); $('interventionMethod').innerHTML=options(cat.methods||[]); $('interventionFrequency').innerHTML=options(cat.frequencies||[]); $('interventionContent').innerHTML=options(cat.content_areas||[]); $('reviewNotes').value=''; $('interventionNotes').value=''; $('caseModalStatus').textContent=''; }
+    try{ const data=await api(`/admin/mtss/case?id=${encodeURIComponent(id)}`); await loadCatalog(data.case); renderCaseDetails(data); window.EagleNESTMTSSAcademic?.renderCase(data); const cat=state.catalog||{}; $('interventionName').innerHTML=options(cat.interventions||[]); $('interventionMethod').innerHTML=options(cat.methods||[]); $('interventionFrequency').innerHTML=options(cat.frequencies||[]); $('interventionContent').innerHTML=options(cat.content_areas||[]); $('reviewNotes').value=''; $('interventionNotes').value=''; $('caseModalStatus').textContent=''; }
     catch(e){ $('caseModalStatus').textContent=`Could not load case: ${e.message}`; }
   }
   async function addIntervention(){
@@ -247,5 +247,7 @@
   }
   let wired=false; function wireOnce(){if(wired)return;wired=true;wire();}
 
+  // EAGLENEST_MTSS_ACADEMIC_V1: share existing auth and modal lifecycle with academic UI.
+  window.EagleNESTMTSS={api,openCase,openNewCase,loadDashboard,isReadOnly,canManageAll,canEditRules,currentCase:()=>state.currentCase};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
