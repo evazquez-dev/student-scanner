@@ -26,8 +26,19 @@ function stashSid(resp){try{const sid=String(resp?.headers?.get(ADMIN_SESSION_HE
 async function adminFetch(pathOrUrl,init={}){const url=pathOrUrl instanceof URL?pathOrUrl:new URL(pathOrUrl,API_BASE);const headers=new Headers(init.headers||{});const sid=getStoredSid();if(sid&&!headers.has(ADMIN_SESSION_HEADER))headers.set(ADMIN_SESSION_HEADER,sid);const resp=await fetch(url,{...init,headers,credentials:'include',cache:'no-store'});stashSid(resp);if(resp.status===401){const j=await resp.clone().json().catch(()=>null);if(['expired','no_session','bad_session'].includes(String(j?.error||'')))clearStoredSid()}return resp}
 function setError(message){const text=String(message||'').trim();errorOut.textContent=text;errorCard.hidden=!text}
 function passingScore(){return Number(OVERVIEW?.settings?.passing_score??70)}
-function gradeKind(grade){const n=Number(grade?.grade_numeric);if(!Number.isFinite(n))return'missing';return n>=passingScore()?'pass':'fail'}
-function fmtGrade(grade){return Number.isFinite(Number(grade?.grade_numeric))?`${Number(grade.grade_numeric).toFixed(Number(grade.grade_numeric)%1?1:0)}%`:(grade?.grade_value||'—')}
+// EAGLENEST_ZERO_GRADES_MISSING_V1 — zero course grades are unentered, not failing.
+function courseGradeNumber(grade){
+  const v=grade?.grade_numeric;
+  if(v==null||String(v).trim()==='')return null;
+  const n=Number(v);
+  return Number.isFinite(n)&&n!==0?n:null;
+}
+function rawGradeIsZero(value){
+  const raw=String(value??'').trim();
+  return raw!==''&&Number.isFinite(Number(raw.replace(/%$/,'').trim()))&&Number(raw.replace(/%$/,'').trim())===0;
+}
+function gradeKind(grade){const n=courseGradeNumber(grade);if(n===null||rawGradeIsZero(grade?.grade_value))return'missing';return n>=passingScore()?'pass':'fail'}
+function fmtGrade(grade){const n=courseGradeNumber(grade);if(rawGradeIsZero(grade?.grade_value)||grade?.grade_numeric===0||String(grade?.grade_numeric??'').trim()==='0')return'Not entered';return n!==null?`${n.toFixed(n%1?1:0)}%`:(grade?.grade_value||'Not entered')}
 function fmtDate(v){const s=String(v||'').trim();if(!s)return'—';const d=new Date(`${s}T12:00:00`);return Number.isFinite(d.getTime())?d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'}):s}
 function debounceLoad(){clearTimeout(loadTimer);loadTimer=setTimeout(loadStudents,180)}
 function isAdminMode(){return MODE==='admin'}
@@ -71,7 +82,7 @@ function gradeChipsHtml(grades){if(!grades?.length)return'<span class="muted">No
 function attentionHtml(row){if(row.below_passing_count>0)return`<span class="attentionTag">${Number(row.below_passing_count)} below ${esc(passingScore())}%</span>`;if(row.missing_count>0)return`<span class="missingTag">${Number(row.missing_count)} missing</span>`;return'<span class="okTag">On track</span>'}
 function updateKpis(summary={}){if(isAdminMode()){$('adminKpiStudents').textContent=Number(summary.students||0);$('adminKpiBelow').textContent=Number(summary.below_passing_students||0);$('adminKpiPassing').textContent=Number(summary.passing_students||0);$('adminKpiMissing').textContent=Number(summary.missing_grade_students||0)}else{$('kpiStudents').textContent=Number(summary.students||0);$('kpiBelow').textContent=Number(summary.below_passing_students||0);$('kpiMissing').textContent=Number(summary.missing_grade_students||0)}}
 function renderRows(data){updateKpis(data?.summary||{});const scopeCount=Number(data?.selected_student_count||0),shown=Number(data?.returned_student_count||0);resultMeta.textContent=isAdminMode()?`${shown} student(s) shown from ${scopeCount} in the current administrative scope.`:`${shown} student(s) shown from ${scopeCount} in your selected scope.`;if(!data?.rows?.length){results.innerHTML='<div class="empty">No students match this scope and filter.</div>';return}
-  if(isAdminMode())results.innerHTML=`<table><thead><tr><th>Student</th><th>Grade</th><th>Current Grades</th><th>Below ${esc(passingScore())}%</th><th>Lowest</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td><button class="studentBtn" data-osis="${esc(r.osis)}" type="button">${esc(r.name||r.osis)}</button><div class="muted small mono">${esc(r.osis)}</div></td><td>${esc(r.grade_level||'—')}</td><td>${gradeChipsHtml(r.grades)}</td><td>${r.below_passing_count?`<span class="statusBad">${Number(r.below_passing_count)}</span>`:'<span class="statusGood">0</span>'}</td><td>${Number.isFinite(Number(r.lowest_grade))?`${esc(r.lowest_grade)}%`:'—'}</td></tr>`).join('')}</tbody></table>`;
+  if(isAdminMode())results.innerHTML=`<table><thead><tr><th>Student</th><th>Grade</th><th>Current Grades</th><th>Below ${esc(passingScore())}%</th><th>Lowest</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td><button class="studentBtn" data-osis="${esc(r.osis)}" type="button">${esc(r.name||r.osis)}</button><div class="muted small mono">${esc(r.osis)}</div></td><td>${esc(r.grade_level||'—')}</td><td>${gradeChipsHtml(r.grades)}</td><td>${r.below_passing_count?`<span class="statusBad">${Number(r.below_passing_count)}</span>`:'<span class="statusGood">0</span>'}</td><td>${Number.isFinite(r.lowest_grade) && r.lowest_grade !== 0?`${esc(r.lowest_grade)}%`:'—'}</td></tr>`).join('')}</tbody></table>`;
   else results.innerHTML=`<table><thead><tr><th>Student</th><th>Grade</th><th>Current Grades</th><th>Attention</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td><button class="studentBtn" data-osis="${esc(r.osis)}" type="button">${esc(r.name||r.osis)}</button><div class="muted small mono">${esc(r.osis)}</div></td><td>${esc(r.grade_level||'—')}</td><td>${gradeChipsHtml(r.grades)}</td><td>${attentionHtml(r)}</td></tr>`).join('')}</tbody></table>`;
   results.querySelectorAll('.studentBtn').forEach(btn=>btn.addEventListener('click',()=>openStudent(btn.dataset.osis)))}
 

@@ -6,6 +6,13 @@
   const core = () => window.EagleNESTMTSS;
   const state = {alerts:[],last:null,loading:false,settingsLoaded:false};
   const fmt = v => v == null || v === '' ? '—' : String(v);
+  // 0 in a course grade is an unentered grade, not a failing score. Skill probes may be 0.
+  const fmtCourseGrade = grade => {
+    const raw=String(grade?.grade_value ?? '').trim();
+    const n=grade?.grade_numeric == null || String(grade.grade_numeric).trim()===''?null:Number(grade.grade_numeric);
+    const displayN=raw?Number(raw.replace(/%$/, '').trim()):null;
+    return n===0 || (raw!=='' && Number.isFinite(displayN) && displayN===0) || (n===null && !raw) ? 'Not entered' : fmt(raw || grade?.grade_numeric);
+  };
   const dateNY = () => new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const api = (path,init={}) => core().api(path,init);
   const send = (path,body) => api(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
@@ -71,9 +78,9 @@
     section.hidden=data?.case?.domain!=='academic';
     if(section.hidden)return;
     const c=data.case, academic=data.academic||{}, doc=academic.grades?.current;
-    $('academicGradeSnapshot').innerHTML=doc?`<strong>PowerSchool grades · ${esc(doc.snapshot_date)} · ${esc(doc.marking_period)}</strong><div class="academicGradeChips">${(doc.courses||[]).map(x=>`<span>${esc(x.course_name||x.course_code)}: <strong>${esc(fmt(x.grade_value ?? x.grade_numeric))}</strong></span>`).join('')}</div>`
+    $('academicGradeSnapshot').innerHTML=doc?`<strong>PowerSchool grades · ${esc(doc.snapshot_date)} · ${esc(doc.marking_period)}</strong><div class="academicGradeChips">${(doc.courses||[]).map(x=>`<span>${esc(x.course_name||x.course_code)}: <strong>${esc(fmtCourseGrade(x))}</strong></span>`).join('')}</div>`
       :'<div class="muted">No current grade snapshot for this student.</div>';
-    $('academicGradeHistoryRows').innerHTML=(academic.grades?.history||[]).slice(0,6).map(s=>`<span>${esc(s.snapshot_date)} · ${esc(s.marking_period)}: ${(s.courses||[]).map(x=>`${esc(x.course_code)} ${esc(fmt(x.grade_value ?? x.grade_numeric))}`).join(' · ')}</span>`).join('')||'<span>No prior snapshots available.</span>';
+    $('academicGradeHistoryRows').innerHTML=(academic.grades?.history||[]).slice(0,6).map(s=>`<span>${esc(s.snapshot_date)} · ${esc(s.marking_period)}: ${(s.courses||[]).map(x=>`${esc(x.course_code)} ${esc(fmtCourseGrade(x))}`).join(' · ')}</span>`).join('')||'<span>No prior snapshots available.</span>';
     const writable=!core().isReadOnly()&&c.is_active;
     $('academicGoalForm').hidden=!writable;
     $('academicGoalBaselineDate').value=dateNY();
