@@ -84,6 +84,32 @@ async function control207(action){if(state.loading||!state.config||!state.read20
     if(action==='acceptcall')state.answer207='failed or outcome unknown';else state.dial207='failed or outcome unknown';error(e);}
   finally{state.read207=null;busy(false);}
 }
+// EAGLENEST_GRANDSTREAM_PHONE_FLEET_121_READONLY_V1
+let CONFIG121=null;
+async function load121Config(){
+  try {
+    CONFIG121=await api('/admin/integrations/grandstream/phone_fleet_121/config');
+    $('fleet121Pill').className='fleetPill '+(CONFIG121.read_enabled&&CONFIG121.secret_configured?'ok':'wait');
+    $('fleet121Pill').textContent=CONFIG121.read_enabled&&CONFIG121.secret_configured?'121 authenticated diagnostic enabled':'121 diagnostic not yet configured';
+    $('fleet121Explain').textContent=!CONFIG121.read_enabled?'Enable GRANDSTREAM_PHONE_FLEET_121_READ_ENABLED after CTS confirms credentials.':
+      !CONFIG121.secret_configured?'Set GRANDSTREAM_PHONE_GXP2135_CTI_PASSCODE as a Worker secret; do not paste it into EagleNEST.':
+      'Read-only credential probe only; 401 challenge_scheme helps distinguish HTTP authentication from CTI passcode rejection.';
+    $('credential121').disabled=state.loading||!CONFIG121.read_enabled||!CONFIG121.secret_configured;
+  } catch(e) {
+    CONFIG121=null;$('fleet121Pill').textContent='121 diagnostic unavailable';
+    $('fleet121Explain').textContent=String(e.message||e).slice(0,140);$('credential121').disabled=true;
+  }
+}
+async function read121(){
+  if(state.loading||!CONFIG121?.read_enabled||!CONFIG121?.secret_configured)return;
+  busy(true);$('fleetError').hidden=true;$('credential121').disabled=true;
+  $('fleet121Report').textContent='Checking live UCM identity, then sending credentialed READ-ONLY CTI to 121…';
+  try {
+    const report=await api('/admin/integrations/grandstream/phone_fleet_121/readiness',{});
+    $('fleet121Report').textContent=JSON.stringify(report,null,2);
+  } catch(e){$('fleet121Report').textContent=String(e.message||e);error(e);}
+  finally {busy(false);$('credential121').disabled=!CONFIG121?.read_enabled||!CONFIG121?.secret_configured;}
+}
 function exportCsv(){
   if(!state.refreshedAt)return;
   const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';
@@ -104,9 +130,10 @@ function exportCsv(){
 async function init(){try{const access=await api('/admin/access');if(access.role!=='super_admin')throw new Error('Super Admin access required.');
   $('refresh').addEventListener('click',load);$('export').addEventListener('click',exportCsv);$('fleetSearch').addEventListener('input',renderRows);
   $('credential207').addEventListener('click',read207);
+  $('credential121').addEventListener('click',read121);
   $('answer207').addEventListener('click',()=>control207('acceptcall'));
   $('dial207').addEventListener('click',()=>control207('place_internal_call'));
-  await load();
+  await load();await load121Config();
 }catch(e){error(e);$('fleet207Explain').textContent='Sign in through EagleNEST Calls as Super Admin, then open this page again.';}}
 init();
 })();

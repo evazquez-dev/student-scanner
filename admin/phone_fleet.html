@@ -24,6 +24,12 @@
     <p class="fleetMuted" id="fleet207Explain">Refresh the registry, then run the authenticated read-only check on 207. The control buttons are disabled unless the Worker allows supervised testing.</p>
     <pre class="fleetReport" id="fleet207Report" aria-live="polite">No authenticated test run.</pre>
   </section>
+    <!-- EAGLENEST_GRANDSTREAM_PHONE_FLEET_121_READONLY_V1 -->
+  <section class="fleetPanel fleet207"><div class="fleetHead"><div><p class="fleetEyebrow">Second model · Read-only pilot</p><h2>Extension 121 · GXP2135</h2><p class="fleetMuted">Current pinned UCM identity: 10.1.30.201 / GXP2135. A SEPARATE GXP2135 secret is used only after live identity verification. No Answer or Dial controls are available.</p></div><span class="fleetPill" id="fleet121Pill">Checking GXP2135 diagnostic configuration…</span></div>
+    <div class="fleet207Actions"><button class="fleetBtn" id="credential121" type="button" disabled>🔎 Authenticated Read-Only · 121</button></div>
+    <p class="fleetMuted" id="fleet121Explain">Obtain/confirm GXP2135 CTI/web-administrator credentials with CTS and configure the separate Worker secret before enabling the test.</p>
+    <pre class="fleetReport" id="fleet121Report" aria-live="polite">No authenticated test run on 121.</pre>
+  </section>
   <p class="fleetMuted fleetFooter">The model is taken from each fresh UCM registration, not the prior spreadsheet/inventory. For unregistered phones, model remains unconfirmed. Generic diagnostics never send a CTI secret or call-control command.</p>
 </main>
 <script src="./phone_fleet.js"></script>
