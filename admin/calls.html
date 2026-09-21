@@ -24,6 +24,13 @@
     </header>
     <div id="errorBox" class="notice" hidden></div>
 
+    <!-- EAGLENEST_GRANDSTREAM_PHONE_PHASE4A_PILOT_V1 -->
+    <section id="phonePilotPanel" class="panel phonePilotPanel" hidden aria-label="Supervised physical phone pilot">
+      <div><p class="eyebrow">Supervised pilot • Extension 113</p><h2>📞 Your Desk Phone</h2><p class="muted">Call audio stays on your physical Grandstream. Not a browser softphone.</p></div>
+      <div class="pilotActions"><button type="button" class="btn primary" id="phonePilotDial" hidden>Place Internal Test Call</button><span id="phonePilotTarget" class="muted"></span></div>
+      <p class="muted small" id="phonePilotOut" role="status" aria-live="polite">Controls are disabled until the pilot is enabled.</p>
+    </section>
+
     <div class="sectionTitle"><div><h2>Live Now <span id="liveCount" class="count">0</span></h2><p class="muted">Ringing and connected calls update automatically.</p></div></div>
     <section id="liveCalls" class="liveGrid"><div class="panel empty">No active calls right now.</div></section>
 

@@ -122,6 +122,91 @@ function hydrateLiveCallerHistory(calls){
   for(const key of [...LIVE_HISTORY.keys()]) if(!active.has(key)) LIVE_HISTORY.delete(key);
 }
 
+// EAGLENEST_GRANDSTREAM_PHONE_PHASE4A_PILOT_V1
+let PHONE_PILOT=null,PHONE_PILOT_BUSY=false;
+function pilotSetOutput(text,isError=false){
+  const el=$('phonePilotOut');if(!el)return;
+  el.textContent=text;
+  el.dataset.state=isError?'error':'ok';
+}
+function pilotAnswerMarkup(call){
+  if(!PHONE_PILOT?.answer_enabled || !PHONE_PILOT?.enabled || !PHONE_PILOT.manual_identity_override_enabled)return '';
+  if(norm(call?.state).toLowerCase()!=='ringing' ||
+    !(Array.isArray(call?.ringing_endpoints)&&call.ringing_endpoints.some(e=>norm(e?.extension)==='113')))return '';
+  const id=norm(call?.call_id);if(!id)return '';
+  return `<button type="button" class="btn pilotAnswer" data-pilot-answer="${esc(id)}" ${PHONE_PILOT_BUSY?'disabled':''}>📞 Answer on Desk Phone · 113 (Pilot)</button>`;
+}
+async function loadPhonePilot(){
+  let response,config;
+  try{
+    response=await api('/admin/integrations/grandstream/phone_pilot/config');
+    config=await response.json().catch(()=>({}));
+  }catch{return;}
+  if(!response.ok||!config.ok||!config.enabled)return;
+  PHONE_PILOT=config;
+  $('phonePilotPanel').hidden=false;
+  const button=$('phonePilotDial');
+  button.hidden=!config.dial_enabled;
+  if(config.dial_enabled)button.textContent=`Place Internal Test Call · ${config.destination}`;
+  button.onclick=pilotDialClick;
+  $('phonePilotTarget').textContent=config.dial_enabled?`From 113 → ${config.destination}`:'Answer pilot only';
+  pilotSetOutput('PILOT ONLY: You must be beside extension 113. Each command requires explicit confirmation.');
+  renderLive();
+}
+async function pilotSend(path,body){
+  const response=await api(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const result=await response.json().catch(()=>({}));
+  return {http_status:response.status,...result};
+}
+function pilotOutcome(result){
+  if(result.ok){
+    const verified=result.physical_answer_verified===true?'Physical answer verified.':
+      result.dial_observed===true?'Phone entered an outgoing/active state.':
+      'Command accepted; verify directly on your phone.';
+    pilotSetOutput('✓ '+verified);
+  }else{
+    pilotSetOutput(`Pilot did not confirm action: ${result.error||'unknown_error'}. Check the physical phone before retrying.`,true);
+  }
+  // A new live snapshot will naturally remove Answer once the UCM sees pickup.
+}
+async function pilotAnswerClick(callId){
+  if(PHONE_PILOT_BUSY||!PHONE_PILOT?.answer_enabled)return;
+  const live=(LIVE?.active_calls||[]).find(c=>norm(c?.call_id)===callId);
+  if(!live||norm(live?.state).toLowerCase()!=='ringing'||
+     !(live?.ringing_endpoints||[]).some(e=>norm(e?.extension)==='113')){
+    pilotSetOutput('That call is no longer ringing at 113. No command sent.',true);return;
+  }
+  if(!confirm('PHYSICAL PILOT: Are you beside your actual extension 113 GXP1628, and is it ringing with this exact incoming test call?'))return;
+  if(prompt('Type EXACTLY: I AUTHORIZE 113 ACCEPTCALL')!=='I AUTHORIZE 113 ACCEPTCALL')return;
+  if(!confirm('The handset account API is unavailable. Do you personally confirm the ringing desk phone is YOUR extension 113? Cancel if uncertain.'))return;
+  PHONE_PILOT_BUSY=true;pilotSetOutput('Verifying call and answering on your physical handset…');renderLive();
+  try{
+    const out=await pilotSend('/admin/integrations/grandstream/phone_pilot/answer',{
+      extension:'113',action:'acceptcall',call_id:callId,
+      confirmation:'I AUTHORIZE 113 ACCEPTCALL',operator_at_phone:true,
+      intentionally_ringing:true,manual_identity_acknowledgement:true
+    });pilotOutcome(out);
+  }catch{pilotSetOutput('Unknown network outcome. Inspect your phone; do not blindly retry.',true)}
+  finally{PHONE_PILOT_BUSY=false;renderLive();}
+}
+async function pilotDialClick(){
+  if(PHONE_PILOT_BUSY||!PHONE_PILOT?.dial_enabled)return;
+  const destination=PHONE_PILOT.destination;
+  if(!confirm(`SUPERVISED TEST: Are you at YOUR physical extension 113, and has the person at internal extension ${destination} agreed to a test call?`))return;
+  if(prompt(`Type EXACTLY: I AUTHORIZE 113 CALL ${destination}`)!==`I AUTHORIZE 113 CALL ${destination}`)return;
+  if(!confirm('The handset SIP account API is unavailable. Do you personally confirm the desk phone is extension 113, idle and ready to dial?'))return;
+  PHONE_PILOT_BUSY=true;$('phonePilotDial').disabled=true;
+  pilotSetOutput(`Verifying and placing one internal call to ${destination} on your desk phone…`);renderLive();
+  try{
+    const out=await pilotSend('/admin/integrations/grandstream/phone_pilot/dial',{
+      extension:'113',action:'place_internal_call',destination,
+      confirmation:`I AUTHORIZE 113 CALL ${destination}`,
+      operator_at_phone:true,manual_identity_acknowledgement:true
+    });pilotOutcome(out);
+  }catch{pilotSetOutput('Unknown network outcome. Check physical phone and destination; do not blindly retry.',true)}
+  finally{PHONE_PILOT_BUSY=false;$('phonePilotDial').disabled=false;renderLive();}
+}
+
 function renderLive(){
   const calls=LIVE.active_calls||[];
   $('liveCount').textContent=calls.length;
@@ -146,9 +231,10 @@ function renderLive(){
       ${statusLine(c)?`<div class="endpoint">${esc(statusLine(c))}</div>`:''}
       ${ss.slice(0,3).map(m=>`<div class="contact"><div><strong>${esc(contactLabel(m))}</strong><span class="muted">${esc(m.student_name||'Student')} • OSIS ${esc(m.student_number)}</span></div><a class="btn small" href="${esc(studentUrl(m))}">Open Student</a></div>`).join('')}
       ${liveCallerHistoryHtml(c)}
-      <div class="actions">${can?`<button class="btn primary" data-note-live="${esc(c.call_id)}">${dr?'Continue Notes':'Start Notes'}</button>`:''}${dr?'<span class="draft">Draft saved</span>':''}</div>
+      <div class="actions">${pilotAnswerMarkup(c)}${can?`<button class="btn primary" data-note-live="${esc(c.call_id)}">${dr?'Continue Notes':'Start Notes'}</button>`:''}${dr?'<span class="draft">Draft saved</span>':''}</div>
     </article>`;
   }).join('');
+  for(const b of el.querySelectorAll('[data-pilot-answer]')) b.onclick=()=>pilotAnswerClick(b.dataset.pilotAnswer);
   for(const b of el.querySelectorAll('[data-note-live]')) b.onclick=()=>{
     const c=calls.find(x=>x.call_id===b.dataset.noteLive);
     if(c) openNotes(c,'live');
@@ -299,6 +385,6 @@ async function loadHistory(show=true){
 async function getAccess(){const r=await api('/admin/access'),j=await r.json().catch(()=>null);return r.ok&&j?.ok?j:null}
 async function waitGoogle(){for(let i=0;i<160;i++){if(window.google?.accounts?.id)return google.accounts.id;await new Promise(r=>setTimeout(r,50))}throw new Error('Google sign-in failed to load')}
 async function login(token){const r=await api('/admin/session/login_google',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:token}).toString()}),j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`)}
-async function boot(){ACCESS=await getAccess();if(!ACCESS){$('loginOut').textContent='Please sign in.';const g=await waitGoogle();g.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async r=>{try{await login(r.credential);location.reload()}catch(e){$('loginOut').textContent=e.message||e}}});g.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return}if(!ACCESS.can?.phone_dashboard)throw new Error('phone_dashboard_extension_or_office_access_required');$('loginCard').hidden=true;$('app').hidden=false;restoreRecentBridge();renderRecent();$('daysSelect').onchange=()=>loadHistory();$('searchInput').oninput=renderRecent;$('closeNote').onclick=closeNotes;$('noteBackdrop').onclick=e=>{if(e.target===$('noteBackdrop'))closeNotes()};$('noteText').oninput=()=>{if(MODAL)putDraft(MODAL,MODAL_KIND,$('noteText').value)};$('clearNote').onclick=()=>{if(MODAL){$('noteText').value='';putDraft(MODAL,MODAL_KIND,'')}};$('saveNote').onclick=saveCommunication;await Promise.all([loadConfig(),loadHistory()]);connectLive();setInterval(tick,1000);setInterval(()=>loadHistory(false),30000)}
+async function boot(){ACCESS=await getAccess();if(!ACCESS){$('loginOut').textContent='Please sign in.';const g=await waitGoogle();g.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async r=>{try{await login(r.credential);location.reload()}catch(e){$('loginOut').textContent=e.message||e}}});g.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return}if(!ACCESS.can?.phone_dashboard)throw new Error('phone_dashboard_extension_or_office_access_required');$('loginCard').hidden=true;$('app').hidden=false;restoreRecentBridge();renderRecent();$('daysSelect').onchange=()=>loadHistory();$('searchInput').oninput=renderRecent;$('closeNote').onclick=closeNotes;$('noteBackdrop').onclick=e=>{if(e.target===$('noteBackdrop'))closeNotes()};$('noteText').oninput=()=>{if(MODAL)putDraft(MODAL,MODAL_KIND,$('noteText').value)};$('clearNote').onclick=()=>{if(MODAL){$('noteText').value='';putDraft(MODAL,MODAL_KIND,'')}};$('saveNote').onclick=saveCommunication;await Promise.all([loadConfig(),loadHistory()]);await loadPhonePilot();connectLive();setInterval(tick,1000);setInterval(()=>loadHistory(false),30000)}
 window.addEventListener('beforeunload',()=>{persistRecentBridge();try{ABORT?.abort()}catch{}});
 boot().catch(e=>{$('loginOut').textContent=String(e.message||e);$('errorBox').textContent=e.message||e;$('errorBox').hidden=false});

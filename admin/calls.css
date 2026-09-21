@@ -16,3 +16,12 @@
 .callerHistoryRow{display:grid;grid-template-columns:110px 72px minmax(0,1fr) 52px;gap:8px;align-items:center;padding:7px 11px;border-top:1px solid rgba(148,163,184,.12);font-size:11px}
 .callerHistoryRow:first-child{border-top:0}.callerHistoryRow span:first-child,.callerHistoryRow span:last-child{color:var(--muted)}
 @media(max-width:560px){.callerHistoryRow{grid-template-columns:1fr auto}.callerHistoryRow span:nth-child(3){grid-column:1/-1}.callerHistoryRow span:last-child{text-align:right}}
+
+/* EAGLENEST_GRANDSTREAM_PHONE_PHASE4A_PILOT_V1 */
+.phonePilotPanel{padding:18px;margin-bottom:20px;border:2px solid rgba(34,197,94,.53);background:linear-gradient(120deg,var(--surface),var(--surface2));}
+.phonePilotPanel h2{margin:3px 0 4px;font-size:24px}.pilotActions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.phonePilotPanel #phonePilotOut[data-state=error]{color:var(--bad);font-weight:800}
+.pilotAnswer{background:var(--good);color:#052e16;border-color:transparent;box-shadow:0 0 0 2px rgba(34,197,94,.17);margin-right:7px}
+.pilotAnswer:disabled{opacity:.55}
+@media(max-width:560px){.phonePilotPanel{padding:14px}.pilotAnswer{width:100%;margin:0 0 8px}}
+
