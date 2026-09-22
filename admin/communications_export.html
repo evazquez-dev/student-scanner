@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="./shared_auth.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <title>EagleNEST — Communications Export</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./communications.css">
+  <link rel="stylesheet" href="./communications_export.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||(matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}})();</script>
+  <script src="./communications_export.js" defer></script>
+</head>
+<body data-module="communications_export">
+<div class="wrap">
+  <section id="loginCard" class="card">
+    <h2>Administrator sign-in</h2><p class="muted">Sign in with your EagleNEST administrator account.</p>
+    <div id="g_id_signin"></div><pre id="loginOut" class="muted">Checking session…</pre>
+  </section>
+  <main id="app" hidden>
+    <header class="card topbar"><div><p class="eyebrow">Administration / Communications</p><h1>Communications Export</h1><p class="muted">Search the complete EagleNEST communication log—not just the recent dashboard preview.</p></div><div class="topActions"><a class="btn" href="./communications.html?scope=school">← Communications</a><span class="tag info" id="roleTag">Admin</span></div></header>
+    <section id="modeBanner" class="banner warn" hidden>Practice Mode is active. Live communications cannot be exported until Practice Mode is off.</section>
+    <section class="card section filterCard"><div class="sectionHead"><div><h2>Choose your records</h2><p class="muted">Dates use the school’s New York calendar day. Start and end dates are inclusive.</p></div><button id="clearBtn" class="btn" type="button">Reset Filters</button></div>
+      <div class="filterGrid">
+        <label>From<input id="startDate" type="date" required></label><label>To<input id="endDate" type="date" required></label>
+        <label>Communication type<select id="method"><option value="">All methods</option></select></label>
+        <label>Category<select id="category"><option value="">All categories</option></select></label>
+        <label>Outcome<select id="outcome"><option value="">All outcomes</option></select></label>
+        <label>Direction<select id="direction"><option value="">All directions</option></select></label>
+        <label>Current grade<select id="grade"><option value="">All grades</option><option>6</option><option>7</option><option>8</option><option>9</option><option>10</option><option>11</option><option>12</option></select></label>
+        <label>Follow-up<select id="followup"><option value="">All follow-ups</option><option value="needed">Any required</option><option value="open">Open</option><option value="resolved">Resolved</option></select></label>
+        <label>Staff email<input id="actorEmail" type="search" placeholder="staff@theamericandreamschool.org"></label>
+        <label>Student OSIS<input id="studentNumber" type="search" placeholder="Exact student OSIS"></label>
+        <label>Source<input id="source" type="search" placeholder="e.g. conference_scheduler"></label>
+        <label>Search<input id="search" type="search" placeholder="Student, contact, notes, phone, staff…"></label>
+      </div>
+      <div class="fieldFoot"><label class="check"><input id="includeDeleted" type="checkbox"> Include deleted communications (with deletion metadata)</label><span class="muted small">Grade matches the <strong>current</strong> active roster; leave blank for historical students.</span></div>
+      <div class="actions"><button class="btn primary" id="applyBtn" type="button">Apply Filters</button><button class="btn downloadBtn" id="downloadBtn" type="button" disabled>↓ Download ALL matching rows (CSV)</button><span class="muted small" id="status" aria-live="polite">Set filters to begin.</span></div>
+    </section>
+    <div class="statGrid"><div class="card metric"><span>Matching communications</span><strong id="count">—</strong></div><div class="card metric"><span>Students in preview</span><strong id="studentCount">—</strong></div><div class="card metric"><span>Preview shown</span><strong id="previewCount">—</strong></div></div>
+    <section class="card section"><div class="sectionHead"><div><h2>Results preview</h2><p class="muted" id="rangeNote">Up to 250 newest matching rows appear here. CSV includes every matching record.</p></div><span id="storageTag" class="tag info">D1</span></div><div id="preview" class="tableWrap"><div class="empty">No query yet.</div></div></section>
+    <section class="banner warn small">Exports contain student and family information. Keep them in school-approved storage. Export downloads are recorded in EagleNEST’s live audit.</section>
+    <section id="errorCard" class="card section" hidden><h2>Could not load communications</h2><div id="errorOut" class="error"></div></section>
+  </main>
+</div>
+</body></html>

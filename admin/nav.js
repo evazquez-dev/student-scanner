@@ -511,6 +511,7 @@
           { key:'grades', label: MODULES.grades || 'Grades', href:'./grades.html', description:'Current grades, sections, advisories and grade history' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },
           { key:'communications', label: MODULES.communications || 'Parent & Family Communications', href:'./communications.html', description:'Outreach, required communication and follow-ups' },
+          { key:'communications_export', label:'Communications Export', href:'./communications_export.html', description:'Administrator history search and audited CSV export' },
           { key:'phone_dashboard', label: MODULES.calls || 'Calls', href:'./calls.html', description:'Live calls, recent calls and follow-up logging' },
           { key:'student_contacts', label: MODULES.student_contacts || 'Student Contacts', href:'./student_contacts.html', description:'Family contacts and communication tools' },
           { key:'conference_scheduler', label: MODULES.conference_scheduler || 'Student & Family Conferences', href:'./conferences.html', description:'Conference scheduling and appointments' },
@@ -583,6 +584,7 @@
 
     const visibleByAccess = (it) => !!(
       access?.can?.[it.key] ||
+      (it.key === 'communications_export' && (access?.role === 'super_admin' || access?.role === 'admin') && !access?.view_as?.active) ||
       (it.key === 'conference_scheduler' && access?.can?.student_contacts) ||
       (it.key === 'esas' && !!access?.email) ||
       (it.key === 'attendance_change' && access?.can?.excused_apply) ||

@@ -239,6 +239,7 @@ async function resolveFollowup(id, studentNumber, button){
 async function bootstrapAuthenticated(){
   ACCESS=await fetchAccess();
   if(!ACCESS?.can?.communications&&!ACCESS?.can?.student_contacts)throw new Error('forbidden');
+  if ($('exportLink')) $('exportLink').hidden = !isAdmin() || !!ACCESS?.view_as?.active;
   hide(loginCard);show(app);await loadDashboard();
 }
 
