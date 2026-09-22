@@ -11,6 +11,7 @@
     attendance_status: 'Attendance Status',
     attendance_outreach: 'Attendance Outreach',
     senior_lunch_audit: 'Senior Lunch Audit',
+    recess_eligibility: 'Recess Eligibility', // EAGLENEST_RECESS_NAV_ACCESS_V1
     student_scans: 'Student Scan Report',
     student_view: 'Student Lookup',
     communications: 'Parent & Family Communications',
