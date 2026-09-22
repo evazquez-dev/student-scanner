@@ -27,6 +27,7 @@
     attendance_status: 'Attendance Status',
     attendance_outreach: 'Attendance Outreach',
     outside_lunch: 'Outside Lunch Eligibility', // EAGLENEST_OUTSIDE_LUNCH_V1
+    recess_eligibility: 'Recess Eligibility', // EAGLENEST_RECESS_OUTIN_V1
     student_scans: 'Student Scan Report',
     scan_injector: 'Scan Injector',
     student_view: 'Student Snapshot',
@@ -71,6 +72,7 @@
     'attendance_status_admin_session_v1',
     'attendance_outreach_admin_session_v1',
     'outside_lunch_admin_session_v1',
+    'recess_admin_session_v1',
     'after_school_monitor_admin_session_v1',
     'visitor_desk_admin_session_v1',
     'staff_pull_admin_session_v1',
@@ -391,6 +393,7 @@
           attendance_outreach: isAdminLike,
           coverage_planner: isAdminLike,
           outside_lunch: isAdminLike,
+          recess_eligibility: isAdminLike,
           student_scans: true,
           student_view: isSuperAdmin,
           student_contacts: true,
@@ -538,6 +541,7 @@
           { key:'phone_pass', label: MODULES.phone_pass || 'Phone Pass', href:'./phone_pass.html', description:'Phone checkout, pickup and return workflow' },
           { key:'phone_free_pass', label: MODULES.phone_free_pass || 'Free Phone Pass', href:'./phone_free_pass.html', description:'Build today’s one-free-pickup student list' },
           { key:'outside_lunch', label: MODULES.outside_lunch || 'Outside Lunch Eligibility', href:'./outside_lunch.html', description:'Permission slips, attendance, grades and exceptions' },
+          { key:'recess_eligibility', label: MODULES.recess_eligibility || 'Recess Eligibility', href:'./recess.html', description:'Supervised recess: attendance, grades and return tracking; all grades, no slip' },
           { key:'after_school_monitor', label: MODULES.after_school_monitor || 'After-School Monitor', href:'./after_school_monitor.html', description:'After-school attendance and holds' },
           { key:'visitor_desk', label: MODULES.visitor_desk || 'Visitor Desk', href:'./visitor_desk.html', description:'Visitor check-in, queue and history' },
           { key:'early_dismissal', label: MODULES.early_dismissal || 'Early Dismissal', href:'./early_dismissal.html', description:'Student early-dismissal workflow' },

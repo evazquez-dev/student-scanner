@@ -1185,6 +1185,10 @@
     }
     return String(loc || '').toLowerCase() === SPECIAL_LOCATION.toLowerCase();
   }
+  // EAGLENEST_RECESS_OUTIN_V1: configured mode, never name-only permission.
+  function isRecessOutIn(loc) {
+    return String(getLocationMeta(loc || getLocation())?.mode||'').toLowerCase()==='recess_outin';
+  }
   function isGymOutIn(loc) {
     const current = loc || getLocation();
     const meta = getLocationMeta(current);
@@ -1196,7 +1200,7 @@
     return String(meta?.mode || '').toLowerCase() === 'superlunch';
   }
   function isTrackedOutIn(loc) {
-    return isSeniorOutIn() || isGymOutIn(loc);
+    return isSeniorOutIn() || isRecessOutIn(loc) || isGymOutIn(loc);
   }
   function isBathroomLocation(loc) {
     const current = loc || getLocation();
@@ -1521,7 +1525,7 @@
     if (outLabel) {
       outLabel.textContent = isGymOutIn()
         ? 'Currently OUT — Gym Class'
-        : 'Currently OUT — Senior Lunch';
+        : isRecessOutIn() ? 'Currently OUT — Recess' : 'Currently OUT — Senior Lunch';
     }
     const rows = getOutSet();
     outBody.innerHTML = rows.map(r => {
@@ -2479,7 +2483,7 @@
   }
   function friendlyDeniedDetail_(action, result, resolved){
     const reason = String(result?.denial_reason || result?.detail || '').trim().toLowerCase();
-    if (reason === 'late_return_penalty') return 'LATE RETURN';
+    if (reason === 'late_return_penalty' || reason === 'recess_return_penalty') return 'LATE RETURN';
     if (reason === 'not_scheduled_caf') return 'NOT CAF';
     if (reason === 'not_scheduled_gym') return 'NOT IN GYM';
     if (reason === 'not_flagged') return 'NOT AUTHORIZED';
@@ -2509,10 +2513,10 @@
       if (CLASS_PRESENT[osis]) CLASS_PRESENT[osis].lastIn = when.getTime();
     } else if (action === 'class_out') {
       addClassOutEntry(osis, resolved.name || '', String(result.reason || event?.class_reason || 'Other'), when);
-    } else if (action === 'senior_out' || action === 'gym_out') {
+    } else if (action === 'senior_out' || action === 'gym_out' || action === 'recess_out') {
       addOut(osis, resolved.name || '', when);
       renderOutList();
-    } else if (action === 'senior_in' || action === 'gym_in') {
+    } else if (action === 'senior_in' || action === 'gym_in' || action === 'recess_in') {
       removeOut(osis);
       renderOutList();
     } else if (action === 'bathroom_in' || action === 'bathroom_out' || action === 'bathroom_full' || action === 'bathroom_conflict') {
@@ -2605,14 +2609,14 @@
       if (action === 'varied_out') beepNeutralUp(); else beepGood();
       updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || (action === 'varied_out'?'OUT':'IN'), lockerColor:result.detail || '', when });
       showSuccess(resolved.name, code, result.label || '', result.detail || '', when);
-    } else if (action === 'senior_in' || action === 'senior_out' || action === 'gym_in' || action === 'gym_out') {
+    } else if (action === 'senior_in' || action === 'senior_out' || action === 'gym_in' || action === 'gym_out' || action === 'recess_in' || action === 'recess_out') {
       const isOut = action.endsWith('_out');
       if (isOut) addOut(osis, resolved.name || '', when); else removeOut(osis);
       renderOutList();
       if (isOut) beepNeutralUp(); else beepGood();
       updateRowToSuccess(row, { name:resolved.name, code, lockerNum:isOut?'OUT':'IN', lockerColor:result.detail || '', when });
       showSuccess(resolved.name, code, isOut?'OUT':'IN', result.detail || '', when);
-    } else if (action === 'senior_denied' || action === 'gym_denied') {
+    } else if (action === 'senior_denied' || action === 'gym_denied' || action === 'recess_denied') {
       const detail = friendlyDeniedDetail_(action, result, resolved);
       beepBad();
       updateRowToSuccess(row, { name:resolved.name, code, lockerNum:'NOT ALLOWED', lockerColor:detail, when });
@@ -3173,7 +3177,7 @@
     if (!__SCAN_RESULT_FOREGROUND) return;
     const loc = getLocation();
 
-    if (isSeniorOutIn() || isBathroomLocation(loc)) {
+    if (isSeniorOutIn() || isRecessOutIn(loc) || isGymOutIn(loc) || isBathroomLocation(loc)) {
       const label = String(lockerNum||'').toUpperCase();
       const isOut = label === 'OUT';
       const isIn  = label === 'IN';
