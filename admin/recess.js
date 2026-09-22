@@ -39,7 +39,7 @@ function checksFor(r){
   const windowReady=a.complete_window===true && !a.missing_daily && Number(a.school_denominator)===10;
   const classReady=windowReady && !a.missing_classes && Number(a.class_total)>0;
   const schoolTone=!windowReady?'warn':Number(a.school_present)>=9?'good':'bad';
-  const arrivalTone=!windowReady?'warn':Number(a.school_on_time)>=9?'good':'bad';
+  const arrivalTone=a.today_arrival?.status==='pending'?'warn':a.today_arrival?.met?'good':'bad';
   const classTone=!classReady?'warn':Number(a.class_ontime)*100>=90*Number(a.class_total)?'good':'bad';
   const gradeTone=!g.ready?'warn':Number(g.failing_course_count)===0?'good':'bad';
   return {windowReady,classReady,schoolTone,arrivalTone,classTone,gradeTone};
@@ -59,13 +59,13 @@ function filterBoard(){
   $('board').innerHTML=table(['Student','Permission','School / arrival','Classes','Grades','Penalty','Eligibility'],list.map(r=>{
     const a=r.attendance||{},g=r.academics||{},c=checksFor(r);
     const schoolText=`${a.school_present??'—'}/${a.school_denominator??'—'} days`;
-    const arrivalText=`${a.school_on_time??'—'}/${a.school_denominator??'—'} on time`;
+    const arrivalText=a.today_arrival?.met?'On time today':a.today_arrival?.status==='late'?'Late today':a.today_arrival?.status==='absent'?'Absent today':'Arrival pending';
     const classText=`${a.class_ontime??'—'}/${a.class_total??'—'} meetings`;
     const gradesText=!g.ready?'Grade data pending':Number(g.failing_course_count)===0?'All classes passing':`${g.failing_course_count} below passing`;
     return [
       `<button class="btn ol-student-button" data-student="${escape(r.osis)}">${escape(r.name)}</button><div class="ol-detail">${escape(r.osis)} · Grade ${escape(r.grade)}</div>${r.currently_out?badge('info','Currently OUT'):''}`,
       `<div class="ol-cell">${badge('info','No permission slip required')}</div>`,
-      `<div class="ol-cell">${badge(c.schoolTone,c.windowReady?schoolText:'Attendance incomplete')}${badge(c.arrivalTone,c.windowReady?arrivalText:'Arrival data incomplete')}<span class="ol-detail">${escape(schoolText)} · ${escape(arrivalText)}</span></div>`,
+      `<div class="ol-cell">${badge(c.schoolTone,c.windowReady?schoolText:'Attendance incomplete')}${badge(c.arrivalTone,arrivalText)}<span class="ol-detail">${escape(schoolText)} · ${escape(arrivalText)}</span></div>`,
       `<div class="ol-cell">${badge(c.classTone,c.classReady?classText:'Class data incomplete')}<span class="ol-detail">${escape(classText)} · ${pct(a.class_pct)} on time</span></div>`,
       `<div class="ol-cell">${badge(c.gradeTone,gradesText)}<span class="ol-detail">${escape(g.marking_period||'Current marking period')}</span></div>`,
       `<div class="ol-cell">${badge(r.penalty_pending?'bad':'good',r.penalty_pending?'Recess penalty pending':'No penalty')}</div>`,
@@ -78,7 +78,9 @@ function showStudent(r){
   const a=r.attendance||{},g=r.academics||{},pen=r.penalty||{},c=checksFor(r);
   const readySchool=c.windowReady;
   const schoolValue=`${a.school_present??'—'}/${a.school_denominator??'—'} · ${pct(a.school_pct)}`;
-  const arrivalValue=`${a.school_on_time??'—'}/${a.school_denominator??'—'} · ${pct(a.arrival_pct)}`;
+  const arrivalValue=a.today_arrival?.met?'On time today':a.today_arrival?.status==='late'?'Late today':a.today_arrival?.status==='absent'?'Absent today':'Not verified';
+  const arrivalAt=a.today_arrival?.at?new Date(a.today_arrival.at).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}):'No timed morning scan';
+  const arrivalDetail=`Today ${a.today_arrival?.date||r.date||'—'} · ${arrivalAt} · School starts ${a.today_arrival?.cutoff||'—'} (NY time)`;
   const classValue=`${a.class_ontime??'—'}/${a.class_total??'—'} · ${pct(a.class_pct)}`;
   const gradeValue=!g.ready?'Data pending':Number(g.failing_course_count)===0?'All classes passing':`${g.failing_course_count} below passing`;
   const daily=(a.days||[]).map(x=>{
@@ -119,13 +121,13 @@ function showStudent(r){
   <div class="grid" style="margin:15px 0">
     ${statusCard('Permission slip','Not required','info','Adult-supervised recess — all grades')}
     ${statusCard('School attendance',schoolValue,c.schoolTone,readySchool?'At least 9 of the last 10 completed school days':'Waiting for a complete 10-day attendance window')}
-    ${statusCard('On-time school arrivals',arrivalValue,c.arrivalTone,readySchool?'At least 9 of the last 10 completed school days':'Waiting for a complete 10-day arrival record')}
+    ${statusCard('On-time to school TODAY',arrivalValue,c.arrivalTone,arrivalDetail)}
     ${statusCard('On-time class meetings',classValue,c.classTone,c.classReady?'At least 90% on time; absent / excused meetings excluded':'Missing or incomplete class-meeting evidence')}
     ${statusCard('Current marking-period grades',gradeValue,c.gradeTone,g.ready?`${g.marking_period||'Marking period'} · Passing: ${g.passing_score??'configured'} · Updated ${g.snapshot_date||'—'}`:'Current grade snapshot not ready; zeros are not entered grades')}
     ${statusCard('Late-return penalty',pen.pending?'Recess penalty pending':'No penalty',pen.pending?'bad':'good',pen.pending?'Next otherwise-eligible outside-lunch attempt is blocked':pen.last_violation_date?`Last violation: ${pen.last_violation_date}`:'No active restriction from a late return')}
     ${r.admin_restriction?statusCard('Administrative restriction','Active','bad','Blocks outside lunch regardless of other results'):''}
   </div>
-  <h3 class="ol-section-title">Daily and class-attendance evidence</h3>${table(['Day','Daily status','Code','Counts present','On time','Class data','Meeting details'],daily)}
+  <h3 class="ol-section-title">Daily and class-attendance evidence</h3>${table(['Day','Daily status','Code','Counts present','On time (history only)','Class data','Meeting details'],daily)}
   <h3 class="ol-section-title">Current marking-period courses</h3>${g.courses?table(['Course','Name','Grade','Result'],courses):'<div class="ol-detail">Course-level grades hidden by your permissions.</div>'}
   <h3 class="ol-section-title">Lunch history / penalty</h3>${table(['Time','Date','Action','Result','Period','Device'],history)}<div class="notice">Last late return: ${escape(pen.last_late_return_at||'—')} · Last violation: ${escape(pen.last_violation_type||'—')} · ${badge(pen.pending?'bad':'good',pen.pending?'Recess penalty pending':'No pending penalty')}</div>
   ${access?.can?.admin?`<h3 class="ol-section-title">Penalty retraction history</h3>${table(['Violation','Date','Reason','Retracted at','Staff'],(r.penalty_retractions||[]).map(x=>[escape(x.violation_type),escape(x.violation_date),escape(x.reason),escape(x.retracted_at_iso),escape(x.retracted_by_email)]))}
