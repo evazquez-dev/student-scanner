@@ -555,6 +555,17 @@
           <pre id="resourceAssetsOut" class="pane">—</pre>
         </section>
 
+        <!-- EAGLENEST_CHROMECART_SYNC_HEALTH_V1 — SuperAdmin only: System Administration page. -->
+        <section class="card" id="resourceBookingHealthCard">
+          <h2>ChromeCart Booking Sync Health</h2>
+          <p class="muted">Checks what EagleNEST actually received from the Resource Booking spreadsheet. If a GAS request never reached EagleNEST, see the spreadsheet's <strong>EagleNEST Sync Health</strong> tab for its failure details.</p>
+          <div class="row" style="gap:10px;align-items:center;margin:12px 0;flex-wrap:wrap;">
+            <button class="btn ghost" id="btnLoadResourceBookingHealth" type="button">Refresh booking diagnostics</button>
+            <span id="resourceBookingHealthBadge" aria-live="polite">Not checked</span>
+          </div>
+          <div id="resourceBookingHealthBody" class="pane" aria-live="polite">Loading…</div>
+        </section>
+
         <!-- EAGLENEST_ATTENDANCE_BADGE_ELIGIBILITY_V1 -->
         <section class="card" id="badgeAttendanceAdminCard">
           <h2>Attendance Badge — eligibility settings</h2>
@@ -766,7 +777,7 @@
     </div>
   </main>
 
-  <script src="./admin.js?v=20260601-chair-reminder-toggle" type="module"></script>
+  <script src="./admin.js?v=20260923-chromecart-sync-health-v1" type="module"></script>
   <script src="./attendance_badge_admin.js?v=20260919-v1" defer></script> <!-- EAGLENEST_ATTENDANCE_BADGE_ELIGIBILITY_V1 -->
 </body>
 </html>

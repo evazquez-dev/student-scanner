@@ -1106,7 +1106,7 @@
     const baseDir = new URL(here.origin + pathname);
 
     // Prefer server version; append page asset version for frontend-only deploys.
-    const pageAssetVer = '20260912-cart-rfid-v1';
+    const pageAssetVer = '20260923-chromecart-sync-health-v1'; // EAGLENEST_CHROMECART_SYNC_HEALTH_V1
     const serverVer = await getVersion();
     const ver = `${serverVer || String(Date.now())}-${pageAssetVer}`;
 

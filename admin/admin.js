@@ -186,6 +186,10 @@ const resourceAssetsTbody = document.getElementById('resourceAssetsTbody');
 const resourceAssetsOut = document.getElementById('resourceAssetsOut');
 const btnLoadResourceAssets = document.getElementById('btnLoadResourceAssets');
 const btnSaveResourceAssets = document.getElementById('btnSaveResourceAssets');
+// EAGLENEST_CHROMECART_SYNC_HEALTH_V1
+const resourceBookingHealthBody = document.getElementById('resourceBookingHealthBody');
+const resourceBookingHealthBadge = document.getElementById('resourceBookingHealthBadge');
+const btnLoadResourceBookingHealth = document.getElementById('btnLoadResourceBookingHealth');
 
 /* ===============================
  * SMALL HELPERS
@@ -288,6 +292,7 @@ async function afterLoginBoot() {
   await loadViewAsStaffSettings();
   // EAGLENEST_RESOURCE_ASSET_RFID_V1_ADMIN_BOOT
   await loadResourceAssets();
+  await loadResourceBookingHealth(); // EAGLENEST_CHROMECART_SYNC_HEALTH_V1
 
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
@@ -2089,6 +2094,53 @@ btnSaveResourceAssets?.addEventListener('click', async () => {
     btnSaveResourceAssets.disabled = false;
   }
 });
+
+// EAGLENEST_CHROMECART_SYNC_HEALTH_V1
+async function loadResourceBookingHealth(){
+  if (!resourceBookingHealthBody || !resourceBookingHealthBadge) return;
+  resourceBookingHealthBody.textContent = 'Checking production resource bookings…';
+  resourceBookingHealthBadge.textContent = 'Checking…';
+  try {
+    const r = await adminFetch('/admin/resource_bookings/diagnostics', { method:'GET' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.ok) throw new Error(data.detail || data.error || `HTTP ${r.status}`);
+    const sync = data.worker_sync || {};
+    const imported = Number(data.today?.total || 0);
+    const active = Number(data.today?.active || 0);
+    const last = String(sync.last_success_at || data.latest_booking_data_sync_at || '');
+    const lastReconciliation = String(sync.last_reconciliation_success_at || '');
+    const attempt = String(sync.last_attempt_at || '');
+    const failed = sync.last_status === 'failed';
+    const nyNow = new Date();
+    const nyHour = Number(new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York',hour:'2-digit',hour12:false }).format(nyNow));
+    const nyDay = new Intl.DateTimeFormat('en-US', { timeZone:'America/New_York',weekday:'short' }).format(nyNow);
+    const schoolHours = ['Mon','Tue','Wed','Thu','Fri'].includes(nyDay) && nyHour >= 8 && nyHour <= 17;
+    const reconAge = lastReconciliation ? Date.now() - Date.parse(lastReconciliation) : Infinity;
+    const stale = schoolHours && !(reconAge >= 0 && reconAge <= 2 * 60 * 60 * 1000);
+    resourceBookingHealthBadge.textContent = failed ? '⚠ Last Worker push failed' :
+      stale ? '⚠ Full reconciliation overdue' :
+      last ? '● Worker booking sync received' : '⚠ No Worker sync recorded';
+    resourceBookingHealthBadge.style.color = failed || stale ? 'var(--warn)' : last ? 'var(--accent)' : 'var(--warn)';
+    const rows = [
+      ['Date being checked', data.date],
+      ['Today’s bookings in EagleNEST', `${imported} total · ${active} active`],
+      ['Latest successful full reconciliation received by Worker', lastReconciliation ? formatResourceAssetSeen(lastReconciliation) : 'Not recorded'],
+      ['Latest successful Worker push (including single bookings)', last ? formatResourceAssetSeen(last) : 'Not recorded'],
+      ['Latest Worker push attempt', attempt ? formatResourceAssetSeen(attempt) : 'Not recorded'],
+      ['Latest Worker push result', sync.last_status || 'Not recorded'],
+      ['Rows in last full reconciliation', sync.last_reconciliation_accepted == null ? 'Not recorded' : `${sync.last_reconciliation_accepted} accepted of ${sync.last_reconciliation_received || 0} scanned`],
+      ['Rows in last Worker request', sync.last_accepted == null ? 'Not recorded' : `${sync.last_accepted} accepted · ${sync.last_skipped || 0} skipped`],
+      ['Last Worker error', sync.last_error || '—'],
+      ['Dates with bookings (next 7 days)', (data.upcoming || []).map(x => `${x.date}: ${x.active} active / ${x.total} total`).join(' · ') || 'None imported']
+    ];
+    resourceBookingHealthBody.innerHTML = `<div style="display:grid;grid-template-columns:minmax(160px,1fr) minmax(210px,2fr);gap:9px 16px;">${rows.map(([key,value])=>`<strong>${esc(key)}</strong><span>${esc(value)}</span>`).join('')}</div><p class="muted" style="margin-top:12px;">If Google Calendar has bookings but today's count is zero, run Resource Booking → Sync bookings to EagleNEST now in the booking spreadsheet, and inspect its EagleNEST Sync Health tab for the GAS-side error/trigger counts.</p>`;
+  } catch (error) {
+    resourceBookingHealthBadge.textContent = '⚠ Diagnostic unavailable';
+    resourceBookingHealthBadge.style.color = 'var(--warn)';
+    resourceBookingHealthBody.textContent = `Unable to check resource booking health: ${String(error?.message || error)}`;
+  }
+}
+btnLoadResourceBookingHealth?.addEventListener('click', loadResourceBookingHealth);
 
 /* ===============================
  * ATTENDANCE CFG

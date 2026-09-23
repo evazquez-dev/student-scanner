@@ -104,6 +104,7 @@ function render(data){
   else if(preview)setStatus(data.projection_note||'Planned schedule preview. Final assignments may change.','good');
   else if(!data.schedule_configured)setStatus("Today's teacher schedule has not been pushed to EagleNEST yet.",'warn');
   else if(data.schedule_stale)setStatus(`The latest teacher schedule is dated ${displayDate(data.schedule_date)}. Attendance links are disabled until today's schedule is pushed.`,'warn');
+  else if(data.resource_booking_error)setStatus('⚠ ChromeCart reservation status could not be loaded. Please contact the main office.','warn'); // EAGLENEST_CHROMECART_SYNC_HEALTH_V1
   else if(data.highlight_kind==='current')setStatus(`Period ${data.current_period_local} is in progress and highlighted below.`,'good');
   else if(data.highlight_kind==='up_next')setStatus(`Transition time — Period ${data.current_period_local} is highlighted as up next.`,'info');
   else if(Number(data.coverage_assignment_count||0)>0)setStatus(`Today's schedule is loaded with ${Number(data.coverage_assignment_count)} coverage assignment${Number(data.coverage_assignment_count)===1?'':'s'}.`,'good');

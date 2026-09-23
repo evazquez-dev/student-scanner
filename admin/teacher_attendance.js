@@ -2471,6 +2471,12 @@ function renderResourceBookingNotice(){
     resourceBookingNotice.innerHTML='';
     return;
   }
+  const bookingError=String(TEACHER_OPTS_CACHE?.resource_booking_error||'').trim(); // EAGLENEST_CHROMECART_SYNC_HEALTH_V1
+  if(bookingError){
+    resourceBookingNotice.innerHTML='<div class="resourceBookingNoticeRow isMismatch"><strong>⚠️ ChromeCart reservation status unavailable</strong><span>Could not load bookings. Please contact the main office.</span></div>';
+    resourceBookingNotice.hidden=false;
+    return;
+  }
   const p=periodKey(periodInput?.value||'');
   const byPeriod=TEACHER_OPTS_CACHE?.resource_bookings_by_period||{};
   const rows=Array.isArray(byPeriod?.[p])?byPeriod[p]:[];
