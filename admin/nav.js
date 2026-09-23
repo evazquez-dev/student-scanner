@@ -512,6 +512,7 @@
         items: [
           { key:'student_view', label: MODULES.student_view || 'Student Lookup', href:'./student_view.html', description:'Student dashboard, location and attendance' },
           { key:'grades', label: MODULES.grades || 'Grades', href:'./grades.html', description:'Current grades, sections, advisories and grade history' },
+          { key:'gradebook_analytics', label:'Gradebook Analytics', href:'./gradebook_analytics.html', description:'Weekly, role-scoped gradebook assignment and score-entry snapshots' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },
           { key:'communications', label: MODULES.communications || 'Parent & Family Communications', href:'./communications.html', description:'Outreach, required communication and follow-ups' },
           { key:'phone_dashboard', label: MODULES.calls || 'Calls', href:'./calls.html', description:'Live calls, recent calls and follow-up logging' },
@@ -588,6 +589,7 @@
 
     const visibleByAccess = (it) => !!(
       access?.can?.[it.key] ||
+      (it.key === 'gradebook_analytics' && access?.can?.grades) ||
       (it.key === 'exports' && (access?.role === 'super_admin' || access?.role === 'admin') && !access?.view_as?.active) ||
       (it.key === 'conference_scheduler' && access?.can?.student_contacts) ||
       (it.key === 'esas' && !!access?.email) ||

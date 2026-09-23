@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gradebook Analytics · EagleNEST</title>
+<meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+<meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+<script src="./shared_auth.js"></script><script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="./nav.css"><link rel="stylesheet" href="./gradebook_analytics.css">
+<script src="./brand.js" defer></script><script src="./nav.js" defer></script>
+<script>(()=>{try{const t=localStorage.getItem('ss_theme_v1')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t}catch{}})();</script>
+</head>
+<body data-module="gradebook_analytics"><div class="gbWrap">
+<section id="login" class="gbCard"><h2>Staff sign-in</h2><p>Sign in to view your gradebook snapshot.</p><div id="g_id_signin"></div><p id="loginMessage" role="status">Checking your session…</p></section>
+<main id="app" hidden>
+<header class="gbHero gbCard"><div><div class="gbEyebrow">EAGLENEST / ACADEMIC DATA</div><h1>Gradebook Analytics</h1><p id="subtitle">Weekly assignment and score-entry review</p><div class="gbBanner"><strong>Weekly PowerSchool snapshot.</strong> Scores entered after the source refresh will not appear until the next successful data export and publication. This is not a live gradebook.</div><p id="meta" class="gbMeta">Loading…</p><p id="coverage" class="gbMeta"></p></div><button class="gbBtn" id="refresh" type="button">Refresh report</button></header>
+<section class="gbKpis" id="kpis"></section>
+<section class="gbCard gbControls"><div><h2 id="listTitle">Your Sections</h2><p id="listCaption">Select a section to see assignment-level details.</p></div><label id="teacherFilterWrap" hidden>Teacher<select id="teacherFilter"><option value="">All teachers</option></select></label><label>Find a section<input id="search" type="search" placeholder="Course, section or teacher"></label></section>
+<section class="gbCard"><div id="table" class="gbTableWrap" role="region" aria-label="Gradebook sections"></div></section>
+<section class="gbCard" id="historyCard"><h2>Published snapshots</h2><div id="history" class="gbMeta">Loading history…</div></section>
+<section id="error" class="gbCard gbError" role="alert" hidden></section>
+</main></div>
+<dialog id="details"><div class="gbDetailHeader"><div><div class="gbEyebrow">ASSIGNMENT REVIEW</div><h2 id="detailTitle"></h2><p id="detailMeta" class="gbMeta"></p></div><button id="closeDetails" class="gbBtn" type="button">Close</button></div><div id="detailBody" class="gbTableWrap"></div></dialog>
+<script src="./gradebook_analytics.js"></script>
+</body></html>
