@@ -18,7 +18,7 @@ async function showSection(dcid){$('details').showModal();$('detailTitle').textC
   $('detailBody').innerHTML=data.assignments.length?`<table><thead><tr><th>Due</th><th>Assignment</th><th>Category</th><th>Points</th><th>Recorded / expected</th><th>Status</th><th>Flags</th></tr></thead><tbody>${data.assignments.map(a=>`<tr><td>${esc(a.due_date)}</td><td>${esc(a.name)}${a.counted?'':'<small>Not counted in final grade</small>'}</td><td>${esc(a.category||'Uncategorized')}</td><td>${a.max_points??'—'}</td><td>${a.entered_scores}/${a.expected_scores}<small>${a.exempt_count} exempt</small></td><td>${pill(a.status)}</td><td><span class="${a.unentered_count?'gbBad':''}">${a.unentered_count} unentered</span><small>${a.missing_flag_count} missing · ${a.absent_flag_count} absent · ${a.incomplete_flag_count} incomplete</small>${a.nonstandard_max?'<small class="gbWarn">Review maximum-point rule</small>':''}${a.overmax_count?`<small class="gbWarn">${a.overmax_count} score(s) over maximum</small>`:''}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No assignment records were returned for this section. The existing PowerSchool query excludes assignments with no qualifying score records.</div>';
 }catch(e){$('detailTitle').textContent='Unable to load section';$('detailBody').textContent=e.message||String(e)}}
 async function renderHistory(){try{const d=await api('/admin/gradebook-analytics/history');$('history').textContent=d.history?.length?d.history.map(s=>`${s.snapshot_date} · published ${nice(s.published_at)}`).join('  ·  '):'No earlier snapshots yet.'}catch{$('history').textContent='History temporarily unavailable.'}}
-async function load(){setError('');$('table').textContent='Loading weekly report…';try{const data=await api('/admin/gradebook-analytics/overview');$('login').hidden=true;$('app').hidden=false;CURRENT=data;IS_ADMIN=data.viewer?.role==='admin';$('listTitle').textContent=IS_ADMIN?'Schoolwide sections':'My Sections';if(!data.snapshot){$('table').innerHTML='<div class="gbEmpty">No published gradebook analytics snapshot yet. Run Cloud Run /run?mode=eaglenest after both source exports show SUCCESS.</div>';$('kpis').innerHTML='';return}
+async function load(){setError('');$('table').textContent='Loading weekly report…';try{const data=await api('/admin/gradebook-analytics/overview');$('login').hidden=true;$('app').hidden=false;CURRENT=data;await gbControlAuthorize_();IS_ADMIN=data.viewer?.role==='admin';$('listTitle').textContent=IS_ADMIN?'Schoolwide sections':'My Sections';if(!data.snapshot){$('table').innerHTML='<div class="gbEmpty">No published gradebook analytics snapshot yet. Run Cloud Run /run?mode=eaglenest after both source exports show SUCCESS.</div>';$('kpis').innerHTML='';return}
   $('meta').textContent=`Assignment data refreshed ${nice(data.snapshot.assignment_export_completed_at)} · roster refreshed ${nice(data.snapshot.dde_export_completed_at)} · report published ${nice(data.snapshot.published_at)} · school ${data.snapshot.school_id}, term ${data.snapshot.term_id}`;
   $('coverage').textContent=data.snapshot.coverage_note||'';
   SECTION_ROWS=data.sections||[];
@@ -27,3 +27,65 @@ async function load(){setError('');$('table').textContent='Loading weekly report
 }catch(e){setError(e.message||String(e));$('table').textContent='Could not load report.'}}
 async function signIn(){try{await api('/admin/access');await load()}catch{if(!window.google?.accounts?.id){$('loginMessage').textContent='Loading Google Sign-In…';let i=0;while(!window.google?.accounts?.id&&i++<100)await new Promise(r=>setTimeout(r,80));}if(!window.google?.accounts?.id){$('loginMessage').textContent='Google Sign-In failed to load';return}window.google.accounts.id.initialize({client_id:CLIENT_ID,callback:async r=>{try{const response=await fetch(new URL('/admin/session/login_google',API_BASE),{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({id_token:r.credential}).toString(),credentials:'include'});const j=await response.json();if(!response.ok||!j.ok)throw new Error(j.error||'Sign-in failed');window.EAGLENEST_AUTH?.setSid?.(j.sid||response.headers.get('x-admin-session'));await load()}catch(e){$('loginMessage').textContent=e.message||String(e)}}});window.google.accounts.id.renderButton($('g_id_signin'),{theme:'outline',size:'large'});$('loginMessage').textContent='Please sign in with your school account.'}}
 $('refresh').onclick=load;$('search').oninput=renderTable;$('teacherFilter').onchange=renderTable;$('closeDetails').onclick=()=>$('details').close();window.addEventListener('DOMContentLoaded',signIn);
+
+// EAGLENEST_GRADEBOOK_MANUAL_CONTROL_V1 — frontend visibility is only UX;
+// Worker validates super_admin for both GET and POST (and blocks View-as writes).
+let GB_CONTROL_AUTHED=false,GB_CONTROL_POLL=null;
+async function gbControlAuthorize_(){
+  if(GB_CONTROL_AUTHED)return;
+  try{
+    const access=await api('/admin/access');
+    if(access.role!=='super_admin'||access.can?.super_admin!==true||access.view_as?.active)return;
+    GB_CONTROL_AUTHED=true;
+    $('manualControl').hidden=false;
+    $('manualStatusRefresh').addEventListener('click',gbControlStatus_);
+    $('manualButtons').querySelectorAll('[data-control-action]').forEach(button=>{
+      button.addEventListener('click',()=>gbControlQueue_(button.dataset.controlAction));
+    });
+    await gbControlStatus_();
+    GB_CONTROL_POLL=setInterval(()=>{
+      if(!document.hidden)gbControlStatus_().catch(()=>{});
+    },15000);
+  }catch(e){console.warn('Gradebook control unavailable:',e.message||String(e));}
+}
+function gbControlState_(job){
+  if(!job)return'No manual refresh active.';
+  const labels={assignments:'Refreshing PowerSchool assignments',dde:'Refreshing DDE',publish:'Publishing EagleNEST analytics'};
+  return `${job.status.toUpperCase()} · ${labels[job.phase]||job.phase} · requested by ${job.requested_by} · ${job.detail||''}`;
+}
+async function gbControlStatus_(){
+  if(!GB_CONTROL_AUTHED)return;
+  try{
+    const data=await api('/admin/gradebook-analytics/control');
+    $('manualMessage').textContent=gbControlState_(data.active||data.jobs?.[0]);
+    const active=!!data.active;
+    $('manualButtons').querySelectorAll('button').forEach(b=>b.disabled=active);
+    $('manualHistory').textContent=(data.jobs||[]).slice(0,4).map(j=>
+      `${new Date(j.created_at).toLocaleString()} · ${j.action} · ${j.status}${j.snapshot_id?' · snapshot '+j.snapshot_id.slice(0,12):''}`
+    ).join('  |  ');
+    if(data.jobs?.[0]?.status==='done' && data.jobs[0].action==='all' && CURRENT?.snapshot?.snapshot_id!==data.jobs[0].snapshot_id){
+      // Requery report only after the ready pointer is switched.
+      const current=await api('/admin/gradebook-analytics/overview');
+      if(current.snapshot?.snapshot_id && current.snapshot.snapshot_id!==CURRENT?.snapshot?.snapshot_id){
+        CURRENT=current;SECTION_ROWS=current.sections||[];renderSummary(current.summary||{});renderTable();
+        $('meta').textContent=`Assignment data refreshed ${nice(current.snapshot.assignment_export_completed_at)} · roster refreshed ${nice(current.snapshot.dde_export_completed_at)} · report published ${nice(current.snapshot.published_at)}`;
+        renderHistory();
+      }
+    }
+  }catch(e){$('manualMessage').textContent='Manual refresh status unavailable: '+(e.message||e);}
+}
+async function gbControlQueue_(action){
+  const labels={all:'Run PowerSchool export → DDE sync → EagleNEST publication',
+    assignments:'Refresh PowerSchool assignment export only (does not publish)',
+    dde:'Refresh DDE only (does not publish)',
+    publish:'Republish EagleNEST using existing assignment and DDE exports'};
+  if(!window.confirm('Superadmin action: '+labels[action]+'?'))return;
+  $('manualMessage').textContent='Submitting '+action+' request…';
+  try{
+    const data=await api('/admin/gradebook-analytics/control',{
+      method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action})
+    });
+    $('manualMessage').textContent='Queued '+data.job?.action+'; next private poll typically within five minutes.';
+    await gbControlStatus_();
+  }catch(e){$('manualMessage').textContent='Could not queue refresh: '+(e.message||e);}
+}

@@ -14,6 +14,19 @@
 <section id="login" class="gbCard"><h2>Staff sign-in</h2><p>Sign in to view your gradebook snapshot.</p><div id="g_id_signin"></div><p id="loginMessage" role="status">Checking your session…</p></section>
 <main id="app" hidden>
 <header class="gbHero gbCard"><div><div class="gbEyebrow">EAGLENEST / ACADEMIC DATA</div><h1>Gradebook Analytics</h1><p id="subtitle">Weekly assignment and score-entry review</p><div class="gbBanner"><strong>Weekly PowerSchool snapshot.</strong> Scores entered after the source refresh will not appear until the next successful data export and publication. This is not a live gradebook.</div><p id="meta" class="gbMeta">Loading…</p><p id="coverage" class="gbMeta"></p></div><button class="gbBtn" id="refresh" type="button">Refresh report</button></header>
+<section id="manualControl" class="gbCard gbManual" hidden>
+  <div class="gbManualHeader"><div><div class="gbEyebrow">SUPERADMIN ONLY</div><h2>PowerSchool Refresh Control</h2>
+    <p class="gbMeta">Queue a manual refresh; existing private Google Cloud Run and DDE pollers process it in order. Scheduled Monday automation stays separate.</p></div>
+    <button id="manualStatusRefresh" type="button" class="gbBtn">Check progress</button></div>
+  <div id="manualButtons" class="gbManualButtons">
+    <button class="gbBtn gbPrimary" data-control-action="all" type="button">Run Everything</button>
+    <button class="gbBtn" data-control-action="assignments" type="button">Refresh assignments only</button>
+    <button class="gbBtn" data-control-action="dde" type="button">Refresh DDE only</button>
+    <button class="gbBtn" data-control-action="publish" type="button">Republish analytics</button>
+  </div>
+  <p id="manualMessage" class="gbMeta" role="status" aria-live="polite">Checking manual refresh status…</p>
+  <div id="manualHistory" class="gbMeta"></div>
+</section>
 <section class="gbKpis" id="kpis"></section>
 <section class="gbCard gbControls"><div><h2 id="listTitle">Your Sections</h2><p id="listCaption">Select a section to see assignment-level details.</p></div><label id="teacherFilterWrap" hidden>Teacher<select id="teacherFilter"><option value="">All teachers</option></select></label><label>Find a section<input id="search" type="search" placeholder="Course, section or teacher"></label></section>
 <section class="gbCard"><div id="table" class="gbTableWrap" role="region" aria-label="Gradebook sections"></div></section>
