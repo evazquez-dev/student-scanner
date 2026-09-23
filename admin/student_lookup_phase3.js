@@ -18,7 +18,9 @@
     osis: '',
     access: null,
     dashboard: null,
-    phoneGrantMode: '', // EAGLENEST_STUDENT_LOOKUP_PHONE_ACTIONS_20260921
+    phoneChoices: [], // EAGLENEST_STUDENT_LOOKUP_PHONE_ACTION_MENU_V1
+    actionBusy: false,
+    phonePreflightBusy: false,
     refreshTimer: null
   };
 
@@ -135,6 +137,10 @@
       .phase3ActionDetail{color:var(--muted);font-size:12px;line-height:1.45;min-height:34px}
       .phase3ActionButtons{display:flex;gap:7px;flex-wrap:wrap;margin-top:auto;padding-top:3px}
       .phase3ActionButtons .btn{padding:7px 10px;font-size:12px}
+       .phase3PhoneSelect{max-width:100%;width:190px;min-width:0;padding:7px 9px;border:1px solid var(--border);border-radius:9px;background:var(--control);color:var(--fg);font:inherit;font-size:12px;cursor:pointer}
+       .phase3PhoneSelect:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+       .phase3PhoneSelect:disabled{opacity:.6;cursor:not-allowed}
+       .phase3ActionButtons .phase3PhoneSelect{flex:1 1 190px}
       .phase3ActionCard.loading{opacity:.72}
       .phase3ActionCard.emphasis{border-color:color-mix(in srgb,var(--warn) 72%,var(--border));box-shadow:inset 3px 0 0 var(--warn)}
       .phase3ActionCard.good{border-color:color-mix(in srgb,var(--good) 55%,var(--border))}
@@ -281,8 +287,73 @@
     });
   }
 
+  // EAGLENEST_STUDENT_LOOKUP_PHONE_ACTION_MENU_V1: phone workflow remains server-owned.
+  // Office membership is verified by existing /admin/access and /phone_pass/options;
+  // this menu never grants authority to anyone not authorized by the phone routes.
+  const PHONE_QUICK_ACTIONS = Object.freeze({
+    'request-pickup': {
+      title:'Send student to pick up phone', path:'/admin/phone_pass/grant', source:'phone_pass_request',
+      message:(name, locker)=>`Send ${name} to pick up their phone from ${locker}? This creates a request but does not confirm the handoff.`
+    },
+    'confirm-pickup': {
+      title:'Student just picked up phone', path:'/admin/phone_pass/grant', source:'phone_pass',
+      message:(name, locker)=>`Confirm ${name} physically received their phone from ${locker} just now? This updates their live phone/location workflow.`
+    },
+    'retroactive-pickup': {
+      title:'Retroactive pickup', path:'/admin/phone_pass/retroactive_pickup',
+      message:(name)=>`Confirm ${name} already picked up their phone after today's pending pickup request? This corrects the phone record without changing the student's current live location. The correction is recorded now, not backdated.`
+    },
+    'request-return': {
+      title:'Send student to return phone', path:'/admin/phone_pass/send_to_return', source:'phone_pass',
+      message:(name, locker)=>`Send ${name} to return their phone to ${locker}? This requests a return but does not confirm the physical return.`
+    },
+    'confirm-return': {
+      title:'Student just returned phone', path:'/admin/phone_pass/return',
+      message:(name, locker)=>`Confirm ${name} physically returned their phone to ${locker} just now? This updates the live phone/location workflow.`
+    },
+    'retroactive-return': {
+      title:'Retroactive return', path:'/admin/phone_pass/retroactive_return',
+      message:(name)=>`Confirm ${name} already returned their phone earlier? This corrects the phone record without changing the student's current live location. Use this only for an earlier return, not a physical handoff happening now.`
+    }
+  });
+
+  function phoneActionChoices(data, opts, access){
+    const st = data?.state || {};
+    const canGrant = opts?.can_grant === true;
+    const canReturn = opts?.can_return === true;
+    const who = opts?.who || {};
+    const me = String(who.email || '').trim().toLowerCase();
+    const pickupOwner = String(st.phone_pickup_requested_by_email || '').trim().toLowerCase();
+    const outOwner = String(st.phone_out_by_email || '').trim().toLowerCase();
+    const officeCampuses = Array.isArray(access?.office_staff_campuses) ? access.office_staff_campuses : [];
+    const privileged = actorIsAdmin(who) || officeCampuses.length > 0 ||
+      (opts?.grant_mode === 'confirm_pickup' && canGrant && canReturn);
+    const out = st.phone_out === true;
+    const pickupPending = st.phone_pickup_requested === true;
+    const returnPending = st.phone_return_requested === true;
+    const choices = [];
+    const add = (id, label) => choices.push({ id, label });
+    if (!out && canGrant){
+      if (!pickupPending) add('request-pickup', 'Send student to pick up');
+      if (privileged){
+        add('confirm-pickup', 'Student just picked up');
+        // The retroactive endpoint rejects a pickup unless requested today.
+        if (pickupPending) add('retroactive-pickup', 'Retroactive pickup');
+      }
+    }
+    if (out){
+      const owns = !!me && (me === outOwner || me === pickupOwner);
+      if (!returnPending && canGrant && (privileged || owns))
+        add('request-return', 'Send student to return');
+      if (canReturn) add('confirm-return', 'Student just returned');
+      if (privileged && canReturn) add('retroactive-return', 'Retroactive return');
+    }
+    return choices;
+  }
+
   function renderPhone(result, options){
     if (result?.status === 'rejected' || options?.status === 'rejected') {
+      state.phoneChoices = [];
       const err = result?.reason || options?.reason;
       if (Number(err?.status) === 401 || Number(err?.status) === 403) return hideUnavailable('phase3Phone');
       return setCard('phase3Phone', { title:'Phone Pass', status:'Unavailable', detail:String(err?.message || err || 'Could not load phone context.') });
@@ -291,36 +362,29 @@
     const opts = options.value;
     const st = data?.state || {};
     const locker = phoneLockerLabel(data?.roster || {});
-    const canGrant = !!opts?.can_grant;
-    const canReturn = !!opts?.can_return;
-    const requestPickup = opts?.grant_mode === 'request_pickup';
-    state.phoneGrantMode = requestPickup ? 'request_pickup' : 'confirm_pickup';
-    if (!canGrant && !canReturn) return hideUnavailable('phase3Phone');
-
+    if (!opts?.can_grant && !opts?.can_return) {
+      state.phoneChoices = [];
+      return hideUnavailable('phase3Phone');
+    }
     const out = st.phone_out === true;
     const pickup = st.phone_pickup_requested === true;
     const returnRequested = st.phone_return_requested === true;
     const since = st.phone_out_since ? fmtClock(st.phone_out_since) : '';
     const by = String(st.phone_out_by_email || st.phone_out_by_title || st.phone_out_by_role || '').trim();
-    let status = out ? 'Phone is out' : (pickup ? 'Pickup requested' : 'Phone is in locker');
-    let detail = out
-      ? [locker, since ? `Picked up ${since}` : '', by ? `Confirmed by ${by}` : '', returnRequested ? 'Return requested' : ''].filter(Boolean).join(' • ')
-      : [locker, pickup ? 'Student was sent to pick up the phone.' : 'No active phone checkout.'].filter(Boolean).join(' • ');
+    const status = out ? (returnRequested ? 'Return requested' : 'Phone is out')
+      : (pickup ? 'Pickup requested' : 'Phone is in locker');
+    const detail = out
+      ? [locker, since ? `Picked up ${since}` : '', by ? `Confirmed by ${by}` : '', returnRequested ? 'Student sent to return.' : ''].filter(Boolean).join(' • ')
+      : [locker, pickup ? 'Student sent to pick up; waiting for handoff.' : 'No active phone checkout.'].filter(Boolean).join(' • ');
+    state.phoneChoices = phoneActionChoices(data, opts, state.access);
     let buttons = '';
-    const me = String(opts?.who?.email || '').trim().toLowerCase();
-    const pickupOwner = String(st.phone_pickup_requested_by_email || '').trim().toLowerCase();
-    const outOwner = String(st.phone_out_by_email || '').trim().toLowerCase();
-    // Only an owner/admin may request a return; the Office confirms physical return.
-    const maySendBack = out && !returnRequested && canGrant &&
-      (actorIsAdmin(opts?.who) || (!!me && (me === outOwner || me === pickupOwner)));
-    if (!isReadOnly() && out && canReturn) buttons += button('Student Returned Phone', 'phone-return', true);
-    if (!isReadOnly() && maySendBack) buttons += button('Send Student to Return Phone', 'phone-send-back', !canReturn);
-    if (!isReadOnly() && !out && canGrant) {
-      if (requestPickup && pickup) buttons += button('Pickup Requested ✓', 'phone-grant', false, true);
-      else buttons += button(requestPickup ? 'Send Student to Pickup Phone' : 'Student Picked Up Phone', 'phone-grant', true);
+    if (!isReadOnly() && state.phoneChoices.length){
+      buttons += `<select id="phase3PhoneAction" class="phase3PhoneSelect" aria-label="Choose a phone action"><option value="">Phone actions…</option>${state.phoneChoices.map((choice)=>`<option value="${esc(choice.id)}">${esc(choice.label)}</option>`).join('')}</select>`;
+      buttons += button('Confirm', 'phone-selected', true, true);
     }
+    if (isReadOnly()) buttons += '<span class="phase3ActionDetail">View As: actions read-only</span>';
     buttons += button('Open Phone Pass', 'phone-open');
-    setCard('phase3Phone', { title:'Phone Pass', status, detail, tone: out || pickup || returnRequested ? 'emphasis' : '', buttons });
+    setCard('phase3Phone', { title:'Phone Pass', status, detail, tone:out || pickup || returnRequested ? 'emphasis' : '', buttons });
   }
 
   function renderStaffPull(result, options){
@@ -426,9 +490,47 @@
     if (el) el.dataset.undoToken = String(row?.token || '');
   }
 
+  // Refresh the actual phone state and capabilities before confirming a selected
+  // menu item. A stale card never authorizes an action for a different student.
+  async function confirmPhoneSelection(){
+    if (isReadOnly() || state.actionBusy || state.phonePreflightBusy) return;
+    const id = String($('phase3PhoneAction')?.value || '');
+    if (!id || !state.phoneChoices.some((choice)=>choice.id === id)) return;
+    const spec = PHONE_QUICK_ACTIONS[id];
+    if (!spec) return;
+    const osis = state.osis;
+    const name = studentName();
+    const statusEl = $('phase3ContextStatus');
+    state.phonePreflightBusy = true;
+    try {
+      if (statusEl) statusEl.textContent = 'Checking the latest Phone Pass status…';
+      const [opts, data] = await Promise.all([
+        jsonRequest('/admin/phone_pass/options', {method:'GET'}),
+        jsonRequest(`/admin/phone_pass/context?osis=${encodeURIComponent(osis)}`, {method:'GET'})
+      ]);
+      if (osis !== state.osis || isReadOnly()) return;
+      if (!phoneActionChoices(data, opts, state.access).some((choice)=>choice.id === id)){
+        if (statusEl) statusEl.textContent = 'Phone Pass status changed. Refreshing available actions…';
+        await loadCurrentStudent(true);
+        return;
+      }
+      const locker = phoneLockerLabel(data?.roster || {});
+      const body = {osis};
+      if (spec.source) body.source = spec.source;
+      if (id === 'request-pickup' || id === 'confirm-pickup') body.note = '';
+      await mutate(spec.title, spec.message(name, locker),
+        () => jsonRequest(spec.path, {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}));
+    } catch(err){
+      if (statusEl && osis === state.osis) statusEl.textContent = `Phone Pass failed: ${err?.message || err}`;
+    } finally {
+      state.phonePreflightBusy = false;
+    }
+  }
+
   async function mutate(action, message, request, after){
-    if (isReadOnly()) return;
+    if (isReadOnly() || state.actionBusy) return;
     if (!window.confirm(message)) return;
+    state.actionBusy = true;
     const statusEl = $('phase3ContextStatus');
     if (statusEl) statusEl.textContent = 'Saving action…';
     try {
@@ -438,10 +540,17 @@
       await loadCurrentStudent(true);
     } catch (err) {
       if (statusEl) statusEl.textContent = `${action} failed: ${err?.message || err}`;
+    } finally {
+      state.actionBusy = false;
     }
   }
 
   function wireActionClicks(){
+    $('studentLookupPhase3')?.addEventListener('change', (event) => {
+      if (event.target?.id !== 'phase3PhoneAction') return;
+      const confirm = $('phase3Phone')?.querySelector('[data-p3-action="phone-selected"]');
+      if (confirm) confirm.disabled = isReadOnly() || !state.phoneChoices.some((choice)=>choice.id === event.target.value);
+    });
     $('studentLookupPhase3')?.addEventListener('click', (event) => {
       const btn = event.target.closest('[data-p3-action]');
       if (!btn || btn.disabled || !state.osis) return;
@@ -460,31 +569,7 @@
         periodLocal:ctx.periodLocal,
         date:ctx.date
       });
-      if (action === 'phone-grant') return void mutate(
-        state.phoneGrantMode === 'request_pickup' ? 'Phone pickup request' : 'Phone pickup',
-        state.phoneGrantMode === 'request_pickup'
-          ? `Send ${studentName()} to pick up their phone? This does not confirm the phone was handed over.`
-          : `Confirm that ${studentName()} physically picked up their phone?`,
-        () => jsonRequest('/admin/phone_pass/grant', {
-          method:'POST', headers:{'content-type':'application/json'},
-          body:JSON.stringify({ osis:state.osis, note:'', source:state.phoneGrantMode === 'request_pickup' ? 'phone_pass_request' : 'phone_pass' })
-        })
-      );
-      if (action === 'phone-send-back') return void mutate(
-        'Phone return request',
-        `Send ${studentName()} to return their phone? This does not confirm a physical return.`,
-        () => jsonRequest('/admin/phone_pass/send_to_return', {
-          method:'POST', headers:{'content-type':'application/json'},
-          body:JSON.stringify({ osis:state.osis, source:'phone_pass' })
-        })
-      );
-      if (action === 'phone-return') return void mutate(
-        'Phone return',
-        `Confirm that ${studentName()} returned the phone?`,
-        () => jsonRequest('/admin/phone_pass/return', {
-          method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ osis:state.osis })
-        })
-      );
+       if (action === 'phone-selected') return void confirmPhoneSelection();
       if (action === 'staff-pull') return void mutate(
         'Staff Pull',
         `Pull ${studentName()} to you now?`,
