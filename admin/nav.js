@@ -554,6 +554,7 @@
         items: [
           { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', description:'Trace attendance submissions and diagnostics' },
           { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', description:'Review contact-data correction suggestions' },
+          { key:'incentive_trips', label:'Incentive Trip Eligibility', href:'./incentive_trips.html', description:'Configurable behavior, attendance and grade eligibility for incentive trips' }, // EAGLENEST_INCENTIVE_TRIPS_V1
           { key:'exports', label:'Exports', href:'./exports.html', description:'Filtered historical CSV exports across EagleNEST modules' },
           { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Operational Health', href:'./fidelity.html', description:'Attendance fidelity and operational health' },
           { key:'scan_injector', label: MODULES.scan_injector || 'Scan Injector', href:'./scan_injector.html', description:'Admin scan simulation and testing' },
@@ -590,6 +591,7 @@
     const visibleByAccess = (it) => !!(
       access?.can?.[it.key] ||
       (it.key === 'gradebook_analytics' && access?.can?.grades) ||
+      (it.key === 'incentive_trips' && (access?.role === 'super_admin' || access?.role === 'admin') && !access?.view_as?.active) ||
       (it.key === 'exports' && (access?.role === 'super_admin' || access?.role === 'admin') && !access?.view_as?.active) ||
       (it.key === 'conference_scheduler' && access?.can?.student_contacts) ||
       (it.key === 'esas' && !!access?.email) ||
