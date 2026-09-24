@@ -11,6 +11,21 @@ function percent(r){return r?.grading_completion==null?'—':Number(r.grading_co
 function pill(status){const lookup={UPCOMING:['Upcoming','gbNeutral'],PENDING_GRADING:['Pending grading','gbWarn'],FULLY_GRADED:['Fully graded','gbGood'],NO_ACTIVE_ENROLLMENT:['No active enrollment','gbNeutral']};const [name,klass]=lookup[status]||[status,'gbNeutral'];return `<span class="gbPill ${klass}">${esc(name)}</span>`}
 function setError(e){$('error').hidden=!e;$('error').textContent=String(e||'')}
 function renderSummary(s){const cards=[['My / selected sections',s.section_count],['Assignments retrieved',s.assignment_count],['Due assignments graded',`${s.fully_graded_count}/${s.due_count}`],['Recorded score completion',s.grading_completion==null?'—':Number(s.grading_completion).toFixed(1)+'%'],['Due assignments pending',s.outstanding_count]];$('kpis').innerHTML=cards.map(([name,v])=>`<div class="gbKpi"><span>${esc(name)}</span><strong>${esc(v)}</strong></div>`).join('')}
+// EAGLENEST_GRADEBOOK_COURSE_SORT_V1
+// Mirror the Worker display rules; the server remains authoritative for totals and access.
+const gbCourseCollator=new Intl.Collator('en',{numeric:true,sensitivity:'base'});
+function gbExcludedSection(row){return [row?.course_number,row?.section_code].some(v=>
+  /^(?:LCH|FM)\d*(?:$|[._-])/.test(String(v??'').trim().toUpperCase().replace(/\s+/g,'')));}
+function gbCourseSort(a,b){
+  const aEmpty=!(Number(a?.assignment_count)>0),bEmpty=!(Number(b?.assignment_count)>0);
+  if(aEmpty!==bEmpty)return aEmpty?1:-1;
+  const aCourse=String(a?.course_number||a?.section_code||'').split('.')[0];
+  const bCourse=String(b?.course_number||b?.section_code||'').split('.')[0];
+  return gbCourseCollator.compare(aCourse,bCourse)||
+    gbCourseCollator.compare(String(a?.section_code||''),String(b?.section_code||''))||
+    gbCourseCollator.compare(String(a?.teacher_name||''),String(b?.teacher_name||''))||
+    gbCourseCollator.compare(String(a?.section_dcid||''),String(b?.section_dcid||''));
+}
 function renderTable(){const q=$('search').value.trim().toLowerCase();const teacher=$('teacherFilter').value;const visible=SECTION_ROWS.filter(r=>(!teacher||r.teacher_email===teacher||(r.additional_teacher_emails||[]).includes(teacher))&&(!q||[r.section_code,r.teacher_name,r.course_number].some(v=>String(v||'').toLowerCase().includes(q))));$('listCaption').textContent=`${visible.length} section(s) · click a course for its assignment breakdown.`;
   $('table').innerHTML=visible.length?`<table><thead><tr><th>Section</th>${IS_ADMIN?'<th>Teacher</th>':''}<th>Enrolled</th><th>Retrieved assignments</th><th>Due fully graded</th><th>Recorded completion</th><th>Pending due</th><th>Last score entry</th></tr></thead><tbody>${visible.map(r=>`<tr><td><button class="gbRowButton" data-section="${esc(r.section_dcid)}">${esc(r.section_code)}</button>${r.coverage==='NO_RETRIEVED_ASSIGNMENTS'?'<small>No returned scored assignments</small>':''}</td>${IS_ADMIN?`<td>${esc(r.teacher_name||'Unmapped teacher')}<small>${esc(r.teacher_email||'Email not mapped')}</small>${r.additional_teacher_emails?.length?`<small>Additional: ${esc(r.additional_teacher_emails.join(', '))}</small>`:''}</td>`:''}<td>${r.enrolled_count}</td><td>${r.assignment_count}</td><td>${r.fully_graded_count}/${r.due_count}</td><td>${percent(r)}</td><td class="${r.outstanding_count?'gbWarn':'gbGood'}">${r.outstanding_count}</td><td>${esc(r.latest_score_entry||'—')}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No sections match your filters, or your teacher email has not yet been mapped to a PowerSchool section.</div>';
   $('table').querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>showSection(b.dataset.section));}
@@ -21,7 +36,7 @@ async function renderHistory(){try{const d=await api('/admin/gradebook-analytics
 async function load(){setError('');$('table').textContent='Loading weekly report…';try{const data=await api('/admin/gradebook-analytics/overview');$('login').hidden=true;$('app').hidden=false;CURRENT=data;await gbControlAuthorize_();IS_ADMIN=data.viewer?.role==='admin';$('listTitle').textContent=IS_ADMIN?'Schoolwide sections':'My Sections';if(!data.snapshot){$('table').innerHTML='<div class="gbEmpty">No published gradebook analytics snapshot yet. Run Cloud Run /run?mode=eaglenest after both source exports show SUCCESS.</div>';$('kpis').innerHTML='';return}
   $('meta').textContent=`Assignment data refreshed ${nice(data.snapshot.assignment_export_completed_at)} · roster refreshed ${nice(data.snapshot.dde_export_completed_at)} · report published ${nice(data.snapshot.published_at)} · school ${data.snapshot.school_id}, term ${data.snapshot.term_id}`;
   $('coverage').textContent=data.snapshot.coverage_note||'';
-  SECTION_ROWS=data.sections||[];
+  SECTION_ROWS=(data.sections||[]).filter(row=>!gbExcludedSection(row)).sort(gbCourseSort);
   const teacherOptions=new Map();for(const row of SECTION_ROWS){if(row.teacher_email)teacherOptions.set(row.teacher_email,row.teacher_name||row.teacher_email);for(const email of row.additional_teacher_emails||[])if(!teacherOptions.has(email))teacherOptions.set(email,email)}const teachers=[...teacherOptions.entries()].sort((a,b)=>a[1].localeCompare(b[1]));
   $('teacherFilterWrap').hidden=!IS_ADMIN;$('teacherFilter').innerHTML='<option value="">All teachers</option>'+teachers.map(([email,name])=>`<option value="${esc(email)}">${esc(name)}</option>`).join('');renderSummary(data.summary||{});renderTable();renderHistory();
 }catch(e){setError(e.message||String(e));$('table').textContent='Could not load report.'}}
