@@ -30,9 +30,9 @@ function statusCard(label,value,kind,detail){
 }
 function checksFor(r){
   const a=r.attendance||{},g=r.academics||{};
-  const windowReady=a.complete_window===true && !a.missing_daily && Number(a.school_denominator)===10;
+  const windowReady=a.complete_window===true && !a.missing_daily && Number(a.school_denominator)===5;
   const classReady=windowReady && !a.missing_classes && Number(a.class_total)>0;
-  const schoolTone=!windowReady?'warn':Number(a.school_present)>=9?'good':'bad';
+  const schoolTone=!windowReady?'warn':Number(a.school_present)>=4?'good':'bad';
   const arrivalTone=a.today_arrival?.status==='pending'?'warn':a.today_arrival?.met?'good':'bad';
   const classTone=!classReady?'warn':Number(a.class_ontime)*100>=90*Number(a.class_total)?'good':'bad';
   const gradeTone=!g.ready?'warn':Number(g.failing_course_count)===0?'good':'bad';
@@ -114,7 +114,7 @@ function showStudent(r){
   ${reasonHtml(r)}
   <div class="grid" style="margin:15px 0">
     ${statusCard('Permission slip',r.permission_slip?'Approved':'Missing',r.permission_slip?'good':'bad',r.permission_slip?'Required for every outside-lunch departure':'Mandatory; an admin pass cannot replace a slip')}
-    ${statusCard('School attendance',schoolValue,c.schoolTone,readySchool?'At least 9 of the last 10 completed school days':'Waiting for a complete 10-day attendance window')}
+    ${statusCard('School attendance',schoolValue,c.schoolTone,readySchool?'At least 4 of the last 5 completed school days':'Waiting for a complete 5-day attendance window')}
     ${statusCard('On-time to school TODAY',arrivalValue,c.arrivalTone,arrivalDetail)}
     ${statusCard('On-time class meetings',classValue,c.classTone,c.classReady?'At least 90% on time; absent / excused meetings excluded':'Missing or incomplete class-meeting evidence')}
     ${statusCard('Current marking-period grades',gradeValue,c.gradeTone,g.ready?`${g.marking_period||'Marking period'} · Passing: ${g.passing_score??'configured'} · Updated ${g.snapshot_date||'—'}`:'Current grade snapshot not ready; zeros are not entered grades')}
