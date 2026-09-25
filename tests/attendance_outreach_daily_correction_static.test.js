@@ -1,3 +1,9 @@
+// EAGLENEST_D1_ONLY_OUTREACH_TEST_ESM_COMPAT_V1
+import { createRequire as eagleCreateRequire } from 'node:module';
+const require = eagleCreateRequire(import.meta.url);
+import { fileURLToPath as eagleFileURLToPath } from 'node:url';
+import { dirname as eagleDirname } from 'node:path';
+const __dirname = eagleDirname(eagleFileURLToPath(import.meta.url));
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -13,13 +19,25 @@ const outreachUi = read('student-scanner/admin/attendance_outreach.js');
 const outreachHtml = read('student-scanner/admin/attendance_outreach.html');
 const scansUi = read('student-scanner/admin/student_scans.js');
 
-test('Attendance Outreach verification applies canonical Daily Attendance Correction', () => {
-  assert.match(route, /attendance_outreach_daily_correction/);
-  assert.match(route, /corrected_when_iso/);
-  assert.match(route, /todayPresenceEvidence/);
-  assert.match(route, /recordDailyAttendanceCorrection/);
-  assert.match(correctionService, /attendance_outreach_verification/);
-  assert.match(correctionService, /reverseDailyAttendanceCorrection/);
+test('Attendance Outreach records canonical correction and writes AM directly without Scans', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const { strict: assert } = await import('node:assert');
+  const root = resolve(fileURLToPath(new URL('.', import.meta.url)), '../..');
+  const route = readFileSync(resolve(root,
+    'cf-redcake/red-cake-77d5/src/routes/attendance-outreach.js'), 'utf8');
+  const scannerGas = readFileSync(resolve(root,
+    'Google Apps Script/clasp-projects/student-scanner-gas/Code.js'), 'utf8');
+  const bridge = readFileSync(resolve(root,
+    'Google Apps Script/clasp-projects/student-scanner-gas/AMAttOnlyD1Bridge.js'), 'utf8');
+  assert.match(route, /resolveAMRowFromD1/);
+  assert.match(route, /action:\s*'am_att_only_direct_set'/);
+  assert.match(route, /recordDailyAttendanceCorrection\(/);
+  assert.match(route, /reverseDailyAttendanceCorrection\(/);
+  assert.doesNotMatch(route, /action:\s*'attendance_outreach_daily_correction(?:_undo)?'/);
+  assert.match(scannerGas, /action === 'am_att_only_direct_set'/);
+  assert.match(bridge, /function d1AmHandleSet_\(/);
 });
 
 test('Scanner GAS creates and reverses only the outreach compatibility scan', () => {
