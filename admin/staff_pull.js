@@ -394,7 +394,9 @@ function renderCurrentLocation(st){
   sub.className = 'locSub';
 
   const heldToday = isStaffHoldToday(st);
-  const heldBy = String(st?.held_by_title || st?.held_by_email || '').trim();
+  const heldTitle = String(st?.held_by_title || '').trim();
+  const heldEmail = String(st?.held_by_email || '').trim();
+  const heldBy = heldTitle && heldEmail ? `${heldTitle} (${heldEmail})` : (heldTitle || heldEmail);
   const heldSince = st?.held_by_since ? fmtClock(st.held_by_since) : '';
   if(!st || !fromToday){
     const bits = [];
@@ -637,6 +639,24 @@ async function loadSelectedContext(){
   releaseBtn.disabled = !canRelease;
 }
 
+function staffPullApiErrorMessage(data, status, fallback){
+  const code = String(data?.error || '').trim();
+  if (code === 'already_held'){
+    const title = String(data?.held_by_title || '').trim();
+    const email = String(data?.held_by_email || '').trim();
+    const holder = title && email ? `${title} (${email})` : (title || email || 'another staff member');
+    const since = data?.held_by_since ? fmtClock(data.held_by_since) : '';
+    return `Already with ${holder}${since ? ` since ${since}` : ''}.`;
+  }
+  if (code === 'different_hold_active'){
+    const title = String(data?.held_by_title || '').trim();
+    const email = String(data?.held_by_email || '').trim();
+    const holder = title && email ? `${title} (${email})` : (title || email || 'another workflow');
+    return `A different hold is active with ${holder}.`;
+  }
+  return code || fallback || `HTTP ${status}`;
+}
+
 async function pullStudent(osis){
   const r = await adminFetch('/admin/staff_pull/pull', {
     method:'POST',
@@ -644,7 +664,7 @@ async function pullStudent(osis){
     body: JSON.stringify({ osis })
   });
   const data = await r.json().catch(()=>null);
-  if(!r.ok || !data?.ok) throw new Error(data?.error || `pull HTTP ${r.status}`);
+  if(!r.ok || !data?.ok) throw new Error(staffPullApiErrorMessage(data, r.status, `pull HTTP ${r.status}`));
   return data;
 }
 
@@ -655,7 +675,7 @@ async function releaseStudent(osis){
     body: JSON.stringify({ osis })
   });
   const data = await r.json().catch(()=>null);
-  if(!r.ok || !data?.ok) throw new Error(data?.error || `release HTTP ${r.status}`);
+  if(!r.ok || !data?.ok) throw new Error(staffPullApiErrorMessage(data, r.status, `release HTTP ${r.status}`));
   return data;
 }
 

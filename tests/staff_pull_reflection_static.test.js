@@ -98,8 +98,10 @@ test('Reflection Hold ownership is independent of physical state date and physic
 
 test('after-school baseline reset respects Staff Pull, Reflection Hold, Regents Prep, and Late Arrival obligations', () => {
   const reset = between(worker, 'async function maybeAfterSchoolOffCampusReset', '__name(maybeAfterSchoolOffCampusReset');
-  assert.match(reset, /held_date/);
-  assert.match(reset, /held_by_email/);
+  const activeHold = between(worker, 'function activeHoldInfo_(state, date)', '__name(activeHoldInfo_, "activeHoldInfo_")');
+  assert.match(reset, /activeHoldInfo_\(cur, dateISO\)/);
+  assert.match(activeHold, /held_date/);
+  assert.match(activeHold, /held_by_email/);
   assert.match(reset, /afterSchoolExitHoldFor_/);
   assert.ok(reset.indexOf('afterSchoolExitHoldFor_') > reset.indexOf('if (cur && cur.date === dateISO)'));
 });

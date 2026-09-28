@@ -41,6 +41,9 @@ test('SAFETY: Reflection Hold state failures cannot be reported as successful mu
 
 test('SAFETY: end-of-day reset cannot synthesize Off Campus through an active exit obligation', () => {
   const reset = worker.slice(worker.indexOf('async function maybeAfterSchoolOffCampusReset'), worker.indexOf('__name(maybeAfterSchoolOffCampusReset'));
+  const activeHold = worker.slice(worker.indexOf('function activeHoldInfo_(state, date)'), worker.indexOf('__name(activeHoldInfo_, "activeHoldInfo_")'));
+  assert.match(reset, /activeHoldInfo_\(cur, dateISO\)/);
   assert.match(reset, /afterSchoolExitHoldFor_/);
-  assert.match(reset, /held_by_email/);
+  assert.match(activeHold, /held_by_email/);
+  assert.match(activeHold, /held_date/);
 });

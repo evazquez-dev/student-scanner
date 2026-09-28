@@ -65,11 +65,29 @@
     return resp;
   }
 
+  function apiErrorMessage(data, status){
+    const code = String(data?.error || '').trim();
+    if (code === 'already_held'){
+      const title = String(data?.held_by_title || '').trim();
+      const email = String(data?.held_by_email || '').trim();
+      const holder = title && email ? `${title} (${email})` : (title || email || 'another staff member');
+      const since = data?.held_by_since ? fmtClock(data.held_by_since) : '';
+      return `Already with ${holder}${since ? ` since ${since}` : ''}.`;
+    }
+    if (code === 'different_hold_active'){
+      const title = String(data?.held_by_title || '').trim();
+      const email = String(data?.held_by_email || '').trim();
+      const holder = title && email ? `${title} (${email})` : (title || email || 'another workflow');
+      return `A different hold is active with ${holder}.`;
+    }
+    return code || `HTTP ${status}`;
+  }
+
   async function jsonRequest(pathOrUrl, init = {}){
     const resp = await phase3Fetch(pathOrUrl, init);
     const data = await resp.json().catch(() => null);
     if (!resp.ok || !data?.ok) {
-      const err = new Error(data?.error || `HTTP ${resp.status}`);
+      const err = new Error(apiErrorMessage(data, resp.status));
       err.status = resp.status;
       err.data = data;
       throw err;
@@ -396,7 +414,9 @@
     const st = result.value?.state || {};
     const who = options.value?.who || {};
     const held = isStaffHoldToday(st);
-    const heldBy = held ? String(st.held_by_email || st.held_by_title || st.held_by_role || '').trim() : '';
+    const heldTitle = held ? String(st.held_by_title || st.held_by_role || '').trim() : '';
+    const heldEmail = held ? String(st.held_by_email || '').trim() : '';
+    const heldBy = held ? (heldTitle && heldEmail ? `${heldTitle} (${heldEmail})` : (heldTitle || heldEmail)) : '';
     const since = held && st.held_by_since ? fmtClock(st.held_by_since) : '';
     const me = String(who.email || state.access?.email || '').trim().toLowerCase();
     const owner = String(st.held_by_email || '').trim().toLowerCase();
