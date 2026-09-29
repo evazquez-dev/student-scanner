@@ -143,6 +143,7 @@
           <button id="tabScans" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelScans" data-tab="scans" tabindex="-1">Scans <span id="scansCount" class="count"></span></button>
           <button id="tabBehavior" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelBehavior" data-tab="behavior" tabindex="-1">Behavior <span id="behaviorCount" class="count"></span></button>
           <button id="tabCommunications" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelCommunications" data-tab="communications" tabindex="-1">Communications <span id="communicationsCount" class="count"></span></button>
+          <button id="tabEngagement" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelEngagement" data-tab="engagement" tabindex="-1">Campaigns &amp; Conferences <span id="engagementCount" class="count"></span></button><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 -->
         </div>
 
         <section id="panelOverview" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabOverview" data-panel="overview">
@@ -212,8 +213,40 @@
           </div>
           <div id="communicationsList" class="list"><div class="loadingState">Open this tab to load communication history.</div></div>
         </section>
+
+        <section id="panelEngagement" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabEngagement" data-panel="engagement" hidden>
+          <div class="panelHead">
+            <div><h2>Campaigns &amp; Conferences</h2><p id="engagementMeta" class="muted small">Active required communications and Family &amp; Student Conference events for this student.</p></div>
+            <button id="refreshEngagementBtn" class="btn secondary small" type="button">Refresh</button>
+          </div>
+          <div id="engagementList" class="list"><div class="loadingState">Open this tab to load active campaigns and conference events.</div></div>
+        </section>
       </section>
     </main>
+  </div>
+
+  <div id="engagementBackdrop" class="backdrop" hidden><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 -->
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="engagementModalTitle">
+      <header class="modalHead">
+        <div><h2 id="engagementModalTitle">Conference Log / Book</h2><div id="engagementModalStudent" class="muted small"></div></div>
+        <button id="closeEngagementLogBook" class="iconBtn" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modalBody">
+        <div class="contextBox small"><strong>Family contact is part of booking.</strong><div class="muted" style="margin-top:4px">Log the parent/guardian conversation here and optionally choose the appointment slot from the same save.</div></div>
+        <label class="field"><span>Family contact</span><select id="engagementContactSelect"><option value="">No specific contact</option></select></label>
+        <div class="twoCol">
+          <label class="field"><span>Method</span><select id="engagementMethod"><option>Phone</option><option>Email</option><option>Text</option><option>In Person</option><option>Other</option></select></label>
+          <label class="field"><span>Outcome</span><select id="engagementOutcome"><option>Spoke/Connected</option><option>No Answer</option><option>Left Voicemail</option><option>Follow-up Needed</option><option>Resolved</option><option>Other</option></select></label>
+        </div>
+        <label class="field"><span>Appointment</span><select id="engagementSlotSelect"><option value="">Log communication only — do not book yet</option></select></label>
+        <label class="field"><span>Notes</span><textarea id="engagementNotes" class="input" rows="4" maxlength="3200" placeholder="Optional conference outreach notes"></textarea></label>
+        <div id="engagementModalStatus" class="small" aria-live="polite"></div>
+      </div>
+      <footer class="modalFoot">
+        <button id="cancelEngagementLogBook" class="btn secondary" type="button">Cancel</button>
+        <button id="saveEngagementLogBook" class="btn primary" type="button">Save Log / Book</button>
+      </footer>
+    </section>
   </div>
 
   <div id="behaviorBackdrop" class="backdrop" hidden>
@@ -241,6 +274,7 @@
 
   <script src="./student_view.js" defer></script>
   <script src="./student_lookup_phase3.js" defer></script>
+  <script src="./student_lookup_engagement.js" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 -->
   <script src="./student_lookup_calls.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE2 -->
   <script src="./student_lookup_campus_routing.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE3_2 -->
   <script src="./student_lookup_mtss.js" defer></script><!-- EAGLENEST_MTSS_V1_STUDENT_LOOKUP -->
