@@ -25,7 +25,14 @@ assert.match(ui, /Office-staff slots in Student Lookup are advisor-scoped/);
 assert.match(confRoute, /\/admin\/conferences\/student_context/);
 assert.match(confRoute, /studentLookupOfficeProxy/);
 assert.match(confRoute, /validateStudentConferenceAdvisorSlot/);
-assert.match(confRoute, /isAdmin \|\| studentLookupOfficeProxy/);
+
+// EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1 compatibility:
+// Student Lookup must remain advisor-lane scoped for Office Staff, while the
+// dedicated Conferences page may proxy across participating staff lanes.
+assert.match(confRoute, /if \(studentLookupOfficeProxy\)[\s\S]*validateStudentConferenceAdvisorSlot/);
+assert.match(confRoute, /isAdmin \|\| conferenceOfficeProxy/);
+assert.match(confRoute, /createConferenceBooking\(env, bookingInput, actorEmail, isAdmin \|\| officeBookingDesk\)/);
+assert.match(confRoute, /const canViewAllConferenceLanes = isAdmin \|\| officeBookingDesk/);
 
 assert.match(confContext, /isOfficeStaff \? advisorEmail : actorEmail/);
 assert.match(confContext, /conference_student_advisor_lane_required/);

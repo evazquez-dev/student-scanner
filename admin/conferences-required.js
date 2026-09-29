@@ -18,6 +18,8 @@
     })[status] || String(status||'—');
   }
   function reqIsAdmin(){return ['admin','super_admin'].includes(String(access?.role||'').toLowerCase());}
+  function reqIsBookingDesk(){return !reqIsAdmin()&&access?.can?.office_staff===true;} // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
+  function reqCanViewAll(){return reqIsAdmin()||reqIsBookingDesk();}
 
   function injectRequirementUi(){
     if(document.getElementById('conferenceRequirementCard')) return;
@@ -50,7 +52,7 @@
         <div class="sectionHead" style="margin-top:18px">
           <div><h3 id="requirementRosterTitle" style="margin:0">Required students</h3></div>
           <div class="requirementFilters">
-            <label class="adminOnly reqAdminOnly" hidden>Advisor<select id="requirementAdvisorFilter"></select></label>
+            <label class="reqAllLaneOnly" hidden>Advisor<select id="requirementAdvisorFilter"></select></label><!-- EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1 -->
             <label>Status<select id="requirementStatusFilter">
               <option value="">All statuses</option>
               <option value="no_outreach">No outreach</option>
@@ -170,6 +172,7 @@
     const hasEvent=!!bundle?.event;
     card.hidden=!hasEvent;
     document.querySelectorAll('.reqAdminOnly').forEach((el)=>el.hidden=!reqIsAdmin());
+    document.querySelectorAll('.reqAllLaneOnly').forEach((el)=>el.hidden=!reqCanViewAll()); // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
     if(!hasEvent) return;
 
     const refresh=document.getElementById('requirementRefreshBtn');
@@ -190,10 +193,12 @@
     }
 
     const s=req.summary||{};
-    document.getElementById('requirementHeading').textContent=reqIsAdmin()?'Required conference progress':'My required advisees';
+    document.getElementById('requirementHeading').textContent=reqIsAdmin()?'Required conference progress':reqIsBookingDesk()?'Conference booking desk':'My required advisees';
     document.getElementById('requirementSubhead').textContent=reqIsAdmin()
       ?'Admin view across all participating advisors.'
-      :'Your required advisees for this conference. Log each outreach attempt here and book a time when the family is ready.';
+      :reqIsBookingDesk()
+        ?'Office view across participating advisors. Log the family conversation and book the requested staff lane.'
+        :'Your required advisees for this conference. Log each outreach attempt here and book a time when the family is ready.'; // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
     document.getElementById('requirementKpis').innerHTML=[
       ['Required',s.required||0],
       ['Contacted',`${s.contacted||0}${s.required?` (${s.contact_percent||0}%)`:''}`],
@@ -238,7 +243,7 @@
 
   function requirementFilteredStudents(req){
     let rows=Array.isArray(req?.students)?req.students.slice():[];
-    const advisor=reqIsAdmin()?String(document.getElementById('requirementAdvisorFilter')?.value||''):'';
+    const advisor=reqCanViewAll()?String(document.getElementById('requirementAdvisorFilter')?.value||''):''; // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
     const status=String(document.getElementById('requirementStatusFilter')?.value||'');
     if(advisor)rows=rows.filter((row)=>row.advisor_email===advisor);
     if(status)rows=rows.filter((row)=>row.status===status);
@@ -258,7 +263,7 @@
     const body=document.getElementById('requirementStudentBody');
     if(!body)return;
     const rows=requirementFilteredStudents(req);
-    document.getElementById('requirementRosterTitle').textContent=reqIsAdmin()?`Required students (${rows.length})`:`My advisees (${rows.length})`;
+    document.getElementById('requirementRosterTitle').textContent=reqCanViewAll()?`Required students (${rows.length})`:`My advisees (${rows.length})`; // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
     if(!rows.length){body.innerHTML='<tr><td colspan="5" class="reqEmpty">No students match this view.</td></tr>';return;}
     body.innerHTML=rows.map((row)=>{
       const comm=row.latest_communication;
@@ -320,7 +325,7 @@
     select.replaceChildren(new Option('Log communication only — do not book yet',''));
     const own=String(access?.email||'').toLowerCase();
     let slots=(bundle?.slots||[]).filter((slot)=>slot.status==='open');
-    if(!reqIsAdmin())slots=slots.filter((slot)=>slot.staff_email===own);
+    if(!reqCanViewAll())slots=slots.filter((slot)=>slot.staff_email===own); // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
     slots.sort((a,b)=>String(a.start_iso).localeCompare(String(b.start_iso))||String(a.staff_email).localeCompare(String(b.staff_email)));
     for(const slot of slots){
       select.appendChild(new Option(`${fmtTime(slot.start_iso)} – ${fmtTime(slot.end_iso)} • ${staffLabel(slot.staff_email)}${staffLocation(slot.staff_email)?` • ${staffLocation(slot.staff_email)}`:''}`,slot.slot_id));
