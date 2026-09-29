@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — Finishing sign-in</title>
+  <script src="./shared_auth.js"></script>
+  <style>
+    body{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f8fafc;color:#0f172a}
+    main{max-width:560px;margin:12vh auto;padding:28px}.card{background:#fff;border:1px solid #cbd5e1;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(15,23,42,.08)}
+    h1{font-size:22px;margin:0 0 10px}p{line-height:1.5;margin:8px 0;color:#475569}.bad{color:#b91c1c}
+  </style>
+</head>
+<body>
+  <main><section class="card"><h1>Finishing Google sign-in…</h1><p id="status">Please wait. You will return to EagleNEST automatically.</p></section></main>
+  <script>
+    (async () => {
+      const status = document.getElementById('status');
+      const params = new URLSearchParams(location.search);
+      const handoff = String(params.get('handoff') || '').trim();
+      const authError = String(params.get('auth_error') || '').trim();
+      try { history.replaceState(null, '', location.pathname); } catch {}
+
+      if (authError) {
+        status.className = 'bad';
+        status.textContent = `Google sign-in could not be completed (${authError}). Return to the EagleNEST page and try again.`;
+        return;
+      }
+      if (!handoff) {
+        status.className = 'bad';
+        status.textContent = 'The sign-in handoff is missing or expired. Return to the EagleNEST page and sign in again.';
+        return;
+      }
+
+      try {
+        const rawBase = String(document.querySelector('meta[name="api-base"]')?.content || '').trim();
+        if (!rawBase) throw new Error('missing_api_base');
+        const url = new URL('admin/session/login_google', rawBase.replace(/\/*$/, '') + '/');
+        url.searchParams.set('handoff', handoff);
+        const response = await fetch(url, { method:'GET', credentials:'include', cache:'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.ok || !data?.sid) throw new Error(data?.error || `handoff_http_${response.status}`);
+        const sid = window.EAGLENEST_AUTH?.setSid?.(String(data.sid || ''));
+        if (!sid) throw new Error('session_store_failed');
+        const next = new URL(String(data.return_to || './'), location.href);
+        if (next.origin !== location.origin) throw new Error('return_origin_mismatch');
+        status.textContent = 'Signed in. Returning to EagleNEST…';
+        location.replace(next.href);
+      } catch (error) {
+        status.className = 'bad';
+        status.textContent = `Sign-in could not be completed (${String(error?.message || error)}). Return to the EagleNEST page and try again.`;
+      }
+    })();
+  </script>
+</body>
+</html>
