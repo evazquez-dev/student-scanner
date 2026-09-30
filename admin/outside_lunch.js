@@ -31,10 +31,10 @@ function statusCard(label,value,kind,detail){
 function checksFor(r){
   const a=r.attendance||{},g=r.academics||{};
   const windowReady=a.complete_window===true && !a.missing_daily && Number(a.school_denominator)===5;
-  const classReady=windowReady && !a.missing_classes && Number(a.class_total)>0;
+  const classReady=windowReady;
   const schoolTone=!windowReady?'warn':Number(a.school_present)>=4?'good':'bad';
   const arrivalTone=a.today_arrival?.status==='pending'?'warn':a.today_arrival?.met?'good':'bad';
-  const classTone=!classReady?'warn':Number(a.class_ontime)*100>=90*Number(a.class_total)?'good':'bad';
+  const classTone=!classReady?'warn':a.class_met!==true?'bad':a.missing_classes?'info':'good'; // EAGLENEST_ELIGIBILITY_MISSING_MEETINGS_NEUTRAL_V1
   const gradeTone=!g.ready?'warn':Number(g.failing_course_count)===0?'good':'bad';
   return {windowReady,classReady,schoolTone,arrivalTone,classTone,gradeTone};
 }
@@ -60,7 +60,7 @@ function filterBoard(){
       `<button class="btn ol-student-button" data-student="${escape(r.osis)}">${escape(r.name)}</button><div class="ol-detail">${escape(r.osis)} · Grade ${escape(r.grade)}</div>`,
       `<div class="ol-cell">${badge(r.permission_slip?'good':'bad',r.permission_slip?'Approved':'Missing')}</div>`,
       `<div class="ol-cell">${badge(c.schoolTone,c.windowReady?schoolText:'Attendance incomplete')}${badge(c.arrivalTone,arrivalText)}<span class="ol-detail">${escape(schoolText)} · ${escape(arrivalText)}</span></div>`,
-      `<div class="ol-cell">${badge(c.classTone,c.classReady?classText:'Class data incomplete')}<span class="ol-detail">${escape(classText)} · ${pct(a.class_pct)} on time</span></div>`,
+      `<div class="ol-cell">${badge(c.classTone,!c.classReady?'Class window unavailable':a.missing_classes?'Partial class data · missing ignored':classText)}<span class="ol-detail">${escape(classText)} · ${pct(a.class_pct)} on time</span></div>`,
       `<div class="ol-cell">${badge(c.gradeTone,gradesText)}<span class="ol-detail">${escape(g.marking_period||'Current marking period')}</span></div>`,
       `<div class="ol-cell">${badge(r.penalty_pending?'bad':'good',r.penalty_pending?'Penalty pending':'No penalty')}</div>`,
       `<div class="ol-cell">${badge(r.eligible?'good':'bad',r.eligible?'Eligible':'Not eligible')}${r.admin_pass?badge('info','Admin pass'):''}<span class="ol-detail">${escape(r.reason||'All checks met')}</span></div>`
@@ -84,9 +84,9 @@ function showStudent(r){
     const periods=(x.periods||[]).map(p=>{
       const s=String(p.status||'unknown').toLowerCase();
       // EAGLENEST_OUTSIDE_LUNCH_CLASS_ABSENCE_EXCLUSION_V1: report absence as excluded, not a failed meeting.
-      const excluded=s==='absent'||s==='excused';
-      const kind=excluded?'info':s==='present'?'good':s==='unknown'?'warn':'bad';
-      const label=excluded?`${s.replaceAll('_',' ')} · excluded`:s.replaceAll('_',' ');
+      const excluded=['absent','excused','iss','oss','unknown'].includes(s);
+      const kind=s==='unknown'?'warn':excluded?'info':s==='present'?'good':'bad';
+      const label=s==='unknown'?'unknown · ignored':excluded?`${s.replaceAll('_',' ')} · excluded`:s.replaceAll('_',' ');
       return `<span class="ol-period"><span class="ol-detail">${escape(p.period_local||p.period_id||'Period')}</span>${badge(kind,label)}</span>`;
     }).join('')||'—';
     const dailyKind=missing?'warn':x.excused_absence?'info':x.daily_status==='present'?'good':x.daily_status==='late'?'warn':'bad';
@@ -116,7 +116,7 @@ function showStudent(r){
     ${statusCard('Permission slip',r.permission_slip?'Approved':'Missing',r.permission_slip?'good':'bad',r.permission_slip?'Required for every outside-lunch departure':'Mandatory; an admin pass cannot replace a slip')}
     ${statusCard('School attendance',schoolValue,c.schoolTone,readySchool?'At least 4 of the last 5 completed school days':'Waiting for a complete 5-day attendance window')}
     ${statusCard('On-time to school TODAY',arrivalValue,c.arrivalTone,arrivalDetail)}
-    ${statusCard('On-time class meetings',classValue,c.classTone,c.classReady?'At least 90% on time; absent / excused meetings excluded':'Missing or incomplete class-meeting evidence')}
+    ${statusCard('On-time class meetings',classValue,c.classTone,a.missing_classes?'Missing/unknown class data is ignored; known meetings still require at least 90% on time':'At least 90% on time; known non-attendance is excluded')}
     ${statusCard('Current marking-period grades',gradeValue,c.gradeTone,g.ready?`${g.marking_period||'Marking period'} · Passing: ${g.passing_score??'configured'} · Updated ${g.snapshot_date||'—'}`:'Current grade snapshot not ready; zeros are not entered grades')}
     ${statusCard('Late-return penalty',pen.pending?'Penalty pending':'No penalty',pen.pending?'bad':'good',pen.pending?'Next otherwise-eligible outside-lunch attempt is blocked':pen.last_violation_date?`Last violation: ${pen.last_violation_date}`:'No active restriction from a late return')}
     ${r.admin_restriction?statusCard('Administrative restriction','Active','bad','Blocks outside lunch regardless of other results'):''}
