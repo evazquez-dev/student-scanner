@@ -44,11 +44,21 @@
 
       <section class="card ac-panel" data-panel="roles">
         <div class="ac-toolbar">
-          <div><h2>Role defaults</h2><p class="muted">“Inherit” preserves the current EagleNEST behavior. An explicit level changes the policy for members of that role.</p></div>
+          <div>
+            <h2>Role defaults</h2>
+            <p class="muted">“Inherit” preserves the current EagleNEST behavior. Each access point only offers levels that the underlying feature can actually enforce.</p>
+          </div>
           <label>Role<select id="roleSelect"></select></label>
         </div>
         <div id="roleSource" class="pane ac-source"></div>
-        <div class="ac-legend"><span>None</span><span>View</span><span>Use</span><span>Manage</span><span>Admin</span></div>
+        <div class="ac-legend">
+          <span><strong>None</strong> = denied</span>
+          <span><strong>View</strong> = read-only</span>
+          <span><strong>Use</strong> = normal workflow</span>
+          <span><strong>Manage</strong> = broader operational control</span>
+          <span><strong>Admin</strong> = configuration authority</span>
+          <span><strong>Protected</strong> = repair/control-plane access remains Super Admin-only</span>
+        </div>
         <div id="roleMatrix"></div>
         <div class="ac-actions">
           <button class="btn primary" id="saveRoleBtn">Save role policy</button>
@@ -58,7 +68,7 @@
 
       <section class="card ac-panel" data-panel="users" hidden>
         <h2>Individual overrides</h2>
-        <p class="muted">Search a staff member or enter an email. Individual settings override role settings in either direction.</p>
+        <p class="muted">Search a staff member or enter an email. Individual settings override role settings in either direction. Only levels that make sense for each access point are available.</p>
         <div class="ac-user-search">
           <input id="userSearch" type="search" placeholder="Name or email">
           <select id="userPicker"><option value="">Choose staff…</option></select>

@@ -43,9 +43,11 @@ test('SAFETY: varied entrance injector IN is corrected explicitly without changi
   assert.match(service, /source: 'admin_scan_injector'/);
 });
 
-test('SAFETY: injector is modularly intercepted and surfaced only to admin-like navigation', () => {
+test('SAFETY: injector is modularly intercepted and surfaced only through explicit capability navigation', () => {
   assert.match(index, /SCAN_INJECTOR_PATHS/);
   assert.match(index, /handleScanInjectorRequest\(req, env, ctx, baseWorker\)/);
-  assert.match(nav, /scan_injector/);
-  assert.match(nav, /access\?\.role === 'super_admin' \|\| access\?\.role === 'admin'/);
+  assert.match(nav, /key:'scan_injector'/);
+  assert.match(nav, /EAGLENEST_ACCESS_LEVELS_V2_NAV/);
+  assert.match(nav, /Object\.prototype\.hasOwnProperty\.call\(can, it\.key\)/);
+  assert.match(nav, /can\[it\.key\] === true/);
 });

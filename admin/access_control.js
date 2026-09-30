@@ -5,6 +5,14 @@
   const HEADER='x-admin-session';
   const $=id=>document.getElementById(id);
   const state={catalog:null,rolePolicy:{},staff:[],selectedUser:'',effective:null};
+  const levelNames=['none','view','use','manage','admin'];
+  const levelHelp={
+    none:'No access',
+    view:'Read-only access',
+    use:'Normal day-to-day workflow access',
+    manage:'Broader operational or schoolwide management access',
+    admin:'Configuration / administrative authority'
+  };
 
   function sid(){try{for(const k of SESSION_KEYS){const v=String(sessionStorage.getItem(k)||localStorage.getItem(k)||'').trim();if(v)return v}}catch{}return''}
   function setSid(v){v=String(v||'').trim();if(!v)return;for(const k of SESSION_KEYS){try{sessionStorage.setItem(k,v);localStorage.setItem(k,v)}catch{}}}
@@ -13,12 +21,41 @@
   function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
   function roleById(id){return state.catalog?.roles?.find(r=>r.id===id)}
   function groupedCaps(){const g={};for(const c of state.catalog?.capabilities||[])(g[c.category]??=[]).push(c);return g}
-  const levels=['inherit','none','view','use','manage','admin'];
+  function numericToName(value){return levelNames[Number(value)]||'none'}
+  function capLevels(cap){
+    const raw=Array.isArray(cap?.valid_levels)&&cap.valid_levels.length?cap.valid_levels:['none','use'];
+    return Array.from(new Set(['none',...raw])).filter(x=>levelNames.includes(x));
+  }
+  function currentPolicyName(cap,value){
+    if(value===undefined||value===null||value==='')return'inherit';
+    const raw=typeof value==='number'?numericToName(value):String(value).toLowerCase();
+    if(raw==='none')return'none';
+    return capLevels(cap).includes(raw)?raw:(cap?.grant_level_name||capLevels(cap).find(x=>x!=='none')||'none');
+  }
+  function allowedText(cap){
+    return capLevels(cap).map(x=>`${x[0].toUpperCase()+x.slice(1)} — ${levelHelp[x]||x}`).join(' · ');
+  }
 
   function levelSelect(cap,value,mode='role'){
-    const locked=cap.id==='access_control';
-    const opts=levels.map(x=>`<option value="${x}" ${String(value??'inherit')===x?'selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('');
+    const locked=['access_control','admin_roles','admin_dashboard'].includes(cap.id);
+    const available=['inherit',...capLevels(cap)];
+    const selected=currentPolicyName(cap,value);
+    const opts=available.map(x=>{
+      const label=x==='inherit'?'Inherit (current EagleNEST behavior)':`${x[0].toUpperCase()+x.slice(1)} — ${levelHelp[x]||x}`;
+      return `<option value="${x}" ${selected===x?'selected':''}>${esc(label)}</option>`;
+    }).join('');
     return `<select data-cap="${esc(cap.id)}" data-mode="${mode}" ${locked?'disabled':''}>${opts}</select>`;
+  }
+
+  function capabilityRow(cap,value,mode,extra=''){
+    return `<div class="ac-row">
+      <div>
+        <div class="ac-title">${esc(cap.label)}</div>
+        <div class="ac-desc muted">${esc(cap.description)}</div>
+        <div class="ac-level-note">Available here: ${esc(allowedText(cap))}</div>
+      </div>
+      <div class="ac-control">${levelSelect(cap,value,mode)}${extra}</div>
+    </div>`;
   }
 
   function renderRole(){
@@ -29,10 +66,7 @@
     let html='<div class="ac-grid">';
     for(const [cat,caps] of Object.entries(groupedCaps())){
       html+=`<section class="ac-category"><h3>${esc(cat)}</h3>`;
-      for(const c of caps){
-        const v=p[c.id]===undefined?'inherit':['none','view','use','manage','admin'][Number(p[c.id])]||'inherit';
-        html+=`<div class="ac-row"><div><div class="ac-title">${esc(c.label)}</div><div class="ac-desc muted">${esc(c.description)}</div></div><div class="ac-control">${levelSelect(c,v,'role')}</div></div>`;
-      }
+      for(const c of caps) html+=capabilityRow(c,p[c.id],'role');
       html+='</section>';
     }
     $('roleMatrix').innerHTML=html+'</div>';
@@ -96,10 +130,10 @@
     for(const [cat,caps] of Object.entries(groupedCaps())){
       html+=`<section class="ac-category"><h3>${esc(cat)}</h3>`;
       for(const c of caps){
-        const ov=overrides[c.id]===undefined?'inherit':['none','view','use','manage','admin'][Number(overrides[c.id])]||'inherit';
         const effective=j.level_names?.[c.id]||'none';
         const source=j.sources?.[c.id]||'';
-        html+=`<div class="ac-row"><div><div class="ac-title">${esc(c.label)}</div><div class="ac-desc muted">${esc(c.description)}</div></div><div class="ac-control">${levelSelect(c,ov,'user')}<span class="ac-effective"><strong>${esc(effective)}</strong><br><span class="muted">${esc(source)}</span></span></div></div>`;
+        const extra=`<span class="ac-effective"><strong>${esc(effective[0].toUpperCase()+effective.slice(1))}</strong><br><span class="muted">${esc(source)}</span></span>`;
+        html+=capabilityRow(c,overrides[c.id],'user',extra);
       }
       html+='</section>';
     }

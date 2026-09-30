@@ -3,8 +3,18 @@ const ROOT=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(ROOT,'admin/access_control.html'),'utf8');
 const js=fs.readFileSync(path.join(ROOT,'admin/access_control.js'),'utf8');
 const nav=fs.readFileSync(path.join(ROOT,'admin/nav.js'),'utf8');
+
 assert(html.includes('Individual overrides'));
+assert(html.includes('only offers levels that the underlying feature can actually enforce'));
 assert(js.includes('/admin/access_control/catalog'));
 assert(js.includes('/admin/access_control/user_effective'));
+assert(js.includes('capLevels(cap)'));
+assert(js.includes('Available here:'));
+assert(js.includes("['access_control','admin_roles','admin_dashboard'].includes(cap.id)"));
+assert(js.includes("view:'Read-only access'"));
+assert(js.includes("use:'Normal day-to-day workflow access'"));
+assert(js.includes("manage:'Broader operational or schoolwide management access'"));
+assert(js.includes("admin:'Configuration / administrative authority'"));
+assert(!js.includes("const levels=['inherit','none','view','use','manage','admin']"));
 assert(nav.includes("key:'access_control'"));
 console.log('frontend access_control_static ok');

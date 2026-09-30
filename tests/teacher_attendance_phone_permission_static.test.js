@@ -8,8 +8,11 @@ const navCss = fs.readFileSync(path.join(root, 'admin/nav.css'), 'utf8');
 const teacherAttendance = fs.readFileSync(path.join(root, 'admin/teacher_attendance.js'), 'utf8');
 
 // The dedicated Phone Pass page remains permission-filtered by the shared nav.
+// V2 makes an explicit server capability false authoritative instead of allowing
+// a legacy role fallback to re-show the page.
 assert.match(nav, /key:'phone_pass'/);
-assert.match(nav, /access\?\.can\?\.\[it\.key\]/);
+assert.match(nav, /Object\.prototype\.hasOwnProperty\.call\(can, it\.key\)/);
+assert.match(nav, /can\[it\.key\] === true/);
 
 // Read-only phone status is operational context on Teacher Attendance and is
 // visible to every Teacher Attendance user. Mutation controls remain gated.

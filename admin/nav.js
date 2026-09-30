@@ -591,16 +591,19 @@
       try { localStorage.setItem(LS_SECTION_OPEN, JSON.stringify(savedSectionOpen)); } catch {}
     };
 
-    const visibleByAccess = (it) => !!(
-      access?.can?.[it.key] ||
-      (it.key === 'gradebook_analytics' && access?.can?.grades) ||
-      (it.key === 'incentive_trips' && (access?.role === 'super_admin' || access?.role === 'admin') && !access?.view_as?.active) ||
-      (it.key === 'exports' && (access?.role === 'super_admin' || access?.role === 'admin') && !access?.view_as?.active) ||
-      (it.key === 'conference_scheduler' && access?.can?.student_contacts) ||
-      (it.key === 'esas' && !!access?.email) ||
-      (it.key === 'attendance_change' && access?.can?.excused_apply) ||
-      (it.key === 'scan_injector' && (access?.role === 'super_admin' || access?.role === 'admin'))
-    );
+    // EAGLENEST_ACCESS_LEVELS_V2_NAV
+    // When the Worker publishes an explicit capability, false must stay false.
+    // Legacy fallbacks are used only during staggered frontend/Worker deployment.
+    const visibleByAccess = (it) => {
+      const can = access?.can || {};
+      if (Object.prototype.hasOwnProperty.call(can, it.key)) return can[it.key] === true;
+      return !!(
+        (it.key === 'gradebook_analytics' && can.grades) ||
+        (it.key === 'conference_scheduler' && can.student_contacts) ||
+        (it.key === 'attendance_change' && can.excused_apply) ||
+        (it.key === 'esas' && !!access?.email)
+      );
+    };
 
     const appendNavLink = (parent, it) => {
       const a = document.createElement('a');
