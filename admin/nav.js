@@ -21,6 +21,7 @@
   const BRAND = window.EAGLENEST_BRAND?.name || 'EagleNEST';
   const MODULES = window.EAGLENEST_BRAND?.modules || {
     my_schedule: 'My Schedule',
+    my_rosters: 'My Rosters', // EAGLENEST_MY_ROSTERS_V1
     grades: 'Grades',
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
@@ -68,6 +69,7 @@
     'ss_admin_session_sid_v1',
     'teacher_att_admin_session_v1',
     'my_schedule_admin_session_v1',
+    'my_rosters_admin_session_v1', // EAGLENEST_MY_ROSTERS_V1
     'grades_admin_session_v1',
     'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
@@ -513,6 +515,7 @@
         title: 'Students & Families',
         items: [
           { key:'student_view', label: MODULES.student_view || 'Student Lookup', href:'./student_view.html', description:'Student dashboard, location and attendance' },
+          { key:'my_rosters', label: MODULES.my_rosters || 'My Rosters', href:'./my_rosters.html', description:'Reusable student sets, email lists and OSIS exports' }, // EAGLENEST_MY_ROSTERS_V1
           { key:'grades', label: MODULES.grades || 'Grades', href:'./grades.html', description:'Current grades, sections, advisories and grade history' },
           { key:'gradebook_analytics', label:'Gradebook Analytics', href:'./gradebook_analytics.html', description:'Weekly, role-scoped gradebook assignment and score-entry snapshots' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },

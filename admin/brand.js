@@ -5,6 +5,7 @@
   const MODULES = {
     kiosk: 'Scanner Kiosk',
     my_schedule: 'My Schedule',
+    my_rosters: 'My Rosters', // EAGLENEST_MY_ROSTERS_V1
     grades: 'Grades',
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',

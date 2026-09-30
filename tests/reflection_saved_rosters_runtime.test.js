@@ -130,18 +130,20 @@ test('saved roster loading filters no-shows, early dismissals, and students alre
   assert.ok(namesSeen.every((name) => name === `PRACTICE:${today}:GLOBAL`));
 });
 
-test('saved-roster frontend helper and route remain wired without replacing core Reflection selection logic', () => {
+test('Reflection uses My Rosters only as a temporary working selection', () => {
   const fs = require('node:fs');
   const html = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/reflection_hold.html'), 'utf8');
   const frontend = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/reflection_saved_rosters.js'), 'utf8');
   const route = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/routes/reflection-hold.js'), 'utf8');
   assert.match(html, /reflection_saved_rosters\.js/);
-  assert.match(frontend, /Save this roster/);
-  assert.match(frontend, /savedRosterSelect/);
+  assert.match(frontend, /EAGLENEST_MY_ROSTERS_V1_REFLECTION_CONSUMER/);
+  assert.match(frontend, /\/admin\/my_rosters/);
+  assert.match(frontend, /\/admin\/my_rosters\/detail/);
+  assert.match(frontend, /Manage My Rosters/);
+  assert.match(frontend, /source roster can only be changed from My Rosters/);
   assert.match(frontend, /#rosterBody tr/);
   assert.match(frontend, /dispatchEvent\(new Event\('change'/);
-  assert.match(frontend, /saved_rosters\/load\?id=/);
-  assert.match(route, /saveReflectionSavedRoster/);
-  assert.match(route, /deleteReflectionSavedRoster/);
+  assert.doesNotMatch(frontend, /Save this roster|saveActiveRoster|action:\s*['"]save['"]|action:\s*['"]delete['"]/);
+  assert.match(route, /legacy_saved_rosters_read_only_use_my_rosters/);
   assert.match(route, /loadReflectionSavedRoster/);
 });

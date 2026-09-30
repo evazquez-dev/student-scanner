@@ -163,18 +163,21 @@ test('loading a named lunch roster filters attendance/location state and current
   assert.ok(namesSeen.every((name) => name === `PRACTICE:${today}:GLOBAL`));
 });
 
-test('Supervised Lunch frontend presents named saved rosters and keeps daily assignment as a separate action', () => {
+test('Supervised Lunch uses My Rosters as a temporary selection without editing the source roster', () => {
   const fs = require('node:fs');
   const html = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/supervised_lunch.html'), 'utf8');
   const frontend = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/supervised_lunch_saved_rosters.js'), 'utf8');
   const route = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/routes/supervised-lunch.js'), 'utf8');
-  assert.match(html, /Saved lunch rosters/);
+  assert.match(html, /Start from a roster/);
   assert.match(html, /Apply today’s assignment/);
-  assert.match(html, /Save roster/);
-  assert.doesNotMatch(html, /Use last set/);
-  assert.match(frontend, /async function saveRoster/);
-  assert.match(frontend, /loadSavedRoster/);
-  assert.match(frontend, /apply_assignment_before_saving_roster|Apply today’s supervised lunch assignment/);
-  assert.match(route, /saveSupervisedLunchSavedRoster/);
+  assert.match(html, /Changes here affect only this supervised lunch assignment/);
+  assert.match(html, /Manage My Rosters/);
+  assert.doesNotMatch(html, /id="saveRosterBtn"|id="deleteSavedRosterBtn"|Saved lunch rosters/);
+  assert.match(frontend, /EAGLENEST_MY_ROSTERS_V1_LUNCH_CONSUMER/);
+  assert.match(frontend, /\/admin\/my_rosters/);
+  assert.match(frontend, /\/admin\/my_rosters\/detail/);
+  assert.match(frontend, /saved roster will not change/);
+  assert.doesNotMatch(frontend, /async function saveRoster|deleteSavedRoster|action:\s*['"]save['"]|action:\s*['"]delete['"]/);
+  assert.match(route, /legacy_saved_rosters_read_only_use_my_rosters/);
   assert.match(route, /loadSupervisedLunchSavedRoster/);
 });

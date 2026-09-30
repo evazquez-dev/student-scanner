@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — My Rosters</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./shared_auth.js"></script>
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./my_rosters.js?v=20260930-1" defer></script>
+  <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||((matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t;}catch(e){}})();</script>
+  <style>
+    :root{color-scheme:dark;--bg1:#111827;--bg2:#020617;--fg:#e5e7eb;--muted:#9ca3af;--border:#263244;--card:#0f172a;--soft:#111827;--control:#0b1220;--accent:#38bdf8;--accent2:#0ea5e9;--ok:#22c55e;--bad:#ef4444;--warn:#f59e0b}
+    :root[data-theme="light"]{color-scheme:light;--bg1:#f8fafc;--bg2:#dbeafe;--fg:#0f172a;--muted:#475569;--border:#cbd5e1;--card:#fff;--soft:#f1f5f9;--control:#fff}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;padding:1rem;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(circle at top left,var(--bg1),var(--bg2));color:var(--fg)}
+    .wrap{max-width:1380px;margin:auto;padding-top:56px}.card{border:1px solid var(--border);border-radius:16px;background:var(--card);padding:15px;margin-bottom:12px;box-shadow:0 10px 28px rgba(2,6,23,.12)}
+    h1{font-size:1.18rem;margin:0 0 6px}h2{font-size:1rem;margin:0 0 8px}.muted{color:var(--muted)}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
+    .grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(420px,.95fr);gap:12px}@media(max-width:1000px){.grid{grid-template-columns:1fr}}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.grow{flex:1 1 220px}.pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--border);border-radius:999px;padding:5px 9px;background:var(--soft);font-size:.82rem}
+    input[type=text],textarea{width:100%;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--fg);padding:10px 11px;font:inherit}textarea{min-height:96px;resize:vertical}
+    button{border:1px solid var(--border);border-radius:10px;background:var(--soft);color:var(--fg);padding:9px 11px;font-weight:800;cursor:pointer}button.primary{border-color:var(--accent2);background:rgba(14,165,233,.16)}button.danger{border-color:rgba(239,68,68,.6)}button[disabled]{opacity:.5;cursor:not-allowed}
+    .status{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--soft);white-space:pre-wrap}.status.ok{border-color:rgba(34,197,94,.55)}.status.bad{border-color:rgba(239,68,68,.55)}
+    .rosterList{display:grid;gap:8px}.rosterCard{border:1px solid var(--border);border-radius:12px;background:var(--soft);padding:10px}.rosterTop{display:flex;gap:10px;align-items:flex-start}.rosterMain{flex:1}.rosterName{font-weight:900}.rosterMeta{font-size:.82rem;color:var(--muted);margin-top:3px}.rosterActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.rosterDetails{margin-top:9px;display:none}.rosterCard.open .rosterDetails{display:block}
+    .scroll{max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:10px}table{width:100%;border-collapse:collapse;font-size:.88rem}th,td{padding:8px 9px;border-bottom:1px solid var(--border);text-align:left}th{position:sticky;top:0;background:var(--card);z-index:1}.tiny{font-size:.78rem}.empty{padding:12px;color:var(--muted)}
+    .builderStudents{max-height:330px;overflow:auto;border:1px solid var(--border);border-radius:10px}.searchResults{display:grid;gap:5px;margin-top:7px;max-height:220px;overflow:auto}.searchHit{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--border);border-radius:9px;background:var(--soft)}
+    .selectedToolbar{position:sticky;bottom:8px;z-index:3}.copybar{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:10px;box-shadow:0 8px 25px rgba(2,6,23,.22)}
+  </style>
+</head>
+<body data-module="my_rosters">
+  <div class="wrap">
+    <div class="card">
+      <h1 data-brand-title>EagleNEST — My Rosters</h1>
+      <div class="muted">Create reusable student sets for email lists, OSIS exports, Reflection Hold, Supervised Lunch, and future grade/attendance tools. Loading a roster into another workflow never changes the saved roster.</div>
+    </div>
+    <div id="authCard" class="card" hidden><b>Staff sign-in required.</b></div>
+    <div id="app" hidden>
+      <div class="grid">
+        <div>
+          <div class="card">
+            <div class="row"><h2 style="margin:0">My saved rosters</h2><span class="pill"><span id="customCount">0</span> saved</span></div>
+            <div id="customRosters" class="rosterList" style="margin-top:10px"></div>
+          </div>
+          <div class="card">
+            <div class="row"><h2 style="margin:0">Current class & advisory rosters</h2><span class="pill">Read-only</span></div>
+            <div class="muted tiny" style="margin-top:5px">These come from your current EagleNEST teacher/advisory assignments and update automatically.</div>
+            <div id="systemRosters" class="rosterList" style="margin-top:10px"></div>
+          </div>
+          <div class="card" id="legacyCard" hidden>
+            <h2>Previous saved rosters</h2>
+            <div class="muted tiny">Older Reflection Hold / Supervised Lunch saved sets are still usable. Import one here to make it an editable My Roster.</div>
+            <div id="legacyRosters" class="rosterList" style="margin-top:10px"></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="row"><h2 id="builderTitle" style="margin:0">Create custom roster</h2><span class="pill">Working roster: <span id="builderCount">0</span></span></div>
+            <input id="rosterId" type="hidden" />
+            <div style="margin-top:10px"><label for="rosterName"><b>Roster name</b></label><input id="rosterName" type="text" maxlength="100" placeholder="e.g. Tuesday Tutoring" /></div>
+            <div style="margin-top:10px"><label for="pasteOsis"><b>Paste OSIS numbers</b></label><textarea id="pasteOsis" placeholder="Paste a column, comma-delimited list, or mixed text containing OSIS numbers"></textarea></div>
+            <div class="row" style="margin-top:7px"><button id="addPastedBtn" type="button">Add pasted OSIS</button><span id="pasteResult" class="muted tiny"></span></div>
+            <div style="margin-top:12px"><label for="studentSearch"><b>Search students</b></label><input id="studentSearch" type="text" placeholder="Name, email, or OSIS" autocomplete="off" /><div id="searchResults" class="searchResults"></div></div>
+            <div class="row" style="margin-top:12px"><b>Working selection</b><span class="muted tiny">Changes here are unsaved until you click Save roster.</span></div>
+            <div class="builderStudents" style="margin-top:7px"><table><thead><tr><th>Name</th><th>Email</th><th>OSIS</th><th>Grade</th><th></th></tr></thead><tbody id="builderBody"></tbody></table></div>
+            <div class="row" style="margin-top:10px">
+              <button id="copyBuilderEmails" type="button">Copy emails</button>
+              <button id="copyBuilderOsisColumn" type="button">Copy OSIS column</button>
+              <button id="copyBuilderOsisComma" type="button">Copy OSIS comma list</button>
+            </div>
+            <div class="row" style="margin-top:10px"><button id="saveRosterBtn" class="primary" type="button">Save roster</button><button id="clearBuilderBtn" type="button">Clear / new roster</button></div>
+            <div id="builderStatus" class="status" style="margin-top:10px">Build a roster by searching students or pasting OSIS numbers.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="selectedToolbar">
+        <div class="copybar row">
+          <b>Selected rosters:</b><span class="pill"><span id="selectedRosterCount">0</span> rosters</span><span class="pill"><span id="selectedStudentCount">0</span> unique students</span>
+          <button id="copySelectedEmails" type="button" disabled>Copy combined emails</button>
+          <button id="copySelectedOsisColumn" type="button" disabled>Copy combined OSIS column</button>
+          <button id="copySelectedOsisComma" type="button" disabled>Copy combined OSIS comma list</button>
+          <button id="clearRosterSelection" type="button" disabled>Clear roster selection</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

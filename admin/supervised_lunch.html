@@ -17,7 +17,7 @@
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script src="./supervised_lunch.js?v=20260825-saved-rosters" defer></script>
-  <script src="./supervised_lunch_saved_rosters.js?v=20260825-named-rosters" defer></script>
+  <script src="./supervised_lunch_saved_rosters.js?v=20260930-my-rosters-v1" defer></script>
   <script>
     (function(){
       try{
@@ -107,18 +107,17 @@
 
         <div class="row" style="margin-top:10px;align-items:flex-end;">
           <div class="grow">
-            <label for="savedRosterSelect"><b>Saved lunch rosters</b></label>
-            <select id="savedRosterSelect"><option value="">Loading saved rosters…</option></select>
+            <label for="savedRosterSelect"><b>Start from a roster</b> <span class="muted">(optional)</span></label>
+            <select id="savedRosterSelect"><option value="">Loading rosters…</option></select>
           </div>
-          <button id="loadSavedRosterBtn" type="button" disabled>Load saved roster</button>
-          <button id="deleteSavedRosterBtn" class="danger" type="button" disabled>Delete saved roster</button>
+          <button id="loadSavedRosterBtn" type="button" disabled>Load into this assignment</button>
+          <a href="./my_rosters.html" style="color:inherit;font-weight:700;align-self:center;">Manage My Rosters</a>
         </div>
-        <div class="muted" style="margin-top:6px;">Loading a saved roster automatically skips students who are absent, left early, are already off campus, or are no longer assigned to that lunch period.</div>
+        <div class="muted" style="margin-top:6px;">Changes here affect only this supervised lunch assignment. Add/remove students freely; the source roster can only be edited from My Rosters.</div>
 
         <div class="row" style="margin-top:10px;">
           <button id="loadAssignmentBtn" type="button">Load current assignment</button>
           <button id="saveBtn" class="primary" type="button">Apply today’s assignment</button>
-          <button id="saveRosterBtn" type="button">Save roster</button>
           <button id="clearBtn" class="danger" type="button">Clear assignment</button>
         </div>
 

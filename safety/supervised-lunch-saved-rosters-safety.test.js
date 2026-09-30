@@ -31,8 +31,9 @@ test('SAFETY: named roster save is based on an already-applied supervised lunch 
   assert.doesNotMatch(frontend, /body:\s*JSON\.stringify\(\{\s*action: 'save',[^}]*osisList/s);
 });
 
-test('SAFETY: saved lunch roster mutations retain origin and View-As read-only protections', () => {
+test('SAFETY: legacy lunch saved-roster definitions are read-only outside My Rosters', () => {
   assert.match(route, /\/admin\/supervised_lunch\/saved_rosters/);
-  assert.match(route, /mutationGuard\(req, env, base\.response, base\.data\)/);
-  assert.match(route, /action === 'delete'/);
+  assert.match(route, /legacy_saved_rosters_read_only_use_my_rosters/);
+  assert.match(route, /Saved rosters can only be changed from My Rosters/);
+  assert.doesNotMatch(route, /action === 'delete'[\s\S]{0,180}deleteSupervisedLunchSavedRoster/);
 });

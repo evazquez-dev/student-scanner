@@ -24,10 +24,11 @@ test('SAFETY: loading a saved roster uses current-mode StudentLocation and filte
   assert.match(service, /early_dismissal/);
 });
 
-test('SAFETY: saved roster save/delete mutations retain origin and View-As read-only guards', () => {
+test('SAFETY: legacy Reflection saved-roster definitions are read-only outside My Rosters', () => {
   assert.match(route, /path === '\/admin\/reflection_hold\/saved_rosters'/);
-  assert.match(route, /mutationGuard\(req, env, base\.response, base\.data\)/);
-  assert.match(route, /action === 'delete'/);
+  assert.match(route, /legacy_saved_rosters_read_only_use_my_rosters/);
+  assert.match(route, /Saved rosters can only be changed from My Rosters/);
+  assert.doesNotMatch(route, /action === 'delete'[\s\S]{0,180}deleteReflectionSavedRoster/);
 });
 
 test('SAFETY: saved roster feature does not alter core Reflection Hold service implementation', () => {
