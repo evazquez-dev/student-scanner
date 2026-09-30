@@ -872,6 +872,8 @@
       .behaviorLogEvent{ justify-self:start; text-align:left; max-width:100%; }
     }
 
+    .afterSchoolExtraBox{display:none;border:1px solid var(--border);border-radius:12px;padding:10px;margin-top:10px;background:var(--soft)}
+    .afterSchoolExtraBox.active{display:block}.afterSchoolExtraResults{display:grid;gap:5px;margin-top:7px}.afterSchoolExtraHit{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:7px;border:1px solid var(--border);border-radius:9px}.activityBadge{display:inline-flex;border:1px solid var(--accent);border-radius:999px;padding:2px 6px;font-size:.68rem;font-weight:900;margin-left:6px}.activityBadge.extra{border-color:var(--warn);color:var(--warn)}
     /* Hide the Out/In column entirely when not on the current period */
     #tableBox.noOutIn .row{
       grid-template-columns: 34px minmax(0,2fr) minmax(0,0.8fr) minmax(0,0.8fr) minmax(0,0.9fr);
@@ -967,6 +969,11 @@
               <label for="periodInput">Period (local)</label>
               <select id="periodInput"></select>
             </div>
+            <!-- EAGLENEST_MY_ROSTER_SPECIAL_ACTIONS_V1 -->
+            <div class="field" id="afterSchoolActivityField" hidden>
+              <label for="afterSchoolActivityInput">Activity</label>
+              <select id="afterSchoolActivityInput"><option value="">General After-School</option></select>
+            </div>
             <div class="field" id="physicalRoomField" hidden>
               <label>Physical room</label>
               <div id="physicalRoomText" class="fieldValue" aria-live="polite">—</div>
@@ -983,6 +990,11 @@
             <button class="btn btn-primary" id="submitBtn" disabled>Submit changes</button>
           </div>
 
+          <div id="afterSchoolExtraBox" class="afterSchoolExtraBox">
+            <div class="row"><b>Add an extra student for today</b><span class="muted">This does not change the base My Roster.</span></div>
+            <input id="afterSchoolExtraSearch" type="search" placeholder="Search name, email, or OSIS…" autocomplete="off" style="width:100%;margin-top:7px">
+            <div id="afterSchoolExtraResults" class="afterSchoolExtraResults"></div>
+          </div>
           <div id="attendanceReadOnlyNotice" class="attendanceReadOnlyNotice" hidden aria-live="polite"></div>
           <div id="resourceBookingNotice" class="resourceBookingNotice" hidden aria-live="polite"></div>
           <div class="error" id="errBox"></div>

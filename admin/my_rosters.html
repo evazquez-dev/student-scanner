@@ -12,7 +12,7 @@
   <script src="./shared_auth.js"></script>
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./my_rosters.js?v=20260930-collab-v2" defer></script>
+  <script src="./my_rosters.js?v=20260930-special-actions-v1" defer></script>
   <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||((matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t;}catch(e){}})();</script>
   <style>
     :root{color-scheme:dark;--bg1:#111827;--bg2:#020617;--fg:#e5e7eb;--muted:#9ca3af;--border:#263244;--card:#0f172a;--soft:#111827;--control:#0b1220;--accent2:#0ea5e9}
@@ -27,7 +27,7 @@
     .scroll{max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:10px}table{width:100%;border-collapse:collapse;font-size:.88rem}th,td{padding:8px 9px;border-bottom:1px solid var(--border);text-align:left}th{position:sticky;top:0;background:var(--card);z-index:1}.empty{padding:12px;color:var(--muted)}
     .builderStudents{max-height:330px;overflow:auto;border:1px solid var(--border);border-radius:10px}.searchResults{display:grid;gap:5px;margin-top:7px;max-height:220px;overflow:auto}.searchHit{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:7px 8px;border:1px solid var(--border);border-radius:9px;background:var(--soft)}
     .selectedToolbar{position:sticky;bottom:8px;z-index:3}.copybar{border:1px solid var(--border);border-radius:12px;background:var(--card);padding:10px;box-shadow:0 8px 25px rgba(2,6,23,.22)}
-    .collabBox{border-top:1px solid var(--border);margin-top:10px;padding-top:10px}.shareList{display:grid;gap:6px;margin-top:8px}.shareRow,.suggestRow{display:flex;gap:7px;align-items:center;flex-wrap:wrap;border:1px solid var(--border);border-radius:9px;padding:7px}.auditList{display:grid;gap:4px;margin-top:8px}
+    .collabBox{border-top:1px solid var(--border);margin-top:10px;padding-top:10px}.shareList{display:grid;gap:6px;margin-top:8px}.shareRow,.suggestRow{display:flex;gap:7px;align-items:center;flex-wrap:wrap;border:1px solid var(--border);border-radius:9px;padding:7px}.auditList{display:grid;gap:4px;margin-top:8px}.specialActionBox{border:1px solid var(--border);border-radius:12px;background:var(--soft);padding:10px;margin-top:10px}.specialActionGrid{display:grid;grid-template-columns:minmax(160px,.7fr) minmax(200px,1fr);gap:8px;margin-top:8px}@media(max-width:700px){.specialActionGrid{grid-template-columns:1fr}}
   </style>
 </head>
 <body data-module="my_rosters">
@@ -48,6 +48,16 @@
           <div class="row"><h2 id="builderTitle" style="margin:0">Create custom roster</h2><span class="pill">Working roster: <span id="builderCount">0</span></span></div>
           <input id="rosterId" type="hidden"><input id="rosterVersion" type="hidden">
           <div style="margin-top:10px"><label for="rosterName"><b>Roster name</b></label><input id="rosterName" type="text" maxlength="100" placeholder="e.g. Tuesday Tutoring"></div>
+          <!-- EAGLENEST_MY_ROSTER_SPECIAL_ACTIONS_V1 -->
+          <div class="specialActionBox">
+            <div class="row"><b>Special Actions</b><span class="pill">Optional</span></div>
+            <div class="muted tiny">Mark a roster as a Club or Sports Team to publish it to the After-School activity picker. The saved roster remains the permanent base membership; after-school extras never change it.</div>
+            <div class="specialActionGrid">
+              <label><b>Type</b><select id="specialActionType"><option value="">None</option><option value="club">Club</option><option value="sports_team">Sports Team</option></select></label>
+              <label><b>Home room / default location</b><input id="specialActionHomeRoom" type="text" maxlength="120" list="specialActionLocations" placeholder="Optional — e.g. 405, Gym, Field"><datalist id="specialActionLocations"></datalist></label>
+            </div>
+            <div id="specialActionHint" class="muted tiny" style="margin-top:7px">No Special Action. This roster will not appear as an After-School activity.</div>
+          </div>
           <div style="margin-top:10px"><label for="pasteOsis"><b>Paste OSIS numbers</b></label><textarea id="pasteOsis" placeholder="Paste a column, comma-delimited list, or mixed text containing OSIS numbers"></textarea></div>
           <div class="row" style="margin-top:7px"><button id="addPastedBtn" type="button">Add pasted OSIS</button><span id="pasteResult" class="muted tiny"></span></div>
           <div style="margin-top:12px"><label for="studentSearch"><b>Search students</b></label><input id="studentSearch" type="text" placeholder="Name, email, or OSIS" autocomplete="off"><div id="searchResults" class="searchResults"></div></div>

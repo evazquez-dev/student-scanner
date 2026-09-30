@@ -1538,6 +1538,11 @@ const outInHeader = document.getElementById('outInHeader');
 
 const roomInput  = document.getElementById('roomInput');
 const periodInput= document.getElementById('periodInput');
+const afterSchoolActivityField=document.getElementById('afterSchoolActivityField'); // EAGLENEST_MY_ROSTER_SPECIAL_ACTIONS_V1
+const afterSchoolActivityInput=document.getElementById('afterSchoolActivityInput');
+const afterSchoolExtraBox=document.getElementById('afterSchoolExtraBox');
+const afterSchoolExtraSearch=document.getElementById('afterSchoolExtraSearch');
+const afterSchoolExtraResults=document.getElementById('afterSchoolExtraResults');
 // const whenSelect = document.getElementById('whenSelect');
 const refreshBtn = document.getElementById('refreshBtn');
 const submitBtn = document.getElementById('submitBtn');
@@ -1578,9 +1583,11 @@ let ARRIVAL_PERIOD_LOCAL = ''; // next period during passing/arrival window
 // ---------- After-school teacher view (room-only) ----------
 const MODE_KEY = 'teacher_att_mode_v1'; // 'class' | 'after_school'
 const AS_ROOM_KEY = 'teacher_att_as_room';
+const AS_ACTIVITY_KEY='teacher_att_as_activity'; // EAGLENEST_MY_ROSTER_SPECIAL_ACTIONS_V1
 let PAGE_MODE = 'class';
 let AFTER_SCHOOL_ELIGIBLE = false;      // Worker schedule says we're in after-school window
 let AFTER_SCHOOL_OPTS_CACHE = null;     // /admin/after_school/options
+let AFTER_SCHOOL_ACTIVITIES_CACHE=[];
 let LAST_CLASS_PICK = { room: '', period: '' };
 
 // Real advisor-mode periods (backend buckets by advisor label)
@@ -2013,6 +2020,28 @@ function setStoredMode(mode){
   try{ localStorage.setItem(MODE_KEY, m); }catch{}
 }
 
+
+async function fetchAfterSchoolActivities(){
+  if(DEMO_MODE)return {ok:true,date:getNYDateISO_(),activities:[]};
+  const r=await adminFetch('/admin/after_school/activities',{method:'GET'});const data=await r.json().catch(()=>null);
+  if(!r.ok||!data?.ok)throw new Error(data?.error||`after_school/activities HTTP ${r.status}`);return data;
+}
+function selectedAfterSchoolActivity(){const id=String(afterSchoolActivityInput?.value||'').trim();return AFTER_SCHOOL_ACTIVITIES_CACHE.find(x=>String(x?.roster_id||'')===id)||null;}
+function fillAfterSchoolActivitySelect(preferred=''){
+  if(!afterSchoolActivityInput)return;afterSchoolActivityInput.innerHTML='<option value="">General After-School (by room)</option>';
+  const clubs=AFTER_SCHOOL_ACTIVITIES_CACHE.filter(x=>x.action_type==='club'),sports=AFTER_SCHOOL_ACTIVITIES_CACHE.filter(x=>x.action_type==='sports_team');
+  for(const [label,items] of [['Clubs',clubs],['Sports Teams',sports]]){if(!items.length)continue;const group=document.createElement('optgroup');group.label=label;for(const row of items){const option=document.createElement('option');option.value=String(row.roster_id||'');option.textContent=`${row.name}${row.home_room?` — ${row.home_room}`:' — No default location'}`;group.appendChild(option);}afterSchoolActivityInput.appendChild(group);}
+  if(preferred&&AFTER_SCHOOL_ACTIVITIES_CACHE.some(x=>String(x.roster_id)===String(preferred)))afterSchoolActivityInput.value=preferred;
+}
+async function startAfterSchoolActivity(rosterId,room=''){const r=await adminFetch('/admin/after_school/activity/start',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({roster_id:rosterId,room})});const data=await r.json().catch(()=>null);if(!r.ok||!data?.ok)throw new Error(data?.error||`activity/start HTTP ${r.status}`);return data;}
+async function syncAfterSchoolActivity(rosterId,room=''){const r=await adminFetch('/admin/after_school/activity/sync',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({roster_id:rosterId,room})});const data=await r.json().catch(()=>null);if(!r.ok||!data?.ok)throw new Error(data?.error||`activity/sync HTTP ${r.status}`);return data;}
+async function fetchAfterSchoolActivity(rosterId,room=''){const u=new URL('/admin/after_school/activity',API_BASE);u.searchParams.set('roster_id',rosterId);if(room)u.searchParams.set('room',room);const r=await adminFetch(u,{method:'GET'});const data=await r.json().catch(()=>null);if(!r.ok||!data?.ok)throw new Error(data?.error||`activity HTTP ${r.status}`);return data;}
+async function toggleAfterSchoolActivity({rosterId,osis,to,room=''}){const r=await adminFetch('/admin/after_school/activity/toggle',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({roster_id:rosterId,osis,to,room})});const data=await r.json().catch(()=>null);if(!r.ok||!data?.ok)throw new Error(data?.error||`activity/toggle HTTP ${r.status}`);return data;}
+async function searchAfterSchoolExtras(q){const u=new URL('/admin/after_school/activity/search',API_BASE);u.searchParams.set('q',q);const r=await adminFetch(u,{method:'GET'});const data=await r.json().catch(()=>null);if(!r.ok||!data?.ok)throw new Error(data?.error||`activity/search HTTP ${r.status}`);return data;}
+function renderAfterSchoolExtraSearch(){if(!afterSchoolExtraBox)return;afterSchoolExtraBox.classList.toggle('active',PAGE_MODE==='after_school'&&!!selectedAfterSchoolActivity());if(PAGE_MODE!=='after_school'||!selectedAfterSchoolActivity()){if(afterSchoolExtraResults)afterSchoolExtraResults.innerHTML='';}}
+let AFTER_SCHOOL_EXTRA_TIMER=null;
+async function runAfterSchoolExtraSearch(){const q=String(afterSchoolExtraSearch?.value||'').trim();if(!selectedAfterSchoolActivity()||q.length<2){if(afterSchoolExtraResults)afterSchoolExtraResults.innerHTML='';return;}try{const data=await searchAfterSchoolExtras(q);afterSchoolExtraResults.innerHTML=(data.results||[]).map(row=>`<div class="afterSchoolExtraHit"><div><b>${escapeHtml_(row.name||row.osis)}</b><div class="muted">${escapeHtml_(row.osis)} · Grade ${escapeHtml_(row.grade||'—')}</div></div><button type="button" class="btn btn-mini" data-activity-extra="${escapeHtml_(row.osis)}">Add present</button></div>`).join('')||'<div class="muted">No matches.</div>';}catch(e){afterSchoolExtraResults.innerHTML=`<div class="muted">${escapeHtml_(e?.message||e)}</div>`;}}
+
 async function fetchAfterSchoolOptions(){
   if (DEMO_MODE) {
     const fixture = await loadDemoFixture();
@@ -2138,8 +2167,10 @@ function buildAfterSchoolRoomList(asOpts){
 
 function applyAfterSchoolRoomDropdown(asOpts, preferredRoom = ''){
   const items = buildAfterSchoolRoomList(asOpts);
-  if (roomLabelEl) roomLabelEl.textContent = 'Room';
-  fillSelect(roomInput, items, 'Select room…', preferredRoom);
+  const activity=selectedAfterSchoolActivity();
+  if(activity?.home_room&&!items.some(x=>String(x).toLowerCase()===String(activity.home_room).toLowerCase()))items.unshift(activity.home_room);
+  if (roomLabelEl) roomLabelEl.textContent = activity ? 'Location (optional)' : 'Room';
+  fillSelect(roomInput, items, activity ? 'No location / select later…' : 'Select room…', preferredRoom);
 }
 
 function applyModeUI(){
@@ -2147,6 +2178,8 @@ function applyModeUI(){
 
   // Toggle layout bits
   if (periodField) periodField.style.display = isAS ? 'none' : '';
+  if (afterSchoolActivityField) afterSchoolActivityField.hidden=!isAS;
+  renderAfterSchoolExtraSearch();
   if (periodInput) periodInput.disabled = !!isAS;
 
   // Submitting/bulk is class-only
@@ -2176,12 +2209,14 @@ function applyModeUI(){
 
 async function refreshAfterSchoolEligibility(){
   try{
-    const opts = await fetchAfterSchoolOptions();
+    const [opts,activities]=await Promise.all([fetchAfterSchoolOptions(),fetchAfterSchoolActivities().catch(()=>({activities:[]}))]);
     AFTER_SCHOOL_OPTS_CACHE = opts;
+    AFTER_SCHOOL_ACTIVITIES_CACHE=Array.isArray(activities?.activities)?activities.activities:[];
     AFTER_SCHOOL_ELIGIBLE = !!opts?.after_school_mode;
   }catch(_){
     AFTER_SCHOOL_ELIGIBLE = false;
     AFTER_SCHOOL_OPTS_CACHE = null;
+    AFTER_SCHOOL_ACTIVITIES_CACHE=[];
   }
 
   // If the window ended, force back to class view
@@ -2208,19 +2243,23 @@ async function enterAfterSchoolMode(){
     await refreshAfterSchoolEligibility();
   }
 
+  const savedActivity=(qs().get('activity')||'').trim()||localStorage.getItem(AS_ACTIVITY_KEY)||'';
+  fillAfterSchoolActivitySelect(savedActivity);
+  const activity=selectedAfterSchoolActivity();
   const savedAsRoom =
     (qs().get('room') || '').trim() ||
+    (activity?.home_room||'') ||
     sessionStorage.getItem(AS_ROOM_KEY) ||
     localStorage.getItem(AS_ROOM_KEY) ||
-    LAST_CLASS_PICK.room ||
+    (!activity?LAST_CLASS_PICK.room:'') ||
     '';
 
   applyAfterSchoolRoomDropdown(AFTER_SCHOOL_OPTS_CACHE, savedAsRoom);
   try{ periodInput.value = ''; }catch{}
   applyModeUI();
 
-  // Refresh immediately if room is set
-  if (roomInput.value.trim()) {
+  // Activity rosters can be taken even with no location.
+  if (roomInput.value.trim() || selectedAfterSchoolActivity()) {
     await refreshOnce();
   }
 }
@@ -4151,6 +4190,17 @@ function shortZoneLabel(zone){
   return z.replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase());
 }
 
+
+function renderAfterSchoolActivityRows(data){
+  if(tableBox)tableBox.classList.add('afterSchoolMode');if(thStudent)thStudent.textContent='Student';if(thCode)thCode.textContent='Membership / Current';if(outInHeader)outInHeader.textContent='Attendance';
+  rowsEl.innerHTML='';lastMergedRows=[];LAST_SESSION_STATE_READY=false;const list=Array.isArray(data?.students)?data.students:[];
+  for(const r of list){const osis=String(r?.osis||'').trim();if(!osis)continue;const row=document.createElement('div');row.className='row';const c1=document.createElement('div');c1.className='name';const top=document.createElement('div');top.className='top';const dot=document.createElement('span');dot.className='zoneDot '+zoneToDotClass(r?.zone||'');dot.title=shortZoneLabel(r?.zone||'');const student=document.createElement('div');student.className='student';student.textContent=String(r?.name||'(Unknown)');const badge=document.createElement('span');badge.className='activityBadge'+(r?.extra_today?' extra':'');badge.textContent=r?.extra_today?'Extra today':'Rostered';top.append(dot,student,badge);const sub=document.createElement('div');sub.className='subline';sub.textContent=`${osis} • ${r?.location_label||shortZoneLabel(r?.zone||'')}${r?.attended?' • Attended today':''}`;c1.append(top,sub);
+    const c2=document.createElement('div');c2.className='mono muted';c2.textContent=`${r?.membership_type==='extra'?'EXTRA':'BASE'} • ${r?.currently_in_room?'IN LOCATION':String(r?.attendance_status||'expected').toUpperCase()}`;
+    const c3=document.createElement('div'),btn=document.createElement('button');btn.type='button';if(r?.off_campus&&r?.attendance_status!=='present'){btn.className='btn btn-mini';btn.textContent='OFF';btn.disabled=true;btn.title='Student is currently off campus.';}else{const present=r?.attendance_status==='present';btn.className='btn btn-mini '+(present?'btn-out':'btn-in');btn.textContent=present?'OUT':'HERE';btn.title=present?'Mark no longer in this activity':'Mark present in this activity';btn.addEventListener('click',async()=>{btn.disabled=true;const room=normRoom(roomInput?.value||'');try{await toggleAfterSchoolActivity({rosterId:data.activity.roster_id,osis,to:present?'out':'in',room});if(room)await afterSchoolToggle({date:data.date,homeRoomLabel:room,osis,to:present?'out':'in'});}catch(e){setErr(e?.message||String(e));setStatus(false,'Error');}finally{if(!window.__refreshing){window.__refreshing=true;refreshOnce().catch(()=>{}).finally(()=>window.__refreshing=false);}}});}c3.appendChild(btn);row.append(c1,c2,c3);rowsEl.appendChild(row);}
+  const a=data?.activity||{},c=data?.counts||{},room=data?.session?.actual_room||'';subtitleRight.textContent=`${a.name||'Activity'} • ${a.action_label||'After School'}${room?` • ${room}`:' • No location'} • ${Number(c.base||0)} rostered + ${Number(c.extras||0)} extras`;renderTeacherClassCounts({total:Number(c.total||0),inClass:Number(c.present||0)});dateText.textContent=data?.date||'—';
+}
+async function refreshAfterSchoolActivityOnce(){setErr('');const activity=selectedAfterSchoolActivity();if(!activity)return;const room=normRoom(roomInput?.value||'');lastRefreshTs=Date.now();tickRefreshLabel();setStatus(true,'Loading activity…');await startAfterSchoolActivity(activity.roster_id,room);if(room)await syncAfterSchoolActivity(activity.roster_id,room);const data=await fetchAfterSchoolActivity(activity.roster_id,room);renderAfterSchoolActivityRows(data);clearBehaviorLogSection_();setLiveStatusFromBehaviorState();}
+
 function renderAfterSchoolRows({ date, homeRoomLabel, rows }){
   if (tableBox) tableBox.classList.add('afterSchoolMode');
 
@@ -4349,10 +4399,11 @@ async function refreshClassOnce(){
 }
 
 async function refreshAfterSchoolOnce(){
+  if(selectedAfterSchoolActivity())return refreshAfterSchoolActivityOnce();
   setErr('');
   const homeRoomLabel = normRoom(roomInput.value);
   if (!homeRoomLabel){
-    setErr('Room is required.');
+    setErr('Room is required for General After-School. Select an Activity to take attendance without a location.');
     return;
   }
 
@@ -4577,6 +4628,12 @@ async function bootTeacherAttendance(){
 
   // Teachers always operate on END
   if (!DEMO_MODE) localStorage.removeItem('teacher_att_when');
+
+  afterSchoolActivityInput?.addEventListener('change',(ev)=>{
+    if(PAGE_MODE!=='after_school')return;const activity=selectedAfterSchoolActivity();try{localStorage.setItem(AS_ACTIVITY_KEY,String(afterSchoolActivityInput.value||''));}catch{}const preferred=activity?.home_room||'';applyAfterSchoolRoomDropdown(AFTER_SCHOOL_OPTS_CACHE,preferred);renderAfterSchoolExtraSearch();if(ev?.isTrusted)scheduleUserPickRefresh();
+  });
+  afterSchoolExtraSearch?.addEventListener('input',()=>{clearTimeout(AFTER_SCHOOL_EXTRA_TIMER);AFTER_SCHOOL_EXTRA_TIMER=setTimeout(runAfterSchoolExtraSearch,180);});
+  afterSchoolExtraResults?.addEventListener('click',async(ev)=>{const btn=ev.target.closest('[data-activity-extra]');if(!btn)return;const activity=selectedAfterSchoolActivity();if(!activity)return;btn.disabled=true;const osis=String(btn.dataset.activityExtra||''),room=normRoom(roomInput?.value||'');try{const activityResult=await toggleAfterSchoolActivity({rosterId:activity.roster_id,osis,to:'in',room});if(room)await afterSchoolToggle({date:activityResult?.date||getNYDateISO_(),homeRoomLabel:room,osis,to:'in'});afterSchoolExtraSearch.value='';afterSchoolExtraResults.innerHTML='';await refreshOnce();}catch(e){setErr(e?.message||String(e));setStatus(false,'Error');}finally{btn.disabled=false;}});
 
   roomInput.addEventListener('change', (ev) => {
     const v = roomInput.value.trim();
@@ -4831,8 +4888,9 @@ function scheduleUserPickRefresh(){
   _pickRefreshT = setTimeout(() => {
     const room = normRoom(roomInput?.value);
     const period = normPeriod(periodInput?.value);
-    if (!room) return;
-    if (PAGE_MODE !== 'after_school' && !period) return;
+    const activityId=String(afterSchoolActivityInput?.value||'').trim();
+    if (PAGE_MODE === 'after_school') { if (!room && !activityId) return; }
+    else if (!room || !period) return;
 
     if (window.__refreshing) return;
     window.__refreshing = true;

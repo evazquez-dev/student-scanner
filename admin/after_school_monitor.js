@@ -121,7 +121,8 @@
   function rowMatchesFilter(row){
     if (state.filter === 'all') return true;
     if (state.filter === 'in_after_school') return !!row.in_after_school;
-    return Array.isArray(row.hold_types) && row.hold_types.includes(state.filter);
+    if (state.filter === 'club' || state.filter === 'sports_team') return Array.isArray(row.activity_types) && row.activity_types.includes(state.filter);
+    return Array.isArray(row.hold_types) && row.hold_types.includes(state.filter); // EAGLENEST_MY_ROSTER_SPECIAL_ACTIONS_V1
   }
   function rowMatchesSearch(row, q){
     if (!q) return true;
@@ -133,13 +134,15 @@
       row.phone_locker_color,
       row.location_label,
       row.loc,
-      ...(Array.isArray(row.holds) ? row.holds.map((h) => `${h.type} ${h.label} ${h.room} ${h.reason} ${h.owner_email}`) : [])
+      ...(Array.isArray(row.holds) ? row.holds.map((h) => `${h.type} ${h.label} ${h.room} ${h.reason} ${h.owner_email}`) : []),
+      ...(Array.isArray(row.activities) ? row.activities.map((a) => `${a.action_type} ${a.name} ${a.room}`) : [])
     ].join(' ').toLowerCase();
     return hay.includes(q);
   }
   function holdStatusText(row){
     const pieces = [];
     if (row?.in_after_school) pieces.push('In After-School');
+    if (Array.isArray(row?.activities)) for (const a of row.activities) pieces.push(`${a.action_label||a.action_type||''} ${a.name||''} ${a.room||''}`);
     if (Array.isArray(row?.holds)) {
       for (const h of row.holds) {
         pieces.push(h?.label || h?.hold_label || h?.type || '');
@@ -205,6 +208,8 @@
       ['Regents Prep', c.regents_prep || 0],
       ['Reflection', c.reflection || 0],
       ['Late Arrival', c.late_arrival || 0],
+      ['Club', c.club || 0],
+      ['Sports Team', c.sports_team || 0],
       ['No Locker', c.no_phone_locker || 0]
     ];
     $('kpis').innerHTML = kpis.map(([label, value]) => `
@@ -224,8 +229,10 @@
     }
     body.innerHTML = rows.map((row) => {
       const holds = Array.isArray(row.holds) ? row.holds : [];
+      const activities=Array.isArray(row.activities)?row.activities:[];
       const holdHtml = [
         row.in_after_school ? '<span class="chip after">In After-School</span>' : '',
+        ...activities.map(a=>`<span class="chip ${a.action_type==='sports_team'?'sports':'club'}">${esc(a.action_label|| (a.action_type==='sports_team'?'Sports Team':'Club'))}: ${esc(a.name||'')}</span>`),
         ...holds.map(chipForHold)
       ].filter(Boolean).join(' ');
       const holdDetails = holds.map((h) => {
