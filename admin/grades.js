@@ -13,6 +13,7 @@ const adminScopeCard=$('adminScopeCard'),wholeSchoolBtn=$('wholeSchoolBtn'),admi
 const adminGradePicker=$('adminGradePicker'),adminDepartmentPicker=$('adminDepartmentPicker'),adminTeacherPicker=$('adminTeacherPicker'),adminCoursePicker=$('adminCoursePicker'),adminSectionPicker=$('adminSectionPicker'),adminAdvisoryPicker=$('adminAdvisoryPicker');
 const searchInput=$('searchInput'),gradeFilter=$('gradeFilter'),adminGradeFilterWrap=$('adminGradeFilterWrap'),statusQuick=$('statusQuick');
 const teacherKpis=$('teacherKpis'),adminKpis=$('adminKpis'),results=$('results'),resultMeta=$('resultMeta'),activeScopeSummary=$('activeScopeSummary'),resultsTitle=$('resultsTitle');
+const rosterScopeCard=$('rosterScopeCard'),gradeRosterGroups=$('gradeRosterGroups'),gradeRosterNote=$('gradeRosterNote'); // EAGLENEST_MY_ROSTERS_CONSUMERS_V1
 const errorCard=$('errorCard'),errorOut=$('errorOut'),studentDialog=$('studentDialog'),studentDialogClose=$('studentDialogClose'),studentDialogTitle=$('studentDialogTitle'),studentDialogMeta=$('studentDialogMeta'),studentCurrent=$('studentCurrent'),studentHistory=$('studentHistory');
 
 let ACCESS=null,OVERVIEW=null,MODE='teacher',ACTIVE_STATUS='all',loadTimer=null;
@@ -46,10 +47,36 @@ function isAdminMode(){return MODE==='admin'}
 async function fetchAccess(){const r=await adminFetch('/admin/access');const j=await r.json().catch(()=>null);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);return j}
 async function fetchOverview(){const r=await adminFetch('/admin/grades/overview');const j=await r.json().catch(()=>null);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);return j}
 
+
+async function fetchGradeRosterGroups(){
+  try{
+    const r=await adminFetch('/admin/my_rosters');
+    const j=await r.json().catch(()=>null);
+    if(!r.ok||!j?.ok)return [];
+    const owned=(j.custom_rosters||[]).map(row=>({...row,relationship:'owned'}));
+    const shared=(j.shared_rosters||[]).map(row=>({...row,relationship:'shared'}));
+    return [...owned,...shared].map(row=>({
+      id:`roster:custom:${row.id}`,
+      roster_ref:`custom:${row.id}`,
+      type:'roster',
+      label:String(row.name||'Roster'),
+      subtitle:row.relationship==='shared'?`Shared by ${row.owner_name||row.owner_email||'staff'}`:'My roster',
+      student_count:Number(row.student_count||0),
+      relationship:row.relationship,
+      permission:row.permission||'view'
+    }));
+  }catch{return [];}
+}
+async function fetchOverviewWithRosters(){
+  const [overview,rosters]=await Promise.all([fetchOverview(),fetchGradeRosterGroups()]);
+  overview.roster_groups=rosters;
+  return overview;
+}
+
 function determineMode(){const role=String(OVERVIEW?.viewer?.role||'').toLowerCase();if(role==='admin'||role==='super_admin')return'admin';if((OVERVIEW?.leadership_groups||[]).length)return'leadership';return'teacher'}
-function groupMap(){const map=new Map();for(const row of [...(OVERVIEW?.my_groups||[]),...(OVERVIEW?.leadership_groups||[]),...(OVERVIEW?.all_groups||[])])if(row?.id)map.set(row.id,row);map.set('mine:all',{id:'mine:all',type:'mine',label:'All My Students',student_count:0});return map}
+function groupMap(){const map=new Map();for(const row of [...(OVERVIEW?.my_groups||[]),...(OVERVIEW?.leadership_groups||[]),...(OVERVIEW?.all_groups||[]),...(OVERVIEW?.roster_groups||[])])if(row?.id)map.set(row.id,row);map.set('mine:all',{id:'mine:all',type:'mine',label:'All My Students',student_count:0});return map}
 function selectedRows(){const map=groupMap();return [...SELECTED].map(id=>map.get(id)).filter(Boolean)}
-function groupLabel(row){if(!row)return'';if(row.type==='section')return row.section_code||row.label;if(row.type==='teacher')return `Teacher: ${row.label}`;return row.label||row.id}
+function groupLabel(row){if(!row)return'';if(row.type==='section')return row.section_code||row.label;if(row.type==='teacher')return `Teacher: ${row.label}`;if(row.type==='roster')return `Roster: ${row.label}`;return row.label||row.id}
 function setSingleGroup(id){SELECTED.clear();if(id)SELECTED.add(id);syncScopeUi();loadStudents()}
 function addAdminGroup(id){if(!id)return;if(id==='school:all'){setSingleGroup(id);return}SELECTED.delete('school:all');SELECTED.add(id);syncScopeUi();loadStudents()}
 function toggleTeacherGroup(id){if(!id)return;const map=groupMap(),row=map.get(id);if(SELECTED.has(id)){SELECTED.delete(id)}else{if(SELECTED.has('mine:all'))SELECTED.delete('mine:all');if(row?.type==='course'){for(const child of row.child_section_ids||[])SELECTED.delete(child)}if(row?.type==='section'&&row.course_code){SELECTED.delete(`course:${row.course_code}`);SELECTED.delete(`mycourse:${row.course_code}`)}SELECTED.add(id)}if(!SELECTED.size)SELECTED.add('mine:all');syncScopeUi();loadStudents()}
@@ -65,6 +92,36 @@ function renderTeacherNavigation(){teacherAdvisories.replaceChildren();teacherCo
   if(!advisories.length&&!courses.length)teacherCourses.innerHTML='<div class="empty">No advisory or academic section is currently mapped to your staff account.</div>';
 }
 
+
+function toggleRosterGroup(id){
+  if(!id)return;
+  if(SELECTED.has(id))SELECTED.delete(id);
+  else{
+    SELECTED.delete('mine:all');
+    SELECTED.delete('school:all');
+    SELECTED.add(id);
+  }
+  if(!SELECTED.size)SELECTED.add(isAdminMode()?'school:all':'mine:all');
+  syncScopeUi();
+  loadStudents();
+}
+function rosterScopeButton(row){
+  const btn=document.createElement('button');
+  btn.type='button';
+  btn.className='scopeBtn';
+  btn.dataset.gradeGroup=row.id;
+  btn.title=row.subtitle||'My Roster';
+  btn.innerHTML=`${esc(row.label)} <span class="count">${Number(row.student_count||0)}</span>`;
+  btn.addEventListener('click',()=>toggleRosterGroup(row.id));
+  return btn;
+}
+function renderRosterNavigation(){
+  const rows=OVERVIEW?.roster_groups||[];
+  rosterScopeCard.hidden=!rows.length;
+  gradeRosterGroups.replaceChildren();
+  for(const row of rows)gradeRosterGroups.appendChild(rosterScopeButton(row));
+}
+
 function renderLeadership(){const leaders=OVERVIEW?.leadership_groups||[];leadershipCard.hidden=!leaders.length||isAdminMode();leadershipGroups.replaceChildren();for(const group of leaders){const btn=document.createElement('button');btn.type='button';btn.className='leadershipOption';btn.dataset.leadershipGroup=group.id;btn.innerHTML=`<strong>${esc(group.label)}</strong><span>${esc(group.subtitle||'Leadership scope')} · ${Number(group.student_count||0)} students</span>`;btn.addEventListener('click',()=>setSingleGroup(group.id));leadershipGroups.appendChild(btn)}}
 
 function fillPicker(select,groups,placeholder){select.innerHTML=`<option value="">${esc(placeholder)}</option>`;for(const group of [...groups].sort((a,b)=>String(a.label||'').localeCompare(String(b.label||''),undefined,{numeric:true,sensitivity:'base'}))){const o=new Option(group.type==='section'?`${group.section_code||group.label} · ${group.subtitle||''}`:group.label,group.id);select.appendChild(o)}}
@@ -76,30 +133,30 @@ function renderGradeFilter(){gradeFilter.innerHTML='<option value="">All grade l
 function renderMode(){MODE=determineMode();const cur=OVERVIEW?.current||{},pass=passingScore();snapshotMeta.textContent=cur.configured?`${cur.marking_period||'Current'} · Snapshot ${fmtDate(cur.snapshot_date)} · ${Number(cur.student_count||0)} students · ${Number(cur.row_count||0)} grade rows`:'Grade Hub has not pushed a current dataset yet.';passingPill.textContent=`Passing: ${pass}%+`;viewerPill.textContent=OVERVIEW?.viewer?.view_as?.active?`Viewing as ${OVERVIEW?.viewer?.name||OVERVIEW?.viewer?.email}`:(OVERVIEW?.viewer?.name||OVERVIEW?.viewer?.email||'Staff');
   teacherScopeCard.hidden=isAdminMode();adminScopeCard.hidden=!isAdminMode();teacherKpis.hidden=isAdminMode();adminKpis.hidden=!isAdminMode();adminGradeFilterWrap.hidden=!isAdminMode();
   if(isAdminMode()){modeEyebrow.textContent='Administrative Grades';pageTitle.textContent='Schoolwide Grades';pageSubtitle.textContent='Monitor grade status across the school and drill into authorized groups.';resultsTitle.textContent='Schoolwide Students';renderAdminNavigation()}else{modeEyebrow.textContent=MODE==='leadership'?'Teacher + Leadership Grades':'Teacher Grades';pageTitle.textContent='Grades';pageSubtitle.textContent='Your students, your classes, and who needs attention.';resultsTitle.textContent='My Students';renderTeacherNavigation();renderLeadership()}
-  renderGradeFilter();renderStatusButtons();$('kpiBelowLabel').textContent=`below ${pass}%`;$('adminKpiBelowLabel').textContent=`below ${pass}%`;$('adminKpiPassingLabel').textContent=`${pass}% and above`;syncScopeUi()}
+  renderRosterNavigation();renderGradeFilter();renderStatusButtons();$('kpiBelowLabel').textContent=`below ${pass}%`;$('adminKpiBelowLabel').textContent=`below ${pass}%`;$('adminKpiPassingLabel').textContent=`${pass}% and above`;syncScopeUi()}
 
 function gradeChipsHtml(grades){if(!grades?.length)return'<span class="muted">No grade rows</span>';return `<div class="gradeChips">${grades.map(g=>`<span class="gradeChip ${gradeKind(g)}" title="${esc(g.course_code||'')}"><strong>${esc(g.course_name||g.academic_course_code||g.course_code||'Course')}</strong> ${esc(fmtGrade(g))}</span>`).join('')}</div>`}
 function attentionHtml(row){if(row.below_passing_count>0)return`<span class="attentionTag">${Number(row.below_passing_count)} below ${esc(passingScore())}%</span>`;if(row.missing_count>0)return`<span class="missingTag">${Number(row.missing_count)} missing</span>`;return'<span class="okTag">On track</span>'}
 function updateKpis(summary={}){if(isAdminMode()){$('adminKpiStudents').textContent=Number(summary.students||0);$('adminKpiBelow').textContent=Number(summary.below_passing_students||0);$('adminKpiPassing').textContent=Number(summary.passing_students||0);$('adminKpiMissing').textContent=Number(summary.missing_grade_students||0)}else{$('kpiStudents').textContent=Number(summary.students||0);$('kpiBelow').textContent=Number(summary.below_passing_students||0);$('kpiMissing').textContent=Number(summary.missing_grade_students||0)}}
-function renderRows(data){updateKpis(data?.summary||{});const scopeCount=Number(data?.selected_student_count||0),shown=Number(data?.returned_student_count||0);resultMeta.textContent=isAdminMode()?`${shown} student(s) shown from ${scopeCount} in the current administrative scope.`:`${shown} student(s) shown from ${scopeCount} in your selected scope.`;if(!data?.rows?.length){results.innerHTML='<div class="empty">No students match this scope and filter.</div>';return}
+function renderRows(data){updateKpis(data?.summary||{});const scopeCount=Number(data?.selected_student_count||0),shown=Number(data?.returned_student_count||0);{const rs=data?.roster_scope||{};const excluded=Number(rs.excluded_out_of_scope_count||0),missing=Number(rs.inactive_or_missing_count||0);const base=isAdminMode()?`${shown} student(s) shown from ${scopeCount} in the current administrative scope.`:`${shown} student(s) shown from ${scopeCount} in your selected scope.`;resultMeta.textContent=base+(excluded?` ${excluded} roster student(s) were outside your existing Grades permissions and were excluded.`:'')+(missing?` ${missing} saved roster OSIS no longer appear in the active student directory.`:'');if(gradeRosterNote&&Number(rs.selected_rosters||0))gradeRosterNote.textContent=`Using ${Number(rs.selected_rosters)} roster(s): ${Number(rs.authorized_students||0)} authorized active student(s)${excluded?` · ${excluded} outside Grades scope`:''}${missing?` · ${missing} inactive/missing`:''}.`;else if(gradeRosterNote)gradeRosterNote.textContent='Selecting a roster filters this page only; it never changes the saved roster. Students outside your existing Grades permissions are excluded.';}if(!data?.rows?.length){results.innerHTML='<div class="empty">No students match this scope and filter.</div>';return}
   if(isAdminMode())results.innerHTML=`<table><thead><tr><th>Student</th><th>Grade</th><th>Current Grades</th><th>Below ${esc(passingScore())}%</th><th>Lowest</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td><button class="studentBtn" data-osis="${esc(r.osis)}" type="button">${esc(r.name||r.osis)}</button><div class="muted small mono">${esc(r.osis)}</div></td><td>${esc(r.grade_level||'—')}</td><td>${gradeChipsHtml(r.grades)}</td><td>${r.below_passing_count?`<span class="statusBad">${Number(r.below_passing_count)}</span>`:'<span class="statusGood">0</span>'}</td><td>${Number.isFinite(r.lowest_grade) && r.lowest_grade !== 0?`${esc(r.lowest_grade)}%`:'—'}</td></tr>`).join('')}</tbody></table>`;
   else results.innerHTML=`<table><thead><tr><th>Student</th><th>Grade</th><th>Current Grades</th><th>Attention</th></tr></thead><tbody>${data.rows.map(r=>`<tr><td><button class="studentBtn" data-osis="${esc(r.osis)}" type="button">${esc(r.name||r.osis)}</button><div class="muted small mono">${esc(r.osis)}</div></td><td>${esc(r.grade_level||'—')}</td><td>${gradeChipsHtml(r.grades)}</td><td>${attentionHtml(r)}</td></tr>`).join('')}</tbody></table>`;
   results.querySelectorAll('.studentBtn').forEach(btn=>btn.addEventListener('click',()=>openStudent(btn.dataset.osis)))}
 
-async function loadStudents(){if(!OVERVIEW)return;setError('');const url=new URL('/admin/grades/students',API_BASE);for(const id of SELECTED)url.searchParams.append('group',id);if(searchInput.value.trim())url.searchParams.set('q',searchInput.value.trim());if(isAdminMode()&&gradeFilter.value)url.searchParams.set('grade',gradeFilter.value);url.searchParams.set('status',ACTIVE_STATUS);results.innerHTML='<div class="empty">Loading grades…</div>';try{const r=await adminFetch(url);const j=await r.json().catch(()=>null);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);renderRows(j)}catch(e){setError(e?.message||e);results.innerHTML='<div class="empty">Could not load grade rows.</div>'}}
+async function loadStudents(){if(!OVERVIEW)return;setError('');const url=new URL('/admin/grades/students',API_BASE);for(const id of SELECTED){const row=groupMap().get(id);if(row?.type==='roster'&&row.roster_ref)url.searchParams.append('roster',row.roster_ref);else url.searchParams.append('group',id);}if(searchInput.value.trim())url.searchParams.set('q',searchInput.value.trim());if(isAdminMode()&&gradeFilter.value)url.searchParams.set('grade',gradeFilter.value);url.searchParams.set('status',ACTIVE_STATUS);results.innerHTML='<div class="empty">Loading grades…</div>';try{const r=await adminFetch(url);const j=await r.json().catch(()=>null);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);renderRows(j)}catch(e){setError(e?.message||e);results.innerHTML='<div class="empty">Could not load grade rows.</div>'}}
 
 function renderCurrentStudent(student){const name=[student?.first,student?.last].filter(Boolean).join(' ')||student?.osis||'Student';studentDialogTitle.textContent=name;studentDialogMeta.textContent=`Grade ${student?.grade_level||'—'} · OSIS ${student?.osis||'—'} · Passing threshold ${passingScore()}%`;studentCurrent.innerHTML=`<div class="currentGrid">${(student?.grades||[]).map(g=>`<article class="currentCourse"><div class="muted small">${esc(g.academic_course_code||g.course_code||'')}</div><div>${esc(g.course_name||'Course')}</div><strong class="${gradeKind(g)==='fail'?'statusBad':gradeKind(g)==='pass'?'statusGood':''}">${esc(fmtGrade(g))}</strong></article>`).join('')||'<div class="empty">No current grades.</div>'}</div>`}
 function renderHistory(history){const snapshots=history?.snapshots||[];if(!snapshots.length){studentHistory.innerHTML='<div class="empty">No historical grade snapshots are stored for this student yet.</div>';return}studentHistory.innerHTML=snapshots.map((s,i)=>`<details class="historySnapshot" ${i===0?'open':''}><summary>${esc(s.marking_period||'Snapshot')} · ${esc(fmtDate(s.snapshot_date))} · ${Number(s.below_passing_count||0)} below ${esc(passingScore())}%</summary><div class="gradeChips" style="margin-top:10px">${(s.grades||[]).map(g=>`<span class="gradeChip ${gradeKind(g)}"><strong>${esc(g.course_name||g.course_code)}</strong> ${esc(fmtGrade(g))}</span>`).join('')}</div></details>`).join('')}
 async function openStudent(osis){studentDialogTitle.textContent='Loading…';studentDialogMeta.textContent='';studentCurrent.innerHTML='';studentHistory.innerHTML='<div class="empty">Loading history…</div>';studentDialog.showModal();try{const [curR,histR]=await Promise.all([adminFetch(`/admin/grades/student?osis=${encodeURIComponent(osis)}`),adminFetch(`/admin/grades/student/history?osis=${encodeURIComponent(osis)}`)]);const cur=await curR.json().catch(()=>null),hist=await histR.json().catch(()=>null);if(!curR.ok||!cur?.ok)throw new Error(cur?.error||`HTTP ${curR.status}`);renderCurrentStudent(cur.student);if(histR.ok&&hist?.ok)renderHistory(hist);else studentHistory.innerHTML=`<div class="empty">History unavailable: ${esc(hist?.error||`HTTP ${histR.status}`)}</div>`}catch(e){studentDialogTitle.textContent='Student Grades';studentCurrent.innerHTML=`<div class="empty">${esc(e?.message||e)}</div>`}}
 
 function resetSelectionForMode(){SELECTED.clear();if(MODE==='admin')SELECTED.add('school:all');else if((OVERVIEW?.default_group_ids||[]).length)for(const id of OVERVIEW.default_group_ids)SELECTED.add(id);else SELECTED.add('mine:all')}
-async function bootstrap(){ACCESS=await fetchAccess();if(!ACCESS?.can?.grades)throw new Error('forbidden');OVERVIEW=await fetchOverview();MODE=determineMode();loginCard.hidden=true;app.hidden=false;resetSelectionForMode();renderMode();await loadStudents()}
-async function startPage(){try{ACCESS=await fetchAccess()}catch{await initLogin();return}if(!ACCESS?.can?.grades){loginCard.hidden=true;app.hidden=false;setError('Your EagleNEST account does not have access to Grades.');return}try{OVERVIEW=await fetchOverview();MODE=determineMode();loginCard.hidden=true;app.hidden=false;resetSelectionForMode();renderMode();await loadStudents()}catch(e){loginCard.hidden=true;app.hidden=false;setError(e?.message||e)}}
+async function bootstrap(){ACCESS=await fetchAccess();if(!ACCESS?.can?.grades)throw new Error('forbidden');OVERVIEW=await fetchOverviewWithRosters();MODE=determineMode();loginCard.hidden=true;app.hidden=false;resetSelectionForMode();renderMode();await loadStudents()}
+async function startPage(){try{ACCESS=await fetchAccess()}catch{await initLogin();return}if(!ACCESS?.can?.grades){loginCard.hidden=true;app.hidden=false;setError('Your EagleNEST account does not have access to Grades.');return}try{OVERVIEW=await fetchOverviewWithRosters();MODE=determineMode();loginCard.hidden=true;app.hidden=false;resetSelectionForMode();renderMode();await loadStudents()}catch(e){loginCard.hidden=true;app.hidden=false;setError(e?.message||e)}}
 async function waitForGoogle(timeout=8000){const start=Date.now();while(!window.google?.accounts?.id){if(Date.now()-start>timeout)throw new Error('Google sign-in failed to load');await new Promise(r=>setTimeout(r,50))}return window.google.accounts.id}
 async function initLogin(){loginCard.hidden=false;app.hidden=true;loginOut.textContent='Please sign in…';try{const gsi=await waitForGoogle();gsi.initialize({client_id:GOOGLE_CLIENT_ID,callback:onGoogleCredential,ux_mode:'popup',use_fedcm_for_prompt:true});gsi.renderButton($('g_id_signin'),{theme:'outline',size:'large'})}catch(e){loginOut.textContent=e?.message||e}}
 async function onGoogleCredential(resp){loginOut.textContent='Signing in…';try{const r=await adminFetch('/admin/session/login_google',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:resp.credential}).toString()});const j=await r.json().catch(()=>null);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);if(j?.sid)setStoredSid(j.sid);await bootstrap()}catch(e){loginOut.textContent=`Sign-in failed: ${e?.message||e}`}}
 
 allMineBtn.addEventListener('click',()=>setSingleGroup('mine:all'));backToMineBtn.addEventListener('click',()=>setSingleGroup('mine:all'));wholeSchoolBtn.addEventListener('click',()=>setSingleGroup('school:all'));
 for(const picker of [adminGradePicker,adminDepartmentPicker,adminTeacherPicker,adminCoursePicker,adminSectionPicker,adminAdvisoryPicker])picker.addEventListener('change',()=>{const id=picker.value;picker.value='';addAdminGroup(id)});
-refreshBtn.addEventListener('click',async()=>{try{OVERVIEW=await fetchOverview();MODE=determineMode();resetSelectionForMode();renderMode();await loadStudents()}catch(e){setError(e?.message||e)}});searchInput.addEventListener('input',debounceLoad);gradeFilter.addEventListener('change',loadStudents);studentDialogClose.addEventListener('click',()=>studentDialog.close());
+refreshBtn.addEventListener('click',async()=>{try{OVERVIEW=await fetchOverviewWithRosters();MODE=determineMode();resetSelectionForMode();renderMode();await loadStudents()}catch(e){setError(e?.message||e)}});searchInput.addEventListener('input',debounceLoad);gradeFilter.addEventListener('change',loadStudents);studentDialogClose.addEventListener('click',()=>studentDialog.close());
 window.addEventListener('DOMContentLoaded',startPage);

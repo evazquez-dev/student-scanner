@@ -34,7 +34,7 @@
     .wrap{max-width:1240px;margin:0 auto;padding-top:56px}.card{border:1px solid var(--border);border-radius:14px;background:linear-gradient(145deg,var(--card1),var(--card2));padding:14px;margin-bottom:12px;box-shadow:0 8px 20px rgba(2,6,23,.10)}
     h1{margin:0 0 8px;font-size:1.18rem}h2{margin:0 0 8px;font-size:.98rem}.muted,.hint{color:var(--muted)}.hint{font-size:.84rem;line-height:1.45}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grow{flex:1 1 auto}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:900px){.grid{grid-template-columns:1fr}}
     .pill{display:inline-flex;gap:7px;align-items:center;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface);font-size:.82rem}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
-    input[type="text"],textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--fg);font:inherit}textarea{min-height:120px;resize:vertical}input[type="file"]{width:100%;padding:8px;border:1px dashed var(--border);border-radius:10px;background:var(--surface);color:var(--fg)}input[type="checkbox"]{accent-color:var(--accent)}
+    input[type="text"],textarea,select{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--fg);font:inherit}textarea{min-height:120px;resize:vertical}input[type="file"]{width:100%;padding:8px;border:1px dashed var(--border);border-radius:10px;background:var(--surface);color:var(--fg)}input[type="checkbox"]{accent-color:var(--accent)}
     button{border:1px solid var(--border);background:var(--surface);color:var(--fg);border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:800}button:hover{box-shadow:0 0 0 2px rgba(148,163,184,.18)}button.primary{border-color:var(--accent);background:var(--accent-soft)}button.danger{border-color:var(--bad);background:var(--bad-soft)}button[disabled]{opacity:.55;cursor:not-allowed}
     .listBox{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface)}.listHead{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:8px}.listBody{max-height:470px;overflow:auto}table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}th{position:sticky;top:0;z-index:2;background:var(--table-head)}tr:hover td{background:var(--hover)}
     .status{border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface);white-space:pre-wrap}.status.ok{border-color:rgba(34,197,94,.55);background:var(--good-soft)}.status.bad{border-color:rgba(239,68,68,.55);background:var(--bad-soft)}.status.warn{border-color:rgba(245,158,11,.55);background:var(--warn-soft)}
@@ -82,7 +82,16 @@
 
       <div class="grid">
         <div class="card">
-          <h2>1) Select students from the roster</h2>
+          <h2>1) Select students from the roster</h2>\n          <!-- EAGLENEST_MY_ROSTERS_CONSUMERS_V1 -->
+          <div class="row" style="margin-bottom:8px">
+            <select id="myRosterSelect" class="grow">
+              <option value="">Start from My Roster…</option>
+            </select>
+            <button id="loadMyRosterBtn" type="button" disabled>Load roster</button>
+            <a href="./my_rosters.html" class="hint">Manage My Rosters</a>
+          </div>
+          <div id="myRosterHint" class="hint" style="margin-bottom:8px">Optional: load an owned, shared, class, or advisory roster into the working selection. This never edits the saved roster.</div>
+
           <div class="row" style="margin-bottom:8px">
             <input id="rosterSearch" type="text" placeholder="Search by name or OSIS…">
             <button id="selectVisibleBtn" type="button">Select visible</button>

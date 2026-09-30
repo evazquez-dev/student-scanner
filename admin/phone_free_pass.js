@@ -23,7 +23,8 @@
     filtered: [],
     date: '',
     practice: false,
-    counts: {}
+    counts: {},
+    myRosters: [] // EAGLENEST_MY_ROSTERS_CONSUMERS_V1
   };
 
   (function initTheme(){
@@ -147,6 +148,51 @@
     $('previewBox').textContent = lines.join('\n');
   }
 
+
+  // EAGLENEST_MY_ROSTERS_CONSUMERS_V1
+  function myRosterKey(row){return `${row.kind}|${row.id}`;}
+  function parseMyRosterKey(value){const i=String(value||'').indexOf('|');return i<0?null:{kind:value.slice(0,i),id:value.slice(i+1)};}
+  function renderMyRosterSelect(){
+    const sel=$('myRosterSelect');if(!sel)return;const current=sel.value;
+    sel.innerHTML='<option value="">Start from My Roster…</option>';
+    const groups=[
+      ['My saved rosters',state.myRosters.filter(x=>x.relationship==='owned')],
+      ['Shared with me',state.myRosters.filter(x=>x.relationship==='shared')],
+      ['Current class / advisory rosters',state.myRosters.filter(x=>x.kind==='system')]
+    ];
+    for(const [label,rows] of groups){if(!rows.length)continue;const g=document.createElement('optgroup');g.label=label;for(const row of rows){const o=document.createElement('option');o.value=myRosterKey(row);o.textContent=`${row.name} (${Number(row.student_count||0)})`;g.appendChild(o);}sel.appendChild(g);}
+    if(current&&state.myRosters.some(x=>myRosterKey(x)===current))sel.value=current;
+    $('loadMyRosterBtn').disabled=!sel.value;
+  }
+  async function loadMyRosterCatalog(){
+    try{
+      const r=await adminFetch('/admin/my_rosters',{method:'GET'}),j=await r.json().catch(()=>null);
+      if(!r.ok||!j?.ok)throw new Error(j?.error||`My Rosters HTTP ${r.status}`);
+      state.myRosters=[
+        ...(j.custom_rosters||[]).map(x=>({...x,kind:'custom',relationship:'owned'})),
+        ...(j.shared_rosters||[]).map(x=>({...x,kind:'custom',relationship:'shared'})),
+        ...(j.system_rosters||[]).map(x=>({...x,kind:'system',relationship:'system'}))
+      ];
+      renderMyRosterSelect();
+    }catch(e){
+      state.myRosters=[];renderMyRosterSelect();
+      if($('myRosterHint'))$('myRosterHint').textContent=`My Rosters unavailable: ${e?.message||e}`;
+    }
+  }
+  async function loadMyRosterIntoSelection(){
+    const ref=parseMyRosterKey($('myRosterSelect')?.value);if(!ref)return;
+    $('loadMyRosterBtn').disabled=true;
+    try{
+      const r=await adminFetch(`/admin/my_rosters/detail?kind=${encodeURIComponent(ref.kind)}&id=${encodeURIComponent(ref.id)}`,{method:'GET'}),j=await r.json().catch(()=>null);
+      if(!r.ok||!j?.ok)throw new Error(j?.error||`Roster HTTP ${r.status}`);
+      state.selectedOsis=new Set((j.students||[]).map(x=>String(x.osis||'')).filter(x=>state.byOSIS.has(x)));
+      renderRoster();renderPreview();
+      const skipped=Math.max(0,Number(j.requested_count||0)-state.selectedOsis.size);
+      $('myRosterHint').textContent=`Loaded ${state.selectedOsis.size} active student(s) from “${j.roster?.name||'roster'}” into checked students${skipped?`; ${skipped} saved student(s) were unavailable here`:''}. Pasted/CSV OSIS remain additive. The saved roster was not changed.`;
+    }catch(e){$('myRosterHint').textContent=`Could not load roster: ${e?.message||e}`;}
+    finally{renderMyRosterSelect();}
+  }
+
   function renderRoster(){
     const q = String($('rosterSearch')?.value || '').trim().toLowerCase();
     state.filtered = state.students.filter((student) => !q || `${student.name} ${student.osis} ${student.grade}`.toLowerCase().includes(q)).slice(0, 700);
@@ -211,6 +257,7 @@
     $('authCard').style.display = 'none';
     $('app').style.display = '';
     applyServerState(data);
+    await loadMyRosterCatalog();
     setResult(state.savedOsis.size ? `Loaded ${state.savedOsis.size} student(s) saved for today.` : 'Today starts empty. Build and save the list when ready.', 'ok');
   }
 
@@ -227,6 +274,8 @@
     return data;
   }
 
+  $('myRosterSelect')?.addEventListener('change',renderMyRosterSelect);
+  $('loadMyRosterBtn')?.addEventListener('click',loadMyRosterIntoSelection);
   $('rosterSearch')?.addEventListener('input', renderRoster);
   $('osisText')?.addEventListener('input', () => { renderRoster(); renderPreview(); });
   $('selectVisibleBtn')?.addEventListener('click', () => {
