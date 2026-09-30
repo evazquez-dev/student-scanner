@@ -87,6 +87,7 @@
     url.searchParams.set('osis', osis);
     url.searchParams.set('action', 'log-communication');
     url.searchParams.set('source', 'student_lookup_campaign');
+    if (access?.can?.communications_proxy === true) url.searchParams.set('proxy','1'); // EAGLENEST_STUDENT_LOOKUP_COMMUNICATIONS_PROXY_V1
     if (campaign.category) url.searchParams.set('category', campaign.category);
     url.searchParams.set('comm_method', 'Phone');
     url.searchParams.set('comm_direction', 'Outgoing');
@@ -138,7 +139,7 @@
       ${row.action_reason ? `<div class="listMeta" style="margin-top:6px">${esc(row.action_reason)}</div>` : ''}
       <div class="inlineActions" style="margin-top:10px">
         ${row.can_log_book ? `<button class="btn primary small" type="button" data-engagement-logbook="${esc(event.event_id)}">Log / Book</button>` : ''}
-        <a class="btn secondary small" href="./student_contacts.html?osis=${encodeURIComponent(currentOsis())}">Student contacts</a>
+        <a class="btn secondary small" href="./student_contacts.html?osis=${encodeURIComponent(currentOsis())}${access?.can?.communications_proxy===true?'&proxy=1':''}">Student contacts</a>
       </div>
     </article>`;
   }
@@ -170,7 +171,7 @@
       sections.push(...conferences.map(conferenceCard));
     }
     if (campaigns.length) {
-      sections.push(`<div class="contextBox small" style="margin-top:12px"><strong>Required communication campaigns</strong><div class="muted" style="margin-top:4px">Only campaigns that include this student are shown.</div></div>`);
+      sections.push(`<div class="contextBox small" style="margin-top:12px"><strong>Required communication campaigns</strong><div class="muted" style="margin-top:4px">Only campaigns that include this student are shown.${access?.can?.communications_proxy===true?' Family Communications Proxy is active; logs you create here can fulfill another staff member’s responsibility and remain attributed to you.':''}</div></div>`);
       sections.push(...campaigns.map((row) => campaignCard(row, osis)));
     }
     host.innerHTML = sections.join('');

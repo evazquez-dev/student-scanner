@@ -25,6 +25,8 @@ const filterSearch = $('filterSearch');
 const filterCategory = $('filterCategory');
 const filterOutcome = $('filterOutcome');
 const filterStaff = $('filterStaff');
+const proxyBanner = $('proxyBanner');
+const logCommunicationLink = $('logCommunicationLink');
 
 let ACCESS = null;
 let DASHBOARD = null;
@@ -70,13 +72,14 @@ function fmtDateTime(iso){
 }
 function shortNotes(value){ const s=String(value||'').trim(); return s.length>180 ? `${s.slice(0,177)}…` : s; }
 function tag(text, kind='info'){ return `<span class="tag ${esc(kind)}">${esc(text)}</span>`; }
-function studentUrl(row, { action='', category='' }={}){
+function studentUrl(row, { action='', category='', proxy=false }={}){
   const u = new URL('./student_contacts.html', location.href);
   u.searchParams.set('osis', String(row?.student_number || row?.osis || ''));
   if (row?.student_name || row?.name) u.searchParams.set('name', String(row.student_name || row.name));
   u.searchParams.set('source','communications');
   if (action) u.searchParams.set('action',action);
   if (category) u.searchParams.set('category',category);
+  if (proxy) u.searchParams.set('proxy','1');
   return u.href;
 }
 function studentLink(row){ return `<a class="studentLink" href="${esc(studentUrl(row))}">${esc(row?.student_name || row?.name || row?.student_number || '—')}</a>`; }
@@ -88,7 +91,7 @@ function setError(message){ const text=String(message||'').trim(); if(!text){hid
 function isAdmin(){ return ['admin','super_admin'].includes(String(ACCESS?.role||'').toLowerCase()); }
 function canResolve(row){
   if (ACCESS?.view_as?.active) return false;
-  if (isAdmin()) return true;
+  if (isAdmin() || ACCESS?.can?.communications_proxy === true) return true;
   const owner=String(row?.follow_up_owner_email || row?.actor_email || '').trim().toLowerCase();
   return owner && owner === String(ACCESS?.email || '').trim().toLowerCase();
 }
@@ -132,7 +135,7 @@ function renderCampaigns(data){
     const owners=(c.breakdown?.by_owner||[]).filter(r=>Number(r.expected||0)>0);
     const ownerTitle=courseScopeLabels.length?'Completion by responsible teacher':'Completion by advisor / owner';
     const ownerPanel=owners.length ? `<div class="miniPanel"><strong>${esc(ownerTitle)}</strong>${owners.map(r=>`<div class="miniRow"><div><strong>${esc(r.owner_name||r.owner_email||'Unassigned')}</strong><div class="muted small">${esc(r.owner_email||'')}</div></div><div class="mono">${Number(r.complete||0)}/${Number(r.expected||0)} · ${Number(r.missing||0)} missing</div></div>`).join('')}</div>` : '<div class="miniPanel empty">No owner breakdown is available for this scope.</div>';
-    const missingPanel=missing.length ? `<div class="miniPanel"><strong>Missing students</strong>${missing.map(r=>{const responsibleNames=(r.responsible_staff||[]).map(s=>s.name||s.email).filter(Boolean).join(', ');return `<div class="miniRow"><div>${studentLink(r)}<div class="muted small">Grade ${esc(r.grade||'—')}${responsibleNames?` · Responsible: ${esc(responsibleNames)}`:(r.owner_name?` · ${esc(r.owner_name)}`:'')}</div></div><div class="rowActions"><a class="btn small primary" href="${esc(studentUrl(r,{category:campaign.category}))}">Log</a></div></div>`}).join('')}${Number(counts.missing||0)>missing.length?`<div class="muted small">Showing first ${missing.length} of ${Number(counts.missing||0)} missing students.</div>`:''}</div>` : '<div class="miniPanel empty">Everyone in this scope is complete.</div>';
+    const missingPanel=missing.length ? `<div class="miniPanel"><strong>Missing students</strong>${missing.map(r=>{const responsibleNames=(r.responsible_staff||[]).map(s=>s.name||s.email).filter(Boolean).join(', ');return `<div class="miniRow"><div>${studentLink(r)}<div class="muted small">Grade ${esc(r.grade||'—')}${responsibleNames?` · Responsible: ${esc(responsibleNames)}`:(r.owner_name?` · ${esc(r.owner_name)}`:'')}</div></div><div class="rowActions"><a class="btn small primary" href="${esc(studentUrl(r,{category:campaign.category,proxy:ACCESS?.can?.communications_proxy===true}))}">Log</a></div></div>`}).join('')}${Number(counts.missing||0)>missing.length?`<div class="muted small">Showing first ${missing.length} of ${Number(counts.missing||0)} missing students.</div>`:''}</div>` : '<div class="miniPanel empty">Everyone in this scope is complete.</div>';
     return `<article class="campaign">
       <div class="campaignHead"><div><div class="campaignTitle">${esc(campaign.name||campaign.category||'Required Communication')}</div><div class="muted small">${esc(campaign.category||'')} · ${esc(campaign.start_date||'')} → ${esc(campaign.due_date||'')}</div>${courseScopeLabels.length?`<div class="muted small">Responsible: ${esc(courseScopeLabels.join(', '))}</div>`:''}</div>${campaignStatusTag(c)}</div>
       <div class="campaignMetric">${Number(counts.complete||0)} / ${Number(counts.expected||0)}</div>
@@ -240,8 +243,11 @@ async function bootstrapAuthenticated(){
   ACCESS=await fetchAccess();
   if(!ACCESS?.can?.communications&&!ACCESS?.can?.student_contacts)throw new Error('forbidden');
   if ($('exportLink')) $('exportLink').hidden = !isAdmin() || !!ACCESS?.view_as?.active;
+  const proxy=ACCESS?.can?.communications_proxy===true&&!ACCESS?.view_as?.active;
+  if(proxyBanner){proxyBanner.hidden=!proxy;proxyBanner.textContent='Family Communications Proxy: you can work schoolwide communication responsibilities for other staff. Logs remain attributed to you.';}
+  if(logCommunicationLink){const u=new URL('./student_contacts.html',location.href);u.searchParams.set('source','communications');if(proxy)u.searchParams.set('proxy','1');logCommunicationLink.href=u.toString();}
   hide(loginCard);show(app);await loadDashboard();
-}
+} // EAGLENEST_FAMILY_COMMUNICATIONS_PROXY_V2
 
 async function onGoogleCredential(resp){
   try{

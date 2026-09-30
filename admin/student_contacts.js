@@ -10,6 +10,7 @@ const ADMIN_SESSION_LEGACY_KEY = 'teacher_att_admin_session_v1';
 const ADMIN_SESSION_HEADER = 'x-admin-session';
 const PAGE_PARAMS = new URLSearchParams(window.location.search);
 const PAGE_SOURCE = String(PAGE_PARAMS.get('source') || 'student_contacts').trim() || 'student_contacts';
+const PAGE_PROXY_MODE = PAGE_PARAMS.get('proxy') === '1'; // EAGLENEST_FAMILY_COMMUNICATIONS_PROXY_V2
 const PAGE_PREFILL_CATEGORY = String(PAGE_PARAMS.get('category') || '').trim();
 const PAGE_PREFILL_CONTACT_ASSOC_ID = String(PAGE_PARAMS.get('contact_assoc_id') || '').trim();
 const PAGE_PREFILL_COMM_METHOD = String(PAGE_PARAMS.get('comm_method') || '').trim();
@@ -1001,13 +1002,15 @@ async function loadCommunicationCategories(){
 
 function openCommunication(contact = null, prefill = {}) {
   if (!currentStudent) return;
+  if (access?.can?.communication_log !== true) { alert('Communication Logging is not enabled for your account.'); return; }
   communicatingWith = contact;
   communicationSubmissionId = makeClientSubmissionId('communication');
   const isDirectStudent = contact?.direct_student === true;
   const label = isDirectStudent ? 'Student (direct)' : (contact?.display?.name || 'General / No specific contact');
   const relationship = isDirectStudent ? '' : (contact?.display?.relationship || '');
   commTitle.textContent = 'Log communication';
-  commSubtitle.textContent = `${currentData?.student_name || currentStudent.name || currentStudent.osis} • ${label}${relationship && relationship.toLowerCase() !== 'not set' ? ` (${relationship})` : ''}`;
+  const proxyActive = PAGE_PROXY_MODE && access?.can?.communications_proxy === true;
+  commSubtitle.textContent = `${currentData?.student_name || currentStudent.name || currentStudent.osis} • ${label}${relationship && relationship.toLowerCase() !== 'not set' ? ` (${relationship})` : ''}${proxyActive ? ' • Proxy mode — recorded as you' : ''}`;
   commAt.value = localDateTimeValue();
   commMethod.value = isDirectStudent ? 'In Person' : 'Phone';
   commDirection.value = 'Outgoing';
@@ -1080,7 +1083,8 @@ async function saveCommunication() {
       follow_up_at_iso: commFollowUp.checked ? localInputToIso(commFollowUpAt.value) : '',
       follow_up_owner_email: commFollowUp.checked ? commFollowUpOwner.value.trim() : '',
       related_incident_id: commIncident.value.trim(),
-      source: PAGE_SOURCE
+      source: PAGE_SOURCE,
+      proxy_mode: PAGE_PROXY_MODE && access?.can?.communications_proxy === true
     };
     const r = await adminFetch('/admin/communications/create', {
       method: 'POST',
@@ -1168,6 +1172,7 @@ async function boot() {
   }
 
   if (!access?.can?.student_contacts) throw new Error('forbidden');
+  if (PAGE_PROXY_MODE && access?.can?.communications_proxy !== true) throw new Error('communications_proxy_forbidden');
   loginCard.hidden = true;
   app.hidden = false;
   ensureDeletedCommunicationToggle();
@@ -1190,7 +1195,7 @@ async function boot() {
         : null;
       const cleanUrl = new URL(location.href);
       cleanUrl.searchParams.delete('action');
-      for (const key of ['category','contact_assoc_id','comm_method','comm_direction','comm_at','comm_outcome','comm_notes']) cleanUrl.searchParams.delete(key);
+      for (const key of ['category','contact_assoc_id','comm_method','comm_direction','comm_at','comm_outcome','comm_notes','proxy']) cleanUrl.searchParams.delete(key);
       history.replaceState(null, '', cleanUrl);
       openCommunication(requestedContact, {
         method: PAGE_PREFILL_COMM_METHOD || 'Phone',

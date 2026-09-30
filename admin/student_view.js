@@ -1035,23 +1035,25 @@ function ensureCounselorNotesAction(){
   host.appendChild(button);
 }
 
-function contactsUrl(){
+function contactsUrl({ proxy=false, logNow=false } = {}){ // EAGLENEST_STUDENT_LOOKUP_COMMUNICATIONS_PROXY_V1
   if (!selected?.osis) return null;
   const url = new URL('./student_contacts.html', location.href);
   url.searchParams.set('osis', selected.osis);
   if (selected.name) url.searchParams.set('name', selected.name);
   url.searchParams.set('source', 'student_lookup');
+  if (proxy && access?.can?.communications_proxy === true) url.searchParams.set('proxy','1');
+  if (logNow) url.searchParams.set('action','log-communication');
   return url;
 }
 
 function openCommunication(){
   if (!selected?.osis || isViewAsReadOnly()) return;
-  const url = contactsUrl();
+  const url = contactsUrl({ proxy:true, logNow:true });
   if (url) location.href = url.toString();
 }
 
 function openContacts(){
-  const url = contactsUrl();
+  const url = contactsUrl({ proxy:access?.can?.communications_proxy === true });
   if (url) location.href = url.toString();
 }
 

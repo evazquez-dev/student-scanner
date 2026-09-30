@@ -35,13 +35,14 @@
         </div>
         <div class="topActions">
           <span id="viewerPill" class="tag info mono">—</span>
-          <a class="btn primary" href="./student_contacts.html?source=communications">+ Log Communication</a>
+          <a id="logCommunicationLink" class="btn primary" href="./student_contacts.html?source=communications">+ Log Communication</a>
           <a id="exportLink" class="btn" href="./exports.html" hidden>↓ Exports</a>
           <button id="refreshBtn" class="btn" type="button">Refresh</button>
         </div>
       </section>
 
       <div id="scopeTabs" class="scopeTabs" aria-label="Communication scope"></div>
+      <div id="proxyBanner" hidden class="banner info"></div>
       <div id="modeBanner" hidden class="banner info"></div>
       <div id="qualityBanner" hidden class="banner warn"></div>
 
@@ -94,6 +95,6 @@
       </section>
     </main>
   </div>
-  <script src="./communications.js"></script>
+  <script src="./communications.js?v=20260930-family-communications-proxy-v2"></script>
 </body>
 </html>

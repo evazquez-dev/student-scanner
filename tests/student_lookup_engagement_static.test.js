@@ -23,6 +23,11 @@ assert.match(ui, /Log \/ Book/);
 assert.match(ui, /Proxy booking in Student Lookup is advisor-scoped/);
 assert.match(ui, /booking_proxy_advisor_scoped/);
 
+// Family Communications Proxy follows the user through Student Lookup.
+assert.match(ui, /access\?\.can\?\.communications_proxy/);
+assert.match(ui, /searchParams\.set\('proxy','1'\)/);
+assert.match(ui, /Family Communications Proxy is active/);
+
 assert.match(confRoute, /\/admin\/conferences\/student_context/);
 assert.match(confRoute, /studentLookupBookingProxy/);
 assert.match(confRoute, /validateStudentConferenceAdvisorSlot/);

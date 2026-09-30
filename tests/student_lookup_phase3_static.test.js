@@ -9,7 +9,7 @@ const html = read('student-scanner/admin/student_view.html');
 const js = read('student-scanner/admin/student_lookup_phase3.js');
 
 test('Phase 3 is layered after the existing Student Lookup Phase 2 script', () => {
-  assert.match(html, /<script src="\.\/student_view\.js" defer><\/script>\s*<script src="\.\/student_lookup_phase3\.js" defer><\/script>/);
+  assert.match(html, /<script src="\.\/student_view\.js(?:\?[^"]*)?" defer><\/script>\s*<script src="\.\/student_lookup_phase3\.js" defer><\/script>/);
   assert.match(js, /Student Actions/);
   assert.match(js, /Phone Pass/);
   assert.match(js, /Staff Pull/);
