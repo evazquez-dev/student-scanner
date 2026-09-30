@@ -34,6 +34,18 @@ function statusCard(label,value,kind,detail){
   const tone=allowed.includes(kind)?kind:'info';
   return `<div class="ol-stat ol-stat--${tone}"><div class="ol-stat-label">${escape(label)}</div><div class="ol-stat-value">${escape(value)}</div><div class="ol-stat-meta">${escape(detail||'')}</div></div>`;
 }
+function classDataPresentation(status){ // EAGLENEST_ELIGIBILITY_IMPORT_GAP_UI_V1
+  const s=String(status||'').toLowerCase();
+  const known={
+    evaluated:{kind:'good',label:'evaluated'},
+    excluded_full_day_absence:{kind:'info',label:'excluded full-day absence'},
+    no_instructional_periods:{kind:'info',label:'no scored class meetings'},
+    missing_import:{kind:'info',label:'No meeting snapshot · ignored'},
+    missing_student_meetings:{kind:'info',label:'No student meeting snapshot · ignored'},
+    incomplete_student_meetings:{kind:'info',label:'Partial meeting snapshot · ignored'}
+  };
+  return known[s]||{kind:'info',label:s?s.replaceAll('_',' '):'Not scored'};
+}
 function checksFor(r){
   const a=r.attendance||{},g=r.academics||{};
   const windowReady=a.complete_window===true && !a.missing_daily && Number(a.school_denominator)===5;
@@ -66,7 +78,7 @@ function filterBoard(){
       `<button class="btn ol-student-button" data-student="${escape(r.osis)}">${escape(r.name)}</button><div class="ol-detail">${escape(r.osis)} · Grade ${escape(r.grade)}</div>${r.currently_out?badge('info','Currently OUT'):''}`,
       `<div class="ol-cell">${badge('info','No permission slip required')}</div>`,
       `<div class="ol-cell">${badge(c.schoolTone,c.windowReady?schoolText:'Attendance incomplete')}${badge(c.arrivalTone,arrivalText)}<span class="ol-detail">${escape(schoolText)} · ${escape(arrivalText)}</span></div>`,
-      `<div class="ol-cell">${badge(c.classTone,!c.classReady?'Class window unavailable':a.missing_classes?'Partial class data · missing ignored':classText)}<span class="ol-detail">${escape(classText)} · ${pct(a.class_pct)} on time</span></div>`,
+      `<div class="ol-cell">${badge(c.classTone,!c.classReady?'Class window unavailable':a.missing_classes?'Known meetings only':classText)}<span class="ol-detail">${escape(classText)} · ${pct(a.class_pct)} on time</span></div>`,
       `<div class="ol-cell">${badge(c.gradeTone,gradesText)}<span class="ol-detail">${escape(g.marking_period||'Current marking period')}</span></div>`,
       `<div class="ol-cell">${badge(r.penalty_pending?'bad':'good',r.penalty_pending?'Recess penalty pending':'No penalty')}</div>`,
       `<div class="ol-cell">${badge(r.eligible?'good':'bad',r.eligible?'Eligible':'Not eligible')}${r.admin_pass?badge('info','Admin pass'):''}<span class="ol-detail">${escape(r.reason||'All checks met')}</span></div>`
@@ -86,7 +98,8 @@ function showStudent(r){
   const daily=(a.days||[]).map(x=>{
     const missing=x.daily_status==='missing';
     const classStatus=x.class_status||'';
-    const classKind=classStatus==='evaluated'?'good':classStatus==='excluded_full_day_absence'||classStatus==='no_instructional_periods'?'info':'warn';
+    const classView=classDataPresentation(classStatus);
+    const classKind=classView.kind;
     const periods=(x.periods||[]).map(p=>{
       const s=String(p.status||'unknown').toLowerCase();
       // EAGLENEST_OUTSIDE_LUNCH_CLASS_ABSENCE_EXCLUSION_V1: report absence as excluded, not a failed meeting.
@@ -99,7 +112,7 @@ function showStudent(r){
     return [escape(x.date),badge(dailyKind,x.excused_absence?'Excused absence':missing?'Missing data':x.daily_status||'Unknown'),
       escape(x.detail_code),badge(missing?'warn':x.counted_present?'good':'bad',missing?'Pending':x.counted_present?'Counts as present':'Does not count'),
       badge(missing?'warn':x.on_time_arrival?'good':'bad',missing?'Pending':x.on_time_arrival?'On time':'Not on time'),
-      badge(classKind,classStatus.replaceAll('_',' ')||'Not available'),periods];
+      badge(classKind,classView.label),periods];
   });
   const courses=(g.courses||[]).map(x=>{
     const result=x.status==='passing'?'good':x.status==='failing'?'bad':'warn';
@@ -122,7 +135,7 @@ function showStudent(r){
     ${statusCard('Permission slip','Not required','info','Adult-supervised recess — all grades')}
     ${statusCard('School attendance',schoolValue,c.schoolTone,readySchool?'At least 4 of the last 5 completed school days':'Waiting for a complete 5-day attendance window')}
     ${statusCard('On-time to school TODAY',arrivalValue,c.arrivalTone,arrivalDetail)}
-    ${statusCard('On-time class meetings',classValue,c.classTone,a.missing_classes?'Missing/unknown class data is ignored; known meetings still require at least 90% on time':'At least 90% on time; known non-attendance is excluded')}
+    ${statusCard('On-time class meetings',classValue,c.classTone,a.missing_classes?'Unscored class-data gaps are ignored; known meetings still require at least 90% on time':'At least 90% on time; known non-attendance is excluded')}
     ${statusCard('Current marking-period grades',gradeValue,c.gradeTone,g.ready?`${g.marking_period||'Marking period'} · Passing: ${g.passing_score??'configured'} · Updated ${g.snapshot_date||'—'}`:'Current grade snapshot not ready; zeros are not entered grades')}
     ${statusCard('Late-return penalty',pen.pending?'Recess penalty pending':'No penalty',pen.pending?'bad':'good',pen.pending?'Next otherwise-eligible outside-lunch attempt is blocked':pen.last_violation_date?`Last violation: ${pen.last_violation_date}`:'No active restriction from a late return')}
     ${r.admin_restriction?statusCard('Administrative restriction','Active','bad','Blocks outside lunch regardless of other results'):''}
