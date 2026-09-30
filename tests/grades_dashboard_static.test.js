@@ -93,6 +93,6 @@ test('advisory and population scopes show all courses while course selections fo
 test('navigation and branding continue to expose Grades',()=>{
   assert.match(nav,/key:'grades'/);
   assert.match(nav,/href:'\.\/grades\.html'/);
-  assert.match(brand,/grades:\s*'Grades'/);
+  assert.match(brand,/grades:\s*'Grades & Attendance'/);
   assert.match(html,/data-module="grades"/);
 });

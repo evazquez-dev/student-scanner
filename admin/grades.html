@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Grades · EagleNEST</title>
+  <title>Grades & Attendance · EagleNEST</title>
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
   <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
   <script src="./shared_auth.js"></script>
@@ -27,9 +27,9 @@
     <main id="app" hidden>
       <section class="card pageHero">
         <div>
-          <div class="eyebrow" id="modeEyebrow">Grades</div>
-          <h1 id="pageTitle">Grades</h1>
-          <p id="pageSubtitle" class="muted pageSubtitle">Your students and current grade data.</p>
+          <div class="eyebrow" id="modeEyebrow">Grades & Attendance</div>
+          <h1 id="pageTitle">Grades & Attendance</h1>
+          <p id="pageSubtitle" class="muted pageSubtitle">Grades, daily attendance, and meeting attendance for your students.</p>
           <div id="snapshotMeta" class="snapshotMeta muted">Loading current grade snapshot…</div>
         </div>
         <div class="heroActions">
@@ -106,6 +106,33 @@
         <div id="gradeRosterNote" class="muted small">Selecting a roster filters this page only; it never changes the saved roster.</div>
       </section>
 
+      <!-- EAGLENEST_GRADES_ATTENDANCE_HUB_V1 -->
+      <section id="dataTabsCard" class="card dataTabsCard">
+        <div class="dataTabs" role="tablist" aria-label="Grades and attendance views">
+          <button class="dataTab active" data-ga-tab="overview" type="button" role="tab" aria-selected="true">Overview</button>
+          <button class="dataTab" data-ga-tab="grades" type="button" role="tab" aria-selected="false">Grades</button>
+          <button class="dataTab" data-ga-tab="daily" type="button" role="tab" aria-selected="false">Daily Attendance</button>
+          <button class="dataTab" data-ga-tab="meeting" type="button" role="tab" aria-selected="false">Meeting Attendance</button>
+        </div>
+        <div id="attendanceWindowControls" class="attendanceWindow">
+          <label>
+            <span>Attendance window</span>
+            <select id="attendanceWindowPreset">
+              <option value="marking_period" selected>Current marking period</option>
+              <option value="ytd">School year to date</option>
+              <option value="last_5_school_days">Last 5 completed school days</option>
+              <option value="last_10_school_days">Last 10 completed school days</option>
+              <option value="custom">Custom dates</option>
+            </select>
+          </label>
+          <div id="attendanceCustomDates" class="attendanceCustomDates" hidden>
+            <label><span>Start</span><input id="attendanceStart" type="date"></label>
+            <label><span>End</span><input id="attendanceEnd" type="date"></label>
+          </div>
+          <div id="attendanceWindowResolved" class="muted small">Resolving attendance window…</div>
+        </div>
+      </section>
+
       <section class="card quickFilterCard">
         <div class="quickFilterTop">
           <label class="searchLabel">
@@ -117,7 +144,7 @@
             <select id="gradeFilter"><option value="">All grade levels</option></select>
           </label>
         </div>
-        <div class="quickStatusWrap">
+        <div id="gradesStatusWrap" class="quickStatusWrap">
           <span class="muted small">Show</span>
           <div id="statusQuick" class="segmented" role="group" aria-label="Grade status filter"></div>
         </div>
@@ -136,7 +163,7 @@
         <div class="kpi warning"><span>Missing Grades</span><strong id="adminKpiMissing">0</strong><small>missing numeric grade data</small></div>
       </section>
 
-      <section class="card resultsCard">
+      <section id="gradesResultsCard" class="card resultsCard">
         <div class="sectionHead resultsHead">
           <div>
             <h2 id="resultsTitle">Students</h2>
@@ -145,6 +172,47 @@
           <div id="activeScopeSummary" class="scopeSummary"></div>
         </div>
         <div id="results" class="tableWrap"></div>
+      </section>
+
+
+      <section id="overviewPanel" class="gaPanel" hidden>
+        <div class="kpiGrid overviewKpis">
+          <div class="kpi"><span>Students</span><strong id="overviewKpiStudents">0</strong><small>in this view</small></div>
+          <div class="kpi warning"><span>Grade Attention</span><strong id="overviewKpiGrades">0</strong><small>below passing or missing</small></div>
+          <div class="kpi attention"><span>Daily Attendance</span><strong id="overviewKpiDaily">0</strong><small>below attendance target</small></div>
+          <div class="kpi attention"><span>Meeting Attendance</span><strong id="overviewKpiMeeting">0</strong><small>below on-time target</small></div>
+        </div>
+        <section class="card resultsCard">
+          <div class="sectionHead resultsHead"><div><h2>Student Overview</h2><p id="overviewMeta" class="muted">Loading…</p></div><div id="overviewScopeSummary" class="scopeSummary"></div></div>
+          <div id="overviewResults" class="tableWrap"><div class="empty">Loading grades and attendance…</div></div>
+        </section>
+      </section>
+
+      <section id="dailyAttendancePanel" class="gaPanel" hidden>
+        <div class="kpiGrid attendanceKpis">
+          <div class="kpi"><span>Students</span><strong id="dailyKpiStudents">0</strong><small>in this view</small></div>
+          <div class="kpi success"><span>Attendance</span><strong id="dailyKpiAttendance">—</strong><small>known daily records</small></div>
+          <div class="kpi success"><span>On-time arrival</span><strong id="dailyKpiOnTime">—</strong><small>known daily records</small></div>
+          <div class="kpi attention"><span>Absences</span><strong id="dailyKpiAbsent">0</strong><small>student-days</small></div>
+          <div class="kpi warning"><span>Late</span><strong id="dailyKpiLate">0</strong><small>student-days</small></div>
+        </div>
+        <section class="card resultsCard">
+          <div class="sectionHead resultsHead"><div><h2>Daily Attendance</h2><p id="dailyMeta" class="muted">Loading…</p></div></div>
+          <div id="dailyResults" class="tableWrap"><div class="empty">Loading daily attendance…</div></div>
+        </section>
+      </section>
+
+      <section id="meetingAttendancePanel" class="gaPanel" hidden>
+        <div class="kpiGrid attendanceKpis">
+          <div class="kpi"><span>Students</span><strong id="meetingKpiStudents">0</strong><small>in this view</small></div>
+          <div class="kpi success"><span>On-time %</span><strong id="meetingKpiOnTimePct">—</strong><small>known eligible meetings</small></div>
+          <div class="kpi success"><span>On time</span><strong id="meetingKpiOnTime">0</strong><small>meetings</small></div>
+          <div class="kpi attention"><span>Not on time</span><strong id="meetingKpiNotOnTime">0</strong><small>meetings</small></div>
+        </div>
+        <section class="card resultsCard">
+          <div class="sectionHead resultsHead"><div><h2>Meeting Attendance</h2><p id="meetingMeta" class="muted">Loading…</p></div></div>
+          <div id="meetingResults" class="tableWrap"><div class="empty">Loading meeting attendance…</div></div>
+        </section>
       </section>
 
       <section id="errorCard" class="card errorCard" hidden>
@@ -162,13 +230,30 @@
       </div>
       <button id="studentDialogClose" class="btn ghost" type="button">Close</button>
     </div>
-    <div id="studentCurrent" class="studentCurrent"></div>
-    <section class="historySection">
-      <div class="sectionHead"><div><h3>Grade History</h3><p class="muted">Every stored EagleNEST grade snapshot for this student.</p></div></div>
-      <div id="studentHistory"></div>
+    <div class="studentDataTabs" role="tablist" aria-label="Student grades and attendance">
+      <button class="dataTab active" data-student-tab-button="grades" type="button" role="tab" aria-selected="true">Grades</button>
+      <button class="dataTab" data-student-tab-button="daily" type="button" role="tab" aria-selected="false">Daily Attendance</button>
+      <button class="dataTab" data-student-tab-button="meeting" type="button" role="tab" aria-selected="false">Meeting Attendance</button>
+    </div>
+    <div id="studentAttendanceWindow" class="muted small studentAttendanceWindow"></div>
+    <div id="studentGradesPane">
+      <div id="studentCurrent" class="studentCurrent"></div>
+      <section class="historySection">
+        <div class="sectionHead"><div><h3>Grade History</h3><p class="muted">Every stored EagleNEST grade snapshot for this student.</p></div></div>
+        <div id="studentHistory"></div>
+      </section>
+    </div>
+    <section id="studentDailyPane" hidden>
+      <div id="studentDailySummary"></div>
+      <div id="studentDailyRows" class="tableWrap"><div class="empty">Loading daily attendance…</div></div>
+    </section>
+    <section id="studentMeetingPane" hidden>
+      <div id="studentMeetingSummary"></div>
+      <div id="studentMeetingRows"><div class="empty">Loading meeting attendance…</div></div>
     </section>
   </dialog>
 
   <script src="./grades.js"></script>
+  <script src="./grades_attendance.js"></script>
 </body>
 </html>

@@ -22,7 +22,7 @@
   const MODULES = window.EAGLENEST_BRAND?.modules || {
     my_schedule: 'My Schedule',
     my_rosters: 'My Rosters', // EAGLENEST_MY_ROSTERS_V1
-    grades: 'Grades',
+    grades: 'Grades & Attendance', // EAGLENEST_GRADES_ATTENDANCE_HUB_V1
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
@@ -516,7 +516,7 @@
         items: [
           { key:'student_view', label: MODULES.student_view || 'Student Lookup', href:'./student_view.html', description:'Student dashboard, location and attendance' },
           { key:'my_rosters', label: MODULES.my_rosters || 'My Rosters', href:'./my_rosters.html', description:'Reusable student sets, email lists and OSIS exports' }, // EAGLENEST_MY_ROSTERS_V1
-          { key:'grades', label: MODULES.grades || 'Grades', href:'./grades.html', description:'Current grades, sections, advisories and grade history' },
+          { key:'grades', label: MODULES.grades || 'Grades & Attendance', href:'./grades.html', description:'Student grades, daily attendance, meeting attendance and history' },
           { key:'gradebook_analytics', label:'Gradebook Analytics', href:'./gradebook_analytics.html', description:'Weekly, role-scoped gradebook assignment and score-entry snapshots' },
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },
           { key:'communications', label: MODULES.communications || 'Parent & Family Communications', href:'./communications.html', description:'Outreach, required communication and follow-ups' },

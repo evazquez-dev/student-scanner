@@ -84,7 +84,7 @@ function removeSelected(id){SELECTED.delete(id);if(!SELECTED.size)SELECTED.add(i
 
 function groupButton(row,labelOverride=''){const btn=document.createElement('button');btn.type='button';btn.className='scopeBtn';btn.dataset.gradeGroup=row.id;btn.innerHTML=`${esc(labelOverride||row.label)} <span class="count">${Number(row.student_count||0)}</span>`;btn.addEventListener('click',()=>toggleTeacherGroup(row.id));return btn}
 function selectedChip(row){const el=document.createElement('span');el.className='chip selectedChip';el.innerHTML=`${esc(groupLabel(row))} <button type="button" aria-label="Remove ${esc(groupLabel(row))}">×</button>`;el.querySelector('button').addEventListener('click',()=>removeSelected(row.id));return el}
-function syncScopeUi(){document.querySelectorAll('[data-grade-group]').forEach(el=>el.classList.toggle('active',SELECTED.has(el.dataset.gradeGroup)));document.querySelectorAll('[data-leadership-group]').forEach(el=>el.classList.toggle('active',SELECTED.has(el.dataset.leadershipGroup)));renderSelectedScopes()}
+function syncScopeUi(){document.querySelectorAll('[data-grade-group]').forEach(el=>el.classList.toggle('active',SELECTED.has(el.dataset.gradeGroup)));document.querySelectorAll('[data-leadership-group]').forEach(el=>el.classList.toggle('active',SELECTED.has(el.dataset.leadershipGroup)));renderSelectedScopes();try{window.dispatchEvent(new CustomEvent('eaglenest-grades-scope-change'))}catch{}} // EAGLENEST_GRADES_ATTENDANCE_HUB_V1
 function renderSelectedScopes(){const rows=selectedRows();teacherSelectedGroups.replaceChildren();adminSelectedGroups.replaceChildren();activeScopeSummary.replaceChildren();for(const row of rows){activeScopeSummary.appendChild(Object.assign(document.createElement('span'),{className:'chip',textContent:groupLabel(row)}));if(isAdminMode())adminSelectedGroups.appendChild(selectedChip(row));else teacherSelectedGroups.appendChild(selectedChip(row))}teacherSelectedWrap.hidden=isAdminMode()||rows.length===1&&rows[0]?.id==='mine:all'}
 
 function renderTeacherNavigation(){teacherAdvisories.replaceChildren();teacherCourses.replaceChildren();const groups=OVERVIEW?.my_groups||[];const advisories=groups.filter(g=>g.type==='advisory');for(const advisory of advisories)teacherAdvisories.appendChild(groupButton(advisory,advisory.label||'My Advisory'));
@@ -132,7 +132,7 @@ function renderGradeFilter(){gradeFilter.innerHTML='<option value="">All grade l
 
 function renderMode(){MODE=determineMode();const cur=OVERVIEW?.current||{},pass=passingScore();snapshotMeta.textContent=cur.configured?`${cur.marking_period||'Current'} · Snapshot ${fmtDate(cur.snapshot_date)} · ${Number(cur.student_count||0)} students · ${Number(cur.row_count||0)} grade rows`:'Grade Hub has not pushed a current dataset yet.';passingPill.textContent=`Passing: ${pass}%+`;viewerPill.textContent=OVERVIEW?.viewer?.view_as?.active?`Viewing as ${OVERVIEW?.viewer?.name||OVERVIEW?.viewer?.email}`:(OVERVIEW?.viewer?.name||OVERVIEW?.viewer?.email||'Staff');
   teacherScopeCard.hidden=isAdminMode();adminScopeCard.hidden=!isAdminMode();teacherKpis.hidden=isAdminMode();adminKpis.hidden=!isAdminMode();adminGradeFilterWrap.hidden=!isAdminMode();
-  if(isAdminMode()){modeEyebrow.textContent='Administrative Grades';pageTitle.textContent='Schoolwide Grades';pageSubtitle.textContent='Monitor grade status across the school and drill into authorized groups.';resultsTitle.textContent='Schoolwide Students';renderAdminNavigation()}else{modeEyebrow.textContent=MODE==='leadership'?'Teacher + Leadership Grades':'Teacher Grades';pageTitle.textContent='Grades';pageSubtitle.textContent='Your students, your classes, and who needs attention.';resultsTitle.textContent='My Students';renderTeacherNavigation();renderLeadership()}
+  if(isAdminMode()){modeEyebrow.textContent='Administrative Grades & Attendance';pageTitle.textContent='Schoolwide Grades & Attendance';pageSubtitle.textContent='Monitor grades, daily attendance, and meeting attendance across authorized student groups.';resultsTitle.textContent='Schoolwide Students';renderAdminNavigation()}else{modeEyebrow.textContent=MODE==='leadership'?'Teacher + Leadership Grades & Attendance':'Teacher Grades & Attendance';pageTitle.textContent='Grades & Attendance';pageSubtitle.textContent='Your students, current grades, daily attendance, and class-meeting attendance.';resultsTitle.textContent='My Students';renderTeacherNavigation();renderLeadership()}
   renderRosterNavigation();renderGradeFilter();renderStatusButtons();$('kpiBelowLabel').textContent=`below ${pass}%`;$('adminKpiBelowLabel').textContent=`below ${pass}%`;$('adminKpiPassingLabel').textContent=`${pass}% and above`;syncScopeUi()}
 
 function gradeChipsHtml(grades){if(!grades?.length)return'<span class="muted">No grade rows</span>';return `<div class="gradeChips">${grades.map(g=>`<span class="gradeChip ${gradeKind(g)}" title="${esc(g.course_code||'')}"><strong>${esc(g.course_name||g.academic_course_code||g.course_code||'Course')}</strong> ${esc(fmtGrade(g))}</span>`).join('')}</div>`}
@@ -147,7 +147,29 @@ async function loadStudents(){if(!OVERVIEW)return;setError('');const url=new URL
 
 function renderCurrentStudent(student){const name=[student?.first,student?.last].filter(Boolean).join(' ')||student?.osis||'Student';studentDialogTitle.textContent=name;studentDialogMeta.textContent=`Grade ${student?.grade_level||'—'} · OSIS ${student?.osis||'—'} · Passing threshold ${passingScore()}%`;studentCurrent.innerHTML=`<div class="currentGrid">${(student?.grades||[]).map(g=>`<article class="currentCourse"><div class="muted small">${esc(g.academic_course_code||g.course_code||'')}</div><div>${esc(g.course_name||'Course')}</div><strong class="${gradeKind(g)==='fail'?'statusBad':gradeKind(g)==='pass'?'statusGood':''}">${esc(fmtGrade(g))}</strong></article>`).join('')||'<div class="empty">No current grades.</div>'}</div>`}
 function renderHistory(history){const snapshots=history?.snapshots||[];if(!snapshots.length){studentHistory.innerHTML='<div class="empty">No historical grade snapshots are stored for this student yet.</div>';return}studentHistory.innerHTML=snapshots.map((s,i)=>`<details class="historySnapshot" ${i===0?'open':''}><summary>${esc(s.marking_period||'Snapshot')} · ${esc(fmtDate(s.snapshot_date))} · ${Number(s.below_passing_count||0)} below ${esc(passingScore())}%</summary><div class="gradeChips" style="margin-top:10px">${(s.grades||[]).map(g=>`<span class="gradeChip ${gradeKind(g)}"><strong>${esc(g.course_name||g.course_code)}</strong> ${esc(fmtGrade(g))}</span>`).join('')}</div></details>`).join('')}
-async function openStudent(osis){studentDialogTitle.textContent='Loading…';studentDialogMeta.textContent='';studentCurrent.innerHTML='';studentHistory.innerHTML='<div class="empty">Loading history…</div>';studentDialog.showModal();try{const [curR,histR]=await Promise.all([adminFetch(`/admin/grades/student?osis=${encodeURIComponent(osis)}`),adminFetch(`/admin/grades/student/history?osis=${encodeURIComponent(osis)}`)]);const cur=await curR.json().catch(()=>null),hist=await histR.json().catch(()=>null);if(!curR.ok||!cur?.ok)throw new Error(cur?.error||`HTTP ${curR.status}`);renderCurrentStudent(cur.student);if(histR.ok&&hist?.ok)renderHistory(hist);else studentHistory.innerHTML=`<div class="empty">History unavailable: ${esc(hist?.error||`HTTP ${histR.status}`)}</div>`}catch(e){studentDialogTitle.textContent='Student Grades';studentCurrent.innerHTML=`<div class="empty">${esc(e?.message||e)}</div>`}}
+async function openStudent(osis){studentDialogTitle.textContent='Loading…';studentDialogMeta.textContent='';studentCurrent.innerHTML='';studentHistory.innerHTML='<div class="empty">Loading history…</div>';studentDialog.showModal();window.EagleNESTGradesAttendance?.loadStudent?.(osis);try{const [curR,histR]=await Promise.all([adminFetch(`/admin/grades/student?osis=${encodeURIComponent(osis)}`),adminFetch(`/admin/grades/student/history?osis=${encodeURIComponent(osis)}`)]);const cur=await curR.json().catch(()=>null),hist=await histR.json().catch(()=>null);if(!curR.ok||!cur?.ok)throw new Error(cur?.error||`HTTP ${curR.status}`);renderCurrentStudent(cur.student);if(histR.ok&&hist?.ok)renderHistory(hist);else studentHistory.innerHTML=`<div class="empty">History unavailable: ${esc(hist?.error||`HTTP ${histR.status}`)}</div>`}catch(e){studentDialogTitle.textContent='Student Grades';studentCurrent.innerHTML=`<div class="empty">${esc(e?.message||e)}</div>`}}
+
+
+function gradesAttendanceScopeParams(){
+  const p=new URLSearchParams();
+  for(const id of SELECTED){
+    const row=groupMap().get(id);
+    if(row?.type==='roster'&&row.roster_ref)p.append('roster',row.roster_ref);
+    else p.append('group',id);
+  }
+  if(searchInput?.value?.trim())p.set('q',searchInput.value.trim());
+  if(isAdminMode()&&gradeFilter?.value)p.set('grade',gradeFilter.value);
+  return p;
+}
+window.EagleNESTGradesPage={
+  fetch:adminFetch,
+  scopeParams:gradesAttendanceScopeParams,
+  openStudent,
+  isAdminMode,
+  passingScore,
+  ready:()=>!!OVERVIEW,
+  overview:()=>OVERVIEW
+}; // EAGLENEST_GRADES_ATTENDANCE_HUB_V1
 
 function resetSelectionForMode(){SELECTED.clear();if(MODE==='admin')SELECTED.add('school:all');else if((OVERVIEW?.default_group_ids||[]).length)for(const id of OVERVIEW.default_group_ids)SELECTED.add(id);else SELECTED.add('mine:all')}
 async function bootstrap(){ACCESS=await fetchAccess();if(!ACCESS?.can?.grades)throw new Error('forbidden');OVERVIEW=await fetchOverviewWithRosters();MODE=determineMode();loginCard.hidden=true;app.hidden=false;resetSelectionForMode();renderMode();await loadStudents()}
