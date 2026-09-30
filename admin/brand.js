@@ -37,7 +37,8 @@
     dreamer_of_week: 'Dreamer of the Week',
     attendance_change: 'Attendance Corrections',
     excused_apply: 'Attendance Corrections', // legacy alias
-    admin_roles: 'Roles & Access',
+    admin_roles: 'Role Sources',
+    access_control: 'Access Control', // EAGLENEST_ACCESS_CONTROL_V1
     admin: 'System Administration'
   };
 

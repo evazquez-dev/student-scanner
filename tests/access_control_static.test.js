@@ -1,0 +1,10 @@
+const fs=require('fs'),path=require('path'),assert=require('assert');
+const ROOT=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(ROOT,'admin/access_control.html'),'utf8');
+const js=fs.readFileSync(path.join(ROOT,'admin/access_control.js'),'utf8');
+const nav=fs.readFileSync(path.join(ROOT,'admin/nav.js'),'utf8');
+assert(html.includes('Individual overrides'));
+assert(js.includes('/admin/access_control/catalog'));
+assert(js.includes('/admin/access_control/user_effective'));
+assert(nav.includes("key:'access_control'"));
+console.log('frontend access_control_static ok');

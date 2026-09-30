@@ -56,7 +56,8 @@
     reflection_hold: 'Reflection Hold',
     dreamer_of_week: 'Dreamer of the Week',
     excused_apply: 'Attendance Corrections', // legacy alias
-    admin_roles: 'Roles & Access',
+    admin_roles: 'Role Sources',
+    access_control: 'Access Control', // EAGLENEST_ACCESS_CONTROL_V1
     admin: 'System Administration'
   };
 
@@ -88,6 +89,7 @@
     'scan_injector_admin_session_v1',
     'behavior_history_admin_session_v1',
     'admin_roles_admin_session_v1',
+    'access_control_admin_session_v1', // EAGLENEST_ACCESS_CONTROL_V1
     'attendance_change_admin_session_v1',
     'supervised_lunch_admin_session_v1',
     'reflection_hold_admin_session_v1',
@@ -558,7 +560,8 @@
           { key:'exports', label:'Exports', href:'./exports.html', description:'Filtered historical CSV exports across EagleNEST modules' },
           { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Operational Health', href:'./fidelity.html', description:'Attendance fidelity and operational health' },
           { key:'scan_injector', label: MODULES.scan_injector || 'Scan Injector', href:'./scan_injector.html', description:'Admin scan simulation and testing' },
-          { key:'admin_roles', label: MODULES.admin_roles || 'Roles & Access', href:'./admin_roles.html', description:'Permissions and staff access' },
+          { key:'access_control', label: MODULES.access_control || 'Access Control', href:'./access_control.html', description:'Role policies, individual overrides, effective access and audit' }, // EAGLENEST_ACCESS_CONTROL_V1
+          { key:'admin_roles', label: MODULES.admin_roles || 'Role Sources', href:'./admin_roles.html', description:'Manage upstream role and allowlist memberships' },
           { key:'admin_dashboard', label: MODULES.admin || 'System Administration', href:'./index.html', description:'System mode and configuration' },
         ]
       }

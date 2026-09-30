@@ -71,7 +71,8 @@ assert.match(brand, /communications:\s*'Parent & Family Communications'/);
 assert.match(brand, /mtss:\s*'MTSS Case Management'/);
 assert.match(brand, /fidelity_dashboard:\s*'Operational Health'/);
 assert.match(brand, /attendance_change:\s*'Attendance Corrections'/);
-assert.match(brand, /admin_roles:\s*'Roles & Access'/);
+assert.match(brand, /admin_roles:\s*'Role Sources'/);
+assert.match(brand, /access_control:\s*'Access Control'/);
 assert.match(brand, /admin:\s*'System Administration'/);
 assert.match(brand, /notifications:\s*'My Settings'/);
 
