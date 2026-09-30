@@ -20,6 +20,12 @@
   function status(msg){$('statusOut').textContent=msg||''}
   function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
   function roleById(id){return state.catalog?.roles?.find(r=>r.id===id)}
+  function roleScopeLabel(id,profile){ // EAGLENEST_ACCESS_ROLE_SOURCES_V3_UI
+    const meta=roleById(id);let label=meta?.label||id;
+    const field=String(meta?.scope_field||'');const scope=field?String(profile?.[field]||'').trim():'';
+    if(scope)label+=` · ${meta?.scope_label||'Scope'}: ${scope}`;
+    return label;
+  }
   function groupedCaps(){const g={};for(const c of state.catalog?.capabilities||[])(g[c.category]??=[]).push(c);return g}
   function numericToName(value){return levelNames[Number(value)]||'none'}
   function capLevels(cap){
@@ -101,7 +107,7 @@
   }
   function renderStaffPicker(){
     const q=String($('userSearch').value||'').trim().toLowerCase();
-    const rows=state.staff.filter(x=>!q||`${x.name||''} ${x.email||''}`.toLowerCase().includes(q)).slice(0,250);
+    const rows=state.staff.filter(x=>!q||`${x.name||''} ${x.email||''} ${x.department||''} ${x.grade_team||''} ${(x.leadership_roles||[]).join(' ')}`.toLowerCase().includes(q)).slice(0,250);
     $('userPicker').innerHTML='<option value="">Choose staff…</option>'+rows.map(x=>`<option value="${esc(x.email)}">${esc(x.name||x.email)} — ${esc(x.email)}</option>`).join('');
     if(state.selectedUser&&rows.some(x=>x.email===state.selectedUser))$('userPicker').value=state.selectedUser;
   }
@@ -125,7 +131,9 @@
     const overrides=j.user_override?.overrides||{};
     const staff=state.staff.find(x=>String(x.email).toLowerCase()===j.email);
     $('userSummary').hidden=false;
-    $('userSummary').innerHTML=`<strong>${esc(staff?.name||j.staff_profile?.name||j.email)}</strong><br>${esc(j.email)}<br><span class="muted">Base role: ${esc(j.base_role||'editor')}</span><br>${(j.roles||[]).map(r=>`<span class="ac-pill">${esc(roleById(r)?.label||r)}</span>`).join('')}`;
+    const profile=j.staff_profile||staff||{};
+    const scopeBits=[profile.department?`Department: ${profile.department}`:'',profile.grade_team?`Grade Team: ${profile.grade_team}`:''].filter(Boolean);
+    $('userSummary').innerHTML=`<strong>${esc(staff?.name||profile?.name||j.email)}</strong><br>${esc(j.email)}<br><span class="muted">Base role: ${esc(j.base_role||'editor')}${scopeBits.length?` · ${esc(scopeBits.join(' · '))}`:''}</span><br>${(j.roles||[]).map(r=>`<span class="ac-pill">${esc(roleScopeLabel(r,profile))}</span>`).join('')}`;
     let html='<div class="ac-grid">';
     for(const [cat,caps] of Object.entries(groupedCaps())){
       html+=`<section class="ac-category"><h3>${esc(cat)}</h3>`;

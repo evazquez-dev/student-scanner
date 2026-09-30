@@ -17,8 +17,8 @@
       needs_rescheduling:'Needs rescheduling'
     })[status] || String(status||'—');
   }
-  function reqIsAdmin(){return ['admin','super_admin'].includes(String(access?.role||'').toLowerCase());}
-  function reqIsBookingDesk(){return !reqIsAdmin()&&access?.can?.office_staff===true;} // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
+  function reqIsAdmin(){return access?.can?.conference_event_admin===true;}
+  function reqIsBookingDesk(){return !reqIsAdmin()&&access?.can?.conference_booking_proxy===true;} // EAGLENEST_CONFERENCE_BOOKING_PROXY_V2
   function reqCanViewAll(){return reqIsAdmin()||reqIsBookingDesk();}
 
   function injectRequirementUi(){
@@ -197,7 +197,7 @@
     document.getElementById('requirementSubhead').textContent=reqIsAdmin()
       ?'Admin view across all participating advisors.'
       :reqIsBookingDesk()
-        ?'Office view across participating advisors. Log the family conversation and book the requested staff lane.'
+        ?'Proxy view across participating advisors. Log the family conversation and book the requested staff lane.'
         :'Your required advisees for this conference. Log each outreach attempt here and book a time when the family is ready.'; // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
     document.getElementById('requirementKpis').innerHTML=[
       ['Required',s.required||0],

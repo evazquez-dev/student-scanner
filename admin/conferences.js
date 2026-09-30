@@ -21,8 +21,8 @@ const eventStaffSelection=new Map();
 const manageStaffSelection=new Map();
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function isAdmin(){return ['admin','super_admin'].includes(String(access?.role||'').toLowerCase());}
-function isBookingDesk(){return !isAdmin()&&access?.can?.office_staff===true;} // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
+function isAdmin(){return access?.can?.conference_event_admin===true;}
+function isBookingDesk(){return !isAdmin()&&access?.can?.conference_booking_proxy===true;} // EAGLENEST_CONFERENCE_BOOKING_PROXY_V2
 function canViewAllLanes(){return isAdmin()||isBookingDesk();}
 function getSid(){try{return String(sessionStorage.getItem(ADMIN_SESSION_KEY)||localStorage.getItem(ADMIN_SESSION_KEY)||sessionStorage.getItem(ADMIN_SESSION_LEGACY_KEY)||localStorage.getItem(ADMIN_SESSION_LEGACY_KEY)||'').trim();}catch{return '';}}
 function setSid(sid){const v=String(sid||'').trim();if(!v)return;try{for(const k of [ADMIN_SESSION_KEY,ADMIN_SESSION_LEGACY_KEY]){sessionStorage.setItem(k,v);localStorage.setItem(k,v);}}catch{}}
@@ -59,7 +59,7 @@ async function loadEvents(preferId=''){
   const data=await api('/admin/conferences/events');
   events=Array.isArray(data.events)?data.events:[];
   const select=$('eventSelect');select.replaceChildren();
-  if(!events.length){select.appendChild(new Option(isBookingDesk()?'No active conference events':'No conference events yet',''));bundle=null;renderBundle();if(isAdmin())setStatus('No conference events yet. Create one to start reviewing the workflow.');else if(isBookingDesk())setStatus('No active conference events are available for the office booking desk.');return;} // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
+  if(!events.length){select.appendChild(new Option(isBookingDesk()?'No active conference events':'No conference events yet',''));bundle=null;renderBundle();if(isAdmin())setStatus('No conference events yet. Create one to start reviewing the workflow.');else if(isBookingDesk())setStatus('No active conference events are available for the conference booking proxy.');return;} // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
   for(const e of events){select.appendChild(new Option(`${fmtDate(e.event_date)} — ${e.title}${e.status==='draft'?' [Draft]':''}`,e.event_id));}
   const wanted=preferId&&events.some((e)=>e.event_id===preferId)?preferId:(currentEventId()&&events.some((e)=>e.event_id===currentEventId())?currentEventId():events[0].event_id);
   select.value=wanted;await loadBundle(wanted);
@@ -158,7 +158,7 @@ async function bootPrefill(){const u=new URL(location.href);const osis=u.searchP
 async function boot(){
   access=await getAccess();
   if(!access){$('loginOut').textContent='Please sign in.';const g=await waitForGoogle();g.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async(r)=>{try{$('loginOut').textContent='Signing in…';await doLogin(r.credential);location.reload();}catch(e){$('loginOut').textContent=`Login failed: ${e.message}`;}}});g.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return;}
-  if(!(isAdmin()||access?.can?.student_contacts))throw new Error('forbidden');$('loginCard').hidden=true;$('app').hidden=false;$('viewerMeta').textContent=`${access.email||'Staff'} • ${isAdmin()?'admin conference management':isBookingDesk()?'office conference booking desk':'my conference schedule'}`;document.querySelectorAll('.adminOnly').forEach((el)=>el.hidden=!isAdmin());const deskNotice=$('bookingDeskNotice');if(deskNotice)deskNotice.hidden=!isBookingDesk(); // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
+  if(!(isAdmin()||access?.can?.student_contacts))throw new Error('forbidden');$('loginCard').hidden=true;$('app').hidden=false;$('viewerMeta').textContent=`${access.email||'Staff'} • ${isAdmin()?'admin conference management':isBookingDesk()?'conference booking proxy':'my conference schedule'}`;document.querySelectorAll('.adminOnly').forEach((el)=>el.hidden=!isAdmin());const deskNotice=$('bookingDeskNotice');if(deskNotice)deskNotice.hidden=!isBookingDesk(); // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
   $('eventSelect').addEventListener('change',()=>loadBundle($('eventSelect').value));$('refreshBtn').addEventListener('click',()=>loadEvents(currentEventId()));$('newEventBtn').addEventListener('click',openNewEvent);$('editEventBtn').addEventListener('click',openEditEvent);$('manageStaffBtn').addEventListener('click',openStaff);$('generateSlotsBtn').addEventListener('click',generateSlots);$('bookBtn').addEventListener('click',createBooking);$('staffFilter').addEventListener('change',()=>{selectedSlotId='';renderSlots();renderPreview();});$('scheduleStaffFilter').addEventListener('change',renderBookings);$('previewPrivacy').addEventListener('change',renderPreview);$('previewStaff').addEventListener('change',renderPreview);$('contactSelect').addEventListener('change',renderPreview);$('closeEventModal').addEventListener('click',()=>{$('eventModal').hidden=true;});$('saveEventBtn').addEventListener('click',saveEvent);$('closeStaffModal').addEventListener('click',()=>{$('staffModal').hidden=true;});$('saveStaffBtn').addEventListener('click',saveStaff);$('studentSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>searchStudents($('studentSearch').value),220);});
   // EAGLENEST_FAMILY_CONFERENCE_STAFF_PICKER_V1
   $('eventStaffSearch').addEventListener('input',()=>renderStaffPicker('event'));

@@ -20,21 +20,23 @@ assert.match(ui, /\/admin\/required_communications\/coverage\?student_number=/);
 assert.match(ui, /\/admin\/conferences\/student_context\?student_number=/);
 assert.match(ui, /source_context:'student_lookup'/);
 assert.match(ui, /Log \/ Book/);
-assert.match(ui, /Office-staff slots in Student Lookup are advisor-scoped/);
+assert.match(ui, /Proxy booking in Student Lookup is advisor-scoped/);
+assert.match(ui, /booking_proxy_advisor_scoped/);
 
 assert.match(confRoute, /\/admin\/conferences\/student_context/);
-assert.match(confRoute, /studentLookupOfficeProxy/);
+assert.match(confRoute, /studentLookupBookingProxy/);
 assert.match(confRoute, /validateStudentConferenceAdvisorSlot/);
 
-// EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1 compatibility:
-// Student Lookup must remain advisor-lane scoped for Office Staff, while the
-// dedicated Conferences page may proxy across participating staff lanes.
-assert.match(confRoute, /if \(studentLookupOfficeProxy\)[\s\S]*validateStudentConferenceAdvisorSlot/);
-assert.match(confRoute, /isAdmin \|\| conferenceOfficeProxy/);
-assert.match(confRoute, /createConferenceBooking\(env, bookingInput, actorEmail, isAdmin \|\| officeBookingDesk\)/);
-assert.match(confRoute, /const canViewAllConferenceLanes = isAdmin \|\| officeBookingDesk/);
+// Any staff member granted Conference Booking Proxy gets the same safe behavior:
+// Student Lookup stays advisor-lane scoped while the dedicated Conferences page
+// may proxy across participating staff lanes.
+assert.match(confRoute, /if \(studentLookupBookingProxy\)[\s\S]*validateStudentConferenceAdvisorSlot/);
+assert.match(confRoute, /isAdmin \|\| conferenceBookingProxy/);
+assert.match(confRoute, /createConferenceBooking\(env, bookingInput, actorEmail, isAdmin \|\| bookingProxy\)/);
+assert.match(confRoute, /const canViewAllConferenceLanes = isAdmin \|\| bookingProxy/);
 
-assert.match(confContext, /isOfficeStaff \? advisorEmail : actorEmail/);
+assert.match(confContext, /isBookingProxy \? advisorEmail : actorEmail/);
+assert.match(confContext, /booking_proxy_advisor_scoped/);
 assert.match(confContext, /conference_student_advisor_lane_required/);
 assert.match(confContext, /String\(required\.event_status \|\| ''\) !== 'active'/);
 assert.match(confContext, /WHERE status = 'active'/);

@@ -16,8 +16,8 @@
   <link rel="stylesheet" href="./conferences-required.css?v=20260913-required-advisees-v1"> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./conferences.js?v=20260929-office-booking-desk-v1" defer></script><!-- EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1 -->
-  <script src="./conferences-required.js?v=20260929-office-booking-desk-v1" defer></script> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
+  <script src="./conferences.js?v=20260930-booking-proxy-v2" defer></script><!-- EAGLENEST_CONFERENCE_BOOKING_PROXY_V2 -->
+  <script src="./conferences-required.js?v=20260930-booking-proxy-v2" defer></script> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
   <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
 </head>
 <body data-module="conference_scheduler">
@@ -42,13 +42,13 @@
       </header>
 
       <div class="safeBanner">🔒 Internal staff scheduling only. No family booking link exists and EagleNEST will not email or text families from this module.</div>
-      <div id="bookingDeskNotice" class="safeBanner" hidden>Office Booking Desk: you can search any student, choose any participating advisor/staff lane, and book or cancel for rescheduling. Event setup and conference completion/no-show controls remain admin/advisor functions.</div>
+      <div id="bookingDeskNotice" class="safeBanner" hidden>Conference Booking Proxy: you can search any student, choose any participating advisor/staff lane, and book or cancel for rescheduling. Event setup and conference completion/no-show controls remain admin/advisor functions.</div>
 
       <section class="card">
         <div class="sectionHead">
           <div>
             <h2>Conference event</h2>
-            <div class="muted small">Choose a conference event. Office staff use this page as a booking desk; admins can also manage event setup.</div>
+            <div class="muted small">Choose a conference event. Staff with Conference Booking Proxy can book on behalf of participating staff; Conference Event Administrators can also manage event setup.</div>
           </div>
           <div style="min-width:min(420px,100%);flex:1;max-width:620px"><select id="eventSelect"><option value="">Loading events…</option></select></div>
         </div>
@@ -79,7 +79,7 @@
 
       <section class="grid">
         <section class="card span4">
-          <div class="sectionHead"><div><h2>Book a family</h2><div class="muted small">Book on behalf of a family. Office staff can choose any participating advisor or staff lane. Nothing is sent automatically.</div></div></div>
+          <div class="sectionHead"><div><h2>Book a family</h2><div class="muted small">Book on behalf of a family. Conference Booking Proxies can choose any participating advisor or staff lane. Nothing is sent automatically.</div></div></div>
           <div class="stack" style="margin-top:14px">
             <label>Find student
               <div class="searchWrap">

@@ -1,3 +1,4 @@
+/* EAGLENEST_CONFERENCE_BOOKING_PROXY_V2 */
 /* EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1
  * Student Lookup — active required communication campaigns + Family/Student Conferences.
  * Conference Log / Book writes through the existing conference engagement endpoint.
@@ -133,7 +134,7 @@
         <span class="pill ${row.status === 'booked' || row.status === 'completed' ? 'good' : row.status === 'needs_rescheduling' || row.status === 'no_show' ? 'warn' : 'info'}">${esc(statusLabel(row.status))}</span>
       </div>
       <div class="listBody small">${esc(detail)}</div>
-      ${row.office_staff_advisor_scoped ? '<div class="listMeta" style="margin-top:6px">Student Lookup booking is restricted to this student’s advisor slots.</div>' : ''}
+      ${row.booking_proxy_advisor_scoped ? '<div class="listMeta" style="margin-top:6px">Student Lookup proxy booking is restricted to this student’s advisor slots.</div>' : ''}
       ${row.action_reason ? `<div class="listMeta" style="margin-top:6px">${esc(row.action_reason)}</div>` : ''}
       <div class="inlineActions" style="margin-top:10px">
         ${row.can_log_book ? `<button class="btn primary small" type="button" data-engagement-logbook="${esc(event.event_id)}">Log / Book</button>` : ''}
@@ -165,7 +166,7 @@
 
     const sections = [];
     if (conferences.length) {
-      sections.push(`<div class="contextBox small"><strong>Family & Student Conferences</strong><div class="muted" style="margin-top:4px">Use Log / Book after speaking with the family. Office-staff slots in Student Lookup are advisor-scoped.</div></div>`);
+      sections.push(`<div class="contextBox small"><strong>Family & Student Conferences</strong><div class="muted" style="margin-top:4px">Use Log / Book after speaking with the family. Proxy booking in Student Lookup is advisor-scoped.</div></div>`);
       sections.push(...conferences.map(conferenceCard));
     }
     if (campaigns.length) {
