@@ -37,6 +37,39 @@ function staffLabel(email){const row=bundle?.staff?.find((s)=>s.staff_email===em
 function staffLocation(email){const row=bundle?.staff?.find((s)=>s.staff_email===email);return row?.location||bundle?.event?.location||'';}
 function currentEventId(){return String($('eventSelect').value||bundle?.event?.event_id||'');}
 
+// EAGLENEST_CONFERENCE_CONTACT_DETAILS_V1
+function conferenceContactValue(contact,field){
+  return String(contact?.display?.[field]||contact?.source?.[field]||'').trim();
+}
+function conferenceContactDetailsMarkup(contact){
+  if(!contact)return '';
+  const name=conferenceContactValue(contact,'name')||'Unnamed contact';
+  const rel=conferenceContactValue(contact,'relationship');
+  const phone=conferenceContactValue(contact,'phone');
+  const email=conferenceContactValue(contact,'email');
+  const phoneDial=phone.replace(/[^+\\d]/g,'');
+  const installed=window.EagleNESTAnonymousCall?.isInstalledStaffApp?.()===true;
+  const anonymousHref=installed&&phoneDial
+    ?String(window.EagleNESTAnonymousCall?.anonymousTelHref?.(`tel:${phoneDial}`)||'')
+    :'';
+  return `<div class="conferenceContactIdentity"><strong>${esc(name)}</strong>${rel?`<span>${esc(rel)}</span>`:''}</div>
+    <div class="conferenceContactGrid">
+      <div class="conferenceContactField"><span>Phone</span>${phone?`<a href="tel:${esc(phoneDial)}">${esc(phone)}</a>`:'<strong>—</strong>'}</div>
+      <div class="conferenceContactField"><span>Email</span>${email?`<a href="mailto:${esc(email)}">${esc(email)}</a>`:'<strong>—</strong>'}</div>
+    </div>
+    ${anonymousHref?`<div class="conferenceContactActions"><a class="conferenceContactAction conferenceContactAction--anonymous" href="${esc(anonymousHref)}">Call anonymously</a><span class="muted small">Uses *67 for this call only.</span></div>`:''}`;
+}
+window.EagleNESTConferenceContactDetails=Object.freeze({markup:conferenceContactDetailsMarkup});
+
+function renderBookingContactDetails(){
+  const box=$('bookingContactDetails');
+  if(!box)return;
+  const contact=contactFromSelect();
+  if(!contact){box.hidden=true;box.innerHTML='';return;}
+  box.innerHTML=conferenceContactDetailsMarkup(contact);
+  box.hidden=false;
+}
+
 async function waitForGoogle(timeoutMs=8000){const start=Date.now();while(!window.google?.accounts?.id){if(Date.now()-start>timeoutMs)throw new Error('Google sign-in failed to load');await new Promise(r=>setTimeout(r,50));}return google.accounts.id;}
 async function getAccess(){const r=await adminFetch('/admin/access');if(!r.ok)return null;const j=await r.json().catch(()=>null);return j?.ok?j:null;}
 async function doLogin(token){const r=await adminFetch('/admin/session/login_google',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:token}).toString()});const j=await r.json().catch(()=>({}));if(j?.sid)setSid(j.sid);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);}
@@ -105,10 +138,10 @@ function updateBookButton(){$('bookBtn').disabled=!(selectedStudent&&selectedSlo
 function contactFromSelect(){const idx=Number($('contactSelect').value);return Number.isInteger(idx)&&idx>=0?selectedContacts[idx]||null:null;}
 function renderSelectedStudent(){
   const root=$('selectedStudent');const sel=$('contactSelect');sel.replaceChildren();sel.appendChild(new Option('No specific contact selected',''));
-  if(!selectedStudent){root.className='studentBox muted';root.textContent='No student selected.';selectedContacts=[];updateBookButton();renderPreview();return;}
+  if(!selectedStudent){root.className='studentBox muted';root.textContent='No student selected.';selectedContacts=[];renderBookingContactDetails();updateBookButton();renderPreview();return;}
   root.className='studentBox';root.innerHTML=`<strong>${esc(selectedStudent.name||'Student')}</strong><div class="muted small">OSIS ${esc(selectedStudent.osis||'')}</div>`;
   selectedContacts.forEach((c,i)=>{const name=c.display?.name||c.source?.display_name||'Unnamed contact';const rel=c.display?.relationship||c.source?.relationship||'';sel.appendChild(new Option(`${name}${rel?` — ${rel}`:''}`,String(i)));});
-  updateBookButton();renderPreview();
+  renderBookingContactDetails();updateBookButton();renderPreview();
 }
 
 async function searchStudents(q){
@@ -118,7 +151,7 @@ async function searchStudents(q){
 }
 async function selectStudent(student,preferredContactAssoc=''){
   selectedStudent={osis:String(student?.osis||''),name:String(student?.name||'')};$('studentSearch').value=selectedStudent.name||selectedStudent.osis;$('studentSearchMenu').hidden=true;selectedContacts=[];renderSelectedStudent();
-  try{const data=await api(`/admin/contacts/student?student_number=${encodeURIComponent(selectedStudent.osis)}`);selectedContacts=Array.isArray(data.contacts)?data.contacts:[];if(data.student_name&&!selectedStudent.name)selectedStudent.name=data.student_name;renderSelectedStudent();if(preferredContactAssoc){const idx=selectedContacts.findIndex((c)=>String(c.contact_assoc_id||'')===String(preferredContactAssoc));if(idx>=0)$('contactSelect').value=String(idx);}}
+  try{const data=await api(`/admin/contacts/student?student_number=${encodeURIComponent(selectedStudent.osis)}`);selectedContacts=Array.isArray(data.contacts)?data.contacts:[];if(data.student_name&&!selectedStudent.name)selectedStudent.name=data.student_name;renderSelectedStudent();if(preferredContactAssoc){const idx=selectedContacts.findIndex((c)=>String(c.contact_assoc_id||'')===String(preferredContactAssoc));if(idx>=0){$('contactSelect').value=String(idx);renderBookingContactDetails();renderPreview();}}}
   catch(e){setStatus(`Student selected, but contacts could not be loaded: ${e.message}`,'error');}
 }
 
@@ -159,7 +192,7 @@ async function boot(){
   access=await getAccess();
   if(!access){$('loginOut').textContent='Please sign in.';const g=await waitForGoogle();g.initialize({client_id:GOOGLE_CLIENT_ID,ux_mode:'popup',callback:async(r)=>{try{$('loginOut').textContent='Signing in…';await doLogin(r.credential);location.reload();}catch(e){$('loginOut').textContent=`Login failed: ${e.message}`;}}});g.renderButton($('g_id_signin'),{theme:'outline',size:'large'});return;}
   if(!(isAdmin()||access?.can?.student_contacts))throw new Error('forbidden');$('loginCard').hidden=true;$('app').hidden=false;$('viewerMeta').textContent=`${access.email||'Staff'} • ${isAdmin()?'admin conference management':isBookingDesk()?'conference booking proxy':'my conference schedule'}`;document.querySelectorAll('.adminOnly').forEach((el)=>el.hidden=!isAdmin());const deskNotice=$('bookingDeskNotice');if(deskNotice)deskNotice.hidden=!isBookingDesk(); // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
-  $('eventSelect').addEventListener('change',()=>loadBundle($('eventSelect').value));$('refreshBtn').addEventListener('click',()=>loadEvents(currentEventId()));$('newEventBtn').addEventListener('click',openNewEvent);$('editEventBtn').addEventListener('click',openEditEvent);$('manageStaffBtn').addEventListener('click',openStaff);$('generateSlotsBtn').addEventListener('click',generateSlots);$('bookBtn').addEventListener('click',createBooking);$('staffFilter').addEventListener('change',()=>{selectedSlotId='';renderSlots();renderPreview();});$('scheduleStaffFilter').addEventListener('change',renderBookings);$('previewPrivacy').addEventListener('change',renderPreview);$('previewStaff').addEventListener('change',renderPreview);$('contactSelect').addEventListener('change',renderPreview);$('closeEventModal').addEventListener('click',()=>{$('eventModal').hidden=true;});$('saveEventBtn').addEventListener('click',saveEvent);$('closeStaffModal').addEventListener('click',()=>{$('staffModal').hidden=true;});$('saveStaffBtn').addEventListener('click',saveStaff);$('studentSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>searchStudents($('studentSearch').value),220);});
+  $('eventSelect').addEventListener('change',()=>loadBundle($('eventSelect').value));$('refreshBtn').addEventListener('click',()=>loadEvents(currentEventId()));$('newEventBtn').addEventListener('click',openNewEvent);$('editEventBtn').addEventListener('click',openEditEvent);$('manageStaffBtn').addEventListener('click',openStaff);$('generateSlotsBtn').addEventListener('click',generateSlots);$('bookBtn').addEventListener('click',createBooking);$('staffFilter').addEventListener('change',()=>{selectedSlotId='';renderSlots();renderPreview();});$('scheduleStaffFilter').addEventListener('change',renderBookings);$('previewPrivacy').addEventListener('change',renderPreview);$('previewStaff').addEventListener('change',renderPreview);$('contactSelect').addEventListener('change',()=>{renderBookingContactDetails();renderPreview();});$('closeEventModal').addEventListener('click',()=>{$('eventModal').hidden=true;});$('saveEventBtn').addEventListener('click',saveEvent);$('closeStaffModal').addEventListener('click',()=>{$('staffModal').hidden=true;});$('saveStaffBtn').addEventListener('click',saveStaff);$('studentSearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>searchStudents($('studentSearch').value),220);});
   // EAGLENEST_FAMILY_CONFERENCE_STAFF_PICKER_V1
   $('eventStaffSearch').addEventListener('input',()=>renderStaffPicker('event'));
   $('eventSelectVisibleStaff').addEventListener('click',()=>selectVisibleStaff('event'));

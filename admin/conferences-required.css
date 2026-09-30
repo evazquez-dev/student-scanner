@@ -29,3 +29,17 @@
 .reqCheckboxLabel{display:flex!important;grid-column:1/-1;align-items:flex-start;gap:10px;font-weight:700}
 .reqCheckboxLabel input{width:auto;margin-top:4px}
 @media(max-width:900px){.requirementKpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* EAGLENEST_CONFERENCE_CONTACT_DETAILS_V1 */
+.conferenceContactDetails{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--card2);display:grid;gap:10px}
+.conferenceContactDetails[hidden]{display:none!important}
+.conferenceContactIdentity{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.conferenceContactIdentity strong{font-size:.98rem}
+.conferenceContactIdentity span{color:var(--muted);font-size:.82rem}
+.conferenceContactGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.conferenceContactField{display:grid;gap:3px;min-width:0}
+.conferenceContactField>span{color:var(--muted);font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.conferenceContactField a{font-weight:800;overflow-wrap:anywhere}
+.conferenceContactActions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding-top:2px}
+.conferenceContactAction{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:10px;padding:8px 11px;text-decoration:none;font-weight:850;background:var(--card)}
+.conferenceContactAction--anonymous{border-color:var(--accent);color:var(--accent)}
+@media(max-width:620px){.conferenceContactGrid{grid-template-columns:1fr}}

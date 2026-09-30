@@ -111,6 +111,7 @@
           <div id="reqModalStudent" class="reqModalStudent"></div>
           <div class="formGrid">
             <label class="wide">Family contact<select id="reqContactSelect"><option value="">No specific contact</option></select></label>
+            <div id="reqContactDetails" class="conferenceContactDetails wide" hidden></div><!-- EAGLENEST_CONFERENCE_OUTREACH_CONTACT_DETAILS_V1 -->
             <label>Method<select id="reqMethod">
               <option>Phone</option><option>Email</option><option>ParentSquare</option><option>Text</option><option>In Person</option><option>Other</option>
             </select></label>
@@ -315,6 +316,7 @@
         const rel=c.display?.relationship||c.source?.relationship||'';
         select.appendChild(new Option(`${name}${rel?` — ${rel}`:''}`,String(i)));
       });
+      renderRequirementContactDetails();
     }catch(e){
       document.getElementById('reqModalStatus').textContent=`Contacts could not be loaded: ${e.message}`;
     }
@@ -338,6 +340,7 @@
     requirementStudent=row;
     requirementContacts=[];
     const modal=document.getElementById('conferenceOutreachModal');
+    const detail=document.getElementById('reqContactDetails');if(detail){detail.hidden=true;detail.innerHTML='';}
     document.getElementById('reqModalStudent').innerHTML=`<strong>${reqEsc(row.student_name||row.student_number)}</strong><div class="muted small">OSIS ${reqEsc(row.student_number)} • Advisor: ${reqEsc(row.advisor_name||row.advisor_email)}</div>`;
     document.getElementById('reqMethod').value='Phone';
     document.getElementById('reqOutcome').value='Spoke/Connected';
@@ -351,6 +354,16 @@
   function selectedRequirementContact(){
     const idx=Number(document.getElementById('reqContactSelect').value);
     return Number.isInteger(idx)&&idx>=0?requirementContacts[idx]||null:null;
+  }
+
+  function renderRequirementContactDetails(){
+    const box=document.getElementById('reqContactDetails');
+    if(!box)return;
+    const contact=selectedRequirementContact();
+    if(!contact){box.hidden=true;box.innerHTML='';return;}
+    const markup=window.EagleNESTConferenceContactDetails?.markup;
+    box.innerHTML=typeof markup==='function'?markup(contact):'';
+    box.hidden=!box.innerHTML;
   }
 
   function makeSubmissionId(){
@@ -408,6 +421,7 @@
     document.getElementById('conferenceOutreachModal')?.addEventListener('click',(e)=>{if(e.target.id==='conferenceOutreachModal')e.currentTarget.hidden=true;});
     document.getElementById('saveConferenceOutreach')?.addEventListener('click',saveRequirementOutreach);
     document.getElementById('reqOutcome')?.addEventListener('change',syncQuickOutcome);
+    document.getElementById('reqContactSelect')?.addEventListener('change',renderRequirementContactDetails);
     document.querySelectorAll('[data-req-outcome]').forEach((btn)=>btn.addEventListener('click',()=>{
       document.getElementById('reqOutcome').value=btn.dataset.reqOutcome||'Other';syncQuickOutcome();
     }));

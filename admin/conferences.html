@@ -13,11 +13,12 @@
   <title>EagleNEST — Student & Family Conferences</title>
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./conferences.css?v=20260913-family-conferences-v2-staff-picker">
-  <link rel="stylesheet" href="./conferences-required.css?v=20260913-required-advisees-v1"> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
+  <link rel="stylesheet" href="./conferences-required.css?v=20260930-contact-details-v1"> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./conferences.js?v=20260930-booking-proxy-v2" defer></script><!-- EAGLENEST_CONFERENCE_BOOKING_PROXY_V2 -->
-  <script src="./conferences-required.js?v=20260930-booking-proxy-v2" defer></script> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
+  <script src="./student_contacts_anonymous_call.js?v=20260930-conference-contact-details-v1" defer></script><!-- EAGLENEST_CONFERENCE_CONTACT_DETAILS_V1 -->
+  <script src="./conferences.js?v=20260930-contact-details-v1" defer></script><!-- EAGLENEST_CONFERENCE_BOOKING_PROXY_V2 -->
+  <script src="./conferences-required.js?v=20260930-contact-details-v1" defer></script> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
   <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
 </head>
 <body data-module="conference_scheduler">
@@ -91,6 +92,7 @@
             <label>Family contact
               <select id="contactSelect"><option value="">No specific contact selected</option></select>
             </label>
+            <div id="bookingContactDetails" class="conferenceContactDetails" hidden></div>
             <div class="contactHint">The selected contact is stored with the booking for staff reference only in Phase 1.</div>
             <label>Notes<textarea id="bookingNotes" rows="3" maxlength="1200" placeholder="Optional staff-only note"></textarea></label>
           </div>

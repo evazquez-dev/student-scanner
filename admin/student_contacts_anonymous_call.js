@@ -15,6 +15,12 @@
     return digits ? `tel:*67${digits}` : '';
   }
 
+  // Shared by other installed-app staff workflows that need the same *67 behavior.
+  window.EagleNESTAnonymousCall = Object.freeze({
+    isInstalledStaffApp,
+    anonymousTelHref
+  });
+
   function mountAnonymousCallControl() {
     if (!isInstalledStaffApp()) return;
     if (document.getElementById('anonymousCallControl')) return;
