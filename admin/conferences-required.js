@@ -6,6 +6,23 @@
 
   function reqEsc(v){return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function reqFmtDateTime(iso){const d=new Date(String(iso||''));return Number.isFinite(d.getTime())?d.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—';}
+
+  function reqLocalDateTimeValue(date=new Date()){
+    const d=date instanceof Date?date:new Date(date);
+    if(!Number.isFinite(d.getTime()))return '';
+    const local=new Date(d.getTime()-(d.getTimezoneOffset()*60000));
+    return local.toISOString().slice(0,16);
+  }
+
+  function reqContactAtIso(){
+    const input=document.getElementById('reqContactAt');
+    const value=String(input?.value||'').trim();
+    if(!value)return '';
+    const d=new Date(value);
+    return Number.isFinite(d.getTime())?d.toISOString():'';
+  }
+  // EAGLENEST_CONFERENCE_OUTREACH_DATETIME_V1
+
   function reqStatusLabel(status){
     return ({
       no_outreach:'No outreach',
@@ -118,6 +135,10 @@
             <label>Outcome<select id="reqOutcome">
               <option>Spoke/Connected</option><option>Left Voicemail</option><option>No Answer</option><option>Message Sent</option><option>Follow-up Needed</option><option>Resolved</option><option>Other</option>
             </select></label>
+            <label>Communication date &amp; time
+              <input id="reqContactAt" type="datetime-local" step="60" required>
+              <span class="muted small">Defaults to now. Edit this when logging a conversation later.</span>
+            </label>
             <div class="wide">
               <div class="muted small">Quick outcome</div>
               <div id="reqQuickOutcomes" class="reqQuickOutcomes">
@@ -344,6 +365,7 @@
     document.getElementById('reqModalStudent').innerHTML=`<strong>${reqEsc(row.student_name||row.student_number)}</strong><div class="muted small">OSIS ${reqEsc(row.student_number)} • Advisor: ${reqEsc(row.advisor_name||row.advisor_email)}</div>`;
     document.getElementById('reqMethod').value='Phone';
     document.getElementById('reqOutcome').value='Spoke/Connected';
+    document.getElementById('reqContactAt').value=reqLocalDateTimeValue();
     document.getElementById('reqNotes').value='';
     document.getElementById('reqModalStatus').textContent='';
     populateRequirementSlots(row);
@@ -378,12 +400,19 @@
     const contact=selectedRequirementContact();
     const display=contact?.display||{};
     const source=contact?.source||{};
+    const contactAtIso=reqContactAtIso();
+    if(!contactAtIso){
+      status.textContent='Choose a valid communication date and time.';
+      document.getElementById('reqContactAt')?.focus();
+      return;
+    }
     btn.disabled=true;status.textContent='Saving conference communication…';
     try{
       const payload={
         event_id:bundle.event.event_id,
         student_number:requirementStudent.student_number,
         submission_id:makeSubmissionId(),
+        contact_at_iso:contactAtIso,
         method:document.getElementById('reqMethod').value,
         outcome:document.getElementById('reqOutcome').value,
         notes:document.getElementById('reqNotes').value.trim(),
