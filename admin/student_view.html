@@ -86,7 +86,17 @@
     .iconBtn{border:0;background:transparent;color:var(--fg);font-size:24px;line-height:1;cursor:pointer;padding:2px 5px}.field{display:block;margin-bottom:13px}.field>span{display:block;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 5px}
     .contextBox{padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);margin-bottom:13px;line-height:1.45}.twoCol{display:grid;grid-template-columns:1fr 1fr;gap:10px}.errorText{color:var(--bad);min-height:18px;margin-top:5px}
 
-    @media(max-width:800px){.wrap{padding:10px}.overviewGrid{grid-template-columns:1fr}.selectedCard{align-items:flex-start}.quickActions{width:100%}.quickActions .btn{flex:1}.twoCol{grid-template-columns:1fr}.studentName{font-size:21px}.scheduleGrid{grid-template-columns:84px 1fr}.scheduleGrid>*:nth-child(2){display:none}.scheduleGrid>*:nth-child(4){text-align:right}.scheduleHead{display:none}.scheduleRow{display:grid}}
+    /* EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 */
+    .lookupAcademicSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:13px}
+    .lookupAcademicCourses{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .lookupAcademicCourse{display:flex;justify-content:space-between;align-items:center;gap:14px;border:1px solid var(--border);background:var(--panel2);border-radius:14px;padding:12px}
+    .lookupAcademicCourse.fail{border-color:color-mix(in srgb,var(--bad) 55%,var(--border))}
+    .lookupAcademicCourse.missing{border-color:color-mix(in srgb,var(--warn) 48%,var(--border))}
+    .lookupAcademicCourseMain{min-width:0}.lookupAcademicGrade{font-size:18px;white-space:nowrap}
+    .academicGood{color:var(--good)}.academicBad{color:var(--bad)}.academicWarn{color:var(--warn)}
+    .lookupAcademicQuality{margin-top:12px}
+
+    @media(max-width:800px){.wrap{padding:10px}.overviewGrid{grid-template-columns:1fr}.selectedCard{align-items:flex-start}.quickActions{width:100%}.quickActions .btn{flex:1}.twoCol{grid-template-columns:1fr}.studentName{font-size:21px}.scheduleGrid{grid-template-columns:84px 1fr}.scheduleGrid>*:nth-child(2){display:none}.scheduleGrid>*:nth-child(4){text-align:right}.scheduleHead{display:none}.scheduleRow{display:grid}.lookupAcademicSummary,.lookupAcademicCourses{grid-template-columns:1fr}}
   </style>
 </head>
 <body data-module="student_view">
@@ -140,6 +150,7 @@
           <button id="tabOverview" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panelOverview" data-tab="overview">Overview</button>
           <button id="tabSchedule" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelSchedule" data-tab="schedule" tabindex="-1">Schedule</button>
           <button id="tabAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelAttendance" data-tab="attendance" tabindex="-1">Attendance</button>
+          <button id="tabGradesAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelGradesAttendance" data-tab="grades_attendance" tabindex="-1" hidden>Grades &amp; Attendance</button><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
           <button id="tabScans" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelScans" data-tab="scans" tabindex="-1">Scans <span id="scansCount" class="count"></span></button>
           <button id="tabBehavior" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelBehavior" data-tab="behavior" tabindex="-1">Behavior <span id="behaviorCount" class="count"></span></button>
           <button id="tabCommunications" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelCommunications" data-tab="communications" tabindex="-1">Communications <span id="communicationsCount" class="count"></span></button>
@@ -185,6 +196,39 @@
           <div class="panelHead"><div><h2>Today's Attendance</h2><p class="muted small">Meeting attendance records currently stored for today's assigned periods.</p></div></div>
           <div id="attendanceSummary" class="attendanceSummary"></div>
           <div id="attendanceList" class="list"></div>
+        </section>
+
+        <section id="panelGradesAttendance" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabGradesAttendance" data-panel="grades_attendance" hidden><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
+          <div class="panelHead">
+            <div><h2>Grades &amp; Attendance</h2><p id="lookupAcademicMeta" class="muted small">Current course grades and current marking-period attendance.</p></div>
+            <div class="inlineActions">
+              <a class="btn secondary small" href="./grades.html">Open full Grades &amp; Attendance</a>
+              <button id="refreshGradesAttendanceBtn" class="btn secondary small" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="lookupAcademicStatus" class="small" aria-live="polite"><div class="loadingState">Open this tab to load grades and attendance.</div></div>
+          <div id="lookupAcademicContent" hidden>
+            <div class="lookupAcademicSummary">
+              <article class="statusCard">
+                <h3>Current Grades</h3>
+                <div id="lookupGradeStatus" class="statusBig">—</div>
+                <div id="lookupGradeDetail" class="statusSub">—</div>
+              </article>
+              <article class="statusCard">
+                <h3>Daily Attendance</h3>
+                <div id="lookupDailyAttendance" class="statusBig">—</div>
+                <div id="lookupDailyDetail" class="statusSub">—</div>
+              </article>
+              <article class="statusCard">
+                <h3>Class On-Time</h3>
+                <div id="lookupMeetingAttendance" class="statusBig">—</div>
+                <div id="lookupMeetingDetail" class="statusSub">—</div>
+              </article>
+            </div>
+            <div class="panelHead"><div><h3>Current Courses</h3><p class="muted small">Zero grades follow EagleNEST policy and display as Not entered.</p></div></div>
+            <div id="lookupAcademicCourses" class="lookupAcademicCourses"></div>
+            <div id="lookupAcademicQuality" class="muted small lookupAcademicQuality"></div>
+          </div>
         </section>
 
         <section id="panelScans" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabScans" data-panel="scans" hidden>
@@ -275,6 +319,7 @@
 
   <script src="./student_view.js?v=20260930-family-communications-proxy-v2" defer></script>
   <script src="./student_lookup_phase3.js" defer></script>
+  <script src="./student_lookup_grades_attendance.js?v=20261001-v1" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
   <script src="./student_lookup_engagement.js?v=20261001-conference-outreach-datetime-v1" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 --><!-- EAGLENEST_STUDENT_LOOKUP_CONFERENCE_DATETIME_V1 -->
   <script src="./student_lookup_calls.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE2 -->
   <script src="./student_lookup_campus_routing.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE3_2 -->
