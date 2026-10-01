@@ -14,11 +14,13 @@
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./conferences.css?v=20260913-family-conferences-v2-staff-picker">
   <link rel="stylesheet" href="./conferences-required.css?v=20260930-contact-details-v1"> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
+  <link rel="stylesheet" href="./conferences-leadership.css?v=20261001-v1"> <!-- EAGLENEST_CONFERENCE_LEADERSHIP_SUMMARY_V1 -->
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script src="./student_contacts_anonymous_call.js?v=20260930-conference-contact-details-v1" defer></script><!-- EAGLENEST_CONFERENCE_CONTACT_DETAILS_V1 -->
-  <script src="./conferences.js?v=20260930-contact-details-v1" defer></script><!-- EAGLENEST_CONFERENCE_BOOKING_PROXY_V2 -->
+  <script src="./conferences.js?v=20261001-leadership-summary-v1" defer></script><!-- EAGLENEST_CONFERENCE_BOOKING_PROXY_V2 --><!-- EAGLENEST_CONFERENCE_LEADERSHIP_SUMMARY_V1 -->
   <script src="./conferences-required.js?v=20261001-outreach-datetime-v1" defer></script> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 --> <!-- EAGLENEST_CONFERENCE_OUTREACH_DATETIME_V1 -->
+  <script src="./conferences-leadership.js?v=20261001-v1" defer></script><!-- EAGLENEST_CONFERENCE_LEADERSHIP_SUMMARY_V1 -->
   <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
 </head>
 <body data-module="conference_scheduler">
@@ -78,7 +80,7 @@
         <div id="pageStatus" class="status" style="margin-top:12px"></div>
       </section>
 
-      <section class="grid">
+      <section class="grid" id="conferenceBookingTools">
         <section class="card span4">
           <div class="sectionHead"><div><h2>Book a family</h2><div class="muted small">Book on behalf of a family. Conference Booking Proxies can choose any participating advisor or staff lane. Nothing is sent automatically.</div></div></div>
           <div class="stack" style="margin-top:14px">
@@ -108,7 +110,7 @@
         </section>
       </section>
 
-      <section class="card">
+      <section class="card" id="conferenceScheduleCard">
         <div class="sectionHead">
           <div><h2>Conference schedule</h2><div class="muted small">Scheduled, completed, cancelled, and no-show records stay visible for staff history.</div></div>
           <label style="min-width:250px">Show staff<select id="scheduleStaffFilter"></select></label>

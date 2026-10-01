@@ -101,9 +101,15 @@ async function loadEvents(preferId=''){
 async function loadBundle(eventId){
   if(!eventId){bundle=null;renderBundle();return;}
   setStatus('Loading conference event…');
-  try{bundle=await api(`/admin/conferences/event?event_id=${encodeURIComponent(eventId)}`);selectedSlotId='';renderBundle();setStatus('');}
+  try{
+    const params=new URLSearchParams({event_id:eventId});
+    const reportingScope=String(window.EagleNESTConferenceReporting?.currentScope?.()||'');
+    if(reportingScope)params.set('scope',reportingScope);
+    bundle=await api(`/admin/conferences/event?${params.toString()}`);
+    selectedSlotId='';renderBundle();setStatus('');
+  }
   catch(e){bundle=null;renderBundle();setStatus(`Could not load conference event: ${e.message}`,'error');}
-}
+} // EAGLENEST_CONFERENCE_LEADERSHIP_SUMMARY_V1
 
 function renderBundle(){
   const has=!!bundle?.event;$('eventEmpty').hidden=has;$('eventDetails').hidden=!has;
