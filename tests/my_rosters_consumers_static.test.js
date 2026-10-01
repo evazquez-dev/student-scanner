@@ -26,7 +26,8 @@ test('Grades exposes owned/shared My Rosters as reusable grade scopes',()=>{
   assert.match(gradesJs,/\/admin\/my_rosters/);
   assert.match(gradesJs,/roster_groups/);
   assert.match(gradesJs,/url\.searchParams\.append\('roster',row\.roster_ref\)/);
-  assert.match(gradesJs,/Students outside your existing Grades permissions are excluded/);
+  assert.match(gradesHtml,/roster membership can include students outside their normal class\/advisory scope/);
+  assert.match(gradesJs,/roster-authorized for Grades & Attendance/);
 });
 
 test('Attendance Change can seed its existing arbitrary student selection from a roster without editing the source',()=>{

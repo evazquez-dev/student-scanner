@@ -205,7 +205,7 @@
     if(!state.studentOsis)return;
     $('studentDailyRows').innerHTML='<div class="empty">Loading daily attendance…</div>';
     $('studentMeetingRows').innerHTML='<div class="empty">Loading meeting attendance…</div>';
-    const p=new URLSearchParams();p.set('osis',state.studentOsis);p.set('preset',preset?.value||'marking_period');
+    const p=scopeParams();p.set('osis',state.studentOsis);p.set('preset',preset?.value||'marking_period'); // EAGLENEST_ROSTER_GRADES_ATTENDANCE_ACCESS_V1
     if((preset?.value||'')==='custom'){if(customStart?.value)p.set('start',customStart.value);if(customEnd?.value)p.set('end',customEnd.value);}
     try{
       const data=await getJson('/admin/grades/attendance/student',p);
