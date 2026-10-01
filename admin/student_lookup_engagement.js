@@ -66,6 +66,21 @@
     return Number.isFinite(d.getTime()) ? d.toLocaleString([], { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
   }
 
+  function localDateTimeValue(date = new Date()) {
+    const d = date instanceof Date ? date : new Date(date);
+    if (!Number.isFinite(d.getTime())) return '';
+    const local = new Date(d.getTime() - (d.getTimezoneOffset() * 60000));
+    return local.toISOString().slice(0, 16);
+  }
+
+  function engagementContactAtIso() {
+    const value = String($('engagementContactAt')?.value || '').trim();
+    if (!value) return '';
+    const d = new Date(value);
+    return Number.isFinite(d.getTime()) ? d.toISOString() : '';
+  }
+  // EAGLENEST_STUDENT_LOOKUP_CONFERENCE_DATETIME_V1
+
   function fmtTime(value) {
     const d = new Date(String(value || ''));
     return Number.isFinite(d.getTime()) ? d.toLocaleTimeString([], { hour:'numeric', minute:'2-digit' }) : '—';
@@ -250,6 +265,7 @@
     $('engagementModalStudent').textContent = `${$('studentName')?.textContent || osis} • ${row.event.title || 'Conference'} • Advisor: ${row.advisor?.advisor_name || row.advisor?.advisor_email || 'Not assigned'}`;
     $('engagementMethod').value = 'Phone';
     $('engagementOutcome').value = 'Spoke/Connected';
+    $('engagementContactAt').value = localDateTimeValue();
     $('engagementNotes').value = '';
     $('engagementModalStatus').textContent = '';
     populateSlots(row);
@@ -278,6 +294,12 @@
     const display = contact?.display || {};
     const source = contact?.source || {};
     const slotId = $('engagementSlotSelect').value;
+    const contactAtIso = engagementContactAtIso();
+    if (!contactAtIso) {
+      status.textContent = 'Choose a valid communication date and time.';
+      $('engagementContactAt')?.focus();
+      return;
+    }
     button.disabled = true;
     status.textContent = slotId ? 'Logging family contact and booking advisor slot…' : 'Logging family contact…';
     try {
@@ -289,6 +311,7 @@
           event_id:row.event.event_id,
           student_number:osis,
           submission_id:submissionId(),
+          contact_at_iso:contactAtIso,
           method:$('engagementMethod').value,
           outcome:$('engagementOutcome').value,
           notes:$('engagementNotes').value.trim(),

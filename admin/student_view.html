@@ -238,6 +238,7 @@
           <label class="field"><span>Method</span><select id="engagementMethod"><option>Phone</option><option>Email</option><option>Text</option><option>In Person</option><option>Other</option></select></label>
           <label class="field"><span>Outcome</span><select id="engagementOutcome"><option>Spoke/Connected</option><option>No Answer</option><option>Left Voicemail</option><option>Follow-up Needed</option><option>Resolved</option><option>Other</option></select></label>
         </div>
+        <label class="field"><span>Communication date &amp; time</span><input id="engagementContactAt" class="input" type="datetime-local" step="60" required><div class="muted small" style="margin-top:5px">Defaults to now. Edit this when logging a conversation later.</div></label><!-- EAGLENEST_STUDENT_LOOKUP_CONFERENCE_DATETIME_V1 -->
         <label class="field"><span>Appointment</span><select id="engagementSlotSelect"><option value="">Log communication only — do not book yet</option></select></label>
         <label class="field"><span>Notes</span><textarea id="engagementNotes" class="input" rows="4" maxlength="3200" placeholder="Optional conference outreach notes"></textarea></label>
         <div id="engagementModalStatus" class="small" aria-live="polite"></div>
@@ -274,7 +275,7 @@
 
   <script src="./student_view.js?v=20260930-family-communications-proxy-v2" defer></script>
   <script src="./student_lookup_phase3.js" defer></script>
-  <script src="./student_lookup_engagement.js?v=20260930-family-communications-proxy-v2" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 -->
+  <script src="./student_lookup_engagement.js?v=20261001-conference-outreach-datetime-v1" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 --><!-- EAGLENEST_STUDENT_LOOKUP_CONFERENCE_DATETIME_V1 -->
   <script src="./student_lookup_calls.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE2 -->
   <script src="./student_lookup_campus_routing.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE3_2 -->
   <script src="./student_lookup_mtss.js" defer></script><!-- EAGLENEST_MTSS_V1_STUDENT_LOOKUP -->
