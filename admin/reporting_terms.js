@@ -57,6 +57,7 @@
       end_date:clean(term?.end_date),
       assignment_term:term?.assignment_term!==false,
       locked:term?.locked===true,
+      auto_lock_days_after_end:(term?.auto_lock_days_after_end===null||term?.auto_lock_days_after_end===undefined||String(term.auto_lock_days_after_end).trim()==='')?null:Number(term.auto_lock_days_after_end),
       enabled:term?.enabled!==false,
       powerschool_term_id:clean(term?.powerschool_term_id),
       sort_order:index
@@ -72,6 +73,7 @@
       end_date:clean(row.querySelector('[data-field="end_date"]')?.value),
       assignment_term:row.querySelector('[data-field="assignment_term"]')?.checked===true,
       locked:row.querySelector('[data-field="locked"]')?.checked===true,
+      auto_lock_days_after_end:(()=>{const raw=clean(row.querySelector('[data-field="auto_lock_days_after_end"]')?.value);return raw===''?null:Number(raw)})(),
       enabled:row.querySelector('[data-field="enabled"]')?.checked===true,
       powerschool_term_id:clean(row.querySelector('[data-field="powerschool_term_id"]')?.value),
       sort_order:index
@@ -97,6 +99,7 @@
       if(!isIsoDate(term.start_date))errors.push(`${label}: start date is invalid.`);
       if(!isIsoDate(term.end_date))errors.push(`${label}: end date is invalid.`);
       if(isIsoDate(term.start_date)&&isIsoDate(term.end_date)&&term.start_date>term.end_date)errors.push(`${label}: start date must be on or before end date.`);
+      if(term.auto_lock_days_after_end!==null&&(!Number.isInteger(term.auto_lock_days_after_end)||term.auto_lock_days_after_end<0||term.auto_lock_days_after_end>3650))errors.push(`${label}: auto-lock grace days must be a whole number from 0 to 3650, or blank to disable auto-lock.`);
       const idKey=clean(term.id).toLowerCase(); if(ids.has(idKey))errors.push(`${label}: duplicate internal term ID.`); else ids.set(idKey,label);
       const codeKey=clean(term.code).toLowerCase(); if(codeKey){if(codes.has(codeKey))errors.push(`${label}: duplicate code with ${codes.get(codeKey)}.`);else codes.set(codeKey,label)}
       const psKey=clean(term.powerschool_term_id).toLowerCase(); if(psKey){if(psIds.has(psKey))errors.push(`${label}: duplicate PowerSchool term ID with ${psIds.get(psKey)}.`);else psIds.set(psKey,label)}
@@ -110,6 +113,28 @@
       if(gapEnd>=gapStart){const days=gapEnd-gapStart+1;warnings.push(`No assignment term covers ${isoFromDay(gapStart)} through ${isoFromDay(gapEnd)} (${days} day${days===1?'':'s'}).`)}
     }
     return {ok:errors.length===0,errors,warnings,assignmentTerms};
+  }
+
+  function autoLockDate(term){
+    const days=term?.auto_lock_days_after_end;
+    if(days===null||days===undefined||days===''||!Number.isInteger(Number(days))||Number(days)<0||!isIsoDate(term?.end_date))return '';
+    return isoFromDay(utcDay(term.end_date)+Number(days)+1);
+  }
+
+  function lockState(term,date=state.asOfDate||new Date().toISOString().slice(0,10)){
+    const manual=term?.locked===true;
+    const autoDate=autoLockDate(term);
+    const auto=!!autoDate&&isIsoDate(date)&&date>=autoDate;
+    return {effective:manual||auto,manual,auto,autoDate};
+  }
+
+  function lockLabel(term,date=state.asOfDate||new Date().toISOString().slice(0,10)){
+    const ls=lockState(term,date);
+    if(ls.manual&&ls.auto)return `Locked · manual + auto (${ls.autoDate})`;
+    if(ls.manual)return 'Locked · manual';
+    if(ls.auto)return `Locked · auto since ${ls.autoDate}`;
+    if(ls.autoDate)return `Open · auto-locks ${ls.autoDate}`;
+    return 'Open · auto-lock off';
   }
 
   function resolve(config,date){
@@ -137,7 +162,7 @@
     const config=currentConfig(); const date=state.asOfDate||new Date().toISOString().slice(0,10); const result=resolve(config,date);
     $('todayOut').textContent=date;
     if(result.status==='matched'){
-      const term=result.term; $('currentTermOut').innerHTML=`<span class="rt-term-pill">${esc(term.code)} · ${esc(term.name)}</span>${term.locked?' <span class="rt-muted-lock">🔒 locked</span>':''}`;
+      const term=result.term; const ls=lockState(term,date); $('currentTermOut').innerHTML=`<span class="rt-term-pill">${esc(term.code)} · ${esc(term.name)}</span>${ls.effective?` <span class="rt-muted-lock">🔒 ${esc(lockLabel(term,date))}</span>`:(ls.autoDate?` <span class="rt-auto-open">${esc(lockLabel(term,date))}</span>`:'')}`;
     }else if(result.status==='ambiguous')$('currentTermOut').textContent='Ambiguous — fix overlapping assignment terms';
     else $('currentTermOut').textContent='No assignment term covers today';
     const stamp=state.config?.updated_at_iso?new Date(state.config.updated_at_iso).toLocaleString():'Never saved';
@@ -152,11 +177,26 @@
       <td><input data-field="end_date" type="date" value="${esc(term.end_date)}"></td>
       <td class="rt-check"><input data-field="assignment_term" type="checkbox" ${term.assignment_term?'checked':''}></td>
       <td class="rt-check"><input data-field="locked" type="checkbox" ${term.locked?'checked':''}></td>
+      <td><input class="rt-autolock" data-field="auto_lock_days_after_end" type="number" min="0" max="3650" step="1" value="${term.auto_lock_days_after_end===null||term.auto_lock_days_after_end===undefined?'':esc(term.auto_lock_days_after_end)}" placeholder="off" aria-label="Auto-lock grace days for ${esc(term.code||term.name||'term')}"><div class="rt-auto-note">${esc(lockLabel(term))}</div></td>
+      <td class="rt-lock-status">${lockState(term).effective?'🔒 ':'○ '}${esc(lockLabel(term))}</td>
       <td class="rt-check"><input data-field="enabled" type="checkbox" ${term.enabled?'checked':''}></td>
       <td><input class="rt-psid" data-field="powerschool_term_id" type="text" maxlength="80" value="${esc(term.powerschool_term_id)}" placeholder="optional"></td>
       <td class="rt-order"><button class="rt-icon-btn" type="button" data-action="up" ${index===0?'disabled':''}>↑</button> <button class="rt-icon-btn" type="button" data-action="down" ${index===total-1?'disabled':''}>↓</button></td>
       <td><button class="rt-icon-btn rt-delete" type="button" data-action="delete" aria-label="Delete ${esc(term.code||term.name||'term')}">×</button></td>
     </tr>`;
+  }
+
+  function refreshRowLockPreview(row){
+    if(!row)return;
+    const rows=[...$('termsBody').querySelectorAll('tr[data-term-id]')];
+    const index=rows.indexOf(row);
+    if(index<0)return;
+    const term=currentConfig().terms[index];
+    const ls=lockState(term);
+    const note=row.querySelector('.rt-auto-note');
+    const status=row.querySelector('.rt-lock-status');
+    if(note)note.textContent=lockLabel(term);
+    if(status)status.textContent=`${ls.effective?'🔒':'○'} ${lockLabel(term)}`;
   }
 
   function renderTerms(terms){
@@ -174,7 +214,7 @@
     const config=currentConfig();
     const existing=config.terms.filter((term)=>term.assignment_term===assignment);
     const n=existing.length+1;
-    config.terms.push({id:newId(),code:assignment?`Q${n}`:`T${n}`,name:assignment?`Quarter ${n}`:`Reporting Term ${n}`,start_date:'',end_date:'',assignment_term:assignment,locked:false,enabled:true,powerschool_term_id:'',sort_order:config.terms.length});
+    config.terms.push({id:newId(),code:assignment?`Q${n}`:`T${n}`,name:assignment?`Quarter ${n}`:`Reporting Term ${n}`,start_date:'',end_date:'',assignment_term:assignment,locked:false,auto_lock_days_after_end:null,enabled:true,powerschool_term_id:'',sort_order:config.terms.length});
     renderTerms(config.terms); markDirty(assignment?'Assignment term added.':'Calculation term added.');
   }
 
@@ -199,7 +239,7 @@
     const date=$('testDate').value; const result=resolve(currentConfig(),date); const out=$('resolveOut');
     if(result.status==='invalid'){out.textContent='Choose a valid date.';return}
     if(result.status==='matched'){
-      const term=result.term; out.innerHTML=`<strong>${esc(date)}</strong> → <span class="rt-term-pill">${esc(term.code)} · ${esc(term.name)}</span>${term.locked?' · 🔒 locked':''}`;return;
+      const term=result.term; const ls=lockState(term); out.innerHTML=`<strong>${esc(date)}</strong> → <span class="rt-term-pill">${esc(term.code)} · ${esc(term.name)}</span> · ${ls.effective?'🔒':'○'} ${esc(lockLabel(term))}`;return;
     }
     if(result.status==='ambiguous'){out.innerHTML=`<strong>${esc(date)}</strong> matches multiple assignment terms. Fix the overlap before saving.`;return}
     const parts=[]; if(result.previous)parts.push(`previous: ${result.previous.code} ended ${result.previous.end_date}`); if(result.next)parts.push(`next: ${result.next.code} starts ${result.next.start_date}`);
@@ -250,8 +290,8 @@
 
   async function init(){
     $('termsBody').addEventListener('click',handleTableClick);
-    $('termsBody').addEventListener('input',(event)=>{const row=event.target.closest('tr[data-term-id]');if(row&&event.target.dataset.field==='enabled')row.dataset.enabled=event.target.checked?'true':'false';markDirty('Changed.');});
-    $('termsBody').addEventListener('change',(event)=>{const row=event.target.closest('tr[data-term-id]');if(row&&event.target.dataset.field==='enabled')row.dataset.enabled=event.target.checked?'true':'false';markDirty('Changed.');});
+    $('termsBody').addEventListener('input',(event)=>{const row=event.target.closest('tr[data-term-id]');if(row&&event.target.dataset.field==='enabled')row.dataset.enabled=event.target.checked?'true':'false';if(row)refreshRowLockPreview(row);markDirty('Changed.');});
+    $('termsBody').addEventListener('change',(event)=>{const row=event.target.closest('tr[data-term-id]');if(row&&event.target.dataset.field==='enabled')row.dataset.enabled=event.target.checked?'true':'false';if(row)refreshRowLockPreview(row);markDirty('Changed.');});
     $('schoolYearLabel').addEventListener('input',()=>markDirty('Changed.'));
     $('addAssignmentBtn').addEventListener('click',()=>addTerm(true));
     $('addCalculationBtn').addEventListener('click',()=>addTerm(false));

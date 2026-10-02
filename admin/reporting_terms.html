@@ -9,12 +9,12 @@
   <title>EagleNEST</title>
   <link rel="stylesheet" href="./admin.css">
   <link rel="stylesheet" href="./nav.css">
-  <link rel="stylesheet" href="./reporting_terms.css?v=20261002-v1">
+  <link rel="stylesheet" href="./reporting_terms.css?v=20261002-v1-1">
   <script src="./shared_auth.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="./brand.js"></script>
   <script src="./nav.js" defer></script>
-  <script src="./reporting_terms.js?v=20261002-v1" defer></script>
+  <script src="./reporting_terms.js?v=20261002-v1-1" defer></script>
 </head>
 <body data-module="reporting_terms">
   <div class="shell">
@@ -55,7 +55,7 @@
           <div class="rt-toolbar">
             <div>
               <h2>Academic setup</h2>
-              <p class="muted">Assignment terms are the quarter/date buckets teachers will grade into. Calculation-only terms such as S1 or Y1 may overlap quarters.</p>
+              <p class="muted">Assignment terms are the quarter/date buckets teachers will grade into. Calculation-only terms such as S1 or Y1 may overlap quarters. Auto-lock grace days are calendar days after the term ends; leave blank to disable auto-lock.</p>
             </div>
             <div class="rt-toolbar-actions">
               <button class="btn secondary" id="addAssignmentBtn" type="button">+ Assignment term</button>
@@ -83,7 +83,9 @@
                   <th>Start</th>
                   <th>End</th>
                   <th title="Teachers' assignment due dates can resolve into this term.">Assignment term</th>
-                  <th title="Future grade entry will treat this term as closed.">Locked</th>
+                  <th title="Immediately close this term in EagleNEST, regardless of its auto-lock schedule.">Lock now</th>
+                  <th title="Optional grace period. 0 = lock the day after the term ends; 5 = keep five full calendar days open after the end date, then lock.">Auto-lock grace</th>
+                  <th title="Calculated from the term end date and grace period.">Lock status</th>
                   <th>Enabled</th>
                   <th title="Optional future mapping field.">PowerSchool term ID</th>
                   <th>Order</th>
