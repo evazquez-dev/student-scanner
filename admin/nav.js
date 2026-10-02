@@ -23,6 +23,7 @@
     my_schedule: 'My Schedule',
     my_rosters: 'My Rosters', // EAGLENEST_MY_ROSTERS_V1
     grades: 'Grades & Attendance', // EAGLENEST_GRADES_ATTENDANCE_HUB_V1
+    reporting_terms: 'Reporting Terms', // EAGLENEST_REPORTING_TERMS_V1
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
@@ -71,6 +72,7 @@
     'my_schedule_admin_session_v1',
     'my_rosters_admin_session_v1', // EAGLENEST_MY_ROSTERS_V1
     'grades_admin_session_v1',
+    'reporting_terms_admin_session_v1', // EAGLENEST_REPORTING_TERMS_V1
     'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
     'attendance_outreach_admin_session_v1',
@@ -560,6 +562,7 @@
           { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', description:'Trace attendance submissions and diagnostics' },
           { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', description:'Review contact-data correction suggestions' },
           { key:'incentive_trips', label:'Incentive Trip Eligibility', href:'./incentive_trips.html', description:'Configurable behavior, attendance and grade eligibility for incentive trips' }, // EAGLENEST_INCENTIVE_TRIPS_V1
+          { key:'reporting_terms', label: MODULES.reporting_terms || 'Reporting Terms', href:'./reporting_terms.html', description:'Configure quarters and academic reporting-term date ranges' }, // EAGLENEST_REPORTING_TERMS_V1
           { key:'exports', label:'Exports', href:'./exports.html', description:'Filtered historical CSV exports across EagleNEST modules' },
           { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Operational Health', href:'./fidelity.html', description:'Attendance fidelity and operational health' },
           { key:'scan_injector', label: MODULES.scan_injector || 'Scan Injector', href:'./scan_injector.html', description:'Admin scan simulation and testing' },

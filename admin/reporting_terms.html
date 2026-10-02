@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST</title>
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./reporting_terms.css?v=20261002-v1">
+  <script src="./shared_auth.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./brand.js"></script>
+  <script src="./nav.js" defer></script>
+  <script src="./reporting_terms.js?v=20261002-v1" defer></script>
+</head>
+<body data-module="reporting_terms">
+  <div class="shell">
+    <main class="layout rt-layout">
+      <section class="card" id="loginCard">
+        <h1 data-brand-title>EagleNEST — Reporting Terms</h1>
+        <p>Sign in with an account authorized to manage reporting terms.</p>
+        <div id="g_id_signin"></div>
+        <div id="loginOut" class="muted"></div>
+      </section>
+
+      <section id="appCard" hidden>
+        <section class="card rt-hero">
+          <div>
+            <h1 data-brand-module>Reporting Terms</h1>
+            <p class="muted">Define the academic date ranges EagleNEST will use to decide which quarter an assignment belongs to.</p>
+            <div id="viewerMeta" class="muted"></div>
+          </div>
+          <button class="btn secondary" id="refreshBtn" type="button">Refresh</button>
+        </section>
+
+        <section class="card rt-summary">
+          <div>
+            <div class="rt-eyebrow">Today</div>
+            <div id="todayOut" class="rt-summary-value">—</div>
+          </div>
+          <div>
+            <div class="rt-eyebrow">Current assignment term</div>
+            <div id="currentTermOut" class="rt-summary-value">—</div>
+          </div>
+          <div>
+            <div class="rt-eyebrow">Saved configuration</div>
+            <div id="savedOut" class="rt-summary-value">—</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="rt-toolbar">
+            <div>
+              <h2>Academic setup</h2>
+              <p class="muted">Assignment terms are the quarter/date buckets teachers will grade into. Calculation-only terms such as S1 or Y1 may overlap quarters.</p>
+            </div>
+            <div class="rt-toolbar-actions">
+              <button class="btn secondary" id="addAssignmentBtn" type="button">+ Assignment term</button>
+              <button class="btn secondary" id="addCalculationBtn" type="button">+ Calculation term</button>
+            </div>
+          </div>
+
+          <div class="rt-config-grid">
+            <label>School year label
+              <input id="schoolYearLabel" type="text" maxlength="60" placeholder="2026–27">
+            </label>
+            <label>Timezone
+              <select id="timezoneSelect" disabled>
+                <option value="America/New_York">America/New_York</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="rt-table-wrap">
+            <table class="rt-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th title="Teachers' assignment due dates can resolve into this term.">Assignment term</th>
+                  <th title="Future grade entry will treat this term as closed.">Locked</th>
+                  <th>Enabled</th>
+                  <th title="Optional future mapping field.">PowerSchool term ID</th>
+                  <th>Order</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="termsBody"></tbody>
+            </table>
+            <div id="emptyTerms" class="rt-empty" hidden>No terms yet. Add an assignment term to begin.</div>
+          </div>
+
+          <div class="rt-actions">
+            <div id="statusOut" class="muted"></div>
+            <button class="btn primary" id="saveBtn" type="button">Save reporting terms</button>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="rt-toolbar">
+            <div>
+              <h2>Validation</h2>
+              <p class="muted">Overlapping assignment terms block saving. Gaps are warnings because school breaks may be intentional.</p>
+            </div>
+          </div>
+          <div id="validationOut" class="rt-validation"></div>
+        </section>
+
+        <section class="card">
+          <div class="rt-toolbar">
+            <div>
+              <h2>Test an assignment due date</h2>
+              <p class="muted">Preview which assignment term EagleNEST would use for a due date. This preview includes unsaved changes on this page.</p>
+            </div>
+          </div>
+          <div class="rt-resolver">
+            <input id="testDate" type="date">
+            <button class="btn secondary" id="testDateBtn" type="button">Resolve date</button>
+            <div id="resolveOut" class="rt-resolution">Choose a date.</div>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>
