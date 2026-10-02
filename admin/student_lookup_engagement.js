@@ -135,8 +135,9 @@
     const slotText = booking?.start_iso
       ? `${fmtDateTime(booking.start_iso)}${booking.staff_name ? ` with ${booking.staff_name}` : ''}`
       : '';
+    const alternateLabel = booking?.source === 'alternate_meeting' ? 'Alternate meeting • ' : ''; // EAGLENEST_CONFERENCE_ALTERNATE_MEETING_V1
     const detail = booking
-      ? `${statusLabel(booking.status)}${slotText ? ` • ${slotText}` : ''}`
+      ? `${alternateLabel}${statusLabel(booking.status)}${slotText ? ` • ${slotText}` : ''}`
       : latest
         ? `${latest.outcome || 'Contact logged'} • ${fmtDateTime(latest.contact_at_iso)}`
         : 'No conference outreach logged yet.';

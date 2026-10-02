@@ -137,6 +137,11 @@
         <label>Meeting with / host email<input id="meetingHostEmail" class="input" type="email" /></label>
         <label>Location / room<input id="meetingLocation" class="input" placeholder="Room 207, Main Office…" /></label>
       </div>
+      <!-- EAGLENEST_CONFERENCE_ALTERNATE_MEETING_V1 -->
+      <label id="meetingConferenceField" class="noteLabel" hidden>Related to Student &amp; Family Conferences (optional)
+        <select id="meetingConferenceEvent" class="input"><option value="">Not related to a conference</option></select>
+        <span id="meetingConferenceHint" class="muted small">Use this when the family needs an alternate date or time. The meeting stays a normal EagleNEST meeting but counts toward the selected conference event.</span>
+      </label>
       <label class="noteLabel">Purpose / calendar title<input id="meetingPurpose" class="input" maxlength="240" placeholder="Family meeting" /></label>
       <label class="noteLabel">Visitor Desk note (optional)<textarea id="meetingDeskNotes" class="input textarea" maxlength="800" placeholder="Only information the front desk needs for arrival/check-in."></textarea></label>
       <p class="muted small">The appointment is stored in EagleNEST. “Add to my calendar” opens a pre-filled Google Calendar event; it does not create a live Google Calendar sync.</p>

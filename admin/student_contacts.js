@@ -120,6 +120,68 @@ const saveComm = $('saveComm');
 // EAGLENEST_VISITOR_APPOINTMENTS_V1
 let visitorAppointments = [];
 let appointmentTargetContact = null;
+// EAGLENEST_CONFERENCE_ALTERNATE_MEETING_V1
+let appointmentConferenceRows = [];
+
+function appointmentConferenceStatusLabel_(value) {
+  return ({
+    no_outreach: 'No outreach', contacted: 'Contacted', family_reached: 'Family reached',
+    booked: 'Already booked', completed: 'Completed', no_show: 'No show', needs_rescheduling: 'Needs rescheduling'
+  })[String(value || '')] || String(value || '');
+}
+
+function selectedAppointmentConference_() {
+  const id = String(document.getElementById('meetingConferenceEvent')?.value || '');
+  return appointmentConferenceRows.find((row) => String(row?.event?.event_id || '') === id) || null;
+}
+
+function applyAppointmentConferenceSelection_() {
+  const row = selectedAppointmentConference_();
+  const hint = document.getElementById('meetingConferenceHint');
+  if (!row) {
+    if (hint) hint.textContent = 'Use this when the family needs an alternate date or time. The meeting stays a normal EagleNEST meeting but counts toward the selected conference event.';
+    return;
+  }
+  const advisorEmail = String(row?.advisor?.advisor_email || '').trim();
+  if (advisorEmail) document.getElementById('meetingHostEmail').value = advisorEmail;
+  const purpose = document.getElementById('meetingPurpose');
+  if (purpose && (!purpose.value.trim() || /^(family meeting|meeting)$/i.test(purpose.value.trim()))) {
+    purpose.value = `Student & Family Conference — ${currentData?.student_name || currentStudent?.name || currentStudent?.osis || 'Student'}`;
+  }
+  if (hint) {
+    const date = String(row?.event?.event_date || '').trim();
+    hint.textContent = `Linked to ${row?.event?.title || 'Student & Family Conferences'}${date ? ` (${date})` : ''}. The alternate meeting may be scheduled outside the standard conference date/time.`;
+  }
+}
+
+async function loadAppointmentConferenceOptions_() {
+  const field = document.getElementById('meetingConferenceField');
+  const select = document.getElementById('meetingConferenceEvent');
+  if (!field || !select) return;
+  field.hidden = true;
+  appointmentConferenceRows = [];
+  select.replaceChildren(new Option('Not related to a conference', ''));
+  const osis = String(currentStudent?.osis || document.getElementById('meetingStudentNumber')?.value || '').trim();
+  if (!osis) return;
+  try {
+    const r = await adminFetch(`/admin/conferences/student_context?student_number=${encodeURIComponent(osis)}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j?.ok) return;
+    appointmentConferenceRows = (Array.isArray(j.conferences) ? j.conferences : [])
+      .filter((row) => row?.requirement?.configured === true && row?.can_log_book === true);
+    for (const row of appointmentConferenceRows) {
+      const eventId = String(row?.event?.event_id || '');
+      if (!eventId) continue;
+      const status = String(row?.status || '');
+      const option = new Option(`${row?.event?.title || 'Conference'} — ${appointmentConferenceStatusLabel_(status)}`, eventId);
+      option.disabled = status === 'booked' || status === 'completed';
+      select.appendChild(option);
+    }
+    field.hidden = appointmentConferenceRows.length === 0;
+  } catch {
+    field.hidden = true;
+  }
+}
 
 function splitVisitorName_(raw) {
   const value = String(raw || '').trim().replace(/\s+/g, ' ');
@@ -147,6 +209,7 @@ function googleCalendarUrl_(appointment) {
     appointment?.relationship ? `Relationship: ${appointment.relationship}` : '',
     appointment?.student_name ? `Student: ${appointment.student_name}${appointment.student_number ? ` (${appointment.student_number})` : ''}` : '',
     appointment?.host_email ? `Host: ${appointment.host_email}` : '',
+    appointment?.conference_event_title ? `Student & Family Conference: ${appointment.conference_event_title}` : '',
     'Scheduled through EagleNEST Visitor Appointments.'
   ].filter(Boolean).join('\n');
   const u = new URL('https://calendar.google.com/calendar/render');
@@ -173,11 +236,18 @@ function renderMyAppointments_() {
   }
   root.innerHTML = visitorAppointments.map((a) => {
     const visitor = [a.visitor_first_name, a.visitor_last_name].filter(Boolean).join(' ');
+    const active = a.status === 'scheduled' || a.status === 'arrived';
+    const linked = Boolean(String(a.conference_event_id || '').trim());
+    const conference = linked ? `<div class="muted small"><strong>Student &amp; Family Conference:</strong> ${esc(a.conference_event_title || 'Linked conference event')}</div>` : '';
+    const conferenceActions = linked && active
+      ? '<button class="btn secondary appointmentCompleteBtn" type="button">Complete</button><button class="btn secondary appointmentNoShowBtn" type="button">No show</button>'
+      : '';
     return `<article class="appointmentItem" data-appointment-id="${esc(a.appointment_id)}">
       <div class="appointmentTop"><div><strong>${esc(visitor || 'Visitor')}</strong><div class="muted small">${esc(fmtAppointment_(a))}${a.location ? ` • ${esc(a.location)}` : ''}</div></div><span class="countPill">${esc(a.status || 'scheduled')}</span></div>
       <div class="small">${esc(a.purpose || 'Meeting')}${a.student_name ? ` • Student: ${esc(a.student_name)}` : ''}</div>
+      ${conference}
       <div class="muted small">Host: ${esc(a.host_email || '—')}</div>
-      <div class="appointmentActions"><button class="btn secondary appointmentCalendarBtn" type="button">📅 Add to my calendar</button>${a.status === 'scheduled' ? '<button class="btn secondary appointmentCancelBtn" type="button">Cancel appointment</button>' : ''}</div>
+      <div class="appointmentActions"><button class="btn secondary appointmentCalendarBtn" type="button">📅 Add to my calendar</button>${conferenceActions}${active ? '<button class="btn secondary appointmentCancelBtn" type="button">Cancel appointment</button>' : ''}</div>
     </article>`;
   }).join('');
 }
@@ -215,6 +285,12 @@ function openAppointment_(contact = null) {
   document.getElementById('meetingLocation').value = '';
   document.getElementById('meetingPurpose').value = currentStudent ? 'Family meeting' : 'Meeting';
   document.getElementById('meetingDeskNotes').value = '';
+  const conferenceField = document.getElementById('meetingConferenceField');
+  const conferenceSelect = document.getElementById('meetingConferenceEvent');
+  if (conferenceField) conferenceField.hidden = true;
+  if (conferenceSelect) conferenceSelect.replaceChildren(new Option('Not related to a conference', ''));
+  appointmentConferenceRows = [];
+  void loadAppointmentConferenceOptions_();
   document.getElementById('appointmentSubtitle').textContent = contact
     ? `${currentData?.student_name || currentStudent?.name || currentStudent?.osis || ''} • ${contact?.display?.name || 'Contact'}`
     : 'Use this for an outside guest or a visitor who is not in Student Contacts.';
@@ -268,6 +344,7 @@ async function saveAppointment_() {
     location: document.getElementById('meetingLocation').value.trim(),
     purpose: document.getElementById('meetingPurpose').value.trim() || 'Meeting',
     desk_notes: document.getElementById('meetingDeskNotes').value.trim(),
+    conference_event_id: document.getElementById('meetingConferenceEvent')?.value || '',
     source: 'student_contacts'
   };
   try {
@@ -278,7 +355,7 @@ async function saveAppointment_() {
     if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
     closeAppointment_();
     await loadMyAppointments_();
-    searchStatus.textContent = `Meeting scheduled for ${fmtAppointment_(j.appointment)}. Use “Add to my calendar” below if you want it on Google Calendar.`;
+    searchStatus.textContent = `Meeting scheduled for ${fmtAppointment_(j.appointment)}${j.appointment?.conference_event_title ? ` and linked to ${j.appointment.conference_event_title}` : ''}. Use “Add to my calendar” below if you want it on Google Calendar.`;
   } catch (e) {
     err.textContent = `Could not schedule meeting: ${e?.message || e}`;
     err.hidden = false;
@@ -295,6 +372,19 @@ async function cancelAppointment_(appointment) {
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
   await loadMyAppointments_();
+}
+
+async function updateAppointmentOutcome_(appointment, status) {
+  if (!appointment?.appointment_id) return;
+  const label = status === 'completed' ? 'mark this conference meeting complete' : 'mark this conference meeting as a no show';
+  if (!confirm(`${label}?`)) return;
+  const r = await adminFetch('/admin/visitor_appointments/status', {
+    method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ appointment_id: appointment.appointment_id, status })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+  await loadMyAppointments_();
+  searchStatus.textContent = status === 'completed' ? 'Conference meeting marked complete.' : 'Conference meeting marked no show.';
 }
 
 
@@ -1126,6 +1216,7 @@ async function boot() {
   $('closeAppointment').addEventListener('click', closeAppointment_);
   $('cancelAppointment').addEventListener('click', closeAppointment_);
   $('saveAppointment').addEventListener('click', saveAppointment_);
+  $('meetingConferenceEvent')?.addEventListener('change', applyAppointmentConferenceSelection_);
   $('appointmentBackdrop').addEventListener('click', (e) => { if (e.target === $('appointmentBackdrop')) closeAppointment_(); });
   $('myAppointments').addEventListener('click', (e) => {
     const item = e.target.closest('[data-appointment-id]');
@@ -1133,6 +1224,8 @@ async function boot() {
     const appointment = visitorAppointments.find((row) => String(row.appointment_id) === String(item.dataset.appointmentId));
     if (!appointment) return;
     if (e.target.closest('.appointmentCalendarBtn')) { const url = googleCalendarUrl_(appointment); if (url) window.open(url, '_blank', 'noopener'); }
+    else if (e.target.closest('.appointmentCompleteBtn')) updateAppointmentOutcome_(appointment, 'completed').catch((err) => alert(`Could not update appointment: ${err?.message || err}`));
+    else if (e.target.closest('.appointmentNoShowBtn')) updateAppointmentOutcome_(appointment, 'no_show').catch((err) => alert(`Could not update appointment: ${err?.message || err}`));
     else if (e.target.closest('.appointmentCancelBtn')) cancelAppointment_(appointment).catch((err) => alert(`Could not cancel appointment: ${err?.message || err}`));
   });
 

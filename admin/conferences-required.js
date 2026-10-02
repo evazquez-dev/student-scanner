@@ -273,7 +273,14 @@
   }
 
   function bookingDescription(row){
+    // EAGLENEST_CONFERENCE_ALTERNATE_MEETING_V1
     if(!row.booking) return row.status==='needs_rescheduling'?'Cancelled — needs a new time':'Not booked';
+    if(row.booking.source==='alternate_meeting'){
+      const when=row.booking.start_iso?reqFmtDateTime(row.booking.start_iso):'';
+      const host=row.booking.staff_name||row.booking.staff_email||'';
+      const prefix=row.booking.status==='scheduled'?'Alternate meeting':`Alternate meeting — ${reqStatusLabel(row.booking.status)}`;
+      return `${prefix}${when?` • ${when}`:''}${host?` with ${host}`:''}`;
+    }
     if(row.booking.status==='scheduled'){
       const slot=(bundle?.slots||[]).find((s)=>s.slot_id===row.booking.slot_id);
       return slot?`${fmtTime(slot.start_iso)} with ${row.booking.staff_name||staffLabel(row.booking.staff_email)}`:'Scheduled';
