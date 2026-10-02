@@ -23,6 +23,7 @@
     my_schedule: 'My Schedule',
     my_rosters: 'My Rosters', // EAGLENEST_MY_ROSTERS_V1
     grades: 'Grades & Attendance', // EAGLENEST_GRADES_ATTENDANCE_HUB_V1
+    grading: 'Grading', // EAGLENEST_GRADING_V1
     reporting_terms: 'Reporting Terms', // EAGLENEST_REPORTING_TERMS_V1
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
@@ -72,6 +73,7 @@
     'my_schedule_admin_session_v1',
     'my_rosters_admin_session_v1', // EAGLENEST_MY_ROSTERS_V1
     'grades_admin_session_v1',
+    'grading_admin_session_v1', // EAGLENEST_GRADING_V1
     'reporting_terms_admin_session_v1', // EAGLENEST_REPORTING_TERMS_V1
     'teacher_trace_lookup_admin_session_v1',
     'attendance_status_admin_session_v1',
@@ -520,6 +522,7 @@
           { key:'my_rosters', label: MODULES.my_rosters || 'My Rosters', href:'./my_rosters.html', description:'Reusable student sets, email lists and OSIS exports' }, // EAGLENEST_MY_ROSTERS_V1
           { key:'grades', label: MODULES.grades || 'Grades & Attendance', href:'./grades.html', description:'Student grades, daily attendance, meeting attendance and history' },
           { key:'gradebook_analytics', label:'Gradebook Analytics', href:'./gradebook_analytics.html', description:'Weekly, role-scoped gradebook assignment and score-entry snapshots' },
+          { key:'grading', label: MODULES.grading || 'Grading', href:'./grading.html', description:'Enter, preview and submit PowerTeacher assignment scores' }, // EAGLENEST_GRADING_V1
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },
           { key:'communications', label: MODULES.communications || 'Parent & Family Communications', href:'./communications.html', description:'Outreach, required communication and follow-ups' },
           { key:'phone_dashboard', label: MODULES.calls || 'Calls', href:'./calls.html', description:'Live calls, recent calls and follow-up logging' },

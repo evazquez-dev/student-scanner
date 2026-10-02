@@ -21,6 +21,7 @@
   "esas_guest_session_v1",
   "excused_apply_admin_session_v1",
   "grades_admin_session_v1",
+  "grading_admin_session_v1", // EAGLENEST_GRADING_V1
   "reporting_terms_admin_session_v1", // EAGLENEST_REPORTING_TERMS_V1
   "hallway_admin_session_v1",
   "mtss_admin_session_v1",

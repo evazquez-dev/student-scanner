@@ -1,0 +1,116 @@
+<!doctype html>
+<!-- EAGLENEST_GRADING_V1 -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — Grading</title>
+  <link rel="stylesheet" href="./admin.css">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./grading.css">
+  <script src="./shared_auth.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./grading.js" defer></script>
+</head>
+<body data-module="grading">
+  <div class="grading-shell">
+    <section id="loginCard" class="card grading-login">
+      <h1 data-brand-title>EagleNEST — Grading</h1>
+      <p class="muted">Sign in with your staff account.</p>
+      <div id="g_id_signin"></div>
+      <div id="loginOut" class="muted">Checking your session…</div>
+    </section>
+
+    <main id="app" hidden>
+      <section class="card grading-hero">
+        <div>
+          <div class="eyebrow">EAGLENEST / LIVE GRADEBOOK</div>
+          <h1>Grading</h1>
+          <p class="muted">Enter scores for your PowerTeacher Pro assignments. Nothing writes until you preview and explicitly submit.</p>
+          <div id="viewerMeta" class="muted"></div>
+        </div>
+        <button id="refreshAllBtn" class="btn secondary" type="button">Refresh</button>
+      </section>
+
+      <section id="setupCard" class="card" hidden>
+        <h2>PowerTeacher bridge setup required</h2>
+        <p id="setupMessage" class="muted"></p>
+      </section>
+
+      <section class="card grading-status-grid">
+        <div><span class="muted">System mode</span><strong id="systemMode">—</strong></div>
+        <div><span class="muted">Current reporting term</span><strong id="currentTerm">—</strong></div>
+        <div><span class="muted">Bridge</span><strong id="bridgeState">—</strong></div>
+      </section>
+
+      <section class="card grading-controls">
+        <label>Section
+          <select id="sectionSelect"><option value="">Loading sections…</option></select>
+        </label>
+        <label>Reporting term
+          <select id="termFilter"><option value="">All terms</option></select>
+        </label>
+        <label>Assignment
+          <select id="assignmentSelect"><option value="">Choose a section first</option></select>
+        </label>
+        <div class="control-actions">
+          <button id="newAssignmentBtn" class="btn" type="button">+ New Assignment</button>
+          <button id="reloadAssignmentBtn" class="btn secondary" type="button">Reload scores</button>
+        </div>
+      </section>
+
+      <section id="assignmentCard" class="card" hidden>
+        <div class="assignment-head">
+          <div>
+            <h2 id="assignmentTitle">Assignment</h2>
+            <div id="assignmentMeta" class="muted"></div>
+          </div>
+          <span id="assignmentBadge" class="grading-pill">—</span>
+        </div>
+      </section>
+
+      <section id="gradingCard" class="card" hidden>
+        <div class="grading-table-head">
+          <div>
+            <h2>Scoresheet</h2>
+            <p id="scoreSummary" class="muted">Load an assignment to begin.</p>
+          </div>
+          <div class="grading-actions">
+            <button id="previewBtn" class="btn" type="button">Preview changes</button>
+            <button id="submitBtn" class="btn primary" type="button" disabled>Submit to PowerTeacher</button>
+          </div>
+        </div>
+        <div class="grading-note">Leaving a proposed score blank means “no change.” This first version does not clear an existing numeric score. Missing / Exempt / Absent / Incomplete are submitted as PowerTeacher status flags and must pass preview before submission.</div>
+        <div class="tableWrap grading-table-wrap">
+          <table class="grading-table">
+            <thead><tr><th>Student</th><th>Current</th><th>Proposed</th><th>Status</th><th>Late</th><th>Comment</th><th>Preview</th></tr></thead>
+            <tbody id="scoreBody"><tr><td colspan="7" class="muted">Choose an assignment.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="errorCard" class="card grading-error" hidden></section>
+    </main>
+  </div>
+
+  <dialog id="newAssignmentDialog">
+    <form method="dialog" id="newAssignmentForm" class="grading-dialog">
+      <div class="dialog-head"><div><div class="eyebrow">NEW POWERTEACHER ASSIGNMENT</div><h2>Create assignment</h2></div><button class="btn secondary" value="cancel">Close</button></div>
+      <label>Title<input id="newTitle" required maxlength="300"></label>
+      <div class="dialog-grid">
+        <label>Points<input id="newPoints" type="number" step="any" min="0" required></label>
+        <label>Due date<input id="newDueDate" type="date" required></label>
+        <label>Category<select id="newCategory"><option value="">Default category (auto)</option></select></label>
+        <label class="check-label"><input id="newCountFinal" type="checkbox" checked> Count in final grade</label>
+      </div>
+      <div id="newTermPreview" class="term-preview muted">Choose a due date.</div>
+      <div id="newAssignmentError" class="grading-error-inline" hidden></div>
+      <div class="dialog-actions"><button id="createAssignmentBtn" class="btn primary" type="button">Create assignment</button></div>
+    </form>
+  </dialog>
+</body>
+</html>
