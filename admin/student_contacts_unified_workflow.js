@@ -1,4 +1,4 @@
-/* EAGLENEST_STUDENT_CONTACTS_UNIFIED_WORKFLOW_V1
+/* EAGLENEST_STUDENT_CONTACTS_UNIFIED_WORKFLOW_V2_HOTFIX
  * Collapses family-contact communication + meeting scheduling into one lightweight flow.
  * Extends Category with student-scoped required campaigns and conference events.
  */
@@ -75,9 +75,9 @@
   function processContactButtons(root = document) {
     root.querySelectorAll?.('.contactCard:not(.directStudentContactCard)').forEach((card) => {
       const schedule = card.querySelector('.scheduleBtn');
-      if (schedule) schedule.hidden = true;
+      if (schedule && !schedule.hidden) schedule.hidden = true;
       const comm = card.querySelector('.commBtn');
-      if (comm) comm.textContent = 'Log / Schedule';
+      if (comm && comm.textContent !== 'Log / Schedule') comm.textContent = 'Log / Schedule';
     });
   }
 
@@ -498,14 +498,21 @@
   ensureUnifiedUi();
   processContactButtons();
 
+  // V2 HOTFIX: do not mutate every time *any* observed mutation fires. The V1
+  // observer rewrote button text while observing childList changes, which could
+  // recursively trigger itself as soon as student contact cards rendered.
+  const contactMutationRoot = contactsEl || document.body;
   new MutationObserver((mutations) => {
-    processContactButtons();
-    for (const mutation of mutations) {
-      if (mutation.target === commBackdrop && mutation.attributeName === 'hidden' && !commBackdrop.hidden) {
-        onCommunicationOpened();
+    if (mutations.some((mutation) => mutation.type === 'childList')) processContactButtons(contactMutationRoot);
+  }).observe(contactMutationRoot, { childList: true, subtree: true });
+
+  if (commBackdrop) {
+    new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.attributeName === 'hidden' && !commBackdrop.hidden) onCommunicationOpened();
       }
-    }
-  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    }).observe(commBackdrop, { attributes: true, attributeFilter: ['hidden'] });
+  }
 
   document.addEventListener('click', (event) => {
     const schedule = event.target.closest?.('.scheduleBtn');
