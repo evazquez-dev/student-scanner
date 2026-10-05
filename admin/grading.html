@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- EAGLENEST_GRADING_MODAL_FIX_V1 -->
 <!-- EAGLENEST_GRADING_V1 -->
 <html lang="en">
 <head>
@@ -99,7 +100,7 @@
 
   <dialog id="newAssignmentDialog">
     <form method="dialog" id="newAssignmentForm" class="grading-dialog">
-      <div class="dialog-head"><div><div class="eyebrow">NEW POWERTEACHER ASSIGNMENT</div><h2>Create assignment</h2></div><button class="btn secondary" value="cancel">Close</button></div>
+      <div class="dialog-head"><div><div class="eyebrow">NEW POWERTEACHER ASSIGNMENT</div><h2>Create assignment</h2></div><button id="closeNewAssignmentBtn" class="btn secondary" type="button">Close</button></div>
       <label>Title<input id="newTitle" required maxlength="300"></label>
       <div class="dialog-grid">
         <label>Points<input id="newPoints" type="number" step="any" min="0" required></label>

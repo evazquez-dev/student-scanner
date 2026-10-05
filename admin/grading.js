@@ -96,6 +96,7 @@
   $('previewBtn').addEventListener('click',()=>previewChanges().catch(e=>showError(e.message)));
   $('submitBtn').addEventListener('click',()=>submitChanges().catch(e=>showError(e.message)));
   $('newAssignmentBtn').addEventListener('click',openNewAssignment);
+  $('closeNewAssignmentBtn').addEventListener('click',()=>$('newAssignmentDialog').close('cancel')); // EAGLENEST_GRADING_MODAL_FIX_V1
   $('newDueDate').addEventListener('change',previewNewTerm);
   $('createAssignmentBtn').addEventListener('click',()=>createAssignment().catch(e=>{$('newAssignmentError').hidden=false;$('newAssignmentError').textContent=e.message}));
   $('refreshAllBtn').addEventListener('click',()=>boot().catch(e=>showError(e.message)));
