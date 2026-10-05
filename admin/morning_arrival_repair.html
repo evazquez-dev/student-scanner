@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+<meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+<script>(()=>{try{const s=String(localStorage.getItem('ss_theme_v1')||'').toLowerCase();document.documentElement.dataset.theme=(s==='light'||s==='dark')?s:(matchMedia('(prefers-color-scheme:light)').matches?'light':'dark')}catch{document.documentElement.dataset.theme='dark'}})();</script>
+<script src="./shared_auth.js"></script><script src="https://accounts.google.com/gsi/client" async defer></script>
+<link rel="stylesheet" href="./nav.css"><script src="./brand.js" defer></script><script src="./nav.js" defer></script>
+<title>EagleNEST — Morning Arrival Historical Repair</title>
+<style>
+:root{color-scheme:dark;--bg:#101924;--panel:#182532;--panel2:#132333;--border:#354456;--text:#f5f7fb;--muted:#b4c2cf;--good:#7ee2b8;--bad:#ffb4ad;--warn:#ffd782;--info:#9dc8ff}
+:root[data-theme="light"]{color-scheme:light;--bg:#f4f7fb;--panel:#fff;--panel2:#f1f5f9;--border:#c8d4e1;--text:#17253b;--muted:#52647a;--good:#166534;--bad:#b42318;--warn:#92400e;--info:#1d4ed8}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 system-ui,sans-serif;background:var(--bg);color:var(--text)}.wrap{max-width:1500px;margin:36px auto;padding:0 20px 70px}.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px}.muted{color:var(--muted)}h1{margin:0 0 6px;font-size:28px}h2{margin:0 0 12px}.row{display:flex;gap:12px;flex-wrap:wrap;align-items:end}.field{display:flex;flex-direction:column;gap:6px;min-width:155px}.field.grow{flex:1;min-width:260px}input,select,textarea{background:var(--panel2);color:inherit;border:1px solid var(--border);border-radius:9px;padding:10px;font:inherit}textarea{min-height:80px;resize:vertical}.btn{border:1px solid var(--border);background:var(--panel2);color:inherit;border-radius:9px;padding:10px 14px;cursor:pointer}.btn.primary{background:#2966a0;color:#fff}.btn.danger{background:#8f2828;color:#fff}.btn:disabled{opacity:.55;cursor:not-allowed}.notice{border:1px solid var(--border);border-left:5px solid var(--info);border-radius:10px;padding:12px 14px;margin:12px 0}.notice.warn{border-left-color:var(--warn)}.notice.danger{border-left-color:var(--bad)}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.stat{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px}.stat b{font-size:24px;display:block;margin-top:5px}.good{color:var(--good)}.bad{color:var(--bad)}.warnText{color:var(--warn)}.info{color:var(--info)}.scroll{overflow:auto;max-height:650px;border:1px solid var(--border);border-radius:10px}table{border-collapse:collapse;width:100%;min-width:1220px}th,td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}th{position:sticky;top:0;background:var(--panel);z-index:1}.pill{display:inline-block;border:1px solid currentColor;border-radius:999px;padding:2px 8px;font-size:12px;font-weight:700}.pill.repairable{color:var(--good)}.pill.expected_late{color:var(--muted)}.pill.needs_schedule,.pill.single_scan_mismatch,.pill.rescans_before_start{color:var(--warn)}.pill.manual_or_unknown_late,.pill.protected_or_special,.pill.review{color:var(--bad)}.small{font-size:12px}.actions{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0}.hide{display:none!important}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel2);padding:2px 5px;border-radius:5px}@media(max-width:700px){.wrap{padding:0 10px}.card{padding:13px}}
+</style></head>
+<body data-module="morning_arrival_repair"><main class="wrap">
+<section id="login" class="card">
+  <h1>Morning Arrival Historical Repair</h1>
+  <p>This temporary page is restricted to super admins.</p>
+  <div id="g_id_signin"></div><p id="loginStatus" class="muted">Checking existing session…</p>
+</section>
+
+<section id="app" hidden>
+  <div class="card">
+    <h1>Morning Arrival Historical Audit & Repair</h1>
+    <div id="who" class="muted">—</div>
+    <div class="notice warn"><strong>Temporary cleanup tool.</strong> It never edits raw scan history. Automatic repair is limited to the exact re-scan bug signature: first morning scan on time, a later morning entrance re-scan after school start, and the current PowerSchool Late is marked as EagleNEST-generated.</div>
+  </div>
+
+  <div class="card">
+    <h2>1. Audit completed school days</h2>
+    <div class="row">
+      <label class="field"><span>Start date</span><input id="startDate" type="date" min="2026-08-31"></label>
+      <label class="field"><span>End date</span><input id="endDate" type="date" min="2026-08-31"></label>
+      <label class="field"><span>Fallback school start</span><input id="fallbackStart" type="time" value="08:00"></label>
+      <label class="field" style="min-width:260px"><span>Fallback handling</span><span><input id="trustFallback" type="checkbox"> Trust fallback for dates without saved Day Context</span></label>
+      <button class="btn primary" id="auditBtn">Run audit</button>
+    </div>
+    <label class="field grow" style="margin-top:12px"><span>Optional date-specific start overrides</span><textarea id="overrides" placeholder="One per line, for example:&#10;2026-09-29=08:00&#10;2026-10-02=08:15"></textarea><span class="muted small">Overrides are treated as trusted. Period 0 is ignored when saved Day Context is available.</span></label>
+    <div id="auditStatus" class="muted" style="margin-top:10px">Ready.</div>
+  </div>
+
+  <div id="resultsCard" class="card" hidden>
+    <h2>Audit results</h2>
+    <div id="stats" class="stats"></div>
+    <div class="actions">
+      <div class="row">
+        <label><input id="selectAllRepairable" type="checkbox" checked> Select all repairable</label>
+        <label>Show <select id="statusFilter"><option value="issues">Repairable + review</option><option value="all">All Late rows with a morning scan</option><option value="repairable">Repairable only</option><option value="needs_schedule">Needs schedule only</option></select></label>
+      </div>
+      <button class="btn" id="exportBtn">Export CSV</button>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr><th>Select</th><th>Date</th><th>Student</th><th>First entrance</th><th>Last entrance</th><th>Morning scans</th><th>School start</th><th>PowerSchool</th><th>Assessment</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table></div>
+  </div>
+
+  <div id="applyCard" class="card" hidden>
+    <h2>2. Apply selected repairs</h2>
+    <div class="notice danger"><strong>This writes to PowerSchool.</strong> The server re-runs the audit before writing and rejects anything that is no longer safely repairable. Protected/manual codes remain protected by the existing PowerSchool bridge.</div>
+    <div class="actions"><div><strong id="selectedCount">0 selected</strong><div class="muted small">Maximum 250 students / 20 dates per apply.</div></div><button class="btn danger" id="applyBtn">Apply selected Late → Present repairs</button></div>
+    <pre id="applyResult" class="muted" style="white-space:pre-wrap;margin:0"></pre>
+  </div>
+
+  <div class="card">
+    <h2>3. Refresh canonical attendance after repairs</h2>
+    <p>PowerSchool is authoritative. After the repair succeeds, open the <strong>Daily Attendance</strong> Apps Script and run <code>syncCanonicalPowerSchoolDailyNow()</code> until <code>pending_dates</code> is <code>0</code>. Then return here and run the audit again.</p>
+    <p class="muted">Until that canonical sync completes, this page may still show the old Late rows because EagleNEST intentionally does not rewrite its canonical PowerSchool mirror directly.</p>
+  </div>
+</section>
+</main>
+<script src="./morning_arrival_repair.js" defer></script>
+</body></html>

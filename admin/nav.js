@@ -55,6 +55,7 @@
     fidelity_dashboard: 'Operational Health',
     mtss: 'MTSS Case Management', // EAGLENEST_MTSS_V1_NAV_LABEL
     attendance_change: 'Attendance Corrections',
+    morning_arrival_repair: 'Morning Arrival Repair', // EAGLENEST_MORNING_ARRIVAL_HISTORICAL_REPAIR_V1
     supervised_lunch: 'Supervised Lunch',
     reflection_hold: 'Reflection Hold',
     dreamer_of_week: 'Dreamer of the Week',
@@ -97,6 +98,7 @@
     'admin_roles_admin_session_v1',
     'access_control_admin_session_v1', // EAGLENEST_ACCESS_CONTROL_V1
     'attendance_change_admin_session_v1',
+    'morning_arrival_repair_admin_session_v1', // EAGLENEST_MORNING_ARRIVAL_HISTORICAL_REPAIR_V1
     'supervised_lunch_admin_session_v1',
     'reflection_hold_admin_session_v1',
     'dreamer_of_week_admin_session_v1',
@@ -563,6 +565,7 @@
         title: 'Administration',
         items: [
           { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', description:'Trace attendance submissions and diagnostics' },
+          { key:'morning_arrival_repair', label: MODULES.morning_arrival_repair || 'Morning Arrival Repair', href:'./morning_arrival_repair.html', description:'Temporary historical audit and repair for false Late records caused by entrance re-scans' }, // EAGLENEST_MORNING_ARRIVAL_HISTORICAL_REPAIR_V1
           { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', description:'Review contact-data correction suggestions' },
           { key:'incentive_trips', label:'Incentive Trip Eligibility', href:'./incentive_trips.html', description:'Configurable behavior, attendance and grade eligibility for incentive trips' }, // EAGLENEST_INCENTIVE_TRIPS_V1
           { key:'reporting_terms', label: MODULES.reporting_terms || 'Reporting Terms', href:'./reporting_terms.html', description:'Configure quarters and academic reporting-term date ranges' }, // EAGLENEST_REPORTING_TERMS_V1
@@ -610,6 +613,7 @@
         (it.key === 'gradebook_analytics' && can.grades) ||
         (it.key === 'conference_scheduler' && can.student_contacts) ||
         (it.key === 'attendance_change' && can.excused_apply) ||
+        (it.key === 'morning_arrival_repair' && can.super_admin) || // EAGLENEST_MORNING_ARRIVAL_HISTORICAL_REPAIR_V1
         (it.key === 'esas' && !!access?.email)
       );
     };
