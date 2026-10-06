@@ -32,5 +32,5 @@ test('Teacher phone actions remain covered by View-as read-only enforcement and 
   assert.match(route, /viewAsReadOnlyResponse/);
   assert.match(bridge, /error: 'view_as_read_only'/);
   assert.match(route, /path === '\/admin\/phone_pass\/return'/);
-  assert.match(route, /canReturnPhonePass\(env, who\.email\)/);
+  assert.match(route, /hasCapability\(base\.data,\s*'phone_pass_return'\)/);
 });

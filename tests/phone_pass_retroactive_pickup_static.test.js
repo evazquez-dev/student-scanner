@@ -8,10 +8,11 @@ const route = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/rout
 const service = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/services/phone-pass-retroactive-pickup.js'), 'utf8');
 const ui = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/phone_pass_return_actions.js'), 'utf8');
 
-test('retroactive pickup is a grant-authorized Phone Pass mutation', () => {
+test('retroactive pickup is an Access-Control grant-authorized Phone Pass mutation', () => {
   assert.match(route, /\/admin\/phone_pass\/retroactive_pickup/);
   assert.match(route, /confirmRetroactivePhonePickup/);
-  assert.match(route, /canGrantPhonePass\(env, who\.email\)/);
+  assert.match(route, /hasCapability\(base\.data, 'phone_pass_grant'\)/);
+  assert.doesNotMatch(route, /canGrantPhonePass\(env, who\.email\)/);
   assert.match(route, /phone_pass_grant_forbidden/);
 });
 

@@ -9,14 +9,15 @@ const service = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/se
 const worker = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/worker.js'), 'utf8');
 const frontend = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/phone_pass_return_actions.js'), 'utf8');
 
-test('retroactive Phone Pass return is a guarded final-return mutation', () => {
+test('retroactive Phone Pass return is an Access-Control guarded final-return mutation', () => {
   assert.match(route, /\/admin\/phone_pass\/retroactive_return/);
   assert.match(route, /confirmRetroactivePhoneReturn/);
   const start = route.indexOf("if (path === '/admin/phone_pass/retroactive_return')");
   const end = route.indexOf("if (path === '/admin/phone_pass/return')", start);
   assert.ok(start >= 0 && end > start, 'Retroactive route handler not found');
   const handler = route.slice(start, end);
-  assert.match(handler, /canReturnPhonePass\(env, who\.email\)/);
+  assert.match(handler, /hasCapability\(base\.data, 'phone_pass_return'\)/);
+  assert.doesNotMatch(handler, /canReturnPhonePass\(env, who\.email\)/);
   assert.match(handler, /hallway_monitor_forbidden/);
   assert.match(route, /const guard = mutationGuard\(req, env, base\.response, base\.data\)/);
 });

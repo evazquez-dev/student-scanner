@@ -13,6 +13,11 @@ const accessRoute = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/sr
 const adminSessionService = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/services/admin-session.js'), 'utf8');
 const accessService = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/services/access-management.js'), 'utf8');
 
+// EAGLENEST_PHONE_PASS_ACCESS_CONTROL_AUTHORITY_V1
+// Phone Pass route authorization is now driven by the effective Access Control
+// capabilities on base.data. Legacy allowlists remain inherited/default sources
+// inside admin-session/access-policy, not a second route-level authorization gate.
+
 test('all operational Phone Pass paths are intercepted before legacy fallback', () => {
   for (const endpoint of ['options','context','mine','active','grant','send_to_return','return']) {
     assert.match(route, new RegExp(`/admin/phone_pass/${endpoint.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}`));
@@ -27,16 +32,18 @@ test('Phone Pass writes retain origin and View-as mutation guards', () => {
   assert.match(route, /const guard = mutationGuard\(req, env, base\.response, base\.data\)/);
 });
 
-test('shared Teacher Attendance permissions and Ops-only final return are preserved', () => {
+test('shared Teacher Attendance permissions and Access-Control-authoritative final return are preserved', () => {
   assert.match(route, /requestSource === 'teacher_attendance'/);
   assert.match(route, /viaTeacherAttendance/);
   assert.match(route, /viaPhonePassPage/);
-  assert.match(route, /canGrantPhonePass\(env, who\.email\)/);
+  assert.match(route, /hasCapability\(base\.data, 'phone_pass_grant'\)/);
   assert.match(route, /phone_out_by_email/);
   assert.match(route, /phone_pass_send_back_not_owner/);
-  assert.match(route, /canReturnPhonePass\(env, who\.email\)/);
+  assert.match(route, /hasCapability\(base\.data, 'phone_pass_return'\)/);
   assert.match(route, /error: 'hallway_monitor_forbidden'/);
   assert.match(route, /context[\s\S]{0,650}any authenticated staff member/);
+  assert.doesNotMatch(route, /canGrantPhonePass\(env, who\.email\)/);
+  assert.doesNotMatch(route, /canReturnPhonePass\(env, who\.email\)/);
 });
 
 test('Practice mode uses isolated StudentLocation, log buffer, audit, and scan records', () => {
@@ -57,7 +64,7 @@ test('phone return notifications use the extracted shared push service and remai
 
 test('legacy Phone Pass operational implementation is removed after verified smoke', () => {
   for (const endpoint of ['options','context','mine','active','grant','send_to_return','return']) {
-    assert.doesNotMatch(worker, new RegExp(`path === \"\\/admin\\/phone_pass\\/${endpoint}\"`));
+    assert.doesNotMatch(worker, new RegExp(`path === "\\/admin\\/phone_pass\\/${endpoint}"`));
   }
   for (const helper of [
     'notifyPhoneReturnRequestedToOps_',
