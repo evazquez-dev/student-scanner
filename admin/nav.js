@@ -687,6 +687,47 @@
 
     for (const section of sections) appendSection(section);
 
+    // EAGLENEST_GLOBAL_SEARCH_V1
+    // Reuse the exact access-filtered page model already used by the shared nav.
+    // Student and View As searches stay on their existing authenticated endpoints.
+    const globalSearchPages = sections.flatMap((section) =>
+      section.items
+        .filter(visibleByAccess)
+        .map((it) => ({
+          key: it.key,
+          label: it.label,
+          href: it.href,
+          description: it.description || '',
+          section: section.title
+        }))
+    );
+    window.EAGLENEST_GLOBAL_SEARCH_CONTEXT = {
+      brand: BRAND,
+      access,
+      pages: globalSearchPages,
+      adminFetch
+    };
+
+    if (!document.getElementById('eaglenestGlobalSearchStyle')) {
+      const style = document.createElement('link');
+      style.id = 'eaglenestGlobalSearchStyle';
+      style.rel = 'stylesheet';
+      style.href = './global_search.css?v=20261007-v1';
+      document.head.appendChild(style);
+    }
+
+    if (!document.getElementById('eaglenestGlobalSearchScript')) {
+      const script = document.createElement('script');
+      script.id = 'eaglenestGlobalSearchScript';
+      script.src = './global_search.js?v=20261007-v1';
+      script.addEventListener('load', () => {
+        window.EAGLENEST_GLOBAL_SEARCH?.mount?.(window.EAGLENEST_GLOBAL_SEARCH_CONTEXT);
+      });
+      document.head.appendChild(script);
+    } else {
+      window.EAGLENEST_GLOBAL_SEARCH?.mount?.(window.EAGLENEST_GLOBAL_SEARCH_CONTEXT);
+    }
+
     // ===== Collapsible external links =====
     const externalLinks = Array.isArray(access?.external_links) ? access.external_links : [];
     const safeExternalLinks = externalLinks.filter((item) => {
