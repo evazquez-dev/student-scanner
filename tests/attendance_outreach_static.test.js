@@ -32,5 +32,7 @@ test('Attendance Outreach reuses existing Contacts and Communications writes', (
 test('Attendance Outreach has a modular Worker route and does not write PowerSchool attendance', () => {
   assert.match(index, /ATTENDANCE_OUTREACH_PATHS/);
   assert.match(index, /handleAttendanceOutreachRequest/);
-  assert.doesNotMatch(js, /attendance_change|excused_apply|PowerSchool/i);
+  assert.doesNotMatch(js, /attendance_change|excused_apply/i);
+  assert.match(js, /student_status/);
+  assert.match(js, /powerschool/i);
 });

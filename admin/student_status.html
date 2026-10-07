@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="./shared_auth.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./student_status.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script src="./student_status.js" defer></script>
+  <title>EagleNEST — Daily Suspensions</title>
+</head>
+<body data-module="student_status">
+  <main class="ssShell">
+    <section id="loginCard" class="ssCard loginCard" hidden>
+      <h1>Daily Suspensions</h1>
+      <p>Sign in with your school Google account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut">—</pre>
+    </section>
+
+    <div id="app" hidden>
+      <header class="ssHero">
+        <div>
+          <div class="eyebrow">ATTENDANCE / DAILY STATUS</div>
+          <h1>Daily Suspensions</h1>
+          <p>Record a single-day temporary ISS/OSS flag so EagleNEST knows what the office already knows. <strong>PowerSchool remains the official record.</strong></p>
+        </div>
+        <div class="heroActions">
+          <a class="btn" href="./attendance_outreach.html">Attendance Outreach</a>
+          <button id="refreshPsBtn" class="btn primary" type="button">Refresh PowerSchool</button>
+        </div>
+      </header>
+
+      <section id="modeBanner" class="banner warn" hidden></section>
+      <section id="errorBanner" class="banner bad" hidden></section>
+      <section id="successBanner" class="banner good" hidden></section>
+
+      <section class="ssCard truthCard">
+        <div class="truthIcon">PS</div>
+        <div>
+          <strong>PowerSchool is the source of truth.</strong>
+          <p>EagleNEST entries on this page are temporary, date-specific operational flags only. They do <b>not</b> write ISS or OSS into PowerSchool. Enter the corresponding daily attendance code in PowerSchool as well.</p>
+        </div>
+      </section>
+
+      <section class="ssGrid">
+        <section class="ssCard entryCard">
+          <div class="sectionHead">
+            <div>
+              <div class="eyebrow">ADD ONE DAY</div>
+              <h2>Record ISS / OSS</h2>
+            </div>
+          </div>
+
+          <label class="field">School date
+            <input id="statusDate" type="date" required>
+          </label>
+
+          <label class="field">Student
+            <div class="studentSearchWrap">
+              <input id="studentSearch" type="search" autocomplete="off" placeholder="Search name or OSIS…">
+              <div id="studentResults" class="studentResults" hidden></div>
+            </div>
+          </label>
+          <div id="selectedStudent" class="selectedStudent muted">No student selected.</div>
+
+          <label class="field">Daily status
+            <select id="statusType" required>
+              <option value="">Select…</option>
+              <option value="iss">ISS — In-School Suspension</option>
+              <option value="oss">OSS — Out-of-School Suspension</option>
+            </select>
+          </label>
+
+          <label class="field">Note <span class="muted">(optional)</span>
+            <textarea id="statusNote" rows="3" maxlength="1000" placeholder="Optional context for EagleNEST staff…"></textarea>
+          </label>
+
+          <label class="ackRow">
+            <input id="psAck" type="checkbox">
+            <span><strong>I understand this must also be entered in PowerSchool.</strong><br><small>EagleNEST will not create or modify the PowerSchool attendance code.</small></span>
+          </label>
+
+          <button id="saveStatusBtn" class="btn primary full" type="button" disabled>Save Daily Status</button>
+        </section>
+
+        <section class="ssCard summaryCard">
+          <div class="sectionHead">
+            <div>
+              <div class="eyebrow">SELECTED DATE</div>
+              <h2 id="summaryDate">—</h2>
+            </div>
+            <span id="psHealth" class="pill neutral">PowerSchool: checking…</span>
+          </div>
+          <div class="metricGrid">
+            <div class="metric"><strong id="countIss">0</strong><span>ISS</span></div>
+            <div class="metric"><strong id="countOss">0</strong><span>OSS</span></div>
+            <div class="metric pending"><strong id="countPending">0</strong><span>Needs PS entry</span></div>
+            <div class="metric"><strong id="countConfirmed">0</strong><span>Confirmed in PS</span></div>
+          </div>
+          <p class="muted" id="psMeta">—</p>
+          <div class="legend">
+            <span><i class="dot ps"></i> PowerSchool confirmed</span>
+            <span><i class="dot pending"></i> EagleNEST temporary / PowerSchool pending</span>
+          </div>
+        </section>
+      </section>
+
+      <section class="ssCard listCard">
+        <div class="sectionHead listHead">
+          <div>
+            <div class="eyebrow">DAILY STATUS</div>
+            <h2>ISS / OSS Students</h2>
+          </div>
+          <div class="listTools">
+            <select id="listFilter" aria-label="Filter daily suspension status">
+              <option value="all">All</option>
+              <option value="pending">Needs PowerSchool Entry</option>
+              <option value="confirmed">Confirmed in PowerSchool</option>
+              <option value="iss">ISS</option>
+              <option value="oss">OSS</option>
+            </select>
+            <input id="listSearch" type="search" placeholder="Filter student or OSIS…">
+          </div>
+        </div>
+        <div class="tableWrap">
+          <table>
+            <thead><tr><th>Student</th><th>Effective Status</th><th>PowerSchool</th><th>EagleNEST Temporary</th><th>Entered By</th><th>Action</th></tr></thead>
+            <tbody id="statusRows"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <p class="muted tableNote">Removing an EagleNEST temporary flag never changes PowerSchool. If PowerSchool already contains ISS/OSS, the row remains because PowerSchool is authoritative.</p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

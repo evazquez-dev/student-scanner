@@ -40,6 +40,7 @@
         </div>
         <div class="headActions">
           <a class="btn" href="./attendance_status.html">Attendance Status</a>
+          <a class="btn" href="./student_status.html">Daily Suspensions</a>
           <a id="communicationsLink" class="btn" href="./communications.html?scope=school">Communications</a>
           <button id="refreshBtn" class="btn primary" type="button">Refresh Queue</button>
         </div>
@@ -89,6 +90,7 @@
               <option value="contacted">Contacted</option>
               <option value="verified">Verified</option>
               <option value="confirmed">Morning Scan</option>
+              <option value="suspended">OSS / Not Expected</option>
               <option value="all">All Students</option>
             </select>
             <input id="searchInput" type="search" placeholder="Search student, OSIS, grade…" autocomplete="off">
@@ -96,7 +98,7 @@
         </div>
 
         <div class="ruleNote">
-          <strong>Queue rule:</strong> no morning-entry scan + no physical evidence today → <b>Needs Call</b>. No morning-entry scan + another scan/location evidence today → <b>Needs Verification</b>. Logging an Attendance communication moves the student to <b>Contacted</b>.
+          <strong>Queue rule:</strong> no morning-entry scan + no physical evidence today → <b>Needs Call</b>. No morning-entry scan + another scan/location evidence today → <b>Needs Verification</b>. Logging an Attendance communication moves the student to <b>Contacted</b>. <b>OSS daily status</b> suppresses outreach as Not Expected; <b>ISS</b> remains expected on campus and keeps the normal outreach workflow. PowerSchool is authoritative.
         </div>
 
         <div class="tableWrap">

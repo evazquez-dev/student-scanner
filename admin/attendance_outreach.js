@@ -223,8 +223,20 @@ function statusLabel(status) {
     needs_verification:'Needs Verification',
     contacted:'Contacted',
     verified:'Verified',
-    confirmed:'Morning Scan'
+    confirmed:'Morning Scan',
+    suspended:'OSS · Not Expected' // EAGLENEST_DAILY_STUDENT_STATUS_V1
   })[status] || status || '—';
+}
+
+function studentStatusMarkup(row) {
+  const info = row?.student_status || null;
+  const kind = String(info?.effective_status || '').toLowerCase();
+  if (!['iss','oss'].includes(kind)) return '';
+  const source = info?.source === 'powerschool' ? 'PowerSchool' : 'PowerSchool pending';
+  const pending = info?.pending_powerschool === true ? ' · needs PS entry' : '';
+  const current = info?.powerschool?.detail_code && !['iss','oss'].includes(String(info.powerschool.detail_code).toLowerCase())
+    ? ` · PS currently ${String(info.powerschool.code_label || info.powerschool.detail_code)}` : '';
+  return `<div class="studentStatusLine"><span class="studentStatus ${esc(kind)}">${esc(kind.toUpperCase())}</span><span>${esc(source + pending + current)}</span></div>`;
 }
 
 function evidenceMarkup(row) {
@@ -260,6 +272,7 @@ function contactsHref(row) {
 
 function actionMarkup(row) {
   if (ACCESS?.view_as?.active) return '<span class="muted">Read only</span>';
+  if (row.status === 'suspended') return `<a class="btn" href="${esc(studentLookupHref(row))}">Student</a>`; // EAGLENEST_DAILY_STUDENT_STATUS_V1
   if (row.status === 'needs_call') {
     return `<button class="primary callBtn" type="button" data-osis="${esc(row.osis)}">Call / Log</button>`;
   }
@@ -306,14 +319,14 @@ function renderQueue() {
     queueBody.innerHTML = rows.map((row) => `
       <tr data-osis="${esc(row.osis)}">
         <td><a class="studentLink" href="${esc(studentLookupHref(row))}">${esc(row.name || row.osis)}</a><div class="subline">Grade ${esc(row.grade || '—')} · ${esc(row.osis)}</div></td>
-        <td><span class="status ${esc(row.status)}">${esc(statusLabel(row.status))}</span>${row.verification?.corrected_when_iso ? `<div class="subline">Daily attendance: ${esc(fmtTime(row.verification.corrected_when_iso))}</div>` : ''}${row.verification?.note ? `<div class="subline">${esc(row.verification.note)}</div>` : ''}</td>
+        <td><span class="status ${esc(row.status)}">${esc(statusLabel(row.status))}</span>${studentStatusMarkup(row)}${row.verification?.corrected_when_iso ? `<div class="subline">Daily attendance: ${esc(fmtTime(row.verification.corrected_when_iso))}</div>` : ''}${row.verification?.note ? `<div class="subline">${esc(row.verification.note)}</div>` : ''}</td>
         <td>${evidenceMarkup(row)}</td>
         <td><strong>${esc(row.current_location || '—')}</strong><div class="subline">${esc(row.current_zone || '')}</div></td>
         <td>${communicationMarkup(row)}</td>
         <td><div class="rowActions">${actionMarkup(row)}</div></td>
       </tr>`).join('');
   }
-  queueMeta.textContent = `Showing ${rows.length} of ${Number(summary.total || 0)} students · ${Number(summary.needs_action || 0)} need action.`;
+  queueMeta.textContent = `Showing ${rows.length} of ${Number(summary.total || 0)} students · ${Number(summary.needs_action || 0)} need action · ${Number(summary.suspended || 0)} suspended / not expected.`; // EAGLENEST_DAILY_STUDENT_STATUS_V1
   bindRowActions();
 }
 

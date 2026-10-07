@@ -13,6 +13,7 @@
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
     attendance_outreach: 'Attendance Outreach',
+    student_status: 'Daily Suspensions', // EAGLENEST_DAILY_STUDENT_STATUS_V1
     senior_lunch_audit: 'Senior Lunch Audit',
     recess_eligibility: 'Recess Eligibility', // EAGLENEST_RECESS_NAV_ACCESS_V1
     student_scans: 'Student Scan Report',

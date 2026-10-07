@@ -29,6 +29,7 @@
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
     attendance_outreach: 'Attendance Outreach',
+    student_status: 'Daily Suspensions', // EAGLENEST_DAILY_STUDENT_STATUS_V1
     outside_lunch: 'Outside Lunch Eligibility', // EAGLENEST_OUTSIDE_LUNCH_V1
     recess_eligibility: 'Recess Eligibility', // EAGLENEST_RECESS_OUTIN_V1
     student_scans: 'Student Scan Report',
@@ -512,6 +513,7 @@
           { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', description:'Class attendance and roster actions' },
           { key:'attendance_status', label: MODULES.attendance_status || 'Attendance Status', href:'./attendance_status.html', description:'Period attendance audit and status' },
           { key:'attendance_outreach', label: MODULES.attendance_outreach || 'Attendance Outreach', href:'./attendance_outreach.html', description:'Morning absence and late outreach' },
+          { key:'student_status', access_key:'attendance_outreach', label: MODULES.student_status || 'Daily Suspensions', href:'./student_status.html', description:'Single-day ISS/OSS operational flags reconciled against live PowerSchool' }, // EAGLENEST_DAILY_STUDENT_STATUS_V1
           { key:'attendance_change', label: MODULES.attendance_change || MODULES.excused_apply || 'Attendance Corrections', href:'./attendance_change.html', description:'Bulk attendance-code corrections' },
           { key:'coverage_planner', label: MODULES.coverage_planner || 'Coverage Planner', href:'./coverage_planner.html', description:"Today's staff coverage gaps" },
         ]
@@ -609,6 +611,8 @@
     const visibleByAccess = (it) => {
       const can = access?.can || {};
       if (Object.prototype.hasOwnProperty.call(can, it.key)) return can[it.key] === true;
+      const accessKey = it.access_key || it.key; // EAGLENEST_DAILY_STUDENT_STATUS_V1
+      if (accessKey !== it.key && Object.prototype.hasOwnProperty.call(can, accessKey)) return can[accessKey] === true;
       return !!(
         (it.key === 'gradebook_analytics' && can.grades) ||
         (it.key === 'conference_scheduler' && can.student_contacts) ||
