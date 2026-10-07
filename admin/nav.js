@@ -40,6 +40,7 @@
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
     counselor_dashboard: 'Counselor Dashboard', // EAGLENEST_COUNSELOR_DASHBOARD_V1
+    dean_dashboard: 'Dean Dashboard', // EAGLENEST_DEAN_DASHBOARD_V1
     conference_scheduler: 'Student & Family Conferences', // EAGLENEST_FAMILY_CONFERENCES_V1
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',
@@ -91,6 +92,7 @@
     'student_scans_admin_session_v1',
     'conference_scheduler_admin_session_v1', // EAGLENEST_FAMILY_CONFERENCES_V1
     'counselor_dashboard_admin_session_v1', // EAGLENEST_COUNSELOR_DASHBOARD_V1
+    'dean_dashboard_admin_session_v1', // EAGLENEST_DEAN_DASHBOARD_V1
     'mtss_admin_session_v1', // EAGLENEST_MTSS_V1_NAV_SESSION
     'communications_admin_session_v1',
     'coverage_planner_admin_session_v1',
@@ -409,6 +411,7 @@
           student_view: isSuperAdmin,
           student_contacts: true,
           counselor_dashboard: isSuperAdmin, // EAGLENEST_COUNSELOR_DASHBOARD_V1
+          dean_dashboard: isAdminLike, // EAGLENEST_DEAN_DASHBOARD_V1
           contact_review: isAdminLike,
           incident_creator: true,
           notifications: true,
@@ -539,6 +542,7 @@
         title: 'Support & Culture',
         items: [
           { key:'counselor_dashboard', label: MODULES.counselor_dashboard || 'Counselor Dashboard', href:'./counselor_dashboard.html', description:'Counselor notes and follow-ups' },
+          { key:'dean_dashboard', label: MODULES.dean_dashboard || 'Dean Dashboard', href:'./dean_dashboard.html', description:'Scoped behavior, attendance, incidents, MTSS and Dean follow-ups' }, // EAGLENEST_DEAN_DASHBOARD_V1
           { key:'mtss', label: MODULES.mtss || 'MTSS Case Management', href:'./mtss.html', description:'MTSS tiers, cases and interventions' },
           { key:'supervised_lunch', label: MODULES.supervised_lunch || 'Supervised Lunch', href:'./supervised_lunch.html', description:'Supervised lunch assignments' },
           { key:'reflection_hold', label: MODULES.reflection_hold || 'Reflection Hold', href:'./reflection_hold.html', description:'After-school reflection holds' },

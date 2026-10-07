@@ -23,6 +23,7 @@
     coverage_planner: 'Coverage Planner',
     student_contacts: 'Student Contacts',
     counselor_dashboard: 'Counselor Dashboard', // EAGLENEST_COUNSELOR_DASHBOARD_V1
+    dean_dashboard: 'Dean Dashboard', // EAGLENEST_DEAN_DASHBOARD_V1
     conference_scheduler: 'Student & Family Conferences', // EAGLENEST_FAMILY_CONFERENCES_V1
     contact_review: 'Contact Correction Review',
     hallway: 'Hallway Monitor',

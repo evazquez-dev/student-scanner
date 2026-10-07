@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <title>EagleNEST — Dean Dashboard</title>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./dean_dashboard.css?v=20261007-dean-v1">
+  <script src="./shared_auth.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./brand.js"></script>
+  <script src="./nav.js" defer></script>
+  <script src="./dean_dashboard.js?v=20261007-dean-v1" defer></script>
+</head>
+<body data-module="dean_dashboard">
+  <main class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h1 data-brand-title>EagleNEST — Dean Dashboard</h1>
+      <p class="muted">Behavior, attendance, incidents, MTSS context, and Dean follow-ups in one place.</p>
+      <div id="g_id_signin"></div><div id="loginOut" class="status"></div>
+    </section>
+
+    <section id="app" hidden>
+      <header class="card hero">
+        <div>
+          <h1>Dean Dashboard</h1>
+          <p class="muted">Student culture · behavior & attendance</p>
+          <div id="scopeText" class="scopeText">Loading scope…</div>
+        </div>
+        <div class="toolbar">
+          <button id="manageScopeBtn" hidden>Manage Dean Assignments</button>
+          <button id="refreshBtn">Refresh</button>
+        </div>
+      </header>
+
+      <div id="practiceBanner" class="banner warn" hidden>Practice Mode is active. Dean intervention records are read-only.</div>
+      <div id="statusOut" class="status"></div>
+
+      <section class="card filters">
+        <label>Window
+          <select id="preset">
+            <option value="marking_period">Current marking period</option>
+            <option value="last_5_school_days">Last 5 completed school days</option>
+            <option value="last_10_school_days">Last 10 completed school days</option>
+            <option value="ytd">School year to date</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label id="startWrap" hidden>Start<input id="startDate" type="date"></label>
+        <label id="endWrap" hidden>End<input id="endDate" type="date"></label>
+        <label>Grade<select id="gradeFilter"><option value="">All scoped grades</option></select></label>
+        <label>Focus<select id="focusFilter"><option value="">All concerns</option><option value="attendance">Attendance</option><option value="behavior">Behavior</option><option value="incident">Open incident</option><option value="mtss">MTSS</option><option value="suspension">ISS / OSS</option><option value="followup">Dean follow-up</option></select></label>
+        <label class="search">Search<input id="searchInput" type="search" placeholder="Student name or OSIS"></label>
+        <button id="applyBtn" class="primary">Apply</button>
+      </section>
+
+      <section id="kpis" class="kpis"></section>
+
+      <section class="grid">
+        <section class="card span8">
+          <div class="sectionHead"><div><h2>Students requiring attention</h2><p class="muted small">Explicit reasons only — no hidden discipline score.</p></div><span id="queueCount" class="pill"></span></div>
+          <div id="queue" class="studentList"><div class="empty">Loading…</div></div>
+        </section>
+        <section class="card span4">
+          <div class="sectionHead"><div><h2>Open Dean follow-ups</h2><p class="muted small">Due and overdue actions in your scope.</p></div></div>
+          <div id="followups" class="stack"><div class="empty">Loading…</div></div>
+        </section>
+      </section>
+
+      <section id="studentPanel" class="card studentPanel" hidden>
+        <div class="sectionHead">
+          <div><button id="closeStudentBtn" class="linkBtn">← Dashboard</button><h2 id="studentTitle">Student</h2><div id="studentMeta" class="muted"></div></div>
+          <div class="toolbar"><button id="studentLookupBtn">Student Lookup</button><button id="newInterventionBtn" class="primary">Add Dean Intervention</button></div>
+        </div>
+        <div id="studentStats" class="studentStats"></div>
+        <div class="studentGrid">
+          <section><h3>Attendance</h3><div id="attendanceDetail" class="stack"></div></section>
+          <section><h3>Behavior & incidents</h3><div id="behaviorDetail" class="stack"></div></section>
+          <section><h3>MTSS / suspension</h3><div id="supportDetail" class="stack"></div></section>
+          <section><h3>Dean timeline</h3><div id="deanTimeline" class="stack"></div></section>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <div id="interventionModal" class="modalBackdrop" hidden>
+    <section class="modal card" role="dialog" aria-modal="true">
+      <div class="sectionHead"><div><h2>Add Dean Intervention</h2><div id="interventionStudent" class="muted small"></div></div><button id="closeInterventionBtn">Close</button></div>
+      <div class="formGrid">
+        <label>Domain<select id="intDomain"><option value="behavior">Behavior</option><option value="attendance">Attendance</option><option value="both">Both</option></select></label>
+        <label>Intervention<select id="intType"></select></label>
+        <label>Date & time<input id="intWhen" type="datetime-local"></label>
+        <label class="wide">Note<textarea id="intNote" rows="5" maxlength="8000" placeholder="What occurred, action taken, student response, next step…"></textarea></label>
+        <label class="check wide"><input id="intFollow" type="checkbox"> Follow-up needed</label>
+        <label id="intDueWrap" hidden>Follow-up due<input id="intDue" type="date"></label>
+      </div>
+      <div id="intStatus" class="status"></div>
+      <div class="toolbar end"><button id="saveInterventionBtn" class="primary">Save intervention</button></div>
+    </section>
+  </div>
+
+  <div id="scopeModal" class="modalBackdrop" hidden>
+    <section class="modal wide card" role="dialog" aria-modal="true">
+      <div class="sectionHead"><div><h2>Manage Dean Assignments</h2><p class="muted small">This controls only the Dean Dashboard scope. Existing EagleNEST Admin access is unchanged.</p></div><button id="closeScopeBtn">Close</button></div>
+      <div class="scopeGrid">
+        <section>
+          <label>Dean<select id="scopeDean"><option value="">Choose staff…</option></select></label>
+          <fieldset><legend>Assigned grades</legend><div id="gradeChecks" class="gradeChecks"></div></fieldset>
+          <label>Individually assigned student OSIS<textarea id="scopeStudents" rows="6" placeholder="One OSIS per line, or comma-separated"></textarea></label>
+          <div class="toolbar"><button id="saveScopeBtn" class="primary">Save assignment</button><button id="deleteScopeBtn" class="danger">Remove assignment</button></div>
+          <div id="scopeStatus" class="status"></div>
+        </section>
+        <section><h3>Current Dean assignments</h3><div id="scopeList" class="stack"></div></section>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

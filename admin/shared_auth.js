@@ -14,6 +14,7 @@
   "communications_admin_session_v1",
   "conference_scheduler_admin_session_v1",
   "counselor_dashboard_admin_session_v1",
+  "dean_dashboard_admin_session_v1", // EAGLENEST_DEAN_DASHBOARD_V1
   "coverage_planner_admin_session_v1",
   "dreamer_of_week_admin_session_v1",
   "early_dismissal_admin_session_v1",
