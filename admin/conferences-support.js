@@ -46,7 +46,7 @@
     </div>
     <div class="fascSupportColumns">
       <section class="card"><div class="fascSupportHead"><div><h2>Family requests</h2><p class="muted small">Unclaimed check-ins, assigned visits, and completed meetings</p></div>
-        <label class="fascSupportFilter">View<select id="fascSupportFilter"><option value="waiting">Waiting / in progress</option><option value="mine">Assigned to me</option><option value="followup">My case follow-up flags</option><option value="all">All requests</option></select></label></div>
+        <label class="fascSupportFilter">View<select id="fascSupportFilter"><option value="waiting">Waiting / in progress</option><option value="mine">Assigned to me</option><option value="followup">My case follow-up flags</option><option value="all">All requests</option><option value="no_show">No-shows / late arrivals</option></select></label></div>
         <div id="fascSupportQueue" class="fascSupportQueue"></div></section>
       <section class="card"><h2>Support conversation</h2><div id="fascSupportCase"><p class="muted">Choose a family request or check in a student.</p></div></section>
     </div>
@@ -92,7 +92,7 @@
   function renderMetrics(){const rows=state.rows,counts=[['Waiting',rows.filter(x=>x.status==='waiting').length],['Meeting',rows.filter(x=>x.status==='in_progress').length],['Finished',rows.filter(x=>x.status==='completed').length],['Priority today',rows.filter(x=>x.priority==='today'&&!['completed','no_show'].includes(x.status)).length]];
     $('fascSupportMetrics').innerHTML=counts.map(([label,value])=>`<div class="fascSupportMetric"><strong>${value}</strong><span>${esc(label)}</span></div>`).join('');}
   function drawQueue(){const root=$('fascSupportQueue');if(!root)return;const f=$('fascSupportFilter').value;
-    const rows=state.rows.filter(r=>f==='all'||f==='mine'&&r.assigned_email===ownEmail()||f==='followup'&&r.assigned_email===ownEmail()&&r.follow_up_needed||f==='waiting'&&['waiting','in_progress'].includes(r.status));
+    const rows=state.rows.filter(r=>f==='all'||f==='mine'&&r.assigned_email===ownEmail()||f==='followup'&&r.assigned_email===ownEmail()&&r.follow_up_needed||f==='waiting'&&['waiting','in_progress'].includes(r.status)||f==='no_show'&&r.status==='no_show'); // EAGLENEST_FASC_REOPEN_NO_SHOW_V7
     rows.sort((a,b)=>Number(b.priority==='today')-Number(a.priority==='today')||Number(a.status==='in_progress')-Number(b.status==='in_progress')||String(a.created_at_iso).localeCompare(String(b.created_at_iso)));
     if(!rows.length){root.innerHTML='<p class="muted">No requests match this filter.</p>';return;}
     root.innerHTML=rows.map(r=>`<button type="button" data-intake="${esc(r.intake_id)}" class="fascSupportItem ${state.selectedId===r.intake_id?'selected':''}">
@@ -112,7 +112,7 @@
       ${isOwner?`<div class="fascSupportDetail"><label>Operational next step (no counseling/clinical notes)<textarea id="fascSupportNextStep" maxlength="500" rows="3" ${ongoing?'':'disabled'} placeholder="e.g. Call guardian tomorrow; connect family with attendance team">${esc(r.next_step||'')}</textarea></label>
        <label class="fascSupportCheckbox"><input id="fascSupportFollowup" type="checkbox" ${r.follow_up_needed?'checked':''} ${ongoing?'':'disabled'}> Personal case follow-up flag (assign a team below)</label>
        <label>Target follow-up date<input id="fascSupportDue" type="date" value="${esc(r.follow_up_on||'')}" ${ongoing?'':'disabled'}></label></div>
-       ${ongoing?`<div class="fascSupportActions"><button data-action="save">Save next step</button>${r.status==='waiting'?'<button data-action="start" class="primary">Start meeting</button>':''}<button data-action="complete" class="primary">Finish conversation</button><button data-action="no_show">No show</button>${r.status==='waiting'&&!r.next_step&&!r.follow_up_needed?'<button data-action="release">Return to shared queue</button>':''}</div>`:'<p class="muted small">This request is closed. Next steps are preserved for the assigned staff member.</p>'}`:''}
+       ${isOwner&&r.status==='no_show'?'<div class="fascSupportActions"><button data-action="reopen" class="primary" type="button">Reopen — family arrived late</button></div>':''}${ongoing?`<div class="fascSupportActions"><button data-action="save">Save next step</button>${r.status==='waiting'?'<button data-action="start" class="primary">Start meeting</button>':''}<button data-action="complete" class="primary">Finish conversation</button><button data-action="no_show">No show</button>${r.status==='waiting'&&!r.next_step&&!r.follow_up_needed?'<button data-action="release">Return to shared queue</button>':''}</div>`:'<p class="muted small">This request is closed. Next steps are preserved for the assigned staff member.</p>'}`:''}
       ${state.manageable&&!isOwner&&!canClaim?'<p class="muted small">This case is assigned to another staff member. Private follow-up details are not shared here.</p>':''}
       <div id="fascSupportCaseStatus" role="status" class="fascLiveStatus"></div>`;
   }
@@ -120,6 +120,7 @@
   async function onCaseAction(e){const btn=e.target.closest('button[data-action]');if(!btn)return;const r=byId();if(!r)return;const action=btn.dataset.action;
     if(action==='release'&&!confirm('Return this untouched request to the shared queue?'))return;
     if(['complete','no_show'].includes(action)&&!confirm(`Mark ${r.student_name} ${action==='complete'?'completed':'no-show'}?`))return;
+    if(action==='reopen'&&!confirm(`Reopen ${r.student_name}'s no-show because the family arrived late? The case returns to the waiting queue.`))return;
     btn.disabled=true;note('Saving…');
     const body={event_id:eventId(),intake_id:r.intake_id,action};
     if(!['claim','release'].includes(action)){
@@ -127,7 +128,7 @@
       body.follow_up_needed=$('fascSupportFollowup')?.checked===true;
       body.follow_up_on=body.follow_up_needed?$('fascSupportDue')?.value||'':'';
     }
-    try{await api('/admin/conferences/support/save',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});state.dirty=false;await refresh(true);}
+    try{await api('/admin/conferences/support/save',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});state.dirty=false;if(action==='reopen')$('fascSupportFilter').value='waiting';await refresh(true);if(action==='reopen')announce('No-show reopened. The family is back in the waiting queue.','ok');}
     catch(error){note(`Not saved: ${error.message}`,'error');btn.disabled=false;}
   }
   async function search(){const q=$('fascSupportSearch')?.value.trim()||'',seq=++state.studentSeq,out=$('fascSupportSearchResults');

@@ -30,13 +30,7 @@ assert.match(route, /const canViewAllConferenceLanes = isAdmin \|\| bookingProxy
 assert.match(route, /listedEvents\.filter\(\(event\) => String\(event\?\.status \|\| ''\) === 'active'\)/);
 assert.match(route, /createConferenceBooking\(env, bookingInput, actorEmail, isAdmin \|\| bookingProxy\)/);
 assert.match(route, /conference_booking_desk_cancel_only/);
-// EAGLENEST_FASC_V7_TEST_FIX: office can cancel OR restore an actual no-show;
-// it must not gain permission to complete, mark no-show, or modify unrelated statuses.
-assert.match(route, /if \(bookingProxy && !\['cancelled','reopen'\]\.includes\(String\(body\?\.status \|\| ''\)\)\)/);
-const bookingService = read('cf-redcake/red-cake-77d5/src/services/family-conferences.js');
-assert.match(bookingService, /if \(nextStatus === 'reopen'\)/);
-assert.match(bookingService, /booking\.status !== 'no_show'/);
-assert.match(bookingService, /conference_reopen_slot_no_longer_reserved/);
+assert.match(route, /String\(body\?\.status \|\| ''\) !== 'cancelled'/);
 assert.match(route, /studentLookupBookingProxy/);
 assert.match(route, /validateStudentConferenceAdvisorSlot/);
 
