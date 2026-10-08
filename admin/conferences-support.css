@@ -1,0 +1,27 @@
+/* EAGLENEST_FASC_SUPPORT_DESK_V3 — theme-aware day-of-conferences support workspace */
+body[data-fasc-live-mode="support"] #app>:not(.pageHead):not(#fascLiveTabs):not(#fascSupportRoot){display:none!important}
+body:not([data-fasc-live-mode="support"]) #fascSupportRoot{display:none!important}
+#fascTabSupport[hidden]{display:none!important}
+#fascTabSupport[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:#fff}
+.fascSupportRoot{display:grid;gap:16px}
+.fascSupportRoot h2,.fascSupportRoot h3{margin:0}
+.fascSupportHead{display:flex;justify-content:space-between;align-items:start;gap:14px;flex-wrap:wrap}
+.fascSupportMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+.fascSupportMetric{padding:13px;border-radius:11px;border:1px solid var(--line);background:var(--card2);display:grid;gap:3px}
+.fascSupportMetric strong{font-size:1.6rem}.fascSupportMetric span{color:var(--muted);font-size:.83rem}
+.fascSupportPrivacy{border:1px solid var(--line);background:var(--card2);padding:10px 12px;border-radius:10px;color:var(--muted);font-size:.86rem}
+.fascSupportColumns{display:grid;grid-template-columns:minmax(320px,1.1fr) minmax(330px,1fr);gap:16px;align-items:start}
+.fascSupportQueue{display:grid;gap:8px;margin-top:12px;max-height:70vh;overflow-y:auto}
+.fascSupportItem{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;font-weight:400;padding:13px;background:var(--card2)}
+.fascSupportItem.selected{border-color:var(--accent);outline:1px solid var(--accent)}
+.fascSupportItem strong,.fascSupportItem small{display:block}.fascSupportItem small{color:var(--muted);font-size:.79rem;margin-top:5px;overflow-wrap:anywhere}
+.fascSupportItemEnd{text-align:right;max-width:45%;overflow-wrap:anywhere}.fascSupportStatusTag{display:inline-block;border-radius:999px;border:1px solid var(--line);padding:4px 8px;font-size:.77rem}
+.fascSupportPriority{color:var(--warn)!important;font-weight:750}
+.fascSupportCaseHead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.fascSupportLinks,.fascSupportActions,.fascSupportFooter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.fascSupportLinks a{color:var(--accent);font-weight:650}.fascSupportDetail{display:grid;gap:12px;margin-top:18px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--card2)}
+.fascSupportCheckbox{display:flex;align-items:center;gap:8px}.fascSupportCheckbox input{width:auto}
+.fascSupportFilter{min-width:180px;max-width:250px}.fascSupportFormGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.fascSupportSearchResults{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;max-height:160px;overflow-y:auto}.fascSupportSearchResults button{font-size:.86rem;font-weight:500;text-align:left}.fascSupportFooter{justify-content:space-between}
+@media(max-width:930px){.fascSupportColumns{grid-template-columns:1fr}}
+@media(max-width:610px){.fascSupportMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.fascSupportFormGrid{grid-template-columns:1fr}}
