@@ -7,7 +7,7 @@
   const $=id=>document.getElementById(id);
   const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const POLL=30000;
-  const state={event:'',items:[],staff:[],available:false,busy:false,loadingStaff:false,lastError:'',drafts:new Map(),seq:0};
+  const state={event:'',items:[],staff:[],available:false,busy:false,loadingStaff:false,lastError:'',drafts:new Map(),scopedStaff:new Map(),loadingScoped:new Set(),seq:0}; // EAGLENEST_FASC_FOLLOWUP_STUDENT_SUGGESTIONS_V5
   const eventId=()=>String(bundle?.event?.event_id||'');
   const me=()=>String(access?.email||'').toLowerCase();
   const liveCtx=()=>window.EagleNESTFaSCLiveHub?.getFollowupContext?.()||null;
@@ -56,7 +56,7 @@
   async function refresh(force=false){
     const id=eventId();if(!id||state.busy)return;
     state.busy=true;const seq=++state.seq;
-    if(state.event!==id){state.event=id;state.items=[];state.staff=[];state.available=false;state.lastError='';}
+    if(state.event!==id){state.event=id;state.items=[];state.staff=[];state.scopedStaff.clear();state.loadingScoped.clear();state.available=false;state.lastError='';}
     try{
       const result=await api(`/admin/conferences/followups/list?event_id=${encodeURIComponent(id)}`);
       if(seq!==state.seq||id!==eventId())return;
@@ -82,28 +82,66 @@
       const ctx=context(kind),existing=root.querySelector('[data-followup-composer]');
       if(!ctx?.can_assign||!ctx?.source_id||ctx.event_id!==eventId()||!state.available){if(existing)existing.remove();continue;}
       const key=draftKey(ctx);
-      if(existing?.dataset.followupComposer===key)continue;
+      if(existing?.dataset.followupComposer===key){renderPeople(existing,d,ctx);loadStudentSuggestions(ctx);continue;}
       if(existing)existing.remove();
       const d=draft(ctx),el=document.createElement('section');el.className='fascFollowupComposer';el.dataset.followupComposer=key;
-      el.innerHTML=`<div class="fascFollowupHead"><div><h3>Assign FaSC follow-up</h3><p class="muted small">Share a short operational task with one or several staff members. Do not include confidential counseling or social-work notes.</p></div></div><label>Next action for the team<textarea data-fup-summary rows="2" maxlength="500" placeholder="E.g. Check family transportation arrangements by Friday">${esc(d.summary)}</textarea></label><div class="fascFollowupFormRow"><label>Target date (optional)<input data-fup-due type="date" value="${esc(d.due)}"></label><label>Find staff members<input data-fup-query type="search" autocomplete="off" placeholder="Search name, department or email…" value="${esc(d.query)}"></label></div><div data-fup-people class="fascFollowupPeople"></div><div data-fup-selected class="fascFollowupSelected"></div><div class="fascFollowupButtons"><button data-fup-save type="button" class="primary">Assign to selected staff</button></div><div class="fascFollowupMessage" data-fup-notice role="status"></div>`;
+      el.innerHTML=`<div class="fascFollowupHead"><div><h3>Assign FaSC follow-up</h3><p class="muted small">Share a short operational task with one or several staff members. Do not include confidential counseling or social-work notes.</p></div></div><label>Next action for the team<textarea data-fup-summary rows="2" maxlength="500" placeholder="E.g. Check family transportation arrangements by Friday">${esc(d.summary)}</textarea></label><div class="fascFollowupFormRow"><label>Target date (optional)<input data-fup-due type="date" value="${esc(d.due)}"></label><label>Find any staff member<input data-fup-query type="search" autocomplete="off" placeholder="Search name, department or email…" value="${esc(d.query)}"></label></div><div data-fup-people class="fascFollowupPeople"></div><div data-fup-selected class="fascFollowupSelected"></div><div class="fascFollowupButtons"><button data-fup-save type="button" class="primary">Assign to selected staff</button></div><div class="fascFollowupMessage" data-fup-notice role="status"></div>`;
       root.appendChild(el);
       el.addEventListener('input',e=>{
         const t=e.target;if(t.matches('[data-fup-summary]'))d.summary=t.value;
         if(t.matches('[data-fup-due]'))d.due=t.value;
-        if(t.matches('[data-fup-query]')){d.query=t.value;renderPeople(el,d);}
+        if(t.matches('[data-fup-query]')){d.query=t.value;renderPeople(el,d,ctx);}
       });
       el.addEventListener('click',async e=>{
         const choice=e.target.closest('[data-fup-choice]');
-        if(choice){const emailAddress=choice.dataset.fupChoice;if(d.assignees.has(emailAddress))d.assignees.delete(emailAddress);else if(d.assignees.size<20)d.assignees.add(emailAddress);renderPeople(el,d);return;}
+        if(choice){const emailAddress=choice.dataset.fupChoice;if(d.assignees.has(emailAddress))d.assignees.delete(emailAddress);else if(d.assignees.size<20)d.assignees.add(emailAddress);renderPeople(el,d,ctx);return;}
         if(e.target.closest('[data-fup-save]'))await submit(el,ctx,d);
       });
-      renderPeople(el,d);
+      renderPeople(el,d,ctx);
+      loadStudentSuggestions(ctx);
     }
   }
-  function renderPeople(root,d){
+  // EAGLENEST_FASC_FOLLOWUP_STUDENT_SUGGESTIONS_V5 — fetch by verified
+  // source ID; a typed or forged student number never authorizes a roster read.
+  async function loadStudentSuggestions(ctx){
+    if(!ctx?.can_assign)return;
+    const key=draftKey(ctx);
+    if(state.scopedStaff.has(key)||state.loadingScoped.has(key))return;
+    state.loadingScoped.add(key);
+    try{
+      const qs=new URLSearchParams({event_id:ctx.event_id,source_kind:ctx.source_kind,source_id:ctx.source_id});
+      const response=await api(`/admin/conferences/followups/staff?${qs.toString()}`);
+      if(ctx.event_id!==eventId())return;
+      state.scopedStaff.set(key,{supported:response.scope==='student',relation_available:response.relation_available===true,
+        staff:Array.isArray(response.staff)?response.staff:state.staff});
+    }catch(error){
+      if(ctx.event_id!==eventId())return;
+      state.scopedStaff.set(key,{supported:false,staff:state.staff,error:error.message||'Request failed'});
+    }finally{
+      state.loadingScoped.delete(key);
+      if(ctx.event_id===eventId())renderComposers();
+    }
+  }
+  function renderPeople(root,d,ctx){
     const q=d.query.trim().toLowerCase(),people=root.querySelector('[data-fup-people]'),chosen=root.querySelector('[data-fup-selected]');
-    const found=state.staff.filter(s=>!q||`${s.name||''} ${s.email||''} ${s.department||''}`.toLowerCase().includes(q)).slice(0,40);
-    people.innerHTML=found.length?found.map(s=>`<button type="button" data-fup-choice="${esc(s.email)}" class="fascFollowupPerson ${d.assignees.has(s.email)?'active':''}" aria-pressed="${d.assignees.has(s.email)}">${d.assignees.has(s.email)?'✓ ':''}${esc(s.name||s.email)}<small>${esc(s.email)}${s.department?' • '+esc(s.department):''}</small></button>`).join(''):'<span class="muted small">No matching staff members in the current directory.</span>';
+    const scoped=state.scopedStaff.get(draftKey(ctx)),directory=scoped?.staff||state.staff;
+    const nameOf=s=>esc(s.name||s.email);
+    const peopleHtml=(items)=>items.map(s=>`<button type="button" data-fup-choice="${esc(s.email)}" class="fascFollowupPerson ${d.assignees.has(s.email)?'active':''}" aria-pressed="${d.assignees.has(s.email)}">${d.assignees.has(s.email)?'✓ ':''}${nameOf(s)}<small>${esc(s.email)}${s.department?' • '+esc(s.department):''}${s.is_student_teacher&&s.section_labels?.length?' • '+esc(s.section_labels.slice(0,2).join(', ')):''}</small></button>`).join('');
+    if(q){
+      // ALL recognized staff remain searchable, whether or not they teach this student.
+      const found=directory.filter(s=>`${s.name||''} ${s.email||''} ${s.department||''} ${(s.course_names||[]).join(' ')}`.toLowerCase().includes(q)).slice(0,60);
+      people.innerHTML=`<div class="fascFollowupGroupTitle">All staff search results</div>${found.length?peopleHtml(found):'<p class="muted small">No matching staff in the current directory.</p>'}`;
+    }else{
+      // Default list NEVER includes unrelated teachers. Student Support stays
+      // a distinct, visible section even when no verified support members exist.
+      const teachers=scoped?.supported?directory.filter(s=>s.is_student_teacher===true&&!s.is_student_support):[];
+      const support=directory.filter(s=>s.is_student_support===true);
+      let hint='';
+      if(!scoped)hint='<p class="muted small">Loading student-specific teaching sections…</p>';
+      else if(!scoped.supported)hint='<p class="muted small">Student-specific suggestions require the V5 Worker. Search by name to find any staff member.</p>';
+      else if(!scoped.relation_available)hint='<p class="muted small">Current teaching-section data is unavailable. Search the directory to find staff.</p>';
+      people.innerHTML=`${hint}<div class="fascFollowupGroupTitle">Teachers who teach this student</div>${teachers.length?peopleHtml(teachers):'<p class="muted small">No verified current section teachers found.</p>'}<div class="fascFollowupGroupTitle">Student Support</div>${support.length?peopleHtml(support):'<p class="muted small">No Student Support member is currently identified in the directory. Search a staff name or contact the FaSC administrator.</p>'}<p class="muted small fascFollowupFindHint">Need another staff member? Search above to find anyone in the school directory.</p>`;
+    }
     chosen.innerHTML=d.assignees.size?`<span class="muted small">Assigned (${d.assignees.size}): </span>${[...d.assignees].map(e=>`<span class="fascFollowupPill">${esc(staffName(e))}</span>`).join('')}`:'<span class="muted small">Choose at least one staff member (up to 20).</span>';
   }
   async function submit(root,ctx,d){

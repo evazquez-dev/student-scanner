@@ -21,3 +21,8 @@
 .fascFollowupMessage{font-size:.87rem;color:var(--muted);min-height:15px}
 .fascFollowupMessage.bad{color:var(--danger)}
 @media(max-width:650px){.fascFollowupFormRow{grid-template-columns:1fr}}
+
+/* EAGLENEST_FASC_FOLLOWUP_STUDENT_SUGGESTIONS_V5 */
+.fascFollowupGroupTitle{font-weight:800;font-size:.86rem;margin:13px 0 6px;padding-top:10px;border-top:1px solid var(--line);color:var(--text)}
+.fascFollowupFindHint{margin-top:9px}
+.fascFollowupPeople p{padding:6px 1px;margin:0}
