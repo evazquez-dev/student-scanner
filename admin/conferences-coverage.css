@@ -1,0 +1,8 @@
+/* EAGLENEST_FASC_COVERAGE_V1 */
+#fascCoverageSection[hidden],#fascCoverageForm[hidden],#fascCoverageManagerHelp[hidden]{display:none!important}
+#fascCoverageForm{margin:1rem 0;}
+#fascCoverageForm .coverageFields{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+#fascCoverageForm label{display:flex;flex-direction:column;gap:5px;font-weight:600}
+#fascCoverageForm input,#fascCoverageForm select{max-width:100%;min-width:0}
+#fascCoverageStatus{margin:10px 0;min-height:1.5rem}
+#fascCoverageList .tableWrap{overflow-x:auto}

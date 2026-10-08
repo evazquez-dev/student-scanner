@@ -14,12 +14,14 @@
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./conferences.css?v=20260913-family-conferences-v2-staff-picker">
   <link rel="stylesheet" href="./conferences-required.css?v=20260930-contact-details-v1"> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 -->
+  <link rel="stylesheet" href="./conferences-coverage.css?v=20261008-v1">
   <link rel="stylesheet" href="./conferences-leadership.css?v=20261001-v1"> <!-- EAGLENEST_CONFERENCE_LEADERSHIP_SUMMARY_V1 -->
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script src="./student_contacts_anonymous_call.js?v=20260930-conference-contact-details-v1" defer></script><!-- EAGLENEST_CONFERENCE_CONTACT_DETAILS_V1 -->
   <script src="./conferences.js?v=20261001-leadership-summary-v1" defer></script><!-- EAGLENEST_CONFERENCE_BOOKING_PROXY_V2 --><!-- EAGLENEST_CONFERENCE_LEADERSHIP_SUMMARY_V1 -->
   <script src="./conferences-required.js?v=20261001-outreach-datetime-v1" defer></script> <!-- EAGLENEST_CONFERENCE_REQUIRED_ADVISEES_V1 --> <!-- EAGLENEST_CONFERENCE_OUTREACH_DATETIME_V1 -->
+  <script src="./conferences-coverage.js?v=20261008-v1" defer></script>
   <script src="./conferences-leadership.js?v=20261001-v1" defer></script><!-- EAGLENEST_CONFERENCE_LEADERSHIP_SUMMARY_V1 -->
   <script>(function(){try{var k='ss_theme_v1';var t=localStorage.getItem(k);if(!t)t=(matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark';document.documentElement.dataset.theme=t;}catch(e){}})();</script>
 </head>
@@ -78,6 +80,26 @@
           </div>
         </div>
         <div id="pageStatus" class="status" style="margin-top:12px"></div>
+      </section>
+
+      <!-- EAGLENEST_FASC_COVERAGE_V1: GTL + admin coverage delegation -->
+      <section class="card" id="fascCoverageSection" hidden>
+        <div class="sectionHead"><div><h2>Conference Coverage</h2>
+          <div class="muted small">Assign another classroom teacher to handle an absent advisor's conferences. Original advisor ownership stays unchanged.</div></div></div>
+        <p class="muted small" id="fascCoverageManagerHelp" hidden>Grade Team Leads may assign coverage only for advisors on their grade team. Administrators may assign schoolwide. Covering staff can be any teacher with current classroom assignments.</p>
+        <form id="fascCoverageForm" hidden>
+          <div class="coverageFields">
+            <label>Original advisor<select id="fascCoverageAdvisor" required></select></label>
+            <label>Covering teacher<select id="fascCoverageTeacher" required></select></label>
+            <label>Coverage from<input id="fascCoverageStart" type="time" required></label>
+            <label>Coverage until<input id="fascCoverageEnd" type="time" required></label>
+            <label>Conference room<input id="fascCoverageRoom" maxlength="120" placeholder="Optional"></label>
+            <label>Reason / note<input id="fascCoverageNote" maxlength="600" placeholder="Advisor absent or leaving early"></label>
+          </div>
+          <div class="toolbar" style="justify-content:flex-end;margin-top:12px"><button id="fascCoverageSave" class="primary" type="submit">Assign coverage</button></div>
+        </form>
+        <div id="fascCoverageStatus" class="status" role="status"></div>
+        <div id="fascCoverageList"></div>
       </section>
 
       <section class="grid" id="conferenceBookingTools">
