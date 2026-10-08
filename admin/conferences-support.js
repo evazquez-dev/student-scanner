@@ -46,7 +46,7 @@
     </div>
     <div class="fascSupportColumns">
       <section class="card"><div class="fascSupportHead"><div><h2>Family requests</h2><p class="muted small">Unclaimed check-ins, assigned visits, and completed meetings</p></div>
-        <label class="fascSupportFilter">View<select id="fascSupportFilter"><option value="waiting">Waiting / in progress</option><option value="mine">Assigned to me</option><option value="followup">My follow-ups</option><option value="all">All requests</option></select></label></div>
+        <label class="fascSupportFilter">View<select id="fascSupportFilter"><option value="waiting">Waiting / in progress</option><option value="mine">Assigned to me</option><option value="followup">My case follow-up flags</option><option value="all">All requests</option></select></label></div>
         <div id="fascSupportQueue" class="fascSupportQueue"></div></section>
       <section class="card"><h2>Support conversation</h2><div id="fascSupportCase"><p class="muted">Choose a family request or check in a student.</p></div></section>
     </div>
@@ -110,7 +110,7 @@
       ${!state.manageable?'<p class="muted small">Administrative overview only. Support case content is private to its assigned support staff member.</p>':''}
       ${canClaim?'<div class="fascSupportActions"><button data-action="claim" class="primary">Claim this family</button></div>':''}
       ${isOwner?`<div class="fascSupportDetail"><label>Operational next step (no counseling/clinical notes)<textarea id="fascSupportNextStep" maxlength="500" rows="3" ${ongoing?'':'disabled'} placeholder="e.g. Call guardian tomorrow; connect family with attendance team">${esc(r.next_step||'')}</textarea></label>
-       <label class="fascSupportCheckbox"><input id="fascSupportFollowup" type="checkbox" ${r.follow_up_needed?'checked':''} ${ongoing?'':'disabled'}> Follow-up needed</label>
+       <label class="fascSupportCheckbox"><input id="fascSupportFollowup" type="checkbox" ${r.follow_up_needed?'checked':''} ${ongoing?'':'disabled'}> Personal case follow-up flag (assign a team below)</label>
        <label>Target follow-up date<input id="fascSupportDue" type="date" value="${esc(r.follow_up_on||'')}" ${ongoing?'':'disabled'}></label></div>
        ${ongoing?`<div class="fascSupportActions"><button data-action="save">Save next step</button>${r.status==='waiting'?'<button data-action="start" class="primary">Start meeting</button>':''}<button data-action="complete" class="primary">Finish conversation</button><button data-action="no_show">No show</button>${r.status==='waiting'&&!r.next_step&&!r.follow_up_needed?'<button data-action="release">Return to shared queue</button>':''}</div>`:'<p class="muted small">This request is closed. Next steps are preserved for the assigned staff member.</p>'}`:''}
       ${state.manageable&&!isOwner&&!canClaim?'<p class="muted small">This case is assigned to another staff member. Private follow-up details are not shared here.</p>':''}
@@ -156,5 +156,13 @@
     let tries=0;const boot=setInterval(()=>{tries++;if(access&&eventId()){clearInterval(boot);state.prevEvent=eventId();refresh().catch(()=>{});}else if(tries>150)clearInterval(boot);},100);
     setInterval(()=>{if(!document.hidden&&state.open&&!state.dirty){refresh().catch(error=>announce(error.message,'error'));}},POLL);
   }
+  // EAGLENEST_FASC_FOLLOWUPS_V4: owner-verified operational case reference only.
+  window.EagleNESTFaSCSupportDesk=Object.freeze({
+    getFollowupContext:()=>{const r=byId();return r?{
+      event_id:eventId(),source_kind:'support',source_id:r.intake_id,
+      student_number:r.student_number,student_name:r.student_name,
+      can_assign:state.manageable&&r.assigned_email===ownEmail()
+    }:null;}
+  });
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
