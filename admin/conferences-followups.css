@@ -14,7 +14,7 @@
 .fascFollowupPill{display:inline-flex;font-size:.76rem;border:1px solid var(--line);border-radius:999px;padding:4px 8px;overflow-wrap:anywhere}
 .fascFollowupPill.done{border-color:var(--good);color:var(--good)}
 .fascFollowupFormRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.fascFollowupPeople{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;max-height:230px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:8px}
+.fascFollowupPeople{display:block;max-height:min(52vh,420px);overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:10px}
 .fascFollowupPerson{text-align:left;display:grid;gap:3px;padding:8px;min-width:0;overflow-wrap:anywhere}
 .fascFollowupPerson small{font-size:.75rem;color:var(--muted);font-weight:400}
 .fascFollowupPerson.active{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
@@ -23,6 +23,11 @@
 @media(max-width:650px){.fascFollowupFormRow{grid-template-columns:1fr}}
 
 /* EAGLENEST_FASC_FOLLOWUP_STUDENT_SUGGESTIONS_V5 */
-.fascFollowupGroupTitle{font-weight:800;font-size:.86rem;margin:13px 0 6px;padding-top:10px;border-top:1px solid var(--line);color:var(--text)}
+/* EAGLENEST_FASC_FOLLOWUP_CONDITIONAL_PICKER_V6 — sections own the grid, not the title. */
+.fascFollowupPeopleGroup{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,190px),1fr));gap:8px;align-content:start;min-width:0}
+.fascFollowupPeopleGroup + .fascFollowupPeopleGroup{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.fascFollowupGroupTitle{grid-column:1/-1;font-weight:800;font-size:.86rem;line-height:1.3;margin:0 0 3px;padding:0;border:0;color:var(--text)}
+.fascFollowupPeopleGroup > p{grid-column:1/-1}
+.fascFollowupPerson{height:100%;align-content:start}
 .fascFollowupFindHint{margin-top:9px}
 .fascFollowupPeople p{padding:6px 1px;margin:0}

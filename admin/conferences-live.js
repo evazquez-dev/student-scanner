@@ -159,7 +159,7 @@
       const payload={event_id:getEventId(),student_number:activeStudent.osis,submission_id:submissionId(),contact_at_iso:new Date().toISOString(),method:'In Person',outcome:followup?'Follow-up Needed':'Spoke/Connected',notes,follow_up_needed:followup,slot_id:'',contact_assoc_id:booking?.family_contact_assoc_id||'',contact_display_name:booking?.family_contact_name||'',contact_relationship:booking?.family_relationship||'',contact_phone:booking?.family_phone||'',contact_email:booking?.family_email||''};
       await api('/admin/conferences/engagement/log',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});noteDirty=false;notesRecorded=true;
       if(complete){await setBookingStatus(booking,'completed',true);return;}
-      noteStatus('Discussion logged in conference communications.','ok');if($l('fascLiveNotes'))$l('fascLiveNotes').value='';if($l('fascLiveFollowup'))$l('fascLiveFollowup').checked=false;
+      noteStatus('Discussion logged in conference communications.','ok');if($l('fascLiveNotes'))$l('fascLiveNotes').value='';if($l('fascLiveFollowup'))$l('fascLiveFollowup').checked=followup; // EAGLENEST_FASC_FOLLOWUP_CONDITIONAL_PICKER_V6: keep flagged task available after logging
     }catch(error){noteStatus(`Notes were not saved: ${error.message}. Use Student Contacts to record this discussion, or complete without notes.`, 'error');}
     finally{if(button)button.disabled=false;}
   }

@@ -17,6 +17,13 @@
   function announce(host,message,bad=false){const o=host?.querySelector('[data-followup-message]');if(o){o.textContent=message||'';o.classList.toggle('bad',bad);}}
   function draft(ctx){const k=draftKey(ctx);if(!state.drafts.has(k))state.drafts.set(k,{summary:'',due:'',query:'',assignees:new Set(),submission_id:createId()});return state.drafts.get(k);}
   function context(kind){return kind==='support'?supportCtx():liveCtx();}
+  // EAGLENEST_FASC_FOLLOWUP_CONDITIONAL_PICKER_V6
+  // Respect the actual selected conversation's Flag follow-up checkbox.
+  // Never use the other tab's checkbox or infer consent from stale draft state.
+  function flagIsChecked(kind,root){
+    const selector=kind==='support'?'#fascSupportFollowup':'#fascLiveFollowup';
+    return root?.querySelector(selector)?.checked===true;
+  }
   function initView(){
     for(const [kind,rootId,title] of [['live','fascLiveRoot','My FaSC follow-ups'],['support','fascSupportRoot','My Student Support follow-ups']]){
       const root=$(rootId);if(!root||root.querySelector(`[data-followup-inbox="${kind}"]`))continue;
@@ -80,11 +87,16 @@
     for(const [kind,rootId] of [['live','fascLiveMeeting'],['support','fascSupportCase']]){
       const root=$(rootId);if(!root)continue;
       const ctx=context(kind),existing=root.querySelector('[data-followup-composer]');
-      if(!ctx?.can_assign||!ctx?.source_id||ctx.event_id!==eventId()||!state.available){if(existing)existing.remove();continue;}
-      const key=draftKey(ctx);
+      if(!ctx?.can_assign||!ctx?.source_id||ctx.event_id!==eventId()||!state.available||!flagIsChecked(kind,root)){
+        if(existing)existing.remove();
+        continue;
+      }
+      const key=draftKey(ctx),d=draft(ctx);
+      // Retain an in-progress draft across uncheck/recheck and polling updates.
+      // d must be defined before we render an existing composer.
       if(existing?.dataset.followupComposer===key){renderPeople(existing,d,ctx);loadStudentSuggestions(ctx);continue;}
       if(existing)existing.remove();
-      const d=draft(ctx),el=document.createElement('section');el.className='fascFollowupComposer';el.dataset.followupComposer=key;
+      const el=document.createElement('section');el.className='fascFollowupComposer';el.dataset.followupComposer=key;
       el.innerHTML=`<div class="fascFollowupHead"><div><h3>Assign FaSC follow-up</h3><p class="muted small">Share a short operational task with one or several staff members. Do not include confidential counseling or social-work notes.</p></div></div><label>Next action for the team<textarea data-fup-summary rows="2" maxlength="500" placeholder="E.g. Check family transportation arrangements by Friday">${esc(d.summary)}</textarea></label><div class="fascFollowupFormRow"><label>Target date (optional)<input data-fup-due type="date" value="${esc(d.due)}"></label><label>Find any staff member<input data-fup-query type="search" autocomplete="off" placeholder="Search name, department or email…" value="${esc(d.query)}"></label></div><div data-fup-people class="fascFollowupPeople"></div><div data-fup-selected class="fascFollowupSelected"></div><div class="fascFollowupButtons"><button data-fup-save type="button" class="primary">Assign to selected staff</button></div><div class="fascFollowupMessage" data-fup-notice role="status"></div>`;
       root.appendChild(el);
       el.addEventListener('input',e=>{
@@ -130,7 +142,7 @@
     if(q){
       // ALL recognized staff remain searchable, whether or not they teach this student.
       const found=directory.filter(s=>`${s.name||''} ${s.email||''} ${s.department||''} ${(s.course_names||[]).join(' ')}`.toLowerCase().includes(q)).slice(0,60);
-      people.innerHTML=`<div class="fascFollowupGroupTitle">All staff search results</div>${found.length?peopleHtml(found):'<p class="muted small">No matching staff in the current directory.</p>'}`;
+      people.innerHTML=`<section class="fascFollowupPeopleGroup" aria-label="All staff search results"><h4 class="fascFollowupGroupTitle">All staff search results</h4>${found.length?peopleHtml(found):'<p class="muted small">No matching staff in the current directory.</p>'}</section>`;
     }else{
       // Default list NEVER includes unrelated teachers. Student Support stays
       // a distinct, visible section even when no verified support members exist.
@@ -140,7 +152,7 @@
       if(!scoped)hint='<p class="muted small">Loading student-specific teaching sections…</p>';
       else if(!scoped.supported)hint='<p class="muted small">Student-specific suggestions require the V5 Worker. Search by name to find any staff member.</p>';
       else if(!scoped.relation_available)hint='<p class="muted small">Current teaching-section data is unavailable. Search the directory to find staff.</p>';
-      people.innerHTML=`${hint}<div class="fascFollowupGroupTitle">Teachers who teach this student</div>${teachers.length?peopleHtml(teachers):'<p class="muted small">No verified current section teachers found.</p>'}<div class="fascFollowupGroupTitle">Student Support</div>${support.length?peopleHtml(support):'<p class="muted small">No Student Support member is currently identified in the directory. Search a staff name or contact the FaSC administrator.</p>'}<p class="muted small fascFollowupFindHint">Need another staff member? Search above to find anyone in the school directory.</p>`;
+      people.innerHTML=`${hint}<section class="fascFollowupPeopleGroup" aria-label="Teachers who teach this student"><h4 class="fascFollowupGroupTitle">Teachers who teach this student</h4>${teachers.length?peopleHtml(teachers):'<p class="muted small">No verified current section teachers found.</p>'}</section><section class="fascFollowupPeopleGroup" aria-label="Student Support"><h4 class="fascFollowupGroupTitle">Student Support</h4>${support.length?peopleHtml(support):'<p class="muted small">No Student Support member is currently identified in the directory. Search a staff name or contact the FaSC administrator.</p>'}</section><p class="muted small fascFollowupFindHint">Need another staff member? Search above to find anyone in the school directory.</p>`;
     }
     chosen.innerHTML=d.assignees.size?`<span class="muted small">Assigned (${d.assignees.size}): </span>${[...d.assignees].map(e=>`<span class="fascFollowupPill">${esc(staffName(e))}</span>`).join('')}`:'<span class="muted small">Choose at least one staff member (up to 20).</span>';
   }
@@ -154,7 +166,7 @@
       state.drafts.delete(draftKey(ctx));
       notice.textContent='Assigned successfully. Each recipient can now see and complete their follow-up independently.';
       root.querySelector('[data-fup-summary]').value='';root.querySelector('[data-fup-query]').value='';root.querySelector('[data-fup-due]').value='';
-      d.summary='';d.due='';d.query='';d.assignees.clear();d.submission_id=createId();renderPeople(root,d);
+      d.summary='';d.due='';d.query='';d.assignees.clear();d.submission_id=createId();renderPeople(root,d,ctx);
       await refresh();
     }catch(error){notice.textContent='Follow-up not saved: '+error.message;}
     finally{btn.disabled=false;}
@@ -165,7 +177,13 @@
     // The V2/V3 meeting panels re-render independently; reconnect composer only after
     // changes, while maintaining the draft in memory for that source.
     for(const id of ['fascLiveMeeting','fascSupportCase']){
-      const host=$(id);if(host)new MutationObserver(()=>renderComposers()).observe(host,{childList:true});
+      const host=$(id);if(host){
+        new MutationObserver(()=>renderComposers()).observe(host,{childList:true});
+        // Instantly reveal/hide composer when the user ticks/unticks Flag follow-up.
+        host.addEventListener('change',e=>{
+          if(e.target?.id===(id==='fascLiveMeeting'?'fascLiveFollowup':'fascSupportFollowup'))renderComposers();
+        });
+      }
     }
     const previous=renderBundle;
     renderBundle=function(){previous();if(state.event!==eventId()){state.available=false;state.items=[];state.staff=[];}refresh().catch(()=>{});};
