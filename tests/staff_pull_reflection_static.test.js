@@ -54,12 +54,13 @@ test('Staff Pull release grace is time-bounded and cannot repair a tardy from be
   assert.match(repair, /lateEvidenceMs < pullStartMs - 2e3/);
 });
 
-test('Staff Pull spans are durable attendance evidence even after the active hold is released', () => {
+test('Staff Pull history persists after release and uses configured cutoff for full-period evidence', () => {
   const evidence = between(worker, 'function staffPullPeriodEvidence_', '__name(staffPullPeriodEvidence_');
   assert.match(evidence, /liveRec\?\.staff_pull_intervals/);
   assert.match(evidence, /live_staff_pull_interval/);
-  assert.match(evidence, /staff_pull_full_period/);
-  assert.match(evidence, /staff_pull_period_overlap/);
+  assert.match(evidence, /staff_pull_cutoff_to_period_end/);
+  assert.match(evidence, /staff_pull_partial_period/);
+  assert.match(evidence, /lateGraceMinutes/);
 });
 
 test('Arrival Window Staff Pull never mutates OUT before the bell but derives OUT when the period becomes active', () => {

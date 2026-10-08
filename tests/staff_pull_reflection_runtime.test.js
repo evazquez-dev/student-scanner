@@ -429,7 +429,7 @@ test('open Arrival Window Staff Pull becomes effectively OUT at the bell without
 });
 
 
-test('physical classroom BACK scan outranks an open Staff Pull for effective ClassSession state', async () => {
+test('physical classroom BACK scan auto-closes Staff Pull and restores effective IN', async () => {
   const { ClassSessionDO, effectiveClassSessionOut_ } = await loadWorker();
   const state = mockState();
   const obj = new ClassSessionDO(state, {});
@@ -456,7 +456,9 @@ test('physical classroom BACK scan outranks an open Staff Pull for effective Cla
   assert.equal(back.json.result.action, 'class_back');
 
   raw = await state.storage.get('state');
-  assert.equal(raw.students['9001'].staffPullIntervals.some((row) => !row.end_at_iso), true);
+  // Physical BACK is the authoritative auto-release: the old pull is closed, not left open.
+  assert.equal(raw.students['9001'].staffPullIntervals.some((row) => !row.end_at_iso), false);
+  assert.equal(raw.students['9001'].staffPullIntervals.some((row) => row.end_at_iso === '2026-09-02T15:20:00.000Z'), true);
   assert.equal(raw.students['9001'].lastExpectedPhysicalEvidenceISO, '2026-09-02T15:20:00.000Z');
 
   effective = effectiveClassSessionOut_(raw.students['9001'], '2026-09-02T15:00:00.000Z');

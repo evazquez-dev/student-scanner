@@ -13,6 +13,7 @@
     'admin_session_sid'
   ];
 
+  // EAGLENEST_STAFF_PULL_TRANSFER_CLASS_AUTORELEASE_V1
   const state = {
     seq: 0,
     osis: '',
@@ -74,6 +75,7 @@
       const since = data?.held_by_since ? fmtClock(data.held_by_since) : '';
       return `Already with ${holder}${since ? ` since ${since}` : ''}.`;
     }
+    if (code === 'pull_state_changed') return 'This pull changed. Refresh the student and confirm the current holder.';
     if (code === 'different_hold_active'){
       const title = String(data?.held_by_title || '').trim();
       const email = String(data?.held_by_email || '').trim();
@@ -413,7 +415,7 @@
     }
     const st = result.value?.state || {};
     const who = options.value?.who || {};
-    const held = isStaffHoldToday(st);
+    const held = isStaffHoldToday(st) && isTransferableStaffPullState(st);
     const heldTitle = held ? String(st.held_by_title || st.held_by_role || '').trim() : '';
     const heldEmail = held ? String(st.held_by_email || '').trim() : '';
     const heldBy = held ? (heldTitle && heldEmail ? `${heldTitle} (${heldEmail})` : (heldTitle || heldEmail)) : '';
@@ -423,6 +425,7 @@
     const canRelease = held && (actorIsAdmin(who) || actorIsAdmin(state.access) || (me && owner && me === owner));
     let buttons = '';
     if (!isReadOnly() && !held) buttons += button('Pull Student', 'staff-pull', true);
+    if (!isReadOnly() && held && me && owner && me !== owner) buttons += button('Take Over Pull', 'staff-transfer', true);
     if (!isReadOnly() && canRelease) buttons += button('Release Student', 'staff-release', true);
     buttons += button('Open Staff Pull', 'staff-open');
     setCard('phase3StaffPull', {
@@ -565,6 +568,50 @@
     }
   }
 
+  function isTransferableStaffPullState(st) {
+    const source = String(st?.obligation_source || '').trim().toLowerCase();
+    const role = String(st?.held_by_role || '').trim().toLowerCase();
+    const zone = String(st?.held_target_zone || '').trim().toLowerCase();
+    const loc = String(st?.held_target_loc || '').trim().toLowerCase();
+    return !!String(st?.held_by_email || '').trim() && role !== 'reflection_hold'
+      && !source.includes('reflection_hold')
+      && (source.includes('staff_pull') || zone === 'with_staff' || loc === 'social_worker')
+      && (!zone || zone === 'with_staff') && (!loc || loc === 'social_worker');
+  }
+
+  async function transferStaffPullFromLookup() {
+    if (isReadOnly() || state.actionBusy) return;
+    const osis = state.osis;
+    const statusEl = $('phase3ContextStatus');
+    try {
+      const info = await jsonRequest(`/admin/staff_pull/context?osis=${encodeURIComponent(osis)}`, {method:'GET'});
+      if (state.osis !== osis || isReadOnly()) return;
+      const st = info.state || {};
+      const owner = isStaffHoldToday(st) && isTransferableStaffPullState(st) ? String(st.held_by_email || '').trim().toLowerCase() : '';
+      const me = String(state.access?.email || '').trim().toLowerCase();
+      if (!owner || owner === me) {
+        if (statusEl) statusEl.textContent = 'Pull ownership changed. Refreshing…';
+        await loadCurrentStudent(true);
+        return;
+      }
+      const label = String(st.held_by_title || owner).trim();
+      const since = st.held_by_since ? fmtClock(st.held_by_since) : '';
+      const body = {
+        osis, confirm_physical_possession: true,
+        expected_owner_email: owner, expected_held_by_since: String(st.held_by_since || '')
+      };
+      return await mutate('Staff Pull transfer',
+        `Currently with ${label}${since ? ' since ' + since : ''}.\n\n` +
+        'Only confirm if the student is PHYSICALLY WITH YOU right now.\n' +
+        'Selecting OK confirms physical possession and transfers responsibility to you.',
+        () => jsonRequest('/admin/staff_pull/pull', {
+          method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify(body)
+        }));
+    } catch (err) {
+      if (statusEl && state.osis === osis) statusEl.textContent = `Staff Pull transfer failed: ${err?.message || err}`;
+    }
+  }
+
   function wireActionClicks(){
     $('studentLookupPhase3')?.addEventListener('change', (event) => {
       if (event.target?.id !== 'phase3PhoneAction') return;
@@ -590,6 +637,7 @@
         date:ctx.date
       });
        if (action === 'phone-selected') return void confirmPhoneSelection();
+      if (action === 'staff-transfer') return void transferStaffPullFromLookup();
       if (action === 'staff-pull') return void mutate(
         'Staff Pull',
         `Pull ${studentName()} to you now?`,

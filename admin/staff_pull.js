@@ -142,6 +142,8 @@ let WHO = null;
 let ALL = []; // [{osis,name}]
 let SELECTED_OSIS = '';
 let lastRefreshTs = 0;
+// EAGLENEST_STAFF_PULL_TRANSFER_CLASS_AUTORELEASE_V1
+let SELECTED_PULL_STATE = null;
 
 function show(el){ if(el) el.style.display='block'; }
 function hide(el){ if(el) el.style.display='none'; }
@@ -554,11 +556,24 @@ async function loadMine(){
   if(!r.ok || !data?.ok) throw new Error(data?.error || `staff_pull/mine HTTP ${r.status}`);
 
   const mine = Array.isArray(data.mine) ? data.mine : [];
+  const recentChanges = Array.isArray(data.recent_changes) ? data.recent_changes : [];
   mineCount.textContent = String(mine.length);
 
   mineList.innerHTML = '';
+  for (const change of recentChanges) {
+    const note = document.createElement('div');
+    note.className = 'row';
+    const label = change.type === 'transfer'
+      ? `Transferred to ${change.to_title || change.to_email || 'another staff member'}`
+      : `Automatically released after classroom scan (${change.room || 'classroom'})`;
+    note.textContent = `${change.name || change.osis} — ${label} • ${fmtClock(change.at_iso)}`;
+    mineList.appendChild(note);
+  }
   if(!mine.length){
-    mineList.innerHTML = '<div class="muted">No students pulled.</div>';
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.textContent = 'No students currently pulled.';
+    mineList.appendChild(empty);
     return;
   }
 
@@ -607,6 +622,7 @@ async function loadSelectedContext(){
     schedBox.textContent = '—';
     pullBtn.disabled = true;
     releaseBtn.disabled = true;
+    SELECTED_PULL_STATE = null;
     return;
   }
 
@@ -617,6 +633,7 @@ async function loadSelectedContext(){
   if(!r.ok || !data?.ok) throw new Error(data?.error || `staff_pull/context HTTP ${r.status}`);
 
   const st = data.state || null;
+  SELECTED_PULL_STATE = st;
   const sch = data.schedule || null;
 
   // Current location (prettier + stale-day protection)
@@ -629,12 +646,14 @@ async function loadSelectedContext(){
 
   // Enable buttons
   pullBtn.disabled = false;
+  pullBtn.textContent = 'Pull Student';
   // Hold ownership is independent from the physical-evidence clock.
   const heldBy = String((isStaffHoldToday(st) ? st?.held_by_email : '') || '').toLowerCase();
   const me     = String(WHO?.email || '').toLowerCase();
   const role = String(WHO?.role || '');
   const isAdmin = role === 'admin' || role === 'super_admin';
 
+  if (heldBy && me && heldBy !== me && isTransferableStaffPullState(st)) pullBtn.textContent = 'Take Over Pull (Confirm)';
   const canRelease = !!heldBy && (isAdmin || (me && heldBy === me));
   releaseBtn.disabled = !canRelease;
 }
@@ -648,6 +667,7 @@ function staffPullApiErrorMessage(data, status, fallback){
     const since = data?.held_by_since ? fmtClock(data.held_by_since) : '';
     return `Already with ${holder}${since ? ` since ${since}` : ''}.`;
   }
+  if (code === 'pull_state_changed') return 'The student’s Staff Pull changed. Refresh and review the current holder before trying again.';
   if (code === 'different_hold_active'){
     const title = String(data?.held_by_title || '').trim();
     const email = String(data?.held_by_email || '').trim();
@@ -657,15 +677,54 @@ function staffPullApiErrorMessage(data, status, fallback){
   return code || fallback || `HTTP ${status}`;
 }
 
-async function pullStudent(osis){
+async function pullStudent(osis, transfer = {}){
   const r = await adminFetch('/admin/staff_pull/pull', {
     method:'POST',
     headers:{ 'content-type':'application/json' },
-    body: JSON.stringify({ osis })
+    body: JSON.stringify({ osis, ...transfer })
   });
   const data = await r.json().catch(()=>null);
   if(!r.ok || !data?.ok) throw new Error(staffPullApiErrorMessage(data, r.status, `pull HTTP ${r.status}`));
   return data;
+}
+
+function isTransferableStaffPullState(st) {
+  const source = String(st?.obligation_source || '').trim().toLowerCase();
+  const role = String(st?.held_by_role || '').trim().toLowerCase();
+  const zone = String(st?.held_target_zone || '').trim().toLowerCase();
+  const loc = String(st?.held_target_loc || '').trim().toLowerCase();
+  return !!String(st?.held_by_email || '').trim() && role !== 'reflection_hold'
+    && !source.includes('reflection_hold')
+    && (source.includes('staff_pull') || zone === 'with_staff' || loc === 'social_worker')
+    && (!zone || zone === 'with_staff') && (!loc || loc === 'social_worker');
+}
+
+// A fresh server read plus explicit physical-possession confirmation are both
+// required; never grant a takeover based only on a stale client-side button.
+async function staffPullTransferPreflight(osis) {
+  const u = new URL('/admin/staff_pull/context', API_BASE);
+  u.searchParams.set('osis', osis);
+  const r = await adminFetch(u, { method:'GET' });
+  const data = await r.json().catch(() => null);
+  if (!r.ok || !data?.ok) throw new Error(data?.error || `context HTTP ${r.status}`);
+  const st = data.state || {};
+  const me = String(WHO?.email || '').trim().toLowerCase();
+  const heldBy = isStaffHoldToday(st) ? String(st.held_by_email || '').trim().toLowerCase() : '';
+  if (!heldBy || heldBy === me) return {};
+  if (!isTransferableStaffPullState(st)) throw new Error('This is not a transferable Staff Pull.');
+  const holder = String(st.held_by_title || heldBy).trim();
+  const since = st.held_by_since ? fmtClock(st.held_by_since) : '';
+  const ok = window.confirm(
+    `The student is currently marked with ${holder}${since ? ' since ' + since : ''}.\n\n` +
+    'Only take over this pull if you PHYSICALLY HAVE the student with you right now.\n\n' +
+    'By selecting OK, I confirm the student is physically with me and I accept responsibility.'
+  );
+  if (!ok) return null;
+  return {
+    confirm_physical_possession: true,
+    expected_owner_email: heldBy,
+    expected_held_by_since: String(st.held_by_since || '')
+  };
 }
 
 async function releaseStudent(osis){
@@ -754,7 +813,10 @@ async function boot(){
       if(!SELECTED_OSIS) return;
       pullBtn.disabled = true;
       try{
-        await pullStudent(SELECTED_OSIS);
+        const target = SELECTED_OSIS;
+        const transfer = await staffPullTransferPreflight(target);
+        if (transfer === null || target !== SELECTED_OSIS) return;
+        await pullStudent(target, transfer);
         await Promise.all([loadMine(), loadSelectedContext()]);
         setErr('');
       }catch(e){
