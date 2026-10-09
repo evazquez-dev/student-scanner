@@ -393,6 +393,8 @@ async function loadQueue() {
 
 function closeCallModal() {
   callBackdrop.hidden = true;
+  // EAGLENEST_CONTACT_LANGUAGE_STUDENT_CONTEXT_RESET_V1
+  window.dispatchEvent(new CustomEvent('eaglenest:attendance-contact-context', { detail:{ student_number:'' } }));
   ACTIVE_CALL_ROW = null;
   ACTIVE_CALL_SUBMISSION_ID = '';
   CONTACT_MAP.clear();
@@ -448,7 +450,12 @@ function renderContacts(data) {
   const preferred = firstPhoneKey || 'general';
   const radio = Array.from(contactChoices.querySelectorAll('input[name="attendanceContact"]'))
     .find((input) => input.value === preferred);
-  if (radio) radio.checked = true;
+  if (radio) {
+    radio.checked = true;
+    // Programmatically checked radios do not fire change. Update the language panel
+    // to the new student's actual preselected contact immediately.
+    radio.dispatchEvent(new Event('change', { bubbles:true }));
+  }
   contactChoices.querySelectorAll('.copyBtn').forEach((button) => button.addEventListener('click', async (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -462,6 +469,8 @@ function renderContacts(data) {
 }
 
 async function openCall(row) {
+  // Reset before any HTTP request or modal update; also handles Save & Next.
+  window.dispatchEvent(new CustomEvent('eaglenest:attendance-contact-context', { detail:{ student_number:row.osis } }));
   ACTIVE_CALL_ROW = row;
   ACTIVE_CALL_SUBMISSION_ID = makeClientSubmissionId('attendance_call');
   callStudent.textContent = `${row.name || row.osis} · Grade ${row.grade || '—'} · OSIS ${row.osis}`;

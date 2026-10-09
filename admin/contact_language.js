@@ -89,6 +89,29 @@
     return map.get(clean(contact.contact_assoc_id)) || null;
   }
 
+  // EAGLENEST_CONTACT_LANGUAGE_STUDENT_CONTEXT_RESET_V1
+  // Contact preferences are cached *by student*, but the active contact is not.
+  // Never carry a chosen contact or its confirmation decision across students.
+  function resetContactLanguageSelection(student=''){
+    currentStudent = clean(student);
+    activeContact = null;
+    activePreference = null;
+    languageDecision = '';
+    const panel = document.getElementById('contactLanguagePanel');
+    if(!panel) return;
+    panel.hidden = true;
+    for(const id of ['contactLanguageName','contactLanguageStatus','contactLanguageHint']){
+      const element = document.getElementById(id);
+      if(element) element.textContent = '';
+    }
+    const select = document.getElementById('contactLanguageSelect');
+    if(select) select.value = '';
+    const other = document.getElementById('contactLanguageOther');
+    if(other) other.value = '';
+    panel.querySelectorAll('input[name="contactLanguageDecision"]').forEach((radio) => { radio.checked = false; });
+    setPanelError('');
+  }
+
   async function loadLanguageState(student){
     const osis = clean(student);
     if(!osis) return null;
@@ -109,12 +132,15 @@
         if(row?.contact_assoc_id) map.set(clean(row.contact_assoc_id), row.preference || null);
       }
       languageByStudent.set(osis, map);
-      if(activeContact && currentStudent === osis){ activePreference = preferenceForContact(osis, activeContact); }
-      queueMicrotask(renderLanguageUi);
+      // An older student's preference request may finish after a new call opens.
+      if(currentStudent === osis){
+        if(activeContact) activePreference = preferenceForContact(osis, activeContact);
+        queueMicrotask(renderLanguageUi);
+      }
       return data;
     } catch(error){
       console.warn('[contact-language] preference load unavailable', error);
-      queueMicrotask(renderLanguageUi);
+      if(currentStudent === osis) queueMicrotask(renderLanguageUi);
       return null;
     }
   }
@@ -125,10 +151,14 @@
       if(!data?.ok || !Array.isArray(data.contacts)) return;
       const student = clean(data.student_number || url.searchParams.get('student_number') || url.searchParams.get('osis'));
       if(!student) return;
+      // Attendance Outreach declares its selected student before fetching contacts.
+      // Ignore old HTTP responses instead of restoring the previous student.
+      if(pageModule === 'attendance_outreach' && student !== currentStudent) return;
+      if(pageModule === 'student_contacts' && student !== currentStudent) resetContactLanguageSelection(student);
       currentStudent = student;
       contactsByStudent.set(student, data.contacts);
       await loadLanguageState(student);
-      setTimeout(renderLanguageUi, 0);
+      if(currentStudent === student) setTimeout(renderLanguageUi, 0);
     } catch {}
   }
 
@@ -388,7 +418,8 @@
 
   function renderLanguageUi(){
     renderContactBadges();
-    if(activeContact) renderPanel();
+    // Also hide the panel when there is no selected contact.
+    renderPanel();
   }
 
   function contactByAssoc(student, assoc){
@@ -446,7 +477,11 @@
       };
     }
     let pref = preferenceForContact(student, contact);
-    const isActive = activeContact && clean(activeContact.contact_assoc_id) === assoc && currentStudent === student;
+    const selectedAssoc = pageModule === 'attendance_outreach'
+      ? clean(document.querySelector('#contactChoices input[name="attendanceContact"]:checked')?.value)
+      : assoc;
+    const isActive = activeContact && clean(activeContact.contact_assoc_id) === assoc
+      && currentStudent === student && selectedAssoc === assoc;
     if(isActive && languageDecision === 'confirm'){
       try {
         pref = await confirmPreference(student, contact, selectedLanguage());
@@ -493,6 +528,12 @@
   };
 
   function installInteractionHooks(){
+    if(pageModule === 'attendance_outreach'){
+      // Dispatched synchronously by openCall AND closeCallModal, including Save & Next.
+      window.addEventListener('eaglenest:attendance-contact-context', (event) => {
+        resetContactLanguageSelection(event?.detail?.student_number || '');
+      });
+    }
     document.addEventListener('click', (event) => {
       const target = event.target;
       if(pageModule === 'student_contacts'){
