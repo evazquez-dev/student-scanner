@@ -35,6 +35,10 @@ const saveNextCall = $('saveNextCall');
 const verifyBackdrop = $('verifyBackdrop');
 const verifyStudent = $('verifyStudent');
 const verifyEvidence = $('verifyEvidence');
+const verifyStatusWrap = $('verifyStatusWrap'); // EAGLENEST_OUTREACH_MANUAL_ARRIVAL_V1
+const verifyAttendanceStatus = $('verifyAttendanceStatus');
+const verifyCorrectionHelp = $('verifyCorrectionHelp');
+const verifyNoteLabel = $('verifyNoteLabel');
 const verifyCorrectionTime = $('verifyCorrectionTime');
 const verifyNote = $('verifyNote');
 const verifyError = $('verifyError');
@@ -47,6 +51,7 @@ let ACTIVE_CALL_ROW = null;
 // D1_ATTENDANCE_CALL_SUBMISSION_V1
 let ACTIVE_CALL_SUBMISSION_ID = '';
 let ACTIVE_VERIFY_ROW = null;
+let ACTIVE_VERIFY_MODE = 'verify'; // EAGLENEST_OUTREACH_MANUAL_ARRIVAL_V1
 let CONTACT_MAP = new Map();
 let SELECTED_OUTCOME = OUTCOMES[0];
 let loadSequence = 0;
@@ -274,16 +279,16 @@ function actionMarkup(row) {
   if (ACCESS?.view_as?.active) return '<span class="muted">Read only</span>';
   if (row.status === 'suspended') return `<a class="btn" href="${esc(studentLookupHref(row))}">Student</a>`; // EAGLENEST_DAILY_STUDENT_STATUS_V1
   if (row.status === 'needs_call') {
-    return `<button class="primary callBtn" type="button" data-osis="${esc(row.osis)}">Call / Log</button>`;
+    return `<button class="manualPresenceBtn" type="button" data-osis="${esc(row.osis)}">Mark Present / Late</button><button class="primary callBtn" type="button" data-osis="${esc(row.osis)}">Call / Log</button>`;
   }
   if (row.status === 'needs_verification') {
-    return `<button class="primary verifyBtn" type="button" data-osis="${esc(row.osis)}">Verify</button><button class="callBtn" type="button" data-osis="${esc(row.osis)}">Call / Log</button>`;
+    return `<button class="primary verifyBtn" type="button" data-osis="${esc(row.osis)}">Verify scan</button><button class="manualPresenceBtn" type="button" data-osis="${esc(row.osis)}">Mark Present / Late</button><button class="callBtn" type="button" data-osis="${esc(row.osis)}">Call / Log</button>`;
   }
   if (row.status === 'verified') {
     return `<button class="undoVerifyBtn" type="button" data-osis="${esc(row.osis)}">Undo Verified</button>`;
   }
   if (row.status === 'contacted') {
-    return `<button class="callBtn" type="button" data-osis="${esc(row.osis)}">Log Another</button><a class="btn" href="${esc(contactsHref(row))}">History</a>`;
+    return `${row.has_morning_entry ? '' : `<button class="manualPresenceBtn" type="button" data-osis="${esc(row.osis)}">Mark Present / Late</button>`}<button class="callBtn" type="button" data-osis="${esc(row.osis)}">Log Another</button><a class="btn" href="${esc(contactsHref(row))}">History</a>`;
   }
   return `<a class="btn" href="${esc(studentLookupHref(row))}">Student</a>`;
 }
@@ -319,7 +324,7 @@ function renderQueue() {
     queueBody.innerHTML = rows.map((row) => `
       <tr data-osis="${esc(row.osis)}">
         <td><a class="studentLink" href="${esc(studentLookupHref(row))}">${esc(row.name || row.osis)}</a><div class="subline">Grade ${esc(row.grade || '—')} · ${esc(row.osis)}</div></td>
-        <td><span class="status ${esc(row.status)}">${esc(statusLabel(row.status))}</span>${studentStatusMarkup(row)}${row.verification?.corrected_when_iso ? `<div class="subline">Daily attendance: ${esc(fmtTime(row.verification.corrected_when_iso))}</div>` : ''}${row.verification?.note ? `<div class="subline">${esc(row.verification.note)}</div>` : ''}</td>
+        <td><span class="status ${esc(row.status)}">${esc(statusLabel(row.status))}</span>${studentStatusMarkup(row)}${row.verification?.corrected_when_iso ? `<div class="subline">Daily attendance: ${esc(row.verification.attendance_status ? row.verification.attendance_status.toUpperCase() + ' · ' : '')}${esc(fmtTime(row.verification.corrected_when_iso))}${row.verification.verification_method === 'manual' ? ' · Staff confirmed' : ''}</div>` : ''}${row.verification?.note ? `<div class="subline">${esc(row.verification.note)}</div>` : ''}</td>
         <td>${evidenceMarkup(row)}</td>
         <td><strong>${esc(row.current_location || '—')}</strong><div class="subline">${esc(row.current_zone || '')}</div></td>
         <td>${communicationMarkup(row)}</td>
@@ -341,7 +346,11 @@ function bindRowActions() {
   }));
   queueBody.querySelectorAll('.verifyBtn').forEach((button) => button.addEventListener('click', () => {
     const row = rowByOsis(button.dataset.osis);
-    if (row) openVerify(row);
+    if (row) openVerify(row, 'verify');
+  }));
+  queueBody.querySelectorAll('.manualPresenceBtn').forEach((button) => button.addEventListener('click', () => {
+    const row = rowByOsis(button.dataset.osis);
+    if (row) openVerify(row, 'manual');
   }));
   queueBody.querySelectorAll('.undoVerifyBtn').forEach((button) => button.addEventListener('click', async () => {
     const row = rowByOsis(button.dataset.osis);
@@ -564,15 +573,28 @@ function closeVerifyModal() {
   ACTIVE_VERIFY_ROW = null;
 }
 
-function openVerify(row) {
+function openVerify(row, mode = 'verify') {
   ACTIVE_VERIFY_ROW = row;
+  ACTIVE_VERIFY_MODE = mode === 'manual' ? 'manual' : 'verify';
+  const manual = ACTIVE_VERIFY_MODE === 'manual';
   verifyStudent.textContent = `${row.name || row.osis} · Grade ${row.grade || '—'} · OSIS ${row.osis}`;
-  verifyEvidence.innerHTML = `<strong>Why this student is flagged:</strong><br>No morning-entry scan was found, but EagleNEST has ${esc(row.evidence_kind === 'scan' ? 'another scan' : 'location evidence')} at <strong>${esc(fmtTime(row.evidence_at))}</strong> — ${esc(row.evidence_location || row.current_location || 'location recorded')}.`;
+  $('verifyTitle').textContent = manual ? 'Mark Present / Late — Staff Confirmation' : 'Verify Student in Building';
+  verifyStatusWrap.hidden = !manual;
+  verifyAttendanceStatus.value = 'present';
+  verifyNoteLabel.textContent = manual ? 'Who confirmed this and how? (required)' : 'Verification note (optional)';
+  verifyCorrectionHelp.textContent = manual
+    ? 'Enter the actual confirmed arrival time, not merely the time you are recording it. Morning lateness is calculated from this time and the bell schedule.'
+    : 'Prefilled from EagleNEST evidence. Office staff may adjust this to the confirmed arrival/presence time before saving.';
+  verifyEvidence.innerHTML = manual
+    ? '<strong>Staff-confirmed arrival:</strong> No physical scan is required. This creates an auditable Daily Attendance correction; it does not create a raw scanner event.'
+    : `<strong>Why this student is flagged:</strong><br>No morning-entry scan was found, but EagleNEST has ${esc(row.evidence_kind === 'scan' ? 'another scan' : 'location evidence')} at <strong>${esc(fmtTime(row.evidence_at))}</strong> — ${esc(row.evidence_location || row.current_location || 'location recorded')}.`;
   const date = String(QUEUE?.date || '').trim();
   verifyCorrectionTime.min = date ? `${date}T00:00:00` : '';
   verifyCorrectionTime.max = date ? `${date}T23:59:59` : '';
-  verifyCorrectionTime.value = nyDateTimeInputValue(row.evidence_at);
+  const suggested = manual ? nyDateTimeInputValue(new Date().toISOString()) : nyDateTimeInputValue(row.evidence_at);
+  verifyCorrectionTime.value = suggested.startsWith(`${date}T`) ? suggested : `${date}T09:00:00`;
   verifyNote.value = '';
+  saveVerify.textContent = manual ? 'Save Present / Late' : 'Mark Verified';
   verifyError.hidden = true;
   verifyBackdrop.hidden = false;
   setTimeout(() => verifyCorrectionTime.focus(), 0);
@@ -592,20 +614,26 @@ async function saveVerification() {
     const correctedWhenISO = localInputToIso(correctionLocal);
     if (!correctedWhenISO) throw new Error('Choose a valid Daily Attendance correction time.');
 
+    const manual = ACTIVE_VERIFY_MODE === 'manual';
+    const reason = verifyNote.value.trim();
+    if (manual && reason.length < 8) throw new Error('Enter who confirmed the arrival and how (at least 8 characters).');
     const saved = await jsonOrThrow(await adminFetch('/admin/attendance_outreach/verify', {
       method:'POST',
       headers:{'content-type':'application/json'},
       body:JSON.stringify({
         osis:row.osis,
-        action:'verify',
+        action:manual ? 'manual' : 'verify',
+        attendance_status:manual ? verifyAttendanceStatus.value : '',
         corrected_when_iso:correctedWhenISO,
-        note:verifyNote.value.trim()
+        note:reason
       })
     }));
 
     closeVerifyModal();
     const effective = saved?.verification?.corrected_when_iso || correctedWhenISO;
-    showToast(`${row.name || row.osis} verified; Daily Attendance set to ${fmtTime(effective)}.`);
+    showToast(manual
+      ? `${row.name || row.osis} staff-confirmed ${verifyAttendanceStatus.value.toUpperCase()} at ${fmtTime(effective)}; attendance sheet updated.`
+      : `${row.name || row.osis} verified; Daily Attendance set to ${fmtTime(effective)}.`);
     await loadQueue();
   } catch (error) {
     verifyError.textContent = `Could not verify student: ${error?.message || error}`;

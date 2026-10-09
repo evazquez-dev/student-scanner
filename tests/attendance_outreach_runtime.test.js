@@ -89,7 +89,21 @@ test('Attendance communication and office verification resolve their respective 
     verification:{ verified:true },
     communication:{ student_number:'4001', category:'Attendance', outcome:'Spoke/Connected', contact_at_iso:LATER }
   });
-  assert.equal(contacted.status, 'contacted');
+  // EAGLENEST_OUTREACH_MANUAL_ARRIVAL_TEST_FIX_V1:
+  // A completed office verification must not be demoted by a communication log.
+  assert.equal(contacted.status, 'verified');
+
+  // But an Attendance communication by itself still resolves the call workflow.
+  const contactedOnly = mod.classifyAttendanceOutreachStudent({
+    date: DATE,
+    student: { osis:'4002', name:'Student Six' },
+    state: base,
+    communication: {
+      student_number:'4002', category:'Attendance',
+      outcome:'Spoke/Connected', contact_at_iso:LATER
+    }
+  });
+  assert.equal(contactedOnly.status, 'contacted');
 });
 
 test('queue summary counts only unresolved calls and verification rows as needs action', async () => {
