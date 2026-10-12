@@ -3,11 +3,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const route = fs.readFileSync('cf-redcake/red-cake-77d5/src/routes/attendance-outreach.js', 'utf8');
-const index = fs.readFileSync('cf-redcake/red-cake-77d5/src/index.js', 'utf8');
-const workerService = fs.readFileSync('cf-redcake/red-cake-77d5/src/services/daily-attendance-powerschool-sync.js', 'utf8');
-const gas = fs.readFileSync('Google Apps Script/clasp-projects/daily-attendance/EagleNESTPowerSchoolSync.js', 'utf8');
-const psIntegrate = fs.readFileSync('Google Apps Script/clasp-projects/daily-attendance/PS_Integrate.js', 'utf8');
+const route = fs.readFileSync(new URL('../../cf-redcake/red-cake-77d5/src/routes/attendance-outreach.js', import.meta.url), 'utf8');
+const index = fs.readFileSync(new URL('../../cf-redcake/red-cake-77d5/src/index.js', import.meta.url), 'utf8');
+const workerService = fs.readFileSync(new URL('../../cf-redcake/red-cake-77d5/src/services/daily-attendance-powerschool-sync.js', import.meta.url), 'utf8');
+const gas = fs.readFileSync(new URL('../../Google Apps Script/clasp-projects/daily-attendance/EagleNESTPowerSchoolSync.js', import.meta.url), 'utf8');
+const psIntegrate = fs.readFileSync(new URL('../../Google Apps Script/clasp-projects/daily-attendance/PS_Integrate.js', import.meta.url), 'utf8');
 
 test('daily PowerSchool sync is wired to finalized attendance email and end-of-day cron', () => {
   assert.match(route, /syncAttendanceEmailPreviewToPowerSchool/);
