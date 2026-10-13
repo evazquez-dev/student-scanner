@@ -12,6 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./mtss.css">
+  <link rel="stylesheet" href="./mtss-enhancements.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <title>EagleNEST — MTSS</title>
@@ -33,6 +34,7 @@
           <p class="muted">Attendance, academics, and behavior/SEL in one intervention and progress-monitoring workflow.</p>
         </div>
         <div class="pageActions">
+          <button id="btnTier1" class="btn" type="button" hidden>Log Tier 1</button>
           <button id="btnNewCase" class="btn primary" type="button" hidden>Open case</button>
           <button id="btnRefresh" class="btn" type="button">Refresh</button>
         </div>
@@ -127,15 +129,43 @@
     </main>
   </div>
 
+
+  <!-- EAGLENEST_MTSS_REFINEMENT_V1 Tier 1 universal logging -->
+  <div id="t1Backdrop" class="backdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="t1Title">
+      <header class="modalHead"><div><div class="eyebrow">Universal supports</div><h2 id="t1Title">Log Tier 1 intervention</h2></div><button id="t1Close" class="iconBtn" type="button" aria-label="Close">×</button></header>
+      <form id="t1Form" class="modalBody">
+        <label class="field mtssPicker"><span>Find student (name or OSIS)</span><input id="t1StudentQuery" autocomplete="off" type="search" placeholder="Search current students..."><div id="t1StudentResults" class="mtssPickerResults" hidden></div></label>
+        <input id="t1Osis" type="hidden"><div id="t1SelectedStudent" class="mtssSelected">Select a student from the results.</div>
+        <div class="twoCol"><label class="field"><span>Domain</span><select id="t1Domain"><option value="academic">Academic</option><option value="attendance">Attendance</option><option value="behavior">Behavior / SEL</option></select></label>
+          <label class="field"><span>Date delivered</span><input id="t1ActivityDate" type="date" required></label></div>
+        <label class="field"><span>Approved Tier 1 intervention</span><select id="t1CatalogChoice" required></select></label>
+        <label id="t1OtherWrapper" class="field" hidden><span>New intervention for the shared catalog (leadership only)</span><input id="t1OtherText" maxlength="300" placeholder="Describe the intervention"></label>
+        <label class="field"><span>Outcome</span><select id="t1Outcome"><option value="delivered">Delivered</option><option value="partial">Partially delivered</option><option value="not_delivered">Not delivered</option></select></label>
+        <label class="field"><span>Notes (optional)</span><textarea id="t1Notes" rows="2" maxlength="3000"></textarea></label>
+        <div id="t1Status" class="statusText" role="status"></div><div class="modalFoot"><button class="btn primary" type="submit">Save Tier 1 log</button></div>
+        <h3>Recent Tier 1 activity</h3><div id="tier1History" class="mtssEnhancementSection"></div>
+      </form>
+    </section>
+  </div>
+
   <div id="newCaseBackdrop" class="backdrop" hidden>
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="newCaseTitle">
       <header class="modalHead"><div><div class="eyebrow">Manual case</div><h2 id="newCaseTitle">Open MTSS case</h2></div><button class="iconBtn" data-close="newCaseBackdrop" aria-label="Close">×</button></header>
       <form id="newCaseForm" class="modalBody">
-        <label class="field"><span>Student OSIS</span><input id="newOsis" inputmode="numeric" required></label>
+        <input id="newOsis" type="hidden">
+        <label class="field mtssPicker"><span>Student name or OSIS</span><input id="enhStudentQuery" type="search" autocomplete="off" placeholder="Search and select a student" required><div id="enhStudentResults" class="mtssPickerResults" hidden></div></label>
+        <div id="enhSelectedStudent" class="mtssSelected">Select a student from the results.</div>
         <div class="twoCol">
           <label class="field"><span>Domain</span><select id="newDomain" required><option value="attendance">Attendance</option><option value="academic">Academic</option><option value="behavior">Behavior / SEL</option></select></label>
           <label class="field"><span>Tier</span><select id="newTier"><option value="2">Tier 2</option><option value="3">Tier 3</option></select></label>
         </div>
+        <fieldset class="mtssEnhancedFieldset"><legend>Required initial intervention plan</legend>
+          <label class="field"><span>Approved intervention for this domain and tier</span><select id="newCatalogChoice" required></select></label>
+          <label id="newOtherWrapper" class="field" hidden><span>New intervention catalog entry (leadership only)</span><input id="newOtherText" maxlength="300" placeholder="Write your proposed intervention"></label>
+          <label class="field"><span>Frequency (optional)</span><select id="newFrequency"></select></label>
+          <div class="mtssSubtle">The assigned intervention will be saved when the case opens.</div>
+        </fieldset>
         <label class="field"><span>Reason / concern</span><textarea id="newReason" rows="4" required placeholder="What targeted support is needed?"></textarea></label>
         <label class="field"><span>Next review date</span><input id="newReviewDate" type="date"></label>
         <div id="newCaseStatus" class="statusText"></div>
@@ -151,7 +181,7 @@
         <div id="caseMetrics" class="metricGrid"></div>
         <div class="detailGrid">
           <section class="subcard"><h3>Case details</h3><div id="caseDetails"></div></section>
-          <section class="subcard"><h3>Add intervention</h3><form id="interventionForm"><label class="field"><span>Intervention</span><select id="interventionName" required></select></label><div class="twoCol"><label class="field"><span>Method</span><select id="interventionMethod"></select></label><label class="field"><span>Frequency</span><select id="interventionFrequency"></select></label></div><label id="contentAreaField" class="field"><span>Content area</span><select id="interventionContent"></select></label><label class="field"><span>Notes</span><textarea id="interventionNotes" rows="2"></textarea></label><button id="btnAddIntervention" class="btn primary" type="submit">Add intervention</button></form></section>
+          <section class="subcard"><h3>Add intervention</h3><form id="interventionForm"><label class="field"><span>Intervention</span><select id="interventionName" required></select></label><label id="caseOtherWrapper" class="field" hidden><span>New intervention (leadership only)</span><input id="caseOtherText" maxlength="300"></label><div class="twoCol"><label class="field"><span>Method</span><select id="interventionMethod"></select></label><label class="field"><span>Frequency</span><select id="interventionFrequency"></select></label></div><label id="contentAreaField" class="field"><span>Content area</span><select id="interventionContent"></select></label><label class="field"><span>Notes</span><textarea id="interventionNotes" rows="2"></textarea></label><button id="btnAddIntervention" class="btn primary" type="submit">Add intervention</button></form></section>
           <section class="subcard"><h3>Progress review</h3><form id="reviewForm"><label class="field"><span>Outcome</span><select id="reviewOutcome"><option value="maintain">Maintain current tier</option><option value="improving">Improving / continue</option><option value="escalate">Escalate to Tier 3</option><option value="step_down">Step down</option><option value="close">Close case</option></select></label><label class="field"><span>Notes</span><textarea id="reviewNotes" rows="3" required></textarea></label><label class="field"><span>Next review</span><input id="reviewNextDate" type="date"></label><button id="btnAddReview" class="btn primary" type="submit">Save review</button></form></section>
         </div>
         <!-- EAGLENEST_MTSS_ACADEMIC_V1 -->
@@ -180,13 +210,27 @@
           </form>
           <div id="academicGoalStatus" class="statusText" role="status"></div>
         </section>
+        <section class="subcard mtssEnhancementSection" aria-labelledby="caseActivityTitle">
+          <h3 id="caseActivityTitle">Log intervention delivery</h3>
+          <p class="mtssSubtle">Document a delivered action separately from an intervention plan.</p>
+          <form id="caseActivityForm" hidden>
+            <label class="field"><span>Assigned intervention</span><select id="caseActivityIntervention" required></select></label>
+            <div class="twoCol"><label class="field"><span>Date</span><input id="caseActivityDate" type="date" required></label>
+              <label class="field"><span>Outcome</span><select id="caseActivityOutcome"><option value="delivered">Delivered</option><option value="partial">Partially delivered</option><option value="not_delivered">Not delivered</option></select></label></div>
+            <label class="field"><span>Notes</span><textarea id="caseActivityNotes" rows="2" maxlength="3000"></textarea></label>
+            <button class="btn primary" type="submit">Log delivery</button>
+          </form>
+          <div id="caseActivityStatus" class="statusText" role="status"></div>
+          <div id="caseActivities" class="mtssEnhancementSection">No activity logged yet.</div>
+        </section>
         <section class="subcard timelineCard"><div class="sectionHead"><h3>Timeline</h3><span id="timelineCount" class="countBadge"></span></div><div id="caseTimeline" class="timeline"></div></section>
         <div id="caseModalStatus" class="statusText"></div>
       </div>
     </section>
   </div>
 
-  <script src="./mtss.js" defer></script>
-  <script src="./mtss-academic.js" defer></script>
+  <script src="./mtss.js?v=mtss-refinement-1" defer></script>
+  <script src="./mtss-enhancements.js" defer></script>
+  <script src="./mtss-academic.js?v=mtss-refinement-1" defer></script>
 </body>
 </html>

@@ -107,6 +107,8 @@
       if(r.case){core().openCase(r.case.case_id);return;}
       if(!core().canManageAll()||core().isReadOnly())return;
       core().openNewCase();$('newOsis').value=r.osis;$('newDomain').value='academic';$('newTier').value='2';
+      window.EagleNESTMTSSEnhancements?.setOsis(r.osis);
+      window.EagleNESTMTSSEnhancements?.loadNewCatalog();
       $('newReason').value=`PowerSchool academic warning (${state.last?.source?.snapshot_date||'snapshot'}): ${r.reason}. Review intervention needs and tier with the academic team.`;
     });
     $('academicGoalForm').addEventListener('submit',async e=>{

@@ -169,8 +169,10 @@
 
   function openNewCase(){
     const q=new URL(location.href).searchParams.get('osis')||''; $('newOsis').value=/^\d+$/.test(q)?q:''; $('newReason').value=''; $('newReviewDate').value=''; $('newCaseStatus').textContent=''; $('newCaseBackdrop').hidden=false;
+    window.EagleNESTMTSSEnhancements?.openNewCase();
   }
   async function createCase(){
+    if (window.EagleNESTMTSSEnhancements) return window.EagleNESTMTSSEnhancements.createCase();
     const body={osis:$('newOsis').value.trim(),domain:$('newDomain').value,tier:Number($('newTier').value),reason:$('newReason').value.trim(),next_review_date:$('newReviewDate').value};
     try{ $('newCaseStatus').textContent='Opening case…'; const r=await api('/admin/mtss/case',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); $('newCaseBackdrop').hidden=true; await loadDashboard(); if(r.case?.case_id)await openCase(r.case.case_id); }
     catch(e){ $('newCaseStatus').textContent=`Could not open case: ${e.message}`; }
@@ -204,10 +206,11 @@
 
   async function openCase(id){
     $('caseBackdrop').hidden=false; $('caseModalStatus').textContent='Loading case…';
-    try{ const data=await api(`/admin/mtss/case?id=${encodeURIComponent(id)}`); await loadCatalog(data.case); renderCaseDetails(data); window.EagleNESTMTSSAcademic?.renderCase(data); const cat=state.catalog||{}; $('interventionName').innerHTML=options(cat.interventions||[]); $('interventionMethod').innerHTML=options(cat.methods||[]); $('interventionFrequency').innerHTML=options(cat.frequencies||[]); $('interventionContent').innerHTML=options(cat.content_areas||[]); $('reviewNotes').value=''; $('interventionNotes').value=''; $('caseModalStatus').textContent=''; }
+    try{ const data=await api(`/admin/mtss/case?id=${encodeURIComponent(id)}`); await loadCatalog(data.case); renderCaseDetails(data); window.EagleNESTMTSSAcademic?.renderCase(data); const cat=state.catalog||{}; $('interventionName').innerHTML=options(cat.interventions||[]); $('interventionMethod').innerHTML=options(cat.methods||[]); $('interventionFrequency').innerHTML=options(cat.frequencies||[]); $('interventionContent').innerHTML=options(cat.content_areas||[]); $('reviewNotes').value=''; $('interventionNotes').value=''; $('caseModalStatus').textContent=''; await window.EagleNESTMTSSEnhancements?.caseLoaded(data); }
     catch(e){ $('caseModalStatus').textContent=`Could not load case: ${e.message}`; }
   }
   async function addIntervention(){
+    if (window.EagleNESTMTSSEnhancements) return window.EagleNESTMTSSEnhancements.addIntervention();
     const c=state.currentCase?.case; if(!c)return;
     const body={case_id:c.case_id,intervention_name:$('interventionName').value,method:$('interventionMethod').value,frequency:$('interventionFrequency').value,content_area:$('interventionContent').value,notes:$('interventionNotes').value,start_date:new Date().toISOString().slice(0,10)};
     try{ $('caseModalStatus').textContent='Adding intervention…'; await api('/admin/mtss/intervention',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)}); await openCase(c.case_id); await loadDashboard(); }
@@ -244,10 +247,11 @@
     $('loginCard').hidden=true; $('app').hidden=false; wireOnce();
     const osis=new URL(location.href).searchParams.get('osis'); if(osis&&/^\d+$/.test(osis))$('filterQ').value=osis;
     await loadDashboard();
+    window.EagleNESTMTSSEnhancements?.init();
   }
   let wired=false; function wireOnce(){if(wired)return;wired=true;wire();}
 
   // EAGLENEST_MTSS_ACADEMIC_V1: share existing auth and modal lifecycle with academic UI.
-  window.EagleNESTMTSS={api,openCase,openNewCase,loadDashboard,isReadOnly,canManageAll,canEditRules,currentCase:()=>state.currentCase};
+  window.EagleNESTMTSS={api,openCase,openNewCase,loadDashboard,isReadOnly,canManageAll,canEditRules,currentCase:()=>state.currentCase,getAccess:()=>state.access};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
