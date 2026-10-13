@@ -1,253 +1,275 @@
-/* EAGLENEST_MTSS_REFINEMENT_V1: supplemental MTSS create-case and Tier 1 logging UI. */
+/* EAGLENEST_MTSS_REFINEMENT_V1_1: unified Tier 1 logging and Tier 2/3 case creation. */
 (() => {
   'use strict';
-  const $ = (id) => document.getElementById(id);
+  const $ = id => document.getElementById(id);
   const core = () => window.EagleNESTMTSS;
   const api = (path, init) => core().api(path, init);
-  const state = { selected: { new: null, t1: null }, pickSeq: 0, caseData: null, leader: false };
-  let initialized = false;
-  const escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-  const encode = (v) => encodeURIComponent(String(v || ''));
-  const request = (path, body) => api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  const info = (id, message) => { if ($(id)) $(id).textContent = message; };
-  const isoToday = () => { const p = new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()); const d=Object.fromEntries(p.map(x=>[x.type,x.value])); return `${d.year}-${d.month}-${d.day}`; };
-  const displayStudent = (s) => `${s.name || 'Student'} · OSIS ${s.osis}`;
-  const pickerConfig = {
-    new: { input:'enhStudentQuery', results:'enhStudentResults', osis:'newOsis', selected:'enhSelectedStudent' },
-    t1: { input:'t1StudentQuery', results:'t1StudentResults', osis:'t1Osis', selected:'t1SelectedStudent' }
+  const state = { student: null, pickSeq: 0, catalogSeq: 0, caseData: null, leader: false, canLog: false, initialized: false };
+  const escapeHtml = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const encode = v => encodeURIComponent(String(v || ''));
+  const request = (path, body) => api(path, {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const info = (id, msg) => { if ($(id)) $(id).textContent = msg; };
+  const isoToday = () => {
+    const parts = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const obj = Object.fromEntries(parts.map(p => [p.type,p.value]));
+    return `${obj.year}-${obj.month}-${obj.day}`;
   };
-  const choices = (rows) => '<option value="">Select an approved intervention</option>' + rows.map(r =>
-    `<option value="${escapeHtml(r.catalog_id)}">${escapeHtml(r.label)}</option>`).join('');
+  const displayStudent = s => `${s.name || 'Student'} · OSIS ${s.osis}`;
+  const choices = rows => '<option value="">Select an approved intervention</option>' + (rows || []).map(r => `<option value="${escapeHtml(r.catalog_id)}">${escapeHtml(r.label)}</option>`).join('');
+  const isTier1 = () => Number($('newTier').value) === 1;
+  const canManageCases = () => !!core().canManageAll();
 
-  function selection(key, s) {
-    const cfg = pickerConfig[key]; state.selected[key] = s;
-    $(cfg.osis).value = s?.osis || '';
-    $(cfg.input).value = s ? displayStudent(s) : '';
-    $(cfg.selected).textContent = s ? `Selected: ${displayStudent(s)}` : 'Select a student from the results.';
-    $(cfg.results).replaceChildren(); $(cfg.results).hidden = true;
-    if (key === 't1' && s) loadTier1History(s.osis);
+  function showOther(selectId, wrapperId, inputId) {
+    const visible = state.leader && $(selectId)?.value === '__other__';
+    const wrapper = $(wrapperId), field = $(inputId);
+    wrapper.hidden = !visible;
+    field.required = visible;
+    field.disabled = !visible;
+    if (!visible) field.value = '';
   }
-
-  function wirePicker(key) {
-    const cfg = pickerConfig[key]; const el = $(cfg.input); const suggestions = $(cfg.results);
-    let timer = null;
-    el.setAttribute('role', 'combobox'); el.setAttribute('aria-autocomplete', 'list');
-    el.addEventListener('input', () => {
-      state.selected[key] = null; $(cfg.osis).value = ''; $(cfg.selected).textContent = 'Select a matching student.';
-      clearTimeout(timer); const query = el.value.trim(); const seq = ++state.pickSeq;
-      if (query.length < 2) { suggestions.hidden = true; suggestions.replaceChildren(); return; }
+  function setStudent(student) {
+    state.student = student;
+    $('newOsis').value = student?.osis || '';
+    $('enhStudentQuery').value = student ? displayStudent(student) : '';
+    $('enhSelectedStudent').textContent = student ? `Selected: ${displayStudent(student)}` : 'Select a student from the results.';
+    $('enhStudentResults').hidden = true;
+    $('enhStudentResults').replaceChildren();
+    if (isTier1() && student) loadTier1History(student.osis);
+  }
+  function wirePicker() {
+    const input = $('enhStudentQuery'), results = $('enhStudentResults');
+    let timer;
+    input.setAttribute('role','combobox'); input.setAttribute('aria-autocomplete','list');
+    input.setAttribute('aria-expanded','false');
+    const hide = () => { results.hidden = true; input.setAttribute('aria-expanded','false'); };
+    input.addEventListener('input', () => {
+      state.student = null; $('newOsis').value = '';
+      $('enhSelectedStudent').textContent = 'Select a matching student.';
+      if (isTier1()) info('newTier1History','Select a student to see recent Tier 1 logs.');
+      clearTimeout(timer);
+      const query = input.value.trim(), seq = ++state.pickSeq;
+      if (query.length < 2) { hide(); results.replaceChildren(); return; }
       timer = setTimeout(async () => {
         try {
           const data = await api(`/admin/roster/search?q=${encode(query)}`);
           if (seq !== state.pickSeq) return;
-          suggestions.replaceChildren();
-          (data.results || []).slice(0, 10).forEach(s => {
-            const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'mtssStudentResult';
-            btn.textContent = `${s.name} · OSIS ${s.osis}`;
-            btn.addEventListener('click', () => selection(key, s)); suggestions.appendChild(btn);
+          results.replaceChildren();
+          (data.results || []).slice(0,10).forEach(student => {
+            const button = document.createElement('button');
+            button.type='button'; button.className='mtssStudentResult';
+            button.textContent=displayStudent(student);
+            button.addEventListener('click', () => { setStudent(student); input.focus(); });
+            results.appendChild(button);
           });
-          if (!suggestions.childElementCount) {
-            const label = document.createElement('div'); label.className = 'mtssPickerEmpty'; label.textContent = 'No matching students.'; suggestions.appendChild(label);
+          if (!results.childElementCount) {
+            const empty=document.createElement('div');empty.className='mtssPickerEmpty';empty.textContent='No matching students.';results.appendChild(empty);
           }
-          suggestions.hidden = false;
-        } catch { if (seq === state.pickSeq) { suggestions.hidden = false; suggestions.textContent = 'Student search unavailable.'; } }
-      }, 200);
+          results.hidden=false; input.setAttribute('aria-expanded','true');
+        } catch (error) {
+          if (seq === state.pickSeq) { results.textContent='Student search unavailable.';results.hidden=false;input.setAttribute('aria-expanded','true'); }
+        }
+      },200);
     });
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { suggestions.hidden = true; return; }
-      if (suggestions.hidden) return;
-      const buttons = [...suggestions.querySelectorAll('button')];
-      if (!buttons.length) return;
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        const current = buttons.findIndex(b => b === document.activeElement);
-        const next = e.key === 'ArrowDown' ? (current + 1) % buttons.length : (current < 0 ? buttons.length - 1 : (current + buttons.length - 1) % buttons.length);
-        buttons[next].focus();
-      } else if (e.key === 'Enter') { e.preventDefault(); buttons[0].click(); }
+    input.addEventListener('keydown',e => {
+      if (e.key==='Escape') { hide(); return; }
+      const buttons=[...results.querySelectorAll('button')];
+      if (!results.hidden && buttons.length && (e.key==='ArrowDown'||e.key==='Enter')) {
+        e.preventDefault(); if(e.key==='Enter') buttons[0].click(); else buttons[0].focus();
+      }
     });
-    suggestions.addEventListener('keydown', (e) => {
-      const buttons = [...suggestions.querySelectorAll('button')];
-      const current = buttons.findIndex(b => b === document.activeElement);
-      if (current < 0) return;
-      if (e.key === 'Escape') { e.preventDefault(); suggestions.hidden=true; el.focus(); }
-      if (e.key === 'Enter') { e.preventDefault(); buttons[current].click(); }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault(); const step = e.key === 'ArrowDown' ? 1 : -1;
-        buttons[(current + step + buttons.length) % buttons.length].focus();
+    results.addEventListener('keydown',e => {
+      const buttons=[...results.querySelectorAll('button')];
+      const idx=buttons.indexOf(document.activeElement);
+      if(idx<0)return;
+      if(e.key==='Escape'){e.preventDefault();hide();input.focus();}
+      if(e.key==='Enter'){e.preventDefault();buttons[idx].click();}
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        e.preventDefault();buttons[(idx+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus();
       }
     });
   }
-
-  async function setOsis(osis, key='new') {
-    const wanted = String(osis || '').trim(); if (!/^\d+$/.test(wanted)) return;
+  async function setOsis(osis) {
+    const wanted=String(osis || '').trim();if(!/^\d+$/.test(wanted))return;
     try {
-      const data = await api(`/admin/roster/search?q=${encode(wanted)}`);
-      const s = (data.results || []).find(row => String(row.osis) === wanted);
-      if (s) selection(key, s);
-      else { $(pickerConfig[key].input).value = wanted; info(key === 'new'?'enhSelectedStudent':'t1SelectedStudent', 'Student not found in current roster.'); }
-    } catch { info(key === 'new'?'enhSelectedStudent':'t1SelectedStudent', 'Could not verify this student.'); }
+      const data=await api(`/admin/roster/search?q=${encode(wanted)}`);
+      const student=(data.results||[]).find(row=>String(row.osis)===wanted);
+      if(student)setStudent(student);
+      else { $('enhStudentQuery').value=wanted;info('enhSelectedStudent','Student not found in the current roster.'); }
+    } catch { info('enhSelectedStudent','Could not verify this student.'); }
   }
-
-  function isOther(selectId) { return $(selectId).value === '__other__'; }
-  function showOther(selectId, wrapperId) { $(wrapperId).hidden = !isOther(selectId); }
-  async function catalog(domain, tier) { return api(`/admin/mtss/catalog?domain=${encode(domain)}&tier=${encode(tier)}`); }
-  function fillCatalog(selectId, catalogData) {
-    const select = $(selectId);
-    select.innerHTML = choices(catalogData.interventions || []) + (state.leader ? '<option value="__other__">Other — add approved choice (leadership)</option>' : '');
+  function updateMode() {
+    const t1=isTier1();
+    $('newCaseFields').hidden=t1;
+    $('newTier1Fields').hidden=!t1;
+    $('newFrequencyRow').hidden=t1;
+    $('newReason').required=!t1;
+    $('newReason').disabled=t1;
+    $('newReviewDate').disabled=t1;
+    $('newT1Date').required=t1;
+    $('newT1Date').disabled=!t1;
+    $('newT1Outcome').disabled=!t1;
+    $('newT1Notes').disabled=!t1;
+    $('newFrequency').disabled=t1;
+    $('newCaseTitle').textContent=t1?'Log Tier 1 intervention':'Open MTSS case';
+    $('newInterventionLegend').textContent=t1?'Tier 1 intervention':'Required initial intervention plan';
+    $('newInterventionHelp').textContent=t1
+      ? 'Record an intervention delivered to this student. This will not open a case or change their tier.'
+      : 'The assigned intervention will be saved when the case opens.';
+    $('newCaseSubmit').textContent=t1?'Log Tier 1 intervention':'Open case and assign intervention';
+    if(t1 && state.student)loadTier1History(state.student.osis);
+    if(!t1)info('newTier1History','');
+  }
+  function fillCatalog(selectId,data){
+    $(selectId).innerHTML=choices(data.interventions)+(state.leader?'<option value="__other__">Other — create a catalog option (leadership)</option>':'');
   }
   async function loadNewCatalog() {
+    updateMode();
+    const seq=++state.catalogSeq;
+    const domain=$('newDomain').value, tier=$('newTier').value;
     try {
-      const d = await catalog($('newDomain').value, $('newTier').value);
-      fillCatalog('newCatalogChoice', d);
-      $('newFrequency').innerHTML = '<option value="">Select frequency (optional)</option>' + (d.frequencies || []).map(s => `<option>${escapeHtml(s)}</option>`).join('');
-      showOther('newCatalogChoice', 'newOtherWrapper');
-    } catch (e) { info('newCaseStatus', `Could not load interventions: ${e.message}`); }
+      const data=await api(`/admin/mtss/catalog?domain=${encode(domain)}&tier=${encode(tier)}`);
+      if(seq!==state.catalogSeq)return;
+      fillCatalog('newCatalogChoice',data);
+      $('newFrequency').innerHTML='<option value="">Select frequency (optional)</option>'+(data.frequencies||[]).map(label=>`<option>${escapeHtml(label)}</option>`).join('');
+      showOther('newCatalogChoice','newOtherWrapper','newOtherText');
+    }catch(e){if(seq===state.catalogSeq)info('newCaseStatus',`Could not load interventions: ${e.message}`);}
   }
-  async function loadTier1Catalog() {
-    try { const d = await catalog($('t1Domain').value, 1); fillCatalog('t1CatalogChoice', d); showOther('t1CatalogChoice','t1OtherWrapper'); }
-    catch (e) { info('t1Status', `Could not load Tier 1 catalog: ${e.message}`); }
-  }
-  async function chosenCatalog(selectId, textId, domain, tier) {
-    const selected = $(selectId).value;
-    if (!selected) throw new Error('Choose an intervention.');
-    if (selected !== '__other__') return selected;
-    if (!state.leader) throw new Error('Only leadership can create intervention options.');
-    const label = $(textId).value.trim();
-    if (label.length < 5) throw new Error('Describe the new intervention (at least 5 characters).');
-    const result = await request('/admin/mtss/catalog/new', { domain, tier:Number(tier), label });
+  async function chosenCatalog(selectId,textId,domain,tier){
+    const id=$(selectId).value;
+    if(!id)throw new Error('Select an intervention.');
+    if(id!=='__other__')return id;
+    if(!state.leader)throw new Error('Only leadership can create intervention catalog options.');
+    const label=$(textId).value.trim();
+    if(label.length<5)throw new Error('Describe the new intervention (at least 5 characters).');
+    const result=await request('/admin/mtss/catalog/new',{domain,tier:Number(tier),label});
     return result.catalog.catalog_id;
   }
-
-  function openNewCase() {
-    selection('new', null); $('newOtherText').value = ''; info('newCaseStatus','');
-    loadNewCatalog(); const q = new URL(location.href).searchParams.get('osis');
-    if (q) setOsis(q);
+  function openNewCase(){
+    setStudent(null);
+    info('newCaseStatus','');$('newOtherText').value='';$('newT1Notes').value='';
+    $('newT1Date').value=isoToday();$('newT1Outcome').value='delivered';
+    $('newTier').value=canManageCases()?'2':'1';
+    updateMode();loadNewCatalog();
+    const osis=new URL(location.href).searchParams.get('osis');if(osis)setOsis(osis);
   }
-  async function createCase() {
-    const osis = state.selected.new?.osis;
-    if (!osis) { info('newCaseStatus','Select a student from the autocomplete suggestions before continuing.'); return; }
-    const domain = $('newDomain').value, tier = Number($('newTier').value);
-    const reason = $('newReason').value.trim();
-    if (!reason) { info('newCaseStatus','A reason is required.'); return; }
-    try {
-      info('newCaseStatus', 'Opening case and assigning intervention…');
-      const id = await chosenCatalog('newCatalogChoice','newOtherText',domain,tier);
-      const data = await request('/admin/mtss/case', {
+  async function createCase(){
+    if(!state.student?.osis){info('newCaseStatus','Select a student from autocomplete before continuing.');return;}
+    const osis=state.student.osis,domain=$('newDomain').value,tier=Number($('newTier').value);
+    const button=$('newCaseSubmit');button.disabled=true;
+    try{
+      const id=await chosenCatalog('newCatalogChoice','newOtherText',domain,tier);
+      if(tier===1){
+        info('newCaseStatus','Recording Tier 1 intervention…');
+        await request('/admin/mtss/activity',{
+          osis,domain,catalog_id:id,occurred_on:$('newT1Date').value,
+          outcome:$('newT1Outcome').value,notes:$('newT1Notes').value
+        });
+        $('newT1Notes').value='';
+        info('newCaseStatus','Tier 1 intervention logged. No formal case was opened and the student’s tier is unchanged.');
+        await loadTier1History(osis);
+        await loadNewCatalog();
+        return;
+      }
+      if(!canManageCases())throw new Error('You do not have permission to open Tier 2/3 cases.');
+      const reason=$('newReason').value.trim();
+      if(!reason)throw new Error('A reason is required to open a case.');
+      info('newCaseStatus','Opening case and assigning intervention…');
+      const result=await request('/admin/mtss/case',{
         osis,domain,tier,reason,next_review_date:$('newReviewDate').value,
-        initial_intervention_catalog_id:id,
-        initial_frequency:$('newFrequency').value
+        initial_intervention_catalog_id:id,initial_frequency:$('newFrequency').value
       });
-      $('newCaseBackdrop').hidden = true;
+      $('newCaseBackdrop').hidden=true;
       await core().loadDashboard();
-      if (data.case?.case_id) await core().openCase(data.case.case_id);
-      if (data.initial_intervention_error) info('caseModalStatus', `Case opened, but intervention could not be assigned: ${data.initial_intervention_error}`);
-      if (data.already_open) info('caseModalStatus', 'An active case already exists for this student and domain. No duplicate case or intervention was added.');
-    } catch (e) { info('newCaseStatus', `Could not open case: ${e.message}`); }
+      if(result.case?.case_id)await core().openCase(result.case.case_id);
+      if(result.initial_intervention_error)info('caseModalStatus',`Case opened, but initial intervention could not be assigned: ${result.initial_intervention_error}`);
+      if(result.already_open)info('caseModalStatus','An active case already exists. No duplicate case was opened.');
+    }catch(e){info('newCaseStatus',`Could not save: ${e.message}`);}
+    finally{button.disabled=false;}
   }
-
-  async function addIntervention() {
-    const c = state.caseData?.case || core().currentCase()?.case;
-    if (!c) return;
-    try {
-      const id = await chosenCatalog('interventionName','caseOtherText',c.domain,c.tier);
-      const result = await request('/admin/mtss/intervention', {
-        case_id:c.case_id, catalog_id:id, method:$('interventionMethod').value,
-        frequency:$('interventionFrequency').value, content_area:$('interventionContent').value,
+  async function loadTier1History(osis){
+    try{
+      const result=await api(`/admin/mtss/activity?osis=${encode(osis)}`);
+      renderActivities('newTier1History',(result.activities||[]).filter(row=>Number(row.tier)===1));
+    }catch(e){info('newTier1History',`Could not load recent interventions: ${e.message}`);}
+  }
+  async function addIntervention(){
+    const c=state.caseData?.case||core().currentCase()?.case;if(!c)return;
+    try{
+      const id=await chosenCatalog('interventionName','caseOtherText',c.domain,c.tier);
+      await request('/admin/mtss/intervention',{
+        case_id:c.case_id,catalog_id:id,method:$('interventionMethod').value,
+        frequency:$('interventionFrequency').value,content_area:$('interventionContent').value,
         notes:$('interventionNotes').value,start_date:isoToday()
       });
-      info('caseModalStatus',result.ok?'Intervention assigned.':'Intervention failed.');
-      await core().openCase(c.case_id); await core().loadDashboard();
-    } catch (e) { info('caseModalStatus',`Intervention failed: ${e.message}`); }
+      await core().openCase(c.case_id);await core().loadDashboard();
+      info('caseModalStatus','Intervention assigned.');
+    }catch(e){info('caseModalStatus',`Intervention failed: ${e.message}`);}
   }
-
-  async function caseLoaded(data) {
-    state.caseData = data;
-    const select = $('interventionName');
-    // Existing mtss.js has already populated the catalog dropdown at this point.
-    if (state.leader && !select.querySelector('option[value="__other__"]'))
-      select.insertAdjacentHTML('beforeend','<option value="__other__">Other — add approved choice (leadership)</option>');
-    showOther('interventionName','caseOtherWrapper');
-    const interventions = (data.interventions || []);
-    $('caseActivityIntervention').innerHTML = '<option value="">Choose an assigned intervention</option>' + interventions.map(i => `<option value="${escapeHtml(i.intervention_id)}">${escapeHtml(i.intervention_name)}</option>`).join('');
-    $('caseActivityForm').hidden = !(data.permissions?.can_manage && !data.permissions?.read_only && data.case.is_active);
-    $('caseActivityDate').value = isoToday();
+  async function caseLoaded(data){
+    state.caseData=data;
+    // The legacy case modal renders option values as labels. The refined Worker
+    // requires catalog IDs, so always populate this selector from catalog rows.
+    const select=$('interventionName');
     try {
-      const events = await api(`/admin/mtss/activity?case_id=${encode(data.case.case_id)}`);
-      renderActivities('caseActivities', events.activities || []);
-    } catch (e) { info('caseActivities',`Could not load delivery history: ${e.message}`); }
+      const catalogData=await api(`/admin/mtss/catalog?domain=${encode(data.case.domain)}&tier=${encode(data.case.tier)}`);
+      fillCatalog('interventionName',catalogData);
+    } catch(error) {
+      select.innerHTML='<option value="">Intervention catalog unavailable</option>';
+      info('caseModalStatus',`Could not load approved interventions: ${error.message}`);
+    }
+    showOther('interventionName','caseOtherWrapper','caseOtherText');
+    $('caseActivityIntervention').innerHTML='<option value="">Choose an assigned intervention</option>'+(data.interventions||[]).map(row=>`<option value="${escapeHtml(row.intervention_id)}">${escapeHtml(row.intervention_name)}</option>`).join('');
+    $('caseActivityForm').hidden=!(data.permissions?.can_manage&&!data.permissions?.read_only&&data.case.is_active);
+    $('caseActivityDate').value=isoToday();
+    try{
+      const result=await api(`/admin/mtss/activity?case_id=${encode(data.case.case_id)}`);
+      renderActivities('caseActivities',result.activities||[]);
+    }catch(e){info('caseActivities',`Could not load delivery history: ${e.message}`);}
   }
-
-  function renderActivities(target, activities) {
-    const box = $(target); box.replaceChildren();
-    if (!activities.length) { box.textContent = 'No intervention delivery logged yet.'; return; }
-    const fragment = document.createDocumentFragment();
-    activities.forEach(row => {
-      const article = document.createElement('article'); article.className = 'mtssActivityRow';
-      const head = document.createElement('strong'); head.textContent = `${row.occurred_on} · ${row.intervention_name} (${row.outcome.replaceAll('_',' ')})`;
-      const detail = document.createElement('div'); detail.textContent = [row.notes, row.actor_email].filter(Boolean).join(' · ');
-      article.append(head, detail); fragment.appendChild(article);
-    }); box.appendChild(fragment);
+  function renderActivities(id,activities){
+    const target=$(id);target.replaceChildren();
+    if(!activities.length){target.textContent='No intervention deliveries logged yet.';return;}
+    const fragment=document.createDocumentFragment();
+    activities.forEach(row=>{
+      const article=document.createElement('article');article.className='mtssActivityRow';
+      const header=document.createElement('strong');header.textContent=`${row.occurred_on} · ${row.intervention_name} (${String(row.outcome||'').replaceAll('_',' ')})`;
+      const detail=document.createElement('div');detail.textContent=[row.notes,row.actor_email].filter(Boolean).join(' · ');
+      article.append(header,detail);fragment.appendChild(article);
+    });target.appendChild(fragment);
   }
-  async function logCaseActivity() {
-    const c = state.caseData?.case; if (!c) return;
-    try {
-      info('caseActivityStatus','Saving delivery log…');
-      await request('/admin/mtss/activity', {
-        case_id:c.case_id, intervention_id:$('caseActivityIntervention').value,
-        occurred_on:$('caseActivityDate').value, outcome:$('caseActivityOutcome').value, notes:$('caseActivityNotes').value
+  async function logCaseActivity(){
+    const c=state.caseData?.case;if(!c)return;
+    try{
+      info('caseActivityStatus','Saving intervention delivery…');
+      await request('/admin/mtss/activity',{
+        case_id:c.case_id,intervention_id:$('caseActivityIntervention').value,
+        occurred_on:$('caseActivityDate').value,outcome:$('caseActivityOutcome').value,notes:$('caseActivityNotes').value
       });
-      $('caseActivityNotes').value=''; info('caseActivityStatus','Intervention delivery recorded.');
+      $('caseActivityNotes').value='';info('caseActivityStatus','Intervention delivery recorded.');
       await caseLoaded(state.caseData);
-    } catch (e) { info('caseActivityStatus',`Could not save: ${e.message}`); }
+    }catch(e){info('caseActivityStatus',`Could not save: ${e.message}`);}
   }
-  function openTier1() {
-    selection('t1', null); $('t1Notes').value = ''; $('t1OtherText').value = '';
-    $('t1ActivityDate').value = isoToday(); $('t1Backdrop').hidden = false;
-    info('t1Status',''); $('tier1History').textContent = 'Choose a student to view recent logs.';
-    loadTier1Catalog(); const q = new URL(location.href).searchParams.get('osis'); if (q) setOsis(q,'t1');
+  function updateTrigger(){
+    $('btnNewCase').hidden=!state.canLog||core().isReadOnly();
+    $('btnNewCase').textContent='Open / Log Case';
   }
-  async function loadTier1History(osis) {
-    try {
-      const result = await api(`/admin/mtss/activity?osis=${encode(osis)}`);
-      renderActivities('tier1History', (result.activities || []).filter(r => Number(r.tier) === 1));
-    } catch (e) { info('tier1History',`Could not load history: ${e.message}`); }
-  }
-  async function saveTier1() {
-    const osis = state.selected.t1?.osis;
-    if (!osis) { info('t1Status','Select a student from the search results.'); return; }
-    try {
-      info('t1Status','Recording Tier 1 intervention…');
-      const domain = $('t1Domain').value;
-      const id = await chosenCatalog('t1CatalogChoice','t1OtherText',domain,1);
-      await request('/admin/mtss/activity', {
-        osis, domain, catalog_id:id, occurred_on:$('t1ActivityDate').value,
-        outcome:$('t1Outcome').value, notes:$('t1Notes').value
-      });
-      $('t1Notes').value=''; info('t1Status','Tier 1 intervention logged. Student tier is unchanged.');
-      await loadTier1History(osis);
-    } catch (e) { info('t1Status',`Could not log intervention: ${e.message}`); }
-  }
-
-  function init() {
-    if (!core() || initialized) return;
-    initialized = true;
-    wirePicker('new'); wirePicker('t1');
-    const access = core().getAccess?.() || {};
-    state.leader = !!(access.can?.admin || access.can?.super_admin || access.staff_profile?.is_grade_team_lead || access.staff_profile?.is_district_chair);
-    const canLog = !!(access.can?.mtss || access.can?.mtss_manage || access.can?.teacher_attendance || access.can?.dean_dashboard || state.leader);
-    $('btnTier1').hidden = !canLog || core().isReadOnly();
-    $('btnTier1').addEventListener('click', openTier1);
-    $('t1Close').addEventListener('click',()=>{ $('t1Backdrop').hidden=true; });
-    $('t1Domain').addEventListener('change', loadTier1Catalog);
-    $('newDomain').addEventListener('change', loadNewCatalog); $('newTier').addEventListener('change', loadNewCatalog);
-    $('newCatalogChoice').addEventListener('change',()=>showOther('newCatalogChoice','newOtherWrapper'));
-    $('t1CatalogChoice').addEventListener('change',()=>showOther('t1CatalogChoice','t1OtherWrapper'));
-    $('interventionName').addEventListener('change',()=>showOther('interventionName','caseOtherWrapper'));
-    $('t1Form').addEventListener('submit',e=>{e.preventDefault();saveTier1();});
+  function init(){
+    if(!core()||state.initialized)return;
+    state.initialized=true;
+    const access=core().getAccess?.()||{};
+    state.leader=!!(access.can?.admin||access.can?.super_admin||access.staff_profile?.is_grade_team_lead||access.staff_profile?.is_district_chair);
+    state.canLog=!!(access.can?.mtss||access.can?.mtss_manage||access.can?.teacher_attendance||access.can?.dean_dashboard||state.leader);
+    if(!canManageCases()){
+      ['2','3'].forEach(tier=>{const option=$('newTier').querySelector(`option[value="${tier}"]`);if(option)option.disabled=true;});
+    }
+    updateTrigger();document.addEventListener('eaglenest:mtss:dashboard-loaded',updateTrigger);
+    wirePicker();
+    $('newDomain').addEventListener('change',loadNewCatalog);
+    $('newTier').addEventListener('change',loadNewCatalog);
+    $('newCatalogChoice').addEventListener('change',()=>showOther('newCatalogChoice','newOtherWrapper','newOtherText'));
+    $('interventionName').addEventListener('change',()=>showOther('interventionName','caseOtherWrapper','caseOtherText'));
     $('caseActivityForm').addEventListener('submit',e=>{e.preventDefault();logCaseActivity();});
-    const urlOsis = new URL(location.href).searchParams.get('osis');
-    if (urlOsis) setOsis(urlOsis);
+    const osis=new URL(location.href).searchParams.get('osis');if(osis)setOsis(osis);
   }
-  window.EagleNESTMTSSEnhancements = { init, openNewCase, setOsis, loadNewCatalog, createCase, addIntervention, caseLoaded };
-  // mtss.js calls init() after its authenticated boot has completed.
+  window.EagleNESTMTSSEnhancements={init,openNewCase,setOsis,loadNewCatalog,createCase,addIntervention,caseLoaded};
 })();

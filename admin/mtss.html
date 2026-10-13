@@ -12,7 +12,7 @@
   <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./mtss.css">
-  <link rel="stylesheet" href="./mtss-enhancements.css">
+  <link rel="stylesheet" href="./mtss-enhancements.css?v=mtss-refinement-1-1">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <title>EagleNEST — MTSS</title>
@@ -34,8 +34,7 @@
           <p class="muted">Attendance, academics, and behavior/SEL in one intervention and progress-monitoring workflow.</p>
         </div>
         <div class="pageActions">
-          <button id="btnTier1" class="btn" type="button" hidden>Log Tier 1</button>
-          <button id="btnNewCase" class="btn primary" type="button" hidden>Open case</button>
+          <button id="btnNewCase" class="btn primary" type="button" hidden>Open / Log Case</button>
           <button id="btnRefresh" class="btn" type="button">Refresh</button>
         </div>
       </header>
@@ -129,26 +128,6 @@
     </main>
   </div>
 
-
-  <!-- EAGLENEST_MTSS_REFINEMENT_V1 Tier 1 universal logging -->
-  <div id="t1Backdrop" class="backdrop" hidden>
-    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="t1Title">
-      <header class="modalHead"><div><div class="eyebrow">Universal supports</div><h2 id="t1Title">Log Tier 1 intervention</h2></div><button id="t1Close" class="iconBtn" type="button" aria-label="Close">×</button></header>
-      <form id="t1Form" class="modalBody">
-        <label class="field mtssPicker"><span>Find student (name or OSIS)</span><input id="t1StudentQuery" autocomplete="off" type="search" placeholder="Search current students..."><div id="t1StudentResults" class="mtssPickerResults" hidden></div></label>
-        <input id="t1Osis" type="hidden"><div id="t1SelectedStudent" class="mtssSelected">Select a student from the results.</div>
-        <div class="twoCol"><label class="field"><span>Domain</span><select id="t1Domain"><option value="academic">Academic</option><option value="attendance">Attendance</option><option value="behavior">Behavior / SEL</option></select></label>
-          <label class="field"><span>Date delivered</span><input id="t1ActivityDate" type="date" required></label></div>
-        <label class="field"><span>Approved Tier 1 intervention</span><select id="t1CatalogChoice" required></select></label>
-        <label id="t1OtherWrapper" class="field" hidden><span>New intervention for the shared catalog (leadership only)</span><input id="t1OtherText" maxlength="300" placeholder="Describe the intervention"></label>
-        <label class="field"><span>Outcome</span><select id="t1Outcome"><option value="delivered">Delivered</option><option value="partial">Partially delivered</option><option value="not_delivered">Not delivered</option></select></label>
-        <label class="field"><span>Notes (optional)</span><textarea id="t1Notes" rows="2" maxlength="3000"></textarea></label>
-        <div id="t1Status" class="statusText" role="status"></div><div class="modalFoot"><button class="btn primary" type="submit">Save Tier 1 log</button></div>
-        <h3>Recent Tier 1 activity</h3><div id="tier1History" class="mtssEnhancementSection"></div>
-      </form>
-    </section>
-  </div>
-
   <div id="newCaseBackdrop" class="backdrop" hidden>
     <section class="modal" role="dialog" aria-modal="true" aria-labelledby="newCaseTitle">
       <header class="modalHead"><div><div class="eyebrow">Manual case</div><h2 id="newCaseTitle">Open MTSS case</h2></div><button class="iconBtn" data-close="newCaseBackdrop" aria-label="Close">×</button></header>
@@ -158,18 +137,27 @@
         <div id="enhSelectedStudent" class="mtssSelected">Select a student from the results.</div>
         <div class="twoCol">
           <label class="field"><span>Domain</span><select id="newDomain" required><option value="attendance">Attendance</option><option value="academic">Academic</option><option value="behavior">Behavior / SEL</option></select></label>
-          <label class="field"><span>Tier</span><select id="newTier"><option value="2">Tier 2</option><option value="3">Tier 3</option></select></label>
+          <label class="field"><span>Tier</span><select id="newTier"><option value="1">Tier 1 — log intervention</option><option value="2">Tier 2 — open case</option><option value="3">Tier 3 — open case</option></select></label>
         </div>
-        <fieldset class="mtssEnhancedFieldset"><legend>Required initial intervention plan</legend>
-          <label class="field"><span>Approved intervention for this domain and tier</span><select id="newCatalogChoice" required></select></label>
-          <label id="newOtherWrapper" class="field" hidden><span>New intervention catalog entry (leadership only)</span><input id="newOtherText" maxlength="300" placeholder="Write your proposed intervention"></label>
-          <label class="field"><span>Frequency (optional)</span><select id="newFrequency"></select></label>
-          <div class="mtssSubtle">The assigned intervention will be saved when the case opens.</div>
+        <fieldset id="newInterventionPlan" class="mtssEnhancedFieldset"><legend id="newInterventionLegend">Required initial intervention plan</legend>
+          <label class="field"><span>Approved intervention</span><select id="newCatalogChoice" required></select></label>
+          <label id="newOtherWrapper" class="field" hidden><span>New intervention catalog entry (leadership only)</span><input id="newOtherText" maxlength="300" placeholder="Write your intervention"></label>
+          <label id="newFrequencyRow" class="field"><span>Frequency (optional)</span><select id="newFrequency"></select></label>
+          <div id="newInterventionHelp" class="mtssSubtle">The assigned intervention will be saved when the case opens.</div>
         </fieldset>
-        <label class="field"><span>Reason / concern</span><textarea id="newReason" rows="4" required placeholder="What targeted support is needed?"></textarea></label>
-        <label class="field"><span>Next review date</span><input id="newReviewDate" type="date"></label>
+        <div id="newCaseFields">
+          <label class="field"><span>Reason / concern</span><textarea id="newReason" rows="4" required placeholder="What targeted support is needed?"></textarea></label>
+          <label class="field"><span>Next review date</span><input id="newReviewDate" type="date"></label>
+        </div>
+        <section id="newTier1Fields" class="mtssTierOneFields" hidden>
+          <h3>Tier 1 delivery details</h3>
+          <div class="twoCol"><label class="field"><span>Date delivered</span><input id="newT1Date" type="date"></label>
+          <label class="field"><span>Outcome</span><select id="newT1Outcome"><option value="delivered">Delivered</option><option value="partial">Partially delivered</option><option value="not_delivered">Not delivered</option></select></label></div>
+          <label class="field"><span>Notes (optional)</span><textarea id="newT1Notes" rows="2" maxlength="3000"></textarea></label>
+          <h3>Recent Tier 1 activity</h3><div id="newTier1History" class="mtssEnhancementSection">Select a student to see recent logs.</div>
+        </section>
         <div id="newCaseStatus" class="statusText"></div>
-        <div class="modalFoot"><button class="btn" data-close="newCaseBackdrop" type="button">Cancel</button><button class="btn primary" type="submit">Open case</button></div>
+        <div class="modalFoot"><button class="btn" data-close="newCaseBackdrop" type="button">Cancel</button><button id="newCaseSubmit" class="btn primary" type="submit">Open case and assign intervention</button></div>
       </form>
     </section>
   </div>
@@ -229,8 +217,8 @@
     </section>
   </div>
 
-  <script src="./mtss.js?v=mtss-refinement-1" defer></script>
-  <script src="./mtss-enhancements.js" defer></script>
-  <script src="./mtss-academic.js?v=mtss-refinement-1" defer></script>
+  <script src="./mtss.js?v=mtss-refinement-1-1" defer></script>
+  <script src="./mtss-enhancements.js?v=mtss-refinement-1-1" defer></script>
+  <script src="./mtss-academic.js?v=mtss-refinement-1-1" defer></script>
 </body>
 </html>

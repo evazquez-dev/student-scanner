@@ -5,3 +5,8 @@
 .mtssActivityRow{padding:9px 11px;border:1px solid var(--border);border-radius:10px;margin:7px 0;font-size:12px}.mtssActivityRow div{color:var(--muted);margin-top:4px}
 .mtssEnhancementSection{margin:12px 0}.mtssEnhancedFieldset{border:1px solid var(--border);border-radius:12px;padding:12px;margin:13px 0}.mtssEnhancedFieldset legend{font-weight:850;font-size:13px;padding:0 6px}
 #t1Backdrop .modal{width:min(720px,100%)}.mtssModalAction{margin-top:10px}.mtssSubtle{font-size:12px;color:var(--muted)}
+
+/* v1.1: author CSS .field {display:block} must not override conditional hidden fields. */
+#newCaseBackdrop [hidden], #caseBackdrop #caseOtherWrapper[hidden] { display:none !important; }
+#newCaseBackdrop .mtssTierOneFields { margin:13px 0; padding:12px; border:1px solid var(--border); border-radius:12px; }
+#newCaseBackdrop .mtssTierOneFields h3 { margin:0 0 10px; font-size:14px; }
