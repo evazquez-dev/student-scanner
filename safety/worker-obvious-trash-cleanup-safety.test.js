@@ -51,6 +51,6 @@ test('proven zero-caller Fidelity, bell, push, and scan-correction helpers stay 
   }
   // Active Fidelity ingestion/scoring and attendance bell resolution remain.
   assert.match(worker, /function captureFidelityEvents_/);
-  assert.match(worker, /function fetchFidelityRangeDashboardFromGas_/);
+  assert.doesNotMatch(worker, /function fetchFidelityRangeDashboardFromGas_/);
   assert.match(worker, /function effectiveBellScheduleForDateISO/);
 });
