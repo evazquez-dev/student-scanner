@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./mtss.css">
   <link rel="stylesheet" href="./mtss-enhancements.css?v=mtss-refinement-1-1">
+  <link rel="stylesheet" href="./mtss-awareness.css?v=mtss-awareness-1-2">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <title>EagleNEST — MTSS</title>
@@ -84,6 +85,14 @@
           <tbody id="academicWarningsBody"></tbody></table></div>
       </section>
 
+      <!-- EAGLENEST_MTSS_RECOMMENDATIONS_V1 -->
+      <section id="mtssAwarenessPanel" class="mtssAwarePanel" data-audience="mtss" hidden>
+        <div class="mtssAwareTop"><div><h2>MTSS support awareness</h2>
+          <p>Teacher suggestions awaiting review and Tier 1 interventions delivered across your authorized students. <span id="mtssAwarenessScope"></span></p></div>
+          <button id="mtssAwarenessRefresh" type="button">Refresh support activity</button>
+        </div>
+        <div id="mtssAwarenessContent" class="mtssAwareGrid" role="region" aria-live="polite">Loading…</div>
+      </section>
       <section class="card">
         <div class="sectionHead">
           <div><h2>Cases</h2><p class="muted">Tier 1 is universal support. Cases are opened for targeted Tier 2/3 support.</p></div>
@@ -145,6 +154,9 @@
           <label id="newFrequencyRow" class="field"><span>Frequency (optional)</span><select id="newFrequency"></select></label>
           <div id="newInterventionHelp" class="mtssSubtle">The assigned intervention will be saved when the case opens.</div>
         </fieldset>
+        <label id="newSuggestionKindRow" class="field" hidden><span>What are you recommending?</span>
+          <select id="newSuggestionKind"><option value="intervention">Add a targeted intervention</option><option value="escalation">Request escalation to this tier</option></select>
+        </label>
         <div id="newCaseFields">
           <label class="field"><span>Reason / concern</span><textarea id="newReason" rows="4" required placeholder="What targeted support is needed?"></textarea></label>
           <label class="field"><span>Next review date</span><input id="newReviewDate" type="date"></label>
@@ -218,7 +230,8 @@
   </div>
 
   <script src="./mtss.js?v=mtss-refinement-1-1" defer></script>
-  <script src="./mtss-enhancements.js?v=mtss-refinement-1-1" defer></script>
+  <script src="./mtss-enhancements.js?v=mtss-awareness-1-2" defer></script>
+  <script src="./mtss-awareness.js?v=mtss-awareness-1-2" defer></script>
   <script src="./mtss-academic.js?v=mtss-refinement-1-1" defer></script>
 </body>
 </html>

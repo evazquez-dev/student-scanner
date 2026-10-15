@@ -1,4 +1,4 @@
-/* EAGLENEST_MTSS_REFINEMENT_V1_1: unified Tier 1 logging and Tier 2/3 case creation. */
+/* EAGLENEST_MTSS_REFINEMENT_V1_2: teacher suggestions + unified logging. */
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
@@ -17,6 +17,7 @@
   const displayStudent = s => `${s.name || 'Student'} · OSIS ${s.osis}`;
   const choices = rows => '<option value="">Select an approved intervention</option>' + (rows || []).map(r => `<option value="${escapeHtml(r.catalog_id)}">${escapeHtml(r.label)}</option>`).join('');
   const isTier1 = () => Number($('newTier').value) === 1;
+  const isSuggestion = () => !canManageCases() && !isTier1();
   const canManageCases = () => !!core().canManageAll();
 
   function showOther(selectId, wrapperId, inputId) {
@@ -99,23 +100,31 @@
   }
   function updateMode() {
     const t1=isTier1();
+    const suggested=isSuggestion();
     $('newCaseFields').hidden=t1;
     $('newTier1Fields').hidden=!t1;
+    $('newSuggestionKindRow').hidden=!suggested;
+    $('newSuggestionKind').disabled=!suggested;
     $('newFrequencyRow').hidden=t1;
     $('newReason').required=!t1;
     $('newReason').disabled=t1;
-    $('newReviewDate').disabled=t1;
+    $('newReviewDate').disabled=t1||suggested;
+    $('newReviewDate').closest('label').hidden=t1||suggested;
+    const escalation=suggested && $('newSuggestionKind').value==='escalation';
+    $('newCatalogChoice').required=!escalation;
+    $('newCatalogChoice').closest('label').querySelector('span').textContent=escalation?'Suggested intervention (optional)':'Approved intervention';
     $('newT1Date').required=t1;
     $('newT1Date').disabled=!t1;
     $('newT1Outcome').disabled=!t1;
     $('newT1Notes').disabled=!t1;
     $('newFrequency').disabled=t1;
-    $('newCaseTitle').textContent=t1?'Log Tier 1 intervention':'Open MTSS case';
-    $('newInterventionLegend').textContent=t1?'Tier 1 intervention':'Required initial intervention plan';
+    $('newCaseTitle').textContent=t1?'Log Tier 1 intervention':suggested?'Suggest Tier '+$('newTier').value+' support':'Open MTSS case';
+    $('newInterventionLegend').textContent=t1?'Tier 1 intervention':suggested?'Proposed support':'Required initial intervention plan';
     $('newInterventionHelp').textContent=t1
       ? 'Record an intervention delivered to this student. This will not open a case or change their tier.'
+      : suggested ? 'This is a request for MTSS review, not a case opening or tier change.'
       : 'The assigned intervention will be saved when the case opens.';
-    $('newCaseSubmit').textContent=t1?'Log Tier 1 intervention':'Open case and assign intervention';
+    $('newCaseSubmit').textContent=t1?'Log Tier 1 intervention':suggested?'Submit MTSS recommendation':'Open case and assign intervention';
     if(t1 && state.student)loadTier1History(state.student.osis);
     if(!t1)info('newTier1History','');
   }
@@ -157,7 +166,10 @@
     const osis=state.student.osis,domain=$('newDomain').value,tier=Number($('newTier').value);
     const button=$('newCaseSubmit');button.disabled=true;
     try{
-      const id=await chosenCatalog('newCatalogChoice','newOtherText',domain,tier);
+      const suggested=isSuggestion();
+      const kind=$('newSuggestionKind').value;
+      const id=(suggested&&kind==='escalation'&&!$('newCatalogChoice').value)
+        ? '' : await chosenCatalog('newCatalogChoice','newOtherText',domain,tier);
       if(tier===1){
         info('newCaseStatus','Recording Tier 1 intervention…');
         await request('/admin/mtss/activity',{
@@ -168,11 +180,22 @@
         info('newCaseStatus','Tier 1 intervention logged. No formal case was opened and the student’s tier is unchanged.');
         await loadTier1History(osis);
         await loadNewCatalog();
+        document.dispatchEvent(new CustomEvent('eaglenest:mtss:recommendation-submitted'));
+        return;
+      }
+      const reason=$('newReason').value.trim();
+      if(!reason)throw new Error('Please describe the concern and proposed support.');
+      if(suggested){
+        info('newCaseStatus','Sending recommendation for MTSS review…');
+        await request('/admin/mtss/suggestion',{
+          osis,domain,requested_tier:tier,recommendation_type:kind,
+          catalog_id:id,frequency:$('newFrequency').value,reason
+        });
+        info('newCaseStatus','Recommendation submitted for review. Student tier and cases were not changed.');
+        document.dispatchEvent(new CustomEvent('eaglenest:mtss:recommendation-submitted'));
         return;
       }
       if(!canManageCases())throw new Error('You do not have permission to open Tier 2/3 cases.');
-      const reason=$('newReason').value.trim();
-      if(!reason)throw new Error('A reason is required to open a case.');
       info('newCaseStatus','Opening case and assigning intervention…');
       const result=await request('/admin/mtss/case',{
         osis,domain,tier,reason,next_review_date:$('newReviewDate').value,
@@ -260,12 +283,14 @@
     state.leader=!!(access.can?.admin||access.can?.super_admin||access.staff_profile?.is_grade_team_lead||access.staff_profile?.is_district_chair);
     state.canLog=!!(access.can?.mtss||access.can?.mtss_manage||access.can?.teacher_attendance||access.can?.dean_dashboard||state.leader);
     if(!canManageCases()){
-      ['2','3'].forEach(tier=>{const option=$('newTier').querySelector(`option[value="${tier}"]`);if(option)option.disabled=true;});
+      ['2','3'].forEach(tier=>{const option=$('newTier').querySelector(`option[value="${tier}"]`);
+        if(option){option.disabled=false;option.textContent=`Tier ${tier} — suggest support`;}});
     }
     updateTrigger();document.addEventListener('eaglenest:mtss:dashboard-loaded',updateTrigger);
     wirePicker();
     $('newDomain').addEventListener('change',loadNewCatalog);
     $('newTier').addEventListener('change',loadNewCatalog);
+    $('newSuggestionKind').addEventListener('change',updateMode);
     $('newCatalogChoice').addEventListener('change',()=>showOther('newCatalogChoice','newOtherWrapper','newOtherText'));
     $('interventionName').addEventListener('change',()=>showOther('interventionName','caseOtherWrapper','caseOtherText'));
     $('caseActivityForm').addEventListener('submit',e=>{e.preventDefault();logCaseActivity();});
