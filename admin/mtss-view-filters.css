@@ -1,0 +1,28 @@
+/* MTSS display filters. Uses the existing MTSS light/dark theme variables. */
+.domainCard { transition: border-color .12s ease, background-color .12s ease, opacity .12s ease; }
+.domainCard[data-mtss-view="all"] { border:2px solid var(--accent); padding:15px; background:color-mix(in srgb,var(--accent) 5%,var(--panel)); }
+.domainCard[data-mtss-view="partial"] { border:2px solid var(--info); padding:15px; background:color-mix(in srgb,var(--info) 5%,var(--panel)); }
+.domainCard[data-mtss-view="off"] { opacity:.6; border-style:dashed; }
+.mtssDomainToggle { cursor:pointer; border-radius:10px; min-height:46px; align-items:center; }
+.mtssDomainToggle:hover h2, .mtssDomainToggle:hover .domainIcon { color:var(--accent); }
+.mtssCategoryState { display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:999px; color:var(--muted); font-size:10px; font-weight:900; letter-spacing:.04em; padding:5px 8px; margin-left:auto; white-space:nowrap; }
+.domainCard[data-mtss-view="all"] .mtssCategoryState { color:var(--accent); border-color:var(--accent); }
+.domainCard[data-mtss-view="partial"] .mtssCategoryState { color:var(--info); border-color:var(--info); }
+.mtssTierToggle { cursor:pointer; transition:opacity .12s ease, background .12s ease, border-color .12s ease; }
+.mtssTierToggle.mtssTierOn { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 13%,var(--panel2)); box-shadow:inset 0 0 0 1px var(--accent); }
+.mtssTierToggle:not(.mtssTierOn) { opacity:.48; }
+.mtssTierToggle:hover { opacity:1; border-color:var(--accent); }
+.mtssDomainToggle:focus-visible, .mtssTierToggle:focus-visible { outline:3px solid var(--info); outline-offset:3px; }
+.mtssViewFilterToolbar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px; margin:-2px 0 16px; border:1px solid var(--border); background:var(--panel); padding:12px 15px; border-radius:14px; }
+.mtssViewFilterExplanation { display:grid; gap:4px; flex:1 1 350px; font-size:12px; }
+.mtssViewFilterExplanation > span { color:var(--muted); }
+.mtssViewFilterClarification { font-size:11px; }
+#mtssViewFilterStatus { color:var(--info); font-size:11px; font-weight:800; margin-top:3px; }
+.mtssViewFilterActions { display:flex; gap:7px; flex-wrap:wrap; }
+.mtssCaseRefinements { grid-template-columns:minmax(190px,2fr) repeat(2,minmax(140px,1fr)) auto; }
+.mtssViewHidden { display:none !important; }
+#casesBody tr[hidden], #academicWarningsBody tr[hidden], #rulesBody tr[hidden] { display:none !important; }
+.mtssAcademicTierNote { margin:6px 0 10px; color:var(--muted); font-size:11px; }
+@media(max-width:1000px) { .mtssCaseRefinements { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:620px) { .mtssCaseRefinements { grid-template-columns:1fr; } .mtssViewFilterActions { width:100%; } .mtssViewFilterActions .btn { flex:1; } }
+@media(prefers-reduced-motion:reduce) { .domainCard,.mtssTierToggle { transition:none; } }

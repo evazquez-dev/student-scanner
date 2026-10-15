@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="./shared_auth.js"></script>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./mtss.css">
+  <link rel="stylesheet" href="./mtss-enhancements.css?v=mtss-refinement-1-1">
+  <link rel="stylesheet" href="./mtss-awareness.css?v=mtss-awareness-1-2">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <title>EagleNEST — MTSS</title>
+</head>
+<body data-module="mtss">
+  <div class="wrap">
+    <section id="loginCard" class="card loginCard">
+      <h2>Staff sign-in</h2>
+      <p class="muted">Use your EagleNEST staff account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="statusText">Checking session…</pre>
+    </section>
+
+    <main id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <div class="eyebrow">Student Support</div>
+          <h1>MTSS Case Management</h1>
+          <p class="muted">Attendance, academics, and behavior/SEL in one intervention and progress-monitoring workflow.</p>
+        </div>
+        <div class="pageActions">
+          <button id="btnNewCase" class="btn primary" type="button" hidden>Open / Log Case</button>
+          <button id="btnRefresh" class="btn" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <div id="scopeBanner" class="scopeBanner" hidden></div>
+
+      <section class="domainGrid" aria-label="MTSS tier summary">
+        <article class="domainCard" data-domain="attendance">
+          <div class="domainTop"><div><div class="eyebrow">Attendance</div><h2>Attendance</h2></div><span class="domainIcon">A</span></div>
+          <div class="tierStrip"><div><strong id="attT1">—</strong><span>Tier 1</span></div><div><strong id="attT2">—</strong><span>Tier 2</span></div><div><strong id="attT3">—</strong><span>Tier 3</span></div></div>
+        </article>
+        <article class="domainCard" data-domain="academic">
+          <div class="domainTop"><div><div class="eyebrow">Academics</div><h2>Academic</h2></div><span class="domainIcon">AC</span></div>
+          <div class="tierStrip"><div><strong id="acaT1">—</strong><span>Tier 1</span></div><div><strong id="acaT2">—</strong><span>Tier 2</span></div><div><strong id="acaT3">—</strong><span>Tier 3</span></div></div>
+        </article>
+        <article class="domainCard" data-domain="behavior">
+          <div class="domainTop"><div><div class="eyebrow">Behavior / SEL</div><h2>Behavior</h2></div><span class="domainIcon">B</span></div>
+          <div class="tierStrip"><div><strong id="behT1">—</strong><span>Tier 1</span></div><div><strong id="behT2">—</strong><span>Tier 2</span></div><div><strong id="behT3">—</strong><span>Tier 3</span></div></div>
+        </article>
+      </section>
+
+      <section class="miniStats">
+        <div class="miniStat"><span>Enrolled</span><strong id="statEnrolled">—</strong></div>
+        <div class="miniStat"><span>Reviews due</span><strong id="statDue">—</strong></div>
+        <div class="miniStat"><span>Data recommends review</span><strong id="statRecommend">—</strong></div>
+        <div class="miniStat"><span>Scope</span><strong id="statScope">—</strong></div>
+      </section>
+
+      <!-- EAGLENEST_MTSS_ACADEMIC_V1 -->
+      <section id="academicEarlyWarning" class="card" hidden>
+        <div class="sectionHead"><div><div class="eyebrow">Academic MTSS</div><h2>Academic early-warning queue</h2>
+          <p class="muted">Read-only PowerSchool signals. Leadership approves the case and tier; grade changes never automatically open or escalate an MTSS case.</p></div>
+          <span id="academicWarningCount" class="countBadge">—</span>
+        </div>
+        <div class="filters academicFilters">
+          <label><span>Search student</span><input id="academicSearch" type="search" placeholder="Student or OSIS"></label>
+          <label><span>Grade</span><select id="academicGrade"><option value="">All grades</option><option>9</option><option>10</option><option>11</option><option>12</option></select></label>
+        </div>
+        <div id="academicWarningStatus" class="statusText">Loading PowerSchool signals…</div>
+        <form id="academicSettingsForm" class="academicSettings" hidden>
+          <label class="field"><span>Decline warning (points)</span><input id="academicDeclinePoints" type="number" step="0.5" min="0.5" max="100" required></label>
+          <label class="field"><span>Multiple-course review threshold</span><input id="academicMultipleCourses" type="number" min="2" max="12" required></label>
+          <button class="btn" type="submit">Save academic alert thresholds</button>
+          <span id="academicSettingsStatus" class="small muted"></span>
+        </form>
+        <div class="tableWrap"><table><thead><tr><th>Student</th><th>Failing</th><th>Declining</th><th>Course signals</th><th>Case status</th><th>Action</th></tr></thead>
+          <tbody id="academicWarningsBody"></tbody></table></div>
+      </section>
+
+      <!-- EAGLENEST_MTSS_RECOMMENDATIONS_V1 -->
+      <section id="mtssAwarenessPanel" class="mtssAwarePanel" data-audience="mtss" hidden>
+        <div class="mtssAwareTop"><div><h2>MTSS support awareness</h2>
+          <p>Teacher suggestions awaiting review and Tier 1 interventions delivered across your authorized students. <span id="mtssAwarenessScope"></span></p></div>
+          <button id="mtssAwarenessRefresh" type="button">Refresh support activity</button>
+        </div>
+        <div id="mtssAwarenessContent" class="mtssAwareGrid" role="region" aria-live="polite">Loading…</div>
+      </section>
+      <section class="card">
+        <div class="sectionHead">
+          <div><h2>Cases</h2><p class="muted">Tier 1 is universal support. Cases are opened for targeted Tier 2/3 support.</p></div>
+          <div id="caseCount" class="countBadge">0 cases</div>
+        </div>
+        <div class="filters">
+          <label><span>Search student</span><input id="filterQ" type="search" placeholder="Name or OSIS"></label>
+          <label><span>Domain</span><select id="filterDomain"><option value="">All domains</option><option value="attendance">Attendance</option><option value="academic">Academic</option><option value="behavior">Behavior / SEL</option></select></label>
+          <label><span>Tier</span><select id="filterTier"><option value="">All tiers</option><option value="2">Tier 2</option><option value="3">Tier 3</option></select></label>
+          <label><span>Status</span><select id="filterStatus"><option value="">Active statuses</option><option value="open">Open</option><option value="monitoring">Monitoring</option><option value="improving">Improving</option><option value="escalated">Escalated</option></select></label>
+          <label><span>Grade</span><select id="filterGrade"><option value="">All grades</option><option>9</option><option>10</option><option>11</option><option>12</option></select></label>
+          <label class="checkLabel"><input id="filterClosed" type="checkbox"><span>Include closed</span></label>
+        </div>
+        <div id="caseStatus" class="statusText">Loading cases…</div>
+        <div class="tableWrap">
+          <table class="casesTable">
+            <thead><tr><th>Student</th><th>Domain</th><th>Tier</th><th>Status</th><th>Owner</th><th>Next review</th><th>Signal</th></tr></thead>
+            <tbody id="casesBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="attendanceTools" class="card" hidden>
+        <div class="sectionHead">
+          <div>
+            <h2>Attendance automation</h2>
+            <p class="muted">Official source: PowerSchool daily attendance via HS Attendance Data GAS. SY26-27 MTSS reporting begins 9/8/2026; later PowerSchool excuse-code/comment changes reconcile back into the same MTSS day.</p>
+          </div>
+          <div class="buttonRow"><button id="btnEvaluate" class="btn" type="button">Re-evaluate now</button></div>
+        </div>
+        <div id="automationStatus" class="statusText">Waiting for PowerSchool sync status…</div>
+        <div class="small muted">To force a source refresh: HS Attendance Data → PS Attendance → MTSS PowerSchool Sync → Sync official attendance now.</div>
+      </section>
+
+      <section id="rulesCard" class="card" hidden>
+        <div class="sectionHead"><div><h2>Attendance rules</h2><p class="muted">Rule thresholds are configuration, not hard-coded policy. Tardy rules start disabled.</p></div></div>
+        <div class="tableWrap">
+          <table class="rulesTable"><thead><tr><th>Enabled</th><th>Rule</th><th>Tier</th><th>Signal</th><th>Threshold</th><th>Min days</th><th>Window</th><th>Auto</th><th></th></tr></thead><tbody id="rulesBody"></tbody></table>
+        </div>
+        <div id="rulesStatus" class="statusText"></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="newCaseBackdrop" class="backdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="newCaseTitle">
+      <header class="modalHead"><div><div class="eyebrow">Manual case</div><h2 id="newCaseTitle">Open MTSS case</h2></div><button class="iconBtn" data-close="newCaseBackdrop" aria-label="Close">×</button></header>
+      <form id="newCaseForm" class="modalBody">
+        <input id="newOsis" type="hidden">
+        <label class="field mtssPicker"><span>Student name or OSIS</span><input id="enhStudentQuery" type="search" autocomplete="off" placeholder="Search and select a student" required><div id="enhStudentResults" class="mtssPickerResults" hidden></div></label>
+        <div id="enhSelectedStudent" class="mtssSelected">Select a student from the results.</div>
+        <div class="twoCol">
+          <label class="field"><span>Domain</span><select id="newDomain" required><option value="attendance">Attendance</option><option value="academic">Academic</option><option value="behavior">Behavior / SEL</option></select></label>
+          <label class="field"><span>Tier</span><select id="newTier"><option value="1">Tier 1 — log intervention</option><option value="2">Tier 2 — open case</option><option value="3">Tier 3 — open case</option></select></label>
+        </div>
+        <fieldset id="newInterventionPlan" class="mtssEnhancedFieldset"><legend id="newInterventionLegend">Required initial intervention plan</legend>
+          <label class="field"><span>Approved intervention</span><select id="newCatalogChoice" required></select></label>
+          <label id="newOtherWrapper" class="field" hidden><span>New intervention catalog entry (leadership only)</span><input id="newOtherText" maxlength="300" placeholder="Write your intervention"></label>
+          <label id="newFrequencyRow" class="field"><span>Frequency (optional)</span><select id="newFrequency"></select></label>
+          <div id="newInterventionHelp" class="mtssSubtle">The assigned intervention will be saved when the case opens.</div>
+        </fieldset>
+        <label id="newSuggestionKindRow" class="field" hidden><span>What are you recommending?</span>
+          <select id="newSuggestionKind"><option value="intervention">Add a targeted intervention</option><option value="escalation">Request escalation to this tier</option></select>
+        </label>
+        <div id="newCaseFields">
+          <label class="field"><span>Reason / concern</span><textarea id="newReason" rows="4" required placeholder="What targeted support is needed?"></textarea></label>
+          <label class="field"><span>Next review date</span><input id="newReviewDate" type="date"></label>
+        </div>
+        <section id="newTier1Fields" class="mtssTierOneFields" hidden>
+          <h3>Tier 1 delivery details</h3>
+          <div class="twoCol"><label class="field"><span>Date delivered</span><input id="newT1Date" type="date"></label>
+          <label class="field"><span>Outcome</span><select id="newT1Outcome"><option value="delivered">Delivered</option><option value="partial">Partially delivered</option><option value="not_delivered">Not delivered</option></select></label></div>
+          <label class="field"><span>Notes (optional)</span><textarea id="newT1Notes" rows="2" maxlength="3000"></textarea></label>
+          <h3>Recent Tier 1 activity</h3><div id="newTier1History" class="mtssEnhancementSection">Select a student to see recent logs.</div>
+        </section>
+        <div id="newCaseStatus" class="statusText"></div>
+        <div class="modalFoot"><button class="btn" data-close="newCaseBackdrop" type="button">Cancel</button><button id="newCaseSubmit" class="btn primary" type="submit">Open case and assign intervention</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div id="caseBackdrop" class="backdrop" hidden>
+    <section class="modal modalWide" role="dialog" aria-modal="true" aria-labelledby="caseModalTitle">
+      <header class="modalHead"><div><div id="caseDomainLabel" class="eyebrow">MTSS case</div><h2 id="caseModalTitle">Case</h2><div id="caseMeta" class="muted"></div></div><button class="iconBtn" data-close="caseBackdrop" aria-label="Close">×</button></header>
+      <div class="modalBody">
+        <div id="caseMetrics" class="metricGrid"></div>
+        <div class="detailGrid">
+          <section class="subcard"><h3>Case details</h3><div id="caseDetails"></div></section>
+          <section class="subcard"><h3>Add intervention</h3><form id="interventionForm"><label class="field"><span>Intervention</span><select id="interventionName" required></select></label><label id="caseOtherWrapper" class="field" hidden><span>New intervention (leadership only)</span><input id="caseOtherText" maxlength="300"></label><div class="twoCol"><label class="field"><span>Method</span><select id="interventionMethod"></select></label><label class="field"><span>Frequency</span><select id="interventionFrequency"></select></label></div><label id="contentAreaField" class="field"><span>Content area</span><select id="interventionContent"></select></label><label class="field"><span>Notes</span><textarea id="interventionNotes" rows="2"></textarea></label><button id="btnAddIntervention" class="btn primary" type="submit">Add intervention</button></form></section>
+          <section class="subcard"><h3>Progress review</h3><form id="reviewForm"><label class="field"><span>Outcome</span><select id="reviewOutcome"><option value="maintain">Maintain current tier</option><option value="improving">Improving / continue</option><option value="escalate">Escalate to Tier 3</option><option value="step_down">Step down</option><option value="close">Close case</option></select></label><label class="field"><span>Notes</span><textarea id="reviewNotes" rows="3" required></textarea></label><label class="field"><span>Next review</span><input id="reviewNextDate" type="date"></label><button id="btnAddReview" class="btn primary" type="submit">Save review</button></form></section>
+        </div>
+        <!-- EAGLENEST_MTSS_ACADEMIC_V1 -->
+        <section id="academicCaseSection" class="subcard academicSection" hidden>
+          <div class="sectionHead"><div><h3>Academic skills and progress monitoring</h3>
+            <p class="small muted">Multiple focused goals can live in one academic MTSS case. Skill assessments are distinct from course grades.</p></div><span id="academicGoalCount" class="countBadge">0 goals</span></div>
+          <div id="academicGradeSnapshot" class="academicGradeSnapshot"></div>
+          <details class="academicGradeHistory"><summary>Historical PowerSchool grade snapshots</summary><div id="academicGradeHistoryRows" class="academicMeasureList"></div></details>
+          <div id="academicGoals" class="academicGoals"></div>
+          <form id="academicGoalForm" class="academicGoalForm">
+            <h3>Create measurable skill goal</h3>
+            <div class="academicFormGrid">
+              <label class="field"><span>Content area</span><select name="content_area" required><option value="">Select</option><option>ELA</option><option>Math</option><option>Science</option><option>History</option><option>Spanish</option><option>Other</option></select></label>
+              <label class="field"><span>Target skill</span><input name="skill" maxlength="400" required placeholder="e.g. Solve multi-step equations"></label>
+              <label class="field"><span>Assessment / measure</span><input name="measure_name" maxlength="240" required placeholder="e.g. Weekly algebra exit ticket"></label>
+              <label class="field"><span>Unit</span><input name="measure_unit" maxlength="30" value="%" required></label>
+              <label class="field"><span>Baseline</span><input name="baseline_value" type="number" step="any" required></label>
+              <label class="field"><span>Target</span><input name="target_value" type="number" step="any" required></label>
+              <label class="field"><span>Direction</span><select name="direction"><option value="increase">Increase</option><option value="decrease">Decrease</option></select></label>
+              <label class="field"><span>Frequency</span><select name="frequency"><option>Weekly</option><option>Twice weekly</option><option>Daily</option><option>Bi-weekly</option><option>Monthly</option></select></label>
+              <label class="field"><span>Baseline date</span><input id="academicGoalBaselineDate" name="baseline_date" type="date" required></label>
+              <label class="field"><span>Target date</span><input id="academicGoalTargetDate" name="target_date" type="date" required></label>
+              <label class="field"><span>Provider email (optional)</span><input name="provider_email" type="email" placeholder="Defaults to you"></label>
+            </div>
+            <button class="btn primary" type="submit">Add academic goal</button>
+          </form>
+          <div id="academicGoalStatus" class="statusText" role="status"></div>
+        </section>
+        <section class="subcard mtssEnhancementSection" aria-labelledby="caseActivityTitle">
+          <h3 id="caseActivityTitle">Log intervention delivery</h3>
+          <p class="mtssSubtle">Document a delivered action separately from an intervention plan.</p>
+          <form id="caseActivityForm" hidden>
+            <label class="field"><span>Assigned intervention</span><select id="caseActivityIntervention" required></select></label>
+            <div class="twoCol"><label class="field"><span>Date</span><input id="caseActivityDate" type="date" required></label>
+              <label class="field"><span>Outcome</span><select id="caseActivityOutcome"><option value="delivered">Delivered</option><option value="partial">Partially delivered</option><option value="not_delivered">Not delivered</option></select></label></div>
+            <label class="field"><span>Notes</span><textarea id="caseActivityNotes" rows="2" maxlength="3000"></textarea></label>
+            <button class="btn primary" type="submit">Log delivery</button>
+          </form>
+          <div id="caseActivityStatus" class="statusText" role="status"></div>
+          <div id="caseActivities" class="mtssEnhancementSection">No activity logged yet.</div>
+        </section>
+        <section class="subcard timelineCard"><div class="sectionHead"><h3>Timeline</h3><span id="timelineCount" class="countBadge"></span></div><div id="caseTimeline" class="timeline"></div></section>
+        <div id="caseModalStatus" class="statusText"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="./mtss.js?v=mtss-refinement-1-1" defer></script>
+  <script src="./mtss-enhancements.js?v=mtss-awareness-1-2" defer></script>
+  <script src="./mtss-awareness.js?v=mtss-awareness-1-2" defer></script>
+  <script src="./mtss-academic.js?v=mtss-refinement-1-1" defer></script>
+</body>
+</html>
