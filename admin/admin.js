@@ -297,6 +297,7 @@ async function afterLoginBoot() {
   // Auto-run diag, load locations, and hydrate bathroom UI
   document.getElementById('btnDiag')?.click();
   await loadLocationsToEditor();
+  await loadClassScanPromptMode(); // EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_SIMPLE_V2
   await hydrateBathrooms();
   await loadAttendanceCfg();
   await refreshOverviews();
@@ -1786,6 +1787,37 @@ document.getElementById('btnLoadClassesSummary')?.addEventListener('click', load
 document.getElementById('btnLoadTeacherAssignments')?.addEventListener('click', loadTeacherAssignments);
 document.getElementById('btnLoadRegentsSummary')?.addEventListener('click', loadRegentsSummary);
 document.getElementById('btnLoadStaffPullRoles')?.addEventListener('click', loadStaffPullRoles);
+
+// EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_SIMPLE_V2
+async function loadClassScanPromptMode(){
+  const out=document.getElementById('classScanPromptPolicyOut');
+  const select=document.getElementById('classScanPromptMode');
+  if (!out || !select) return;
+  out.textContent='Loading…';
+  try {
+    const response=await adminFetch('/admin/class_scan_prompt_policy',{method:'GET'});
+    const data=await response.json().catch(()=>null);
+    if (!response.ok || !data?.ok) throw new Error(data?.error || `HTTP ${response.status}`);
+    select.value=data.mode === 'detailed_destinations' ? 'detailed_destinations':'simple_auto';
+    out.textContent=`Active mode: ${select.options[select.selectedIndex]?.textContent || select.value}\nUpdated by: ${data.updated_by || 'default'}\nUpdated: ${data.updated_at || 'default configuration'}`;
+  } catch(error){out.textContent=`Unable to load: ${String(error?.message || error)}`;}
+}
+document.getElementById('btnLoadClassScanPromptMode')?.addEventListener('click',loadClassScanPromptMode);
+document.getElementById('btnSaveClassScanPromptMode')?.addEventListener('click',async()=>{
+  const out=document.getElementById('classScanPromptPolicyOut');
+  const select=document.getElementById('classScanPromptMode');
+  if (!out || !select) return;
+  out.textContent='Saving…';
+  try {
+    const response=await adminFetch('/admin/class_scan_prompt_policy',{
+      method:'POST', headers:{'content-type':'application/json'},
+      body:JSON.stringify({mode:select.value})
+    });
+    const data=await response.json().catch(()=>null);
+    if (!response.ok || !data?.ok) throw new Error(data?.error || `HTTP ${response.status}`);
+    await loadClassScanPromptMode();
+  }catch(error){out.textContent=`Save failed: ${String(error?.message || error)}`;}
+});
 
 /* ===============================
  * LOCATIONS

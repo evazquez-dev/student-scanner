@@ -40,7 +40,8 @@ test('common kiosk scans use lazy LiveLocation reads instead of a mandatory glob
 test('authoritative class scans do not re-read/rewrite ClassSession and post-state work runs in parallel', () => {
   const handler = between(worker, 'async function handleAuthoritativeScanEvent_', '__name(handleAuthoritativeScanEvent_');
   assert.match(handler, /classSessionAlreadyAuthoritative/);
-  assert.match(handler, /"class_first", "class_repeat", "class_back", "class_out", "class_cancelled", "class_superseded"/);
+  // EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_YESNO_V3: first physical check-in is a ClassSession-owned action.
+  assert.match(handler, /"class_first", "class_repeat", "class_back", "class_physical_checkin", "class_out", "class_cancelled", "class_superseded"/);
   assert.match(handler, /if \(!classSessionAlreadyAuthoritative\)/);
   assert.match(handler, /markClassSession: false/);
   assert.match(handler, /Promise\.all\(\[projectionTask, attendanceTask, logTask\]\)/);

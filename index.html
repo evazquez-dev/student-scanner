@@ -337,6 +337,18 @@
     <div class="modal">
       <h2 id="outModalTitle">Where is this student going?</h2>
       <p id="outModalStudent" class="out-modal-student"></p>
+      <!-- EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_V1 -->
+      <button id="classPromptCheckIn" style="display:none; width:100%; margin:8px 0 16px; background:#176d45; color:#fff; font-weight:700; padding:12px; border-radius:10px;">CHECK IN — ENTERING CLASS</button>
+      <!-- EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_SIMPLE_V2 -->
+      <div id="classPromptYesNo" style="display:none; margin:8px 0;">
+        <div style="font-size:1.12rem; font-weight:700; margin-bottom:12px;">Going into hallway?</div>
+        <div style="display:flex; gap:12px; justify-content:center;">
+          <button id="classPromptGoingOutYes" type="button" style="flex:1; min-height:58px; background:#b93a3a; color:#fff; font-weight:700; border-radius:10px;">YES — HALLWAY</button>
+          <button id="classPromptGoingOutNo" type="button" style="flex:1; min-height:58px; background:#176d45; color:#fff; font-weight:700; border-radius:10px;">NO — CHECK IN</button>
+        </div>
+        <div class="muted" style="margin-top:8px; text-align:center;">Choose NO to check in or remain in your classroom.</div>
+      </div>
+      <div id="classPromptOutLabel" style="display:none; margin:6px 0; font-weight:700;">Or, select where the student is going:</div>
       <div class="out-reason-grid">
         <button class="out-reason-btn" data-reason="Bathroom">Bathroom</button>
         <button class="out-reason-btn" data-reason="Nurse">Nurse</button>
@@ -587,6 +599,13 @@
   const outModal = document.getElementById('outModal');
   const outModalStudent = document.getElementById('outModalStudent');
   const outModalCancel = document.getElementById('outModalCancel');
+  const classPromptCheckIn = document.getElementById('classPromptCheckIn');
+  const classPromptOutLabel = document.getElementById('classPromptOutLabel');
+  const outModalTitle = document.getElementById('outModalTitle');
+  const classPromptYesNo = document.getElementById('classPromptYesNo');
+  const classPromptGoingOutYes = document.getElementById('classPromptGoingOutYes');
+  const classPromptGoingOutNo = document.getElementById('classPromptGoingOutNo');
+  const classPromptReasonsGrid = outModal?.querySelector('.out-reason-grid');
   const outReasonButtons = Array.from(document.querySelectorAll('.out-reason-btn') || []);
 
   const swVersionPill = document.getElementById('swVersionPill');
@@ -1837,6 +1856,18 @@
     CURRENT_CLASS_PENDING = ctx;
     if (!outModal || !outModalStudent) return;
     outModalStudent.textContent = `${ctx.res.name} (${ctx.osis})`;
+    const canCheckIn = ctx.needsCheckInChoice === true;
+    const simpleChoice = canCheckIn && ctx.promptPolicy === 'simple_auto'; // EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_YESNO_V3
+    if (outModalTitle) {
+      outModalTitle.textContent = simpleChoice ? 'Classroom scan' :
+        (canCheckIn ? 'Checking in or going out?' : 'Where is this student going?');
+      outModalTitle.style.display = simpleChoice ? 'none' : '';
+    }
+    if (classPromptYesNo) classPromptYesNo.style.display = simpleChoice ? 'block' : 'none';
+    if (classPromptCheckIn) classPromptCheckIn.style.display = canCheckIn && !simpleChoice ? 'block' : 'none';
+    if (classPromptOutLabel) classPromptOutLabel.style.display = canCheckIn && !simpleChoice ? 'block' : 'none';
+    if (classPromptReasonsGrid) classPromptReasonsGrid.style.display = simpleChoice ? 'none' : '';
+    if (outModalCancel) outModalCancel.style.display = simpleChoice ? 'none' : '';
     outModal.style.display = 'flex';
     setModalOpen(true);
   }
@@ -1927,6 +1958,23 @@
     await renderAuthoritativeScanResult_({ ...ctx, event }, sent.data);
   }
 
+  if (classPromptGoingOutYes) classPromptGoingOutYes.addEventListener('click', () => {
+    if (!CURRENT_CLASS_PENDING?.needsCheckInChoice || CURRENT_CLASS_PENDING.promptPolicy !== 'simple_auto') return;
+    closeOutModalForClass();
+    handleClassOut('__GOING_OUT__').catch(error => console.warn('class yes choice failed', error));
+  });
+  if (classPromptGoingOutNo) classPromptGoingOutNo.addEventListener('click', () => {
+    if (!CURRENT_CLASS_PENDING?.needsCheckInChoice || CURRENT_CLASS_PENDING.promptPolicy !== 'simple_auto') return;
+    closeOutModalForClass();
+    handleClassOut('__CHECK_IN__').catch(error => console.warn('class no choice failed', error));
+  });
+  if (classPromptCheckIn) {
+    classPromptCheckIn.addEventListener('click', async () => {
+      if (!CURRENT_CLASS_PENDING?.needsCheckInChoice) return;
+      closeOutModalForClass();
+      await handleClassOut('__CHECK_IN__');
+    });
+  }
   if (outModalCancel) {
     outModalCancel.addEventListener('click', () => {
       cancelClassOutPrompt_().catch(err => {
@@ -1937,6 +1985,7 @@
   if (outModal) {
     outModal.addEventListener('click', (ev) => {
       if (ev.target === outModal) {
+        if (CURRENT_CLASS_PENDING?.needsCheckInChoice && CURRENT_CLASS_PENDING?.promptPolicy === 'simple_auto') return;
         cancelClassOutPrompt_().catch(err => {
           console.warn('class prompt cancel failed', err);
         });
@@ -2499,7 +2548,7 @@
     const when = new Date(event?.whenISO || Date.now());
     if (!osis) return;
 
-    if (action === 'class_first' || action === 'class_repeat') {
+    if (action === 'class_first' || action === 'class_repeat' || action === 'class_physical_checkin') {
       if (!CLASS_PRESENT[osis]) CLASS_PRESENT[osis] = { firstIn:when.getTime(), lastIn:when.getTime() };
       else CLASS_PRESENT[osis].lastIn = when.getTime();
       if (CURRENT_CLASS_PERIOD_KEY) {
@@ -2548,19 +2597,21 @@
     applyResolvedScanContext_(resolved);
 
     if (action === 'class_needs_reason') {
-      CURRENT_CLASS_PENDING = { row, code, when, res: resolved, osis, shouldRoom, event };
+      CURRENT_CLASS_PENDING = { row, code, when, res: resolved, osis, shouldRoom, event,
+        needsCheckInChoice: result.needs_checkin_choice === true,
+        promptPolicy: result.prompt_policy === 'detailed_destinations' ? 'detailed_destinations' : 'simple_auto' };
       row.innerHTML =
         `<td class="name">${nameHtmlWithBadge(resolved.name || res?.name || '')}</td>
          <td class="code">${esc(code)}</td>
          <td>Waiting for reason…</td>
          <td>${fmtTime(when)}</td>`;
       openOutModalForClass(CURRENT_CLASS_PENDING);
-      setStatus('Select a destination for this student.');
+      setStatus(CURRENT_CLASS_PENDING?.promptPolicy === 'simple_auto' ? 'Going out? Select Yes or No.' : 'Select a destination for this student.');
       __SCAN_RESULT_FOREGROUND = previousFeedbackMode;
       return;
     }
 
-    if (action === 'class_first' || action === 'class_repeat') {
+    if (action === 'class_first' || action === 'class_repeat' || action === 'class_physical_checkin') {
       if (osis) {
         if (!CLASS_PRESENT[osis]) CLASS_PRESENT[osis] = { firstIn: when.getTime(), lastIn: when.getTime() };
         else CLASS_PRESENT[osis].lastIn = when.getTime();

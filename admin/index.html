@@ -668,6 +668,22 @@
           <pre id="attOut" class="pane">—</pre>
         </section>
 
+        <!-- EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_SIMPLE_V2 / EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_YESNO_V3 -->
+        <section class="card" id="classScanPromptPolicyCard">
+          <h2>Classroom scan IN/OUT behavior</h2>
+          <p class="muted">Controls classroom scanners, not office scanners. Default: first classroom scan checks IN; subsequent scans ask “Going into hallway?” Yes/No. Teacher-first scans also ask Yes/No. Returning from OUT checks IN.</p>
+          <div class="row" style="align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px;">
+            <label for="classScanPromptMode">Prompt mode</label>
+            <select id="classScanPromptMode" style="min-width:280px">
+              <option value="simple_auto">Simple hallway Yes/No (recommended)</option>
+              <option value="detailed_destinations">Detailed destinations (legacy)</option>
+            </select>
+            <button id="btnLoadClassScanPromptMode" class="btn">Refresh</button>
+            <button id="btnSaveClassScanPromptMode" class="btn primary">Save scanner behavior</button>
+          </div>
+          <pre id="classScanPromptPolicyOut" class="pane" aria-live="polite">—</pre>
+        </section>
+
         <!-- Locations -->
         <section class="card" id="locationsCard">
           <h2>Locations</h2>
