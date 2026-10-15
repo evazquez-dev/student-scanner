@@ -26,3 +26,8 @@
 @media(max-width:1000px) { .mtssCaseRefinements { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:620px) { .mtssCaseRefinements { grid-template-columns:1fr; } .mtssViewFilterActions { width:100%; } .mtssViewFilterActions .btn { flex:1; } }
 @media(prefers-reduced-motion:reduce) { .domainCard,.mtssTierToggle { transition:none; } }
+/* Per-employee persistence status */
+.mtssPersonalViewStatus { color:var(--muted); font-size:11px; margin-top:4px; }
+.mtssPersonalViewStatus[data-status="saved"] { color:var(--good); }
+.mtssPersonalViewStatus[data-status="local"] { color:var(--warn); }
+.mtssPersonalViewStatus[data-status="saving"] { color:var(--info); }
