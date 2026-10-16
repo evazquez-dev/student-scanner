@@ -28,6 +28,7 @@
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
+    attendance_evidence_verify: 'Attendance Evidence Verification', // EAGLENEST_ATTENDANCE_EVIDENCE_VERIFY_TEMP_V1
     ps_period_matching: 'PowerSchool Period Matching', // EAGLENEST_PS_PERIOD_MATCHING_V1
     attendance_outreach: 'Attendance Outreach',
     student_status: 'Daily Suspensions', // EAGLENEST_DAILY_STUDENT_STATUS_V1
@@ -572,6 +573,7 @@
         section_key: 'administration',
         title: 'Administration',
         items: [
+          { key:'attendance_evidence_verify', access_key:'super_admin', label: MODULES.attendance_evidence_verify || 'Attendance Evidence Verification', href:'./attendance_evidence_verify.html', description:'Temporary Super Admin: date-scoped attendance evidence validation and JSON export' }, // EAGLENEST_ATTENDANCE_EVIDENCE_VERIFY_TEMP_V1
           { key:'teacher_trace_lookup', label: MODULES.teacher_trace_lookup || 'Attendance Trace Lookup', href:'./teacher_trace_lookup.html', description:'Trace attendance submissions and diagnostics' },
           { key:'morning_arrival_repair', label: MODULES.morning_arrival_repair || 'Raw Scan Data', href:'./morning_arrival_repair.html', description:'Read-only viewer for raw D1 scan history with student, location, source and date filters' }, // EAGLENEST_RAW_SCAN_VIEWER_V1
           { key:'contact_review', label: MODULES.contact_review || 'Contact Correction Review', href:'./contact_review.html', description:'Review contact-data correction suggestions' },
