@@ -1712,6 +1712,20 @@ function renderPhysicalRoomContext(){
   physicalRoomText.textContent = physicalRoom || '—';
 }
 
+// EAGLENEST_TEACHER_ATT_SCHEDULE_SCOPED_V1
+// Only show groups with at least one student in the selected local period.
+// Advisory and lunch keep their existing advisor-label -> physical-room behavior.
+function attendanceRoomChoicesForPeriod(opts, pKey) {
+  if (isLunchAdvisorUiPeriod(pKey)) return opts?.lunch_advisors_by_period?.[pKey] || [];
+  if (isAdvisorPeriod(pKey)) return opts?.advisors_by_period?.[pKey] || [];
+  const byPeriod = opts?.rooms_by_period;
+  if (Array.isArray(byPeriod?.[pKey])) return byPeriod[pKey];
+  // Demo fixtures may predate the new Worker response shape.
+  if (DEMO_MODE) return opts?.rooms || [];
+  // Fail closed: don't restore the ALL rooms list if the Worker is outdated.
+  return [];
+}
+
 function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
   const period = String(periodInput?.value || '').trim();
 
@@ -1720,11 +1734,7 @@ function applyRoomDropdownFromOpts(opts, preferredRoom = ''){
   const lunchUi = isLunchAdvisorUiPeriod(pKey);
   const advisorMode = lunchUi || isAdvisorPeriod(pKey);
 
-  const items = lunchUi
-    ? (opts?.lunch_advisors_by_period?.[pKey] || [])
-    : advisorMode
-      ? (opts?.advisors_by_period?.[pKey] || [])
-      : (opts?.rooms || []);
+  const items = attendanceRoomChoicesForPeriod(opts, pKey);
 
   if (roomLabelEl) roomLabelEl.textContent = advisorMode ? 'Advisor' : 'Room';
 
@@ -2380,7 +2390,7 @@ async function populateDropdowns(){
   const savedPeriod = localStorage.getItem('teacher_att_period') || '';
 
   // ROOM: always blank on load (no default room)
-  fillSelect(roomInput, opts.rooms || [], 'Select room…', '');
+  fillSelect(roomInput, [], 'Select room…', '');
 
   const periodItems = Array.isArray(opts.period_options) ? opts.period_options : (opts.periods || []);
 
@@ -4498,6 +4508,20 @@ function renderChairReminder(opts = TEACHER_OPTS_CACHE){
 function syncPeriodOptionStates(opts){
   if (!periodInput) return;
   const items = Array.isArray(opts?.period_options) ? opts.period_options : [];
+  const nextPeriods = items.map((item) => String(item?.value ?? item ?? '').trim()).filter(Boolean);
+  const shownPeriods = Array.from(periodInput.options || []).map((opt) => String(opt.value || '')).filter(Boolean);
+  const changed = nextPeriods.length !== shownPeriods.length
+    || nextPeriods.some((p, i) => p !== shownPeriods[i]);
+  if (changed && PAGE_MODE === 'class') {
+    const current = String(periodInput.value || '').trim();
+    const active = String(opts?.current_period_local || '').trim();
+    const arrival = String(opts?.arrival_period_local || '').trim();
+    const keep = nextPeriods.includes(current) ? current
+      : nextPeriods.includes(active) ? active
+      : nextPeriods.includes(arrival) ? arrival : '';
+    fillSelect(periodInput, items, 'Select period…', keep);
+    try { localStorage.setItem('teacher_att_period', keep); } catch {}
+  }
   const byValue = new Map(items.map((item) => [String(item?.value ?? ''), item]));
   for (const opt of Array.from(periodInput.options || [])) {
     if (!opt.value) continue;
@@ -4506,6 +4530,14 @@ function syncPeriodOptionStates(opts){
     const viewOnly = item.editable === false || (typeof item.editable !== 'boolean' && item.started === false);
     opt.disabled = item.disabled === true && !viewOnly;
     if (item.label != null) opt.textContent = String(item.label);
+  }
+  // A new schedule/day can also change the room roster while the tab stays open.
+  if (PAGE_MODE === 'class' && roomInput) {
+    const expected = attendanceRoomChoicesForPeriod(opts, periodKey(periodInput.value)).map(String);
+    const shown = Array.from(roomInput.options || []).map((opt) => String(opt.value || '')).filter(Boolean);
+    if (changed || expected.length !== shown.length || expected.some((r, i) => r !== shown[i])) {
+      applyRoomDropdownFromOpts(opts, String(roomInput.value || '').trim());
+    }
   }
   renderAttendanceReadOnlyState();
   renderResourceBookingNotice();
