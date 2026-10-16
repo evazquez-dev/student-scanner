@@ -19,6 +19,7 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
 .mapping-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px;margin:10px 0}.mapping-grid label{font-size:12px}.mapping-grid select{display:block;width:100%;background:var(--control);color:var(--txt);padding:7px;min-width:0}
 .audit-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:460px;overflow:auto;background:var(--control);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:12px}
 #fileWorkspace input[type=file]{width:100%;max-width:680px}
+.b6b-table{border-collapse:collapse;width:100%;font-size:12px;min-width:760px}.b6b-table th,.b6b-table td{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;white-space:nowrap}.b6b-table th{color:var(--sub);position:sticky;top:0;background:var(--card)}
 </style>
 </head>
 <body data-module="attendance_evidence_verify">
@@ -77,6 +78,31 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
    <details><summary>Private source records matching selected student/date — do not paste publicly</summary><pre id="importStudentResults" class="audit-json">Select a student and date, then run the private match.</pre></details>
    <p class="small">Discovery and cross-file joins are preliminary. For official reconciliation, verify the PowerSchool school/year, dated enrollment, CCID, Calendar_DayID, period ID, code dictionary, and completeness of each export first. Nothing here imports/replaces official attendance.</p>
   </section>
+  <!-- EAGLENEST_ATTENDANCE_RECON_BATCH6B_V1 -->
+  <section class="card" id="batch6BReview">
+   <div class="head"><div><h2>Historical PowerSchool reconciliation queue · Batch 6B</h2><p>Build from the exports above. Official codes are read from the export; section/teacher associations are inferred from dated CC membership. Only approved PS-period → EagleNEST-period mappings allow exact comparisons to the published D1 correction feed.</p></div><span class="pill">Read-only · browser-local</span></div>
+   <div class="buttons"><button class="primary" type="button" id="b6bBuild">Build PowerSchool review queue</button><button type="button" id="b6bCompare">Compare with published D1 corrections</button><button type="button" id="b6bCopySafe">Copy privacy-safe summary</button></div>
+   <p class="small">Use the date range in Historical Reconciliation above. Requires Students, CC, Sections, Section_Meeting, Attendance, Attendance_Code, Period, Calendar_Day, Cycle_Day and Bell_Schedule_Items. Scope: SchoolID 2, YearID 36, TermID 3600. Current-day unfinished records are excluded by the end date.</p>
+   <details><summary>Advanced: explicitly approve PowerSchool → local period mappings</summary>
+    <p class="small">Mapping is keyed by Bell_Schedule_ID (or YYYY-MM-DD@Bell_Schedule_ID for a single date), then PowerSchool Period.ID. Never copy a normal-day mapping to an unknown custom schedule. Only local 1–6 map to the published historical correction feed. Leave {} to compare counts/coverage without claiming individual corrections are missing.</p>
+    <label for="b6bMaps">Bell-scoped mapping JSON (review first; not saved or applied to attendance)</label>
+    <textarea id="b6bMaps" spellcheck="false" rows="6" style="width:100%;font:12px ui-monospace,monospace;background:var(--control);color:var(--txt);border:1px solid var(--line);border-radius:9px;padding:10px">{}</textarea>
+   </details>
+   <p id="b6bStatus" class="status" role="status">Upload the actual PowerSchool source exports above, then build the queue.</p>
+   <p id="b6bSummary" class="snapshot small">No queue built.</p>
+   <details><summary>Day-by-day PowerSchool export coverage</summary><div style="overflow:auto;max-height:350px"><table class="b6b-table"><thead><tr><th>Date</th><th>Daily rows</th><th>Meeting rows</th><th>Eligible corrections</th><th>Warnings</th><th>Day</th></tr></thead><tbody id="b6bDayTable"></tbody></table></div></details>
+   <div class="mapping-grid">
+    <label>Date filter<input type="date" id="b6bDateFilter" style="display:block;width:100%"></label>
+    <label>Student OSIS<input type="search" id="b6bStudentFilter" placeholder="Optional" style="display:block;width:100%"></label>
+    <label>Review status<select id="b6bStatusFilter" style="display:block;width:100%"><option value="">All</option><option>VERIFIED</option><option>PROVISIONAL</option><option>NEEDS_REVIEW</option><option>MISSING_EVIDENCE</option></select></label>
+    <label>Source<select id="b6bKindFilter" style="display:block;width:100%"><option value="">All</option><option value="daily">Official daily</option><option value="meeting">Official meeting</option><option value="correction_diff">D1 correction comparison</option></select></label>
+   </div>
+   <p class="small" id="b6bQueueSummary">Build queue to view individual records.</p>
+   <div class="buttons"><button type="button" id="b6bStageVisible">Stage visible records for review</button><button type="button" id="b6bClearStage">Clear staged list</button><button type="button" id="b6bDownload">Export private review CSV</button><span class="pill" id="b6bStaged">0 staged locally</span></div>
+   <div style="overflow:auto;max-height:470px;margin-top:12px"><table class="b6b-table"><thead><tr><th>Stage</th><th>Date</th><th>Student</th><th>PS period</th><th>Code</th><th>Type</th><th>Status</th><th>Section inference</th><th>Warnings</th></tr></thead><tbody id="b6bQueue"></tbody></table></div>
+   <details><summary>Privacy-safe reconciliation report</summary><pre id="b6bSafe" class="audit-json">{}</pre></details>
+   <p class="small">CSV exports may contain student IDs and must be kept in authorized school storage. "Stage" means temporary browser-tab selection, not D1 import or PowerSchool update. We never infer absence from missing physical scans or teacher ledger records.</p>
+  </section>
   <section class="card">
    <div class="head"><div><h2>Diagnostic results</h2><p>Each section contains the exact API result. Copy individual checks or a combined report for troubleshooting.</p></div><div class="buttons"><button id="copyAll">Copy combined JSON</button><button class="primary" id="copySafe">Copy privacy-redacted JSON</button></div></div>
    <div id="results" class="results" aria-live="polite"></div>
@@ -87,4 +113,6 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
 <script src="./attendance_evidence_verify.js" defer></script>
 <script src="./attendance_recon_relationships.js" defer></script>
 <script src="./attendance_recon_import.js" defer></script>
+<script src="./attendance_recon_batch6b.js" defer></script>
+<script src="./attendance_recon_batch6b_ui.js" defer></script>
 </body></html>

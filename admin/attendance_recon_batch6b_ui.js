@@ -1,0 +1,34 @@
+/* EAGLENEST_ATTENDANCE_RECON_BATCH6B_UI_V1 — private browser-only review queue */
+(()=>{'use strict';const $=id=>document.getElementById(id),engine=globalThis.EagleNESTBatch6B;
+let preview=null,comparison=null,stage=new Map();const fmt=x=>Number(x||0).toLocaleString();
+const sessionKeys=['ss_admin_session_sid_v1','teacher_att_admin_session_v1','admin_session_v1'];
+const apiBase=(document.querySelector('meta[name="api-base"]')?.content||'').replace(/\/*$/,'')+'/';
+async function adminGet(path){const hdr=new Headers();for(const k of sessionKeys){let sid='';try{sid=sessionStorage.getItem(k)||localStorage.getItem(k)||''}catch{}if(sid){hdr.set('x-admin-session',sid);break;}}
+ const resp=await fetch(new URL(path,apiBase),{method:'GET',headers:hdr,credentials:'include',cache:'no-store'});const token=resp.headers.get('x-admin-session');if(token)try{sessionStorage.setItem('ss_admin_session_sid_v1',token)}catch{}let body=await resp.json().catch(()=>({error:'non_json_response'}));if(!resp.ok||body?.ok!==true)throw Error(body.error||'HTTP '+resp.status);return body;}
+const getScope=()=>({start:$('histStart').value,end:$('histEnd').value,schoolId:$('relSchoolId').value||'2',yearId:$('relYearId').value||'36',termId:'3600'});
+function summary(){if(!preview)return;let p=preview.stats,c=comparison?.counts;$('b6bSummary').textContent=`${fmt(p.total)} attendance records · ${fmt(p.meeting)} meeting · ${fmt(p.daily)} daily · ${fmt(p.section_unique)} unique section candidates (inferred) · ${fmt(p.correction_candidates)} correction candidates (PS periods 1–6) · ${fmt(p.review)} needs review · ${fmt(p.provisional)} provisional${c?' · D1 matched '+fmt(c.matched)+' / missing '+fmt(c.missing_in_d1)+' / unmapped '+fmt(c.unmapped):''}`;
+ $('b6bSafe').textContent=JSON.stringify(engine.safeSummary(preview,comparison),null,2);
+ const days=$('b6bDayTable');days.replaceChildren();for(const d of preview.days){let tr=document.createElement('tr');for(const v of [d.date,d.daily,d.meeting,d.corrections,d.source_issues,d.special?'Special bell':'—']){let td=document.createElement('td');td.textContent=v;tr.append(td);}days.append(tr);}
+}
+function allQueue(){if(!preview)return[];let source=preview.records.map((r,i)=>({...r,uid:'ps:'+i,issue:r.warnings.join(', ')||'—'}));if(comparison?.queue)source.push(...comparison.queue.map((r,i)=>({...r,uid:'d1:'+i,status:r.severity,kind:'correction_diff',issue:r.kind,code:r.code_id||'',period_id:r.period_id||'',period_number:r.period_local||'',section_inference:'not_applicable'})));
+ const date=$('b6bDateFilter').value,osis=$('b6bStudentFilter').value.trim(),status=$('b6bStatusFilter').value,which=$('b6bKindFilter').value;
+ return source.filter(r=>(!date||r.date===date)&&(!osis||r.student_number===osis)&&(!status||r.status===status)&&(!which||r.kind===which));}
+function renderQueue(){let list=allQueue(),shown=list.slice(0,180);$('b6bQueueSummary').textContent=`${fmt(list.length)} matches · showing first ${fmt(shown.length)}. Filters apply to downloads too. “Stage” stores selected rows in this browser tab only.`;
+ const tbody=$('b6bQueue');tbody.replaceChildren();for(let r of shown){let tr=document.createElement('tr');let cb=document.createElement('input');cb.type='checkbox';cb.checked=stage.has(r.uid);cb.setAttribute('aria-label','Stage record '+r.uid);cb.addEventListener('change',()=>{if(cb.checked)stage.set(r.uid,r);else stage.delete(r.uid);$('b6bStaged').textContent=`${stage.size} staged locally`;});let td=document.createElement('td');td.append(cb);tr.append(td);for(const v of [r.date,r.student_number||'—',r.period_id||r.period_local||'—',r.code||r.code_id||'—',r.kind,r.status,r.section_inference||'—',r.issue||'—']){let t=document.createElement('td');t.textContent=String(v);tr.append(t);}tbody.append(tr);}}
+function action(fn){return async()=>{try{$('b6bStatus').textContent='Working…';await fn();$('b6bStatus').textContent='Ready. All reviews remain local/read-only.';}catch(e){$('b6bStatus').textContent='Error: '+String(e?.message||e);}};}
+async function run(){const imports=globalThis.EagleNESTAuditImports?.getFiles?.()||[];if(!imports.length)throw Error('Upload PowerSchool exports using the laboratory above first');
+ preview=engine.build(imports,getScope());comparison=null;stage.clear();$('b6bStaged').textContent='0 staged locally';summary();renderQueue();}
+function maps(){return engine.parseApprovedMaps($('b6bMaps').value.trim()||'{}');}
+async function compare(){if(!preview)throw Error('Build the PowerSchool review queue first');const span=preview.range;const remote=await adminGet(`/admin/attendance_evidence/reconciliation/correction_index?start=${encodeURIComponent(span.start)}&end=${encodeURIComponent(span.end)}`);comparison=engine.compareD1(preview,remote,maps());summary();renderQueue();}
+const safeCopy=async()=>{if(!preview)throw Error('Build queue first');await navigator.clipboard.writeText(JSON.stringify(engine.safeSummary(preview,comparison),null,2));};
+function csv(rows){const columns=['date','student_number','ps_student_id','period_id','period_local','period_number','code_id','code','kind','status','issue','section_inference','inferred_ccid','inferred_section_id','inferred_teacher_id','inferred_room','bell_schedule_id'];const q=x=>{let v=String(x??'');if(/^[\s]*[=+@\-]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"';};return '\ufeff'+[columns.join(','),...rows.map(r=>columns.map(k=>q(r[k])).join(','))].join('\r\n');}
+function download(){if(!preview)throw Error('Build queue first');let rows=stage.size?[...stage.values()]:allQueue();if(!rows.length)throw Error('No records selected');if(rows.length>50000)throw Error('Too many rows for one file');const b=new Blob([csv(rows)],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`EagleNEST_Batch6B_private_review_${preview.range.start}_${preview.range.end}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);}
+function init(){if(!$('b6bBuild'))return;
+ $('b6bBuild').addEventListener('click',action(run));$('b6bCompare').addEventListener('click',action(compare));$('b6bCopySafe').addEventListener('click',action(safeCopy));$('b6bDownload').addEventListener('click',action(download));
+ $('b6bClearStage').addEventListener('click',()=>{stage.clear();$('b6bStaged').textContent='0 staged locally';renderQueue();});
+ for(const id of ['b6bDateFilter','b6bStudentFilter','b6bStatusFilter','b6bKindFilter'])$(id).addEventListener('input',renderQueue);
+ $('b6bStageVisible').addEventListener('click',()=>{for(const r of allQueue().slice(0,180))stage.set(r.uid,r);$('b6bStaged').textContent=`${stage.size} staged locally`;renderQueue();});
+ $('b6bMaps').value='{}';
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();

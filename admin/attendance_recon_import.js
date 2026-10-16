@@ -131,5 +131,5 @@
   $('compareImportStudent').addEventListener('click',()=>{const student=String($('studentSearch').value.match(/\d{5,15}/)?.[0]||'');const chosen=window.__evidenceSelectedStudent?.()||student;const date=$('schoolDate').value;if(!/^\d{5,15}$/.test(chosen)){ $('importStatus').textContent='Select a student by name/OSIS first.';return;}const found=matchesFor(chosen,date);$('importStudentResults').textContent=JSON.stringify({date,student_number:chosen,source_rows:found,privacy_warning:'Contains raw PowerSchool student data. Do not paste this full view into chat.'},null,2);});
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
- window.EagleNESTAuditImports={refreshSummary};
+ window.EagleNESTAuditImports={refreshSummary,getFiles:()=>imports}; // EAGLENEST_ATTENDANCE_RECON_BATCH6B_V1
 })();
