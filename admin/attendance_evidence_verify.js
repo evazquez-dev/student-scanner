@@ -26,9 +26,11 @@
   const osisValue=()=> selected?.osis || (/^\d{5,15}$/.test($('studentSearch').value.trim())?$('studentSearch').value.trim():'');
   const qp=values=>new URLSearchParams(values).toString();
   const msg=(text,kind='')=>{ $('message').className='status '+kind; $('message').textContent=text;};
-  function setBusy(v){busy=v;for(const id of ['runAll','runObligations','runCampus','runDay','runTeacher','runSnapshots','runDry','captureToday'])$(id).disabled=v;}
+  function setBusy(v){busy=v;for(const id of ['runAll','runObligations','runCampus','runDay','runTeacher','runSnapshots','runDry','captureToday','runHistory','runStudentRecon'])$(id).disabled=v;}
   function grade(id,r){
     if(!r||r.ok===false)return ['Error','bad'];
+    if(id==='history')return [r.summary?.meeting_complete_empty_days?`${r.summary.meeting_complete_empty_days} empty meeting day(s)`:'History coverage loaded',r.summary?.meeting_complete_empty_days?'warn':'good'];
+    if(id==='student_reconciliation')return [r.warnings?.length?`${r.warnings.length} review flag(s)`:'Student evidence loaded',r.warnings?.length?'warn':'good'];
     if(id==='snapshots')return r.snapshot_count>0?['Snapshots saved','good']:['No snapshot yet','warn'];
     if(id==='dry_run')return r.teacher_sections>0?['Sections present','good']:['No regular sections','warn'];
     if(id==='teacher')return r.date!==dateValue()?['Current source — different date','warn']:Number(r.matched_sections||0)>0?['Matched sections','good']:['Review / custom day','warn'];
@@ -37,7 +39,7 @@
     if(id==='campus')return r.status==='unknown'?['Unknown presence','warn']:[r.status||'Evidence available','good'];
     return ['Result','good'];
   }
-  const titles={day_context:'Day Context',teacher:'Teacher assignment source',snapshots:'Saved D1 staffing snapshots',dry_run:'Staffing dry run',capture:'Manual capture',obligations:'Student classroom obligations',campus:'Campus presence'};
+  const titles={history:'Historical D1 coverage and PowerSchool correction scope',student_reconciliation:'Student official/physical/teacher reconciliation',day_context:'Day Context',teacher:'Teacher assignment source',snapshots:'Saved D1 staffing snapshots',dry_run:'Staffing dry run',capture:'Manual capture',obligations:'Student classroom obligations',campus:'Campus presence'};
   function render(){
     const root=$('results');root.replaceChildren();
     if(!records.size){root.textContent='No checks run yet.';return;}
@@ -64,6 +66,17 @@
           tbody.append(line);
         }
         table.append(tbody);scroll.append(table);wrap.append(scroll);
+      }
+      if(id==='history' && Array.isArray(rec.data?.days)){
+        const scroll=document.createElement('div');scroll.className='table-wrap';scroll.style.maxHeight='420px';
+        const table=document.createElement('table');const head=document.createElement('tr');
+        for(const name of ['Date','In session','Daily students','Meeting students','Physical scans','Teacher actions','Warnings']){const cell=document.createElement('th');cell.textContent=name;head.append(cell);}
+        const th=document.createElement('thead');th.append(head);table.append(th);const tb=document.createElement('tbody');
+        for(const d of rec.data.days){const tr=document.createElement('tr');for(const v of [d.school_date,d.in_session===null?'Unknown':d.in_session?'Yes':'No',d.daily_complete?d.daily_enrolled:'Not complete',d.meeting_complete?d.meeting_students:'Not complete',d.scan_events,d.teacher_actions,(d.warnings||[]).join(', ')||'—']){const td=document.createElement('td');td.textContent=String(v);tr.append(td);}tb.append(tr);}table.append(tb);scroll.append(table);wrap.append(scroll);
+      }
+      if(id==='student_reconciliation' && Array.isArray(rec.data?.meeting?.periods)){
+        const scroll=document.createElement('div');scroll.className='table-wrap';const table=document.createElement('table');const head=document.createElement('tr');for(const v of ['Period','Official status','Base status','Office correction']){const th=document.createElement('th');th.textContent=v;head.append(th);}const th=document.createElement('thead');th.append(head);table.append(th);const tb=document.createElement('tbody');
+        for(const p of rec.data.meeting.periods){const tr=document.createElement('tr');for(const v of [p.period_local||p.period_id||'?',p.status||'unknown',p.base_status||'—',p.official_correction?'Yes':'No']){const td=document.createElement('td');td.textContent=String(v);tr.append(td);}tb.append(tr);}table.append(tb);scroll.append(table);wrap.append(scroll);
       }
       wrap.append(details);root.append(wrap);
     }
@@ -162,6 +175,22 @@
       if(!confirm('Capture TODAY\'S current teacher, staff, and coverage sources into append-only production D1? This does NOT change student attendance, but creates a permanent historical source record.'))return;
       const data=await run('capture','/admin/attendance_evidence/class_obligations/capture',{date:dateValue()});
       if(data.ok)await run('snapshots',paths.snapshots());
+    }));
+    // EAGLENEST_ATTENDANCE_RECON_BATCH6_PAGE_V1
+    window.__evidenceSelectedStudent=()=>osisValue();
+    $('histEnd').max=todayNY();
+    $('runHistory').addEventListener('click',()=>task(async()=>{
+      const start=$('histStart').value,end=$('histEnd').value;
+      if(!start||!end||start>end){msg('Select a valid historical date range.','warn');return;}
+      msg('Auditing historical PowerSchool and EagleNEST coverage…');
+      const data=await run('history',`/admin/attendance_evidence/reconciliation/coverage?${qp({start,end})}`);
+      if(data.ok){window.__evidenceLatestAuditCoverage=data;window.EagleNESTAuditImports?.refreshSummary();msg('Historical coverage loaded. Warnings are review items, not automatic corrections.','good');}
+      else msg(`Historical audit failed: ${data.error||'unknown error'}`,'bad');
+    }));
+    $('runStudentRecon').addEventListener('click',()=>task(async()=>{
+      if(!requireDate()||!requireStudent())return;
+      const data=await run('student_reconciliation',`/admin/attendance_evidence/reconciliation/student?${qp({date:dateValue(),student_number:osisValue()})}`);
+      msg(data.ok?'Student reconciliation available. Compare individual periods and source warnings.':`Student reconciliation failed: ${data.error||'unknown'}`,data.ok?'good':'bad');
     }));
     $('clearResults').addEventListener('click',()=>{records.clear();render();renderHealth();msg('Cleared local results.');});
     $('copyAll').addEventListener('click',()=>copyText(exportReport(false)));

@@ -13,11 +13,17 @@
 html[data-theme="light"]{color-scheme:light;--bg:#f5f7fb;--card:white;--sub:#4c617e;--txt:#152238;--line:#d4ddea;--control:#fff;--ok:#076d45;--warn:#9a5b03;--bad:#a42729;--accent:#245fc2}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
 main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}h1{font-size:1.65rem;margin:0}h2{font-size:1.13rem;margin:0}p{margin:.4rem 0;color:var(--sub)}.card{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:19px;margin:17px 0}.grid{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:14px}.field{min-width:0;position:relative}label{display:block;color:var(--sub);font-size:13px;font-weight:650;margin-bottom:5px}input,button,select{font:inherit;border:1px solid var(--line);border-radius:9px;padding:10px 12px}input{width:100%;background:var(--control);color:var(--txt)}button{background:var(--control);color:var(--txt);cursor:pointer;font-weight:650}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}button:disabled{opacity:.45;cursor:not-allowed}button:hover:not(:disabled){filter:brightness(1.1)}.buttons{display:flex;gap:9px;flex-wrap:wrap;margin-top:13px}a{color:#85b3fa}html[data-theme=light] a{color:#245fc2}.small{font-size:13px;color:var(--sub)}.pill{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12px;margin-right:5px}.good{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.mono,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.results{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:16px}.result{border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}.result-head{display:flex;gap:6px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}.result p{margin:4px 0 10px;font-size:13px}.result .table-wrap{overflow:auto;max-height:350px;margin:10px 0}.result table{border-collapse:collapse;width:100%;font-size:12px;min-width:540px}.result th,.result td{padding:7px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.result th{color:var(--sub)}.result details{margin-top:10px}.result pre{font-size:12px;line-height:1.45;overflow:auto;max-height:270px;border:1px solid var(--line);border-radius:8px;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--control)}.picklist{z-index:50;position:absolute;top:100%;left:0;right:0;max-height:275px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 34px #0005}.picklist button{display:block;text-align:left;width:100%;border:0;border-radius:0;padding:9px 10px}.picklist button+button{border-top:1px solid var(--line)}.picklist[hidden], [hidden]{display:none!important}.snapshot{border:1px solid var(--line);border-radius:10px;margin-top:13px;padding:12px}.status{margin-top:12px;min-height:22px}.alert{border-left:3px solid var(--warn);padding:10px 14px;background:var(--control);border-radius:6px}.footer{font-size:13px;color:var(--sub);margin-top:14px}button.secondary{border-style:dashed}@media(max-width:760px){.grid{grid-template-columns:1fr}main{padding:15px 12px 65px}}@media(min-width:920px){.result:first-child{grid-column:span 1}}
+/* EAGLENEST_ATTENDANCE_RECON_BATCH6_PAGE_V1 — shared nav colors, not generic blue anchors */
+#ssNavDrawer .ssNavLink,#ssNavDrawer .ssNavLink:visited{color:var(--nav-fg)!important}
+#ssNavDrawer .ssNavSectionTitle{color:var(--nav-fg)!important}
+.mapping-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px;margin:10px 0}.mapping-grid label{font-size:12px}.mapping-grid select{display:block;width:100%;background:var(--control);color:var(--txt);padding:7px;min-width:0}
+.audit-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:460px;overflow:auto;background:var(--control);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:12px}
+#fileWorkspace input[type=file]{width:100%;max-width:680px}
 </style>
 </head>
 <body data-module="attendance_evidence_verify">
 <main>
- <div class="head"><div><h1>Attendance Evidence Verification</h1><p>Temporary Super Admin diagnostic · Compare dated student schedules, staffing evidence, and campus presence.</p></div><span class="pill">Batch 4 + Batch 5</span></div>
+ <div class="head"><div><h1>Attendance Evidence Verification</h1><p>Temporary Super Admin diagnostic · Compare dated student schedules, staffing evidence, and campus presence.</p></div><span class="pill">Batches 4–6 · Read-only historical auditing</span></div>
  <section id="notAuthorized" class="card" hidden><h2>Super Admin sign-in required</h2><p id="authMessage">Sign in through System Administration, then return to this page. View As mode is not supported.</p><a href="./index.html">Open System Administration</a></section>
  <div id="app" hidden>
   <section class="card">
@@ -36,6 +42,28 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
    <div class="snapshot small" id="health">Run verification checks to see the evidence status.</div>
    <p class="small">Manual capture is the only write operation on this page. It requires explicit confirmation, a current-day Day Context, Live Mode, and Super Admin access.</p>
   </section>
+
+  <!-- EAGLENEST_ATTENDANCE_RECON_BATCH6_PAGE_V1 -->
+  <section class="card" id="historyAuditCard">
+   <div class="head"><div><h2>Historical reconciliation — PowerSchool vs EagleNEST</h2><p>Read-only coverage audit. Never treats missing scans or default PowerSchool Present as proof of physical presence.</p></div><span class="pill">Batch 6</span></div>
+   <div class="grid"><div class="field"><label for="histStart">Start date</label><input id="histStart" type="date" value="2026-08-31"></div>
+   <div class="field"><label for="histEnd">End date</label><input id="histEnd" type="date" value="2026-10-15"></div>
+   <div class="field"><label>Data handling</label><p class="small">Up to 76 dates per query; no data written. Compare a selected student with the date above for detail.</p></div></div>
+   <div class="buttons"><button class="primary" id="runHistory">Audit historical coverage</button><button id="runStudentRecon">Reconcile selected student/date</button></div>
+   <p class="small">Highlights incomplete days, missing Day Context, zero-student meeting snapshots, membership count differences, and available official corrections. Corrections show their published date coverage.</p>
+  </section>
+  <section class="card" id="fileWorkspace">
+   <div class="head"><div><h2>PowerSchool export laboratory</h2><p>Choose a suite of PowerSchool Student, Meeting Attendance, Daily Attendance, Calendar Day, and Section exports. Files are parsed <strong>inside your browser</strong>. No uploaded file contents are sent to the Worker or saved in D1.</p></div><span class="pill">Local preview only</span></div>
+   <label for="psFiles">Select PowerSchool files (CSV / TSV / XLSX / spreadsheet-as-HTML XLS)</label>
+   <input id="psFiles" type="file" multiple accept=".csv,.tsv,.txt,.xlsx,.xls,.html,.htm" aria-describedby="importStatus">
+   <p class="small">Up to 12 worksheets and 50,000 rows each. Legacy binary .xls must first be exported as CSV or XLSX. The editor detects likely fields and lets you correct mappings. OSIS and internal PowerSchool Student ID are different ID domains.</p>
+   <div class="buttons"><button id="copyImport">Copy suite mapping report (no rows)</button><button id="compareImportStudent">Show matching rows for selected student/date (private)</button><button id="clearImports">Discard local file previews</button></div>
+   <div id="importStatus" class="status" role="status" aria-live="polite">No files chosen.</div><div id="importErrors"></div><div id="importCards" class="results"></div>
+   <details><summary>Source inventory, field mappings and safe join suggestions (copyable)</summary><pre id="importAnalysis" class="audit-json">{}</pre></details>
+   <details><summary>Compare import date coverage with EagleNEST D1</summary><pre id="importRemoteComparison" class="audit-json">Run historical coverage to compare dates.</pre></details>
+   <details><summary>Private source records matching selected student/date — do not paste publicly</summary><pre id="importStudentResults" class="audit-json">Select a student and date, then run the private match.</pre></details>
+   <p class="small">Discovery and cross-file joins are preliminary. For official reconciliation, verify the PowerSchool school/year, dated enrollment, CCID, Calendar_DayID, period ID, code dictionary, and completeness of each export first. Nothing here imports/replaces official attendance.</p>
+  </section>
   <section class="card">
    <div class="head"><div><h2>Diagnostic results</h2><p>Each section contains the exact API result. Copy individual checks or a combined report for troubleshooting.</p></div><div class="buttons"><button id="copyAll">Copy combined JSON</button><button class="primary" id="copySafe">Copy privacy-redacted JSON</button></div></div>
    <div id="results" class="results" aria-live="polite"></div>
@@ -44,4 +72,5 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
  </div>
 </main>
 <script src="./attendance_evidence_verify.js" defer></script>
+<script src="./attendance_recon_import.js" defer></script>
 </body></html>
