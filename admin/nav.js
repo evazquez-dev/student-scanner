@@ -28,6 +28,7 @@
     teacher_attendance: 'Teacher Attendance',
     teacher_trace_lookup: 'Attendance Trace Lookup',
     attendance_status: 'Attendance Status',
+    ps_period_matching: 'PowerSchool Period Matching', // EAGLENEST_PS_PERIOD_MATCHING_V1
     attendance_outreach: 'Attendance Outreach',
     student_status: 'Daily Suspensions', // EAGLENEST_DAILY_STUDENT_STATUS_V1
     outside_lunch: 'Outside Lunch Eligibility', // EAGLENEST_OUTSIDE_LUNCH_V1
@@ -515,6 +516,7 @@
           { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', description:"Today's classes and schedule" },
           { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', description:'Class attendance and roster actions' },
           { key:'attendance_status', label: MODULES.attendance_status || 'Attendance Status', href:'./attendance_status.html', description:'Period attendance audit and status' },
+          { key:'ps_period_matching', access_key:'attendance_status', label:MODULES.ps_period_matching || 'PowerSchool Period Matching', href:'./ps_period_matching.html', description:'Match official PowerSchool meeting periods to local and daily attendance' }, // EAGLENEST_PS_PERIOD_MATCHING_V1
           { key:'attendance_outreach', label: MODULES.attendance_outreach || 'Attendance Outreach', href:'./attendance_outreach.html', description:'Morning absence and late outreach' },
           { key:'student_status', access_key:'attendance_outreach', label: MODULES.student_status || 'Daily Suspensions', href:'./student_status.html', description:'Single-day ISS/OSS operational flags reconciled against live PowerSchool' }, // EAGLENEST_DAILY_STUDENT_STATUS_V1
           { key:'attendance_change', label: MODULES.attendance_change || MODULES.excused_apply || 'Attendance Corrections', href:'./attendance_change.html', description:'Bulk attendance-code corrections' },
@@ -942,6 +944,31 @@
     document.head.appendChild(script);
   }
 
+  // EAGLENEST_PS_PERIOD_MATCHING_V1 — navigation mismatch alert
+  async function showPsPeriodMatchingNotice(access){
+    if(access?.can?.attendance_status !== true) return;
+    if(/ps_period_matching\.html$/i.test(location.pathname||''))return;
+    try{
+      const r=await adminFetch('/admin/ps_period_matching',{method:'GET'});
+      const j=await r.json().catch(()=>null);
+      if(!r.ok||!j?.needs_review||!j.bell_schedule_id)return;
+      const onceKey='ps_pm_notice_v1:'+j.date+':'+j.bell_schedule_id;
+      if(sessionStorage.getItem(onceKey)==='shown')return;
+      sessionStorage.setItem(onceKey,'shown');
+      const box=document.createElement('aside');
+      box.setAttribute('role','status');
+      box.style.cssText='position:fixed;bottom:20px;right:20px;z-index:30000;max-width:360px;background:#16263d;color:#fff;border:1px solid #fbbf24;border-radius:14px;box-shadow:0 10px 35px #0005;padding:16px;font:14px system-ui,sans-serif;';
+      const title=document.createElement('strong');title.textContent='PowerSchool period matching needed';
+      const detail=document.createElement('p');detail.style.cssText='margin:9px 0 12px;line-height:1.45';
+      detail.textContent='Today’s PowerSchool bell schedule has '+j.missing.length+' unresolved period(s). Meeting attendance pushes will wait for approval.';
+      const a=document.createElement('a');a.href='./ps_period_matching.html';a.textContent='Review period matching';
+      a.style.cssText='display:inline-block;color:#dbeafe;text-decoration:underline;font-weight:700';
+      const close=document.createElement('button');close.type='button';close.textContent='Dismiss';
+      close.style.cssText='margin-left:12px;background:transparent;color:#fff;border:1px solid #64748b;border-radius:7px;padding:5px;cursor:pointer';
+      close.addEventListener('click',()=>box.remove());box.append(title,detail,a,close);document.body.append(box);
+    }catch(_){}
+  }
+
   async function bootNav() {
     // Poll briefly so it appears right after a user logs in via popup
     for (let i = 0; i < 40; i++) {
@@ -950,6 +977,7 @@
         const esas = await refreshEsasTakeover();
         if (esas?.active === true && esas?.incident?.incident_id) return;
         mountNav(access);
+        void showPsPeriodMatchingNotice(access);
         await bootPhoneLive(access);
         await bootPhonePickupPopup(access);
         return;
