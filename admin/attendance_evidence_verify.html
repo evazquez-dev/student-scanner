@@ -59,6 +59,19 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
    <p class="small">Up to 12 worksheets and 50,000 rows each. Legacy binary .xls must first be exported as CSV or XLSX. The editor detects likely fields and lets you correct mappings. OSIS and internal PowerSchool Student ID are different ID domains.</p>
    <div class="buttons"><button id="copyImport">Copy suite mapping report (no rows)</button><button id="compareImportStudent">Show matching rows for selected student/date (private)</button><button id="clearImports">Discard local file previews</button></div>
    <div id="importStatus" class="status" role="status" aria-live="polite">No files chosen.</div><div id="importErrors"></div><div id="importCards" class="results"></div>
+   <div class="result" id="relationshipInspector" aria-label="PowerSchool relationship inspector">
+    <h3>PowerSchool Relationship Inspector · Batch 6A.1</h3>
+    <p class="small">These controls affect browser-only comparisons. Scope to the high school and optionally a specific historical school day. Historical CC enrollment windows use DateEnrolled / DateLeft when available.</p>
+    <div class="mapping-grid">
+     <label>SchoolID <input type="text" inputmode="numeric" id="relSchoolId" value="2" maxlength="12"></label>
+     <label>YearID (optional) <input type="text" inputmode="numeric" id="relYearId" placeholder="Filter exports that contain YearID" maxlength="12"></label>
+     <label>CC enrollment as of date (optional) <input type="date" id="relMembershipDate"></label>
+    </div>
+    <div class="buttons"><button type="button" id="relUseSelectedDate">Use selected student query date for CC membership</button></div>
+    <p id="relSummary" role="status">Select exports to inspect relationships.</p>
+    <div style="overflow-x:auto"><table><thead><tr><th>PowerSchool relationship</th><th>Result</th><th>Matched</th><th>Unmatched</th><th>Ambiguous</th><th>Details</th></tr></thead><tbody id="relResults"></tbody></table></div>
+    <p class="small">A structural join is not proof that a student attended or was enrolled on every date. No attendance status will be changed.</p>
+   </div>
    <details><summary>Source inventory, field mappings and safe join suggestions (copyable)</summary><pre id="importAnalysis" class="audit-json">{}</pre></details>
    <details><summary>Compare import date coverage with EagleNEST D1</summary><pre id="importRemoteComparison" class="audit-json">Run historical coverage to compare dates.</pre></details>
    <details><summary>Private source records matching selected student/date — do not paste publicly</summary><pre id="importStudentResults" class="audit-json">Select a student and date, then run the private match.</pre></details>
@@ -72,5 +85,6 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
  </div>
 </main>
 <script src="./attendance_evidence_verify.js" defer></script>
+<script src="./attendance_recon_relationships.js" defer></script>
 <script src="./attendance_recon_import.js" defer></script>
 </body></html>

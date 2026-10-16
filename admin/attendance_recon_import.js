@@ -9,7 +9,7 @@
   ps_id:['student_id','students_id','studentid','dcid','studentsdcid','powerschool_student_id','ps_student_id'],
   date:['school_date','attendance_date','date','att_date','calendar_date','day_date','att_date_value'],
   period:['period_local','period','period_number','period_abbreviation','period_abbr','expression','periodid','period_id'],
-  ccid:['ccid','course_section_id','sectionid','section_id','sectionsdcid'],
+  ccid:['ccid'], // SectionID is NOT CCID; use relationship inspector
   calendar_day:['calendar_day_id','calendardayid','calendardaydcid','day_id'],
   code:['attendance_code','code','attendance_code_id','attendancecodeid','code_id','att_code','attendance_status','status','attendancecode'],
   in_session:['in_session','insession','school_in_session','insession_flag'],
@@ -20,8 +20,11 @@
   last:['last_name','lastname','student_last_name']
  };
  const FIELDS=['osis','ps_id','date','period','ccid','calendar_day','code','in_session','school_id','course','teacher','first','last'];
- const label={osis:'Student OSIS',ps_id:'PowerSchool student ID',date:'School date',period:'Period',ccid:'CCID / Section ID',calendar_day:'Calendar Day ID',code:'Attendance code',in_session:'In session',school_id:'School ID',course:'Course / section',teacher:'Teacher',first:'First name',last:'Last name'};
+ const label={osis:'Student OSIS',ps_id:'PowerSchool student ID',date:'School date',period:'Period',ccid:'Attendance CCID (CC.ID)',calendar_day:'Calendar Day ID',code:'Attendance code',in_session:'In session',school_id:'School ID',course:'Course / section',teacher:'Teacher',first:'First name',last:'Last name'};
  let imports=[],suiteResult=null;
+ const relationships=globalThis.EagleNESTPowerSchoolRelationships;
+ if(!relationships)throw new Error('PowerSchool relationships module was not loaded first');
+ function getScope(){return {schoolId:String($('relSchoolId')?.value||'').trim(),yearId:String($('relYearId')?.value||'').trim(),onDate:String($('relMembershipDate')?.value||'').trim()};}
  const $=id=>document.getElementById(id);
  const norm=v=>String(v??'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
  function infer(headers){const h=headers.map(norm),result={};for(const k of FIELDS){const opts=FIELD_ALIASES[k]||[];const i=h.findIndex(x=>opts.includes(x));if(i>=0)result[k]=i;}return result;}
@@ -68,7 +71,7 @@
   if(name.endsWith('.xlsx'))sheets=await parseXlsx(file);else if(name.endsWith('.csv')||name.endsWith('.tsv')||name.endsWith('.txt'))sheets=[{sheet:'Data',grid:parseDelimited(await file.text())}];
   else if(name.endsWith('.xls')||name.endsWith('.html')||name.endsWith('.htm')){const text=await file.text();if(/<table[\s>]/i.test(text))sheets=[{sheet:'PowerSchool HTML table',grid:parseHtmlTable(text)}];else throw new Error('Binary .xls is not supported in this safe browser preview. Export as CSV or .xlsx.');}
   else throw new Error('Use CSV, TSV, TXT, XLSX or HTML-table XLS');
-  return sheets.filter(x=>x.grid.length).map(item=>{const [headers,...rows]=item.grid;const cleanHeaders=headers.map((h,i)=>String(h||`Column ${i+1}`).slice(0,150));const record={id:Math.random().toString(36).slice(2),name:file.name,sheet:item.sheet,headers:cleanHeaders,rows:rows.slice(0,MAX_ROWS),mapping:infer(cleanHeaders)};record.role=classify(record);return record;});
+  return sheets.filter(x=>x.grid.length).map(item=>{const [headers,...rows]=item.grid;const cleanHeaders=headers.map((h,i)=>String(h||`Column ${i+1}`).slice(0,150));const record={id:Math.random().toString(36).slice(2),name:file.name,sheet:item.sheet,headers:cleanHeaders,rows:rows.slice(0,MAX_ROWS),mapping:infer(cleanHeaders)};record.role=relationships.roleFor(record);record.roleOverride='';return record;});
  }
  function appendCell(tr,s){const td=document.createElement('td');td.textContent=String(s??'');tr.append(td);}
  const read=(f,row,k)=>{const index=f.mapping[k];return Number.isInteger(index)?String(row[index]??'').trim():'';};
@@ -84,43 +87,47 @@
   for(const [osis,psids] of byOsis)if(psids.size===1){const ps=[...psids][0];if(byPs.get(ps)?.size===1)verified.set(osis,ps);else conflicts++;}else conflicts++;
   return {verified,conflicts,sources};
  }
- function analyse(){const inventories=[],matches=[];let osisIndex=new Map(),psIndex=new Map(),calendarIndex=new Map();const crosswalk=idCrosswalk();
-  for(const f of imports){let osis=0,ps=0,dates=new Set(),codes=new Set();for(const row of f.rows){const a=read(f,row,'osis'),b=read(f,row,'ps_id'),d=dateKey(read(f,row,'date'));if(a){osis++;if(!osisIndex.has(a))osisIndex.set(a,new Set());osisIndex.get(a).add(f.id);}if(b){ps++;if(!psIndex.has(b))psIndex.set(b,new Set());psIndex.get(b).add(f.id);}if(d)dates.add(d);const c=read(f,row,'code');if(c)codes.add(c);}
-   inventories.push({file:f.name,sheet:f.sheet,type:f.role,rows:f.rows.length,columns:f.headers.length,field_mapping:Object.fromEntries(Object.entries(f.mapping).map(([k,i])=>[k,f.headers[i]])),osis_nonempty:osis,ps_id_nonempty:ps,date_range:dates.size?[...dates].sort()[0]+' to '+[...dates].sort().at(-1):null,distinct_dates:dates.size,attendance_code_examples:[...codes].slice(0,15)});
-  }
-  for(let i=0;i<imports.length;i++)for(let j=i+1;j<imports.length;j++){const a=imports[i],b=imports[j];let key='',matched=0,unmatched=0,ambiguous=0;
-   if(Number.isInteger(a.mapping.osis)&&Number.isInteger(b.mapping.osis))key='osis';else if(Number.isInteger(a.mapping.ps_id)&&Number.isInteger(b.mapping.ps_id))key='ps_id';
-   if(!key){
-     if((Number.isInteger(a.mapping.osis)&&Number.isInteger(b.mapping.ps_id))||(Number.isInteger(a.mapping.ps_id)&&Number.isInteger(b.mapping.osis))){
-      const osisFile=Number.isInteger(a.mapping.osis)?a:b,psFile=osisFile===a?b:a;
-      const psValues=new Set(psFile.rows.map(r=>read(psFile,r,'ps_id')).filter(Boolean));
-      for(const row of osisFile.rows){const osis=read(osisFile,row,'osis');if(!osis)continue;const ps=crosswalk.verified.get(osis);if(ps&&psValues.has(ps))matched++;else unmatched++;}
-      matches.push({left:a.name+' / '+a.sheet,right:b.name+' / '+b.sheet,join:crosswalk.verified.size?'verified_unique_osis_to_ps_id_export_crosswalk':'not_safe',matched_left_rows:matched,unmatched_left_rows:unmatched,reason:'ID bridge inferred only from exports containing both unique OSIS and internal PowerSchool ID; verify school/year/date before relying on it'});
-     }else matches.push({left:a.name+' / '+a.sheet,right:b.name+' / '+b.sheet,join:'not_safe',reason:'No shared ID domain and no valid unique crosswalk'});
-   }
-   else{const set=new Set(b.rows.map(r=>read(b,r,key)).filter(Boolean));for(const r of a.rows){const v=read(a,r,key);if(!v)continue;if(set.has(v))matched++;else unmatched++;}matches.push({left:a.name+' / '+a.sheet,right:b.name+' / '+b.sheet,join:key,matched_left_rows:matched,unmatched_left_rows:unmatched,note:'Student ID overlap only; verify same dates and sections before reconciliation'});}
-  }
-  const roleSet=new Set(imports.map(f=>f.role));const recommendations=[];
-  if(!roleSet.has('students'))recommendations.push('Add a dated PowerSchool student enrollment export with both OSIS and PowerSchool internal student ID to bridge source ID domains.');
-  if(!roleSet.has('calendar_days'))recommendations.push('Add school calendar / Calendar_Day records to confirm in-session dates and PowerSchool period IDs.');
-  if(!roleSet.has('meeting_attendance'))recommendations.push('Add PowerSchool meeting attendance records including student ID, date, CCID, period and attendance code.');
-  if(!roleSet.has('daily_attendance'))recommendations.push('Add official PowerSchool daily attendance including explicit codes (absence, late, E/EL/ISS/OSS), plus dated enrollment membership.');
-  recommendations.push('Verify Calendar_DayID + PeriodID + CCID against a dated section membership source before matching official meeting records to EagleNEST local periods.');
-  recommendations.push('A complete PowerSchool export may omit default Present rows; do not treat missing records as absent.');
-  suiteResult={read_only:true,local_browser_only:true,files:inventories,id_bridge:{uniquely_mapped_students:crosswalk.verified.size,conflicts:crosswalk.conflicts,source_files:crosswalk.sources},joins:matches,recommendations};return suiteResult;
- }
+ function analyse(){suiteResult=relationships.analyze(imports,getScope());return suiteResult;}
  function render(){const status=$('importStatus'),root=$('importCards');root.replaceChildren();const result=analyse();status.textContent=`${imports.length} worksheet(s), ${imports.reduce((n,f)=>n+f.rows.length,0).toLocaleString()} rows examined. Files remain in this browser; no upload to EagleNEST.`;
   for(const file of imports){const c=document.createElement('div');c.className='result';const title=document.createElement('strong');title.textContent=`${file.name} · ${file.sheet}`;c.append(title);const p=document.createElement('p');p.textContent=`${file.rows.length.toLocaleString()} data rows · Suggested: ${file.role}`;c.append(p);
-   const controls=document.createElement('div');controls.className='mapping-grid';for(const field of FIELDS){const labelNode=document.createElement('label');labelNode.textContent=label[field];const sel=document.createElement('select');const opt=document.createElement('option');opt.value='';opt.textContent='Not mapped';sel.append(opt);file.headers.forEach((h,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=h;sel.append(o);});sel.value=Number.isInteger(file.mapping[field])?String(file.mapping[field]):'';sel.addEventListener('change',()=>{if(sel.value==='')delete file.mapping[field];else file.mapping[field]=Number(sel.value);file.role=classify(file);refreshSummary();});labelNode.append(sel);controls.append(labelNode);}c.append(controls);
+   const roleBox=document.createElement('label');roleBox.textContent='PowerSchool source table';
+   const roleSel=document.createElement('select');
+   for(const kind of ['students','cc','sections','section_meeting','teachers','section_teachers','calendar_days','cycle_days','bell_schedule_items','bell_schedules','periods','attendance_codes','meeting_attendance','daily_attendance','courses','unclassified']){
+     const op=document.createElement('option');op.value=kind;op.textContent=kind.replaceAll('_',' ');roleSel.append(op);
+   }roleSel.value=file.role;roleSel.addEventListener('change',()=>{file.role=roleSel.value;file.roleOverride=roleSel.value;render();});roleBox.append(roleSel);c.append(roleBox);
+   const controls=document.createElement('div');controls.className='mapping-grid';for(const field of FIELDS){const labelNode=document.createElement('label');labelNode.textContent=label[field];const sel=document.createElement('select');const opt=document.createElement('option');opt.value='';opt.textContent='Not mapped';sel.append(opt);file.headers.forEach((h,i)=>{const o=document.createElement('option');o.value=String(i);o.textContent=h;sel.append(o);});sel.value=Number.isInteger(file.mapping[field])?String(file.mapping[field]):'';sel.addEventListener('change',()=>{if(sel.value==='')delete file.mapping[field];else file.mapping[field]=Number(sel.value);if(!file.roleOverride)file.role=relationships.roleFor(file);refreshSummary();});labelNode.append(sel);controls.append(labelNode);}c.append(controls);
+   const relDetails=document.createElement('details');const relHead=document.createElement('summary');relHead.textContent='PowerSchool relationship keys (review / correct)';relDetails.append(relHead);
+   const relExplain=document.createElement('p');relExplain.textContent='Important: generic ID is the record primary key. CC.ID is CCID; CC.SectionID points to Sections.ID. Editing these keys affects only this browser preview.';relDetails.append(relExplain);
+   const relGrid=document.createElement('div');relGrid.className='mapping-grid';
+   for(const field of relationships.ROLE_FIELDS[file.role]||[]){
+     const wrapper=document.createElement('label');wrapper.textContent=relationships.FIELD_LABELS[field]||field;
+     const select=document.createElement('select');const none=document.createElement('option');none.value='-1';none.textContent='Not present / disable';select.append(none);
+     file.headers.forEach((h,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=h;select.append(option);});
+     const current=relationships.headerIndex(file,field);select.value=current<0?'-1':String(current);
+     select.addEventListener('change',()=>{file.mapping[field]=Number(select.value);refreshSummary();});
+     wrapper.append(select);relGrid.append(wrapper);
+   }relDetails.append(relGrid);c.append(relDetails);
    const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='Preview first 3 rows (contains student data)';details.append(summary);const pre=document.createElement('pre');pre.textContent=[file.headers,...file.rows.slice(0,3)].map(r=>r.join(' | ')).join('\n');details.append(pre);c.append(details);root.append(c);
   }
   refreshSummary();
  }
- function refreshSummary(){const info=analyse();const out=$('importAnalysis');out.textContent=JSON.stringify(info,null,2);const remote=window.__evidenceLatestAuditCoverage;const cmp=$('importRemoteComparison');if(remote?.days?.length){const known=new Map(remote.days.map(d=>[d.school_date,d]));const inferred=info.files.map(f=>{const matches=(f.date_range||'').match(/\d{4}-\d\d-\d\d/g);if(!matches)return null;const inRange=remote.days.filter(d=>d.school_date>=matches[0]&&d.school_date<=matches[1]);return {file:f.file,sheet:f.sheet,role:f.type,overlapping_dates:inRange.length,remote_warning_dates:inRange.filter(d=>d.warnings?.length).length};}).filter(Boolean);cmp.textContent=JSON.stringify({comparison:'Date-window overlap only, not an imported PowerSchool reconciliation',summary:inferred},null,2);}else cmp.textContent='Run historical coverage first to compare import date ranges with existing D1 history.';
+ function refreshSummary(){const info=analyse();const out=$('importAnalysis');out.textContent=JSON.stringify(info,null,2);
+  const summary=$('relSummary'),body=$('relResults');
+  if(summary){summary.textContent=`${info.id_bridge.uniquely_mapped_students.toLocaleString()} unique OSIS → Students.ID links · ${info.id_bridge.conflicts} ID conflicts · ${info.summary.relationships_matched} fully matched joins · ${info.summary.relationships_partial} partial joins · ${info.summary.relationships_blocked} blocked joins`;} 
+  if(body){body.replaceChildren();for(const rel of info.relationships){const row=document.createElement('tr');for(const cell of [rel.relationship,rel.status,rel.matched??'—',rel.unmatched??'—',rel.ambiguous??'—',rel.missing||((rel.school_scope_unverified)?'School scope unverified':'')]){const td=document.createElement('td');td.textContent=String(cell);row.append(td);}body.append(row);}}const remote=window.__evidenceLatestAuditCoverage;const cmp=$('importRemoteComparison');if(remote?.days?.length){const known=new Map(remote.days.map(d=>[d.school_date,d]));const inferred=info.files.map(f=>{const matches=(f.date_range||'').match(/\d{4}-\d\d-\d\d/g);if(!matches)return null;const inRange=remote.days.filter(d=>d.school_date>=matches[0]&&d.school_date<=matches[1]);return {file:f.file,sheet:f.sheet,role:f.type,overlapping_dates:inRange.length,remote_warning_dates:inRange.filter(d=>d.warnings?.length).length};}).filter(Boolean);cmp.textContent=JSON.stringify({comparison:'Date-window overlap only, not an imported PowerSchool reconciliation',summary:inferred},null,2);}else cmp.textContent='Run historical coverage first to compare import date ranges with existing D1 history.';
  }
  async function process(files){if(!files.length)return;const status=$('importStatus');status.textContent='Reading files locally…';for(const file of [...files].slice(0,MAX_FILES-imports.length)){try{const result=await loadFile(file);imports.push(...result);if(imports.length>=MAX_FILES)break;}catch(e){const line=document.createElement('p');line.className='bad';line.textContent=`${file.name}: ${e.message||e}`;$('importErrors').append(line);}}render();}
- function matchesFor(student,date){const match=[];const bridge=idCrosswalk().verified.get(student);for(const f of imports){if(!Number.isInteger(f.mapping.osis)&&!Number.isInteger(f.mapping.ps_id))continue;const rowMatches=f.rows.filter(row=>((Number.isInteger(f.mapping.osis)&&read(f,row,'osis')===student)||(!Number.isInteger(f.mapping.osis)&&bridge&&read(f,row,'ps_id')===bridge))&&( !Number.isInteger(f.mapping.date)||dateKey(read(f,row,'date'))===date));if(rowMatches.length)match.push({file:f.name,sheet:f.sheet,kind:f.role,row_count:rowMatches.length,columns:f.headers,rows:rowMatches.slice(0,30).map(row=>Object.fromEntries(f.headers.map((h,i)=>[h,row[i]??'']))),truncated:rowMatches.length>30});}return match;}
- function init(){const picker=$('psFiles');if(!picker)return;picker.addEventListener('change',()=>{process(picker.files);picker.value='';});$('clearImports').addEventListener('click',()=>{imports=[];suiteResult=null;$('importErrors').replaceChildren();render();});$('copyImport').addEventListener('click',async()=>{const result=analyse();const text=JSON.stringify(result,null,2);try{await navigator.clipboard.writeText(text);$('importStatus').textContent='Copied schema, counts and join hints only; no imported data rows copied.';}catch{$('importStatus').textContent='Clipboard denied; copy from the import analysis panel.';}});
+ function matchesFor(student,date){const match=[],bridge=relationships.verifiedBridge(imports,getScope()).get(student);
+  for(const rawFile of imports){const f=relationships.configure(rawFile);
+   const osisCol=relationships.headerIndex(f,'osis')>=0,psCol=relationships.headerIndex(f,'ps_id')>=0;
+   if(!osisCol&&!psCol)continue;
+   const rows=relationships.scopeRows(f,{...getScope(),onDate:date||getScope().onDate}).rows.map(r=>r.row);
+   const matched=rows.filter(row=>((osisCol&&relationships.pick(f,row,'osis')===student)||(!osisCol&&bridge&&psCol&&relationships.pick(f,row,'ps_id')===bridge))&&
+     (relationships.headerIndex(f,'date')<0||dateKey(relationships.pick(f,row,'date'))===date));
+   if(matched.length)match.push({file:f.name,sheet:f.sheet,kind:f.role,row_count:matched.length,columns:f.headers,
+     rows:matched.slice(0,30).map(row=>Object.fromEntries(f.headers.map((h,i)=>[h,row[i]??'']))),truncated:matched.length>30});
+  }return match;}
+ function init(){const picker=$('psFiles');if(!picker)return;for(const field of ['relSchoolId','relYearId','relMembershipDate'])$(''+field)?.addEventListener('change',refreshSummary);$('relUseSelectedDate')?.addEventListener('click',()=>{$('relMembershipDate').value=$('schoolDate').value;refreshSummary();});picker.addEventListener('change',()=>{process(picker.files);picker.value='';});$('clearImports').addEventListener('click',()=>{imports=[];suiteResult=null;$('importErrors').replaceChildren();render();});$('copyImport').addEventListener('click',async()=>{const result=analyse();const text=JSON.stringify(result,null,2);try{await navigator.clipboard.writeText(text);$('importStatus').textContent='Copied schema, counts and join hints only; no imported data rows copied.';}catch{$('importStatus').textContent='Clipboard denied; copy from the import analysis panel.';}});
   $('compareImportStudent').addEventListener('click',()=>{const student=String($('studentSearch').value.match(/\d{5,15}/)?.[0]||'');const chosen=window.__evidenceSelectedStudent?.()||student;const date=$('schoolDate').value;if(!/^\d{5,15}$/.test(chosen)){ $('importStatus').textContent='Select a student by name/OSIS first.';return;}const found=matchesFor(chosen,date);$('importStudentResults').textContent=JSON.stringify({date,student_number:chosen,source_rows:found,privacy_warning:'Contains raw PowerSchool student data. Do not paste this full view into chat.'},null,2);});
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
