@@ -95,7 +95,7 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
     <label>Date filter<input type="date" id="b6bDateFilter" style="display:block;width:100%"></label>
     <label>Student OSIS<input type="search" id="b6bStudentFilter" placeholder="Optional" style="display:block;width:100%"></label>
     <label>Review status<select id="b6bStatusFilter" style="display:block;width:100%"><option value="">All</option><option>VERIFIED</option><option>PROVISIONAL</option><option>NEEDS_REVIEW</option><option>MISSING_EVIDENCE</option><option>EXCLUDED_POLICY</option></select></label>
-    <label>Enrollment root cause<select id="b6cRootFilter" style="display:block;width:100%"><option value="">All</option><option>HISTORICAL_CC_NONSTANDARD_TERM</option><option>ATTENDANCE_BEFORE_SECTION_ENROLLMENT</option><option>ATTENDANCE_AFTER_SECTION_EXIT</option><option>NO_CURRENT_TERM_CC</option><option>SECTION_OR_PERIOD_MEMBERSHIP_UNRESOLVED</option><option>AMBIGUOUS_SECTION_REFERENCE</option></select></label>
+    <label>Enrollment root cause<select id="b6cRootFilter" style="display:block;width:100%"><option value="">All</option><option>HISTORICAL_DROPPED_CC_RESOLVED</option><option>HISTORICAL_CC_NONSTANDARD_TERM</option><option>ATTENDANCE_BEFORE_SECTION_ENROLLMENT</option><option>ATTENDANCE_AFTER_SECTION_EXIT</option><option>NO_CURRENT_TERM_CC</option><option>SECTION_OR_PERIOD_MEMBERSHIP_UNRESOLVED</option><option>AMBIGUOUS_SECTION_REFERENCE</option></select></label>
     <label>Source<select id="b6bKindFilter" style="display:block;width:100%"><option value="">All</option><option value="daily">Official daily</option><option value="meeting">Official meeting</option><option value="correction_diff">D1 correction comparison</option></select></label>
    </div>
    <p class="small" id="b6bQueueSummary">Build queue to view individual records.</p>
@@ -107,7 +107,7 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
   <!-- EAGLENEST_ATTENDANCE_RECON_BATCH6C_V1 -->
   <section class="card" id="b6cWorkspace">
    <div class="head"><div><h2>Historical enrollment investigation & schedule policies · Batch 6C</h2>
-    <p>Read-only investigation of PowerSchool CC enrollment dates, term history and section/rotation matches. Versioned schedule rules only affect this browser reconciliation preview.</p></div><span class="pill">Source evidence retained · no writes</span></div>
+    <p>Read-only investigation of active and dropped PowerSchool CC enrollments, effective dates, and section/rotation matches. Reconstructed dropped enrollments are provisional, not source Attendance.CCID. Versioned schedule rules only affect this browser reconciliation preview.</p></div><span class="pill">Source evidence retained · no writes</span></div>
    <p class="small" id="b6cPolicies">Build the Batch 6B PowerSchool queue above to evaluate schedule policies.</p>
    <details open><summary>Approved historical schedule rules (source-code versioned)</summary>
     <div style="overflow:auto;max-height:290px"><table class="b6b-table"><thead><tr><th>Policy</th><th>Reason</th><th>Excluded meeting records</th><th>Approval basis</th></tr></thead><tbody id="b6cPolicyTable"></tbody></table></div>

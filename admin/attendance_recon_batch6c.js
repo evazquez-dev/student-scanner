@@ -22,6 +22,33 @@ const text=x=>String(x??'').trim();
 const fields={id:['id'],student:['studentid','student_id'],section:['sectionid','section_id'],school:['schoolid','school_id'],term:['termid','term_id'],start:['dateenrolled','date_enrolled'],end:['dateleft','date_left'],year:['year_id','yearid'],period:['period_number','periodnumber'],cycle:['cycle_day_letter','letter'],course:['course_number'],teacher:['teacher'],room:['room']};
 const read=(f,row,key)=>{if(!f)return'';const i=f.headers.findIndex(h=>(fields[key]||[]).includes(norm(h)));return i<0?'':text(row[i]);};
 function dateKey(s){s=text(s);if(/^\d{4}-\d\d-\d\d/.test(s))return s.slice(0,10);const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);return m?`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`:'';}
+// EAGLENEST_ATTENDANCE_RECON_BATCH6C1_DROPPED_CC_V1
+// Historical PowerSchool CC rows may retain TermID=-3600 and SectionID=-N after
+// a student drops a section. Keep original signed identifiers; resolve only
+// against the matching school/year's Sections.ID=N, Section_Meeting, and
+// DateEnrolled <= attendance date < DateLeft.
+function recoverDroppedCC(r,src,termId){
+ if(!src||r.kind!=='meeting'||!r.ps_student_id)return [];
+ const out=[];
+ for(const cc of src.ccByStudent.get(r.ps_student_id)||[]){
+  if(read(src.cc,cc,'term')!==`-${termId}`)continue;
+  const originalSection=read(src.cc,cc,'section');
+  if(!/^-[1-9]\d*$/.test(originalSection))continue;
+  const normalSection=originalSection.slice(1);
+  const sections=(src.sectionById.get(normalSection)||[]).filter(x=>read(src.sections,x,'term')===termId);
+  if(sections.length!==1)continue;
+  const section=sections[0];
+  if(read(src.sections,section,'course')!==read(src.cc,cc,'course'))continue;
+  const matched=(src.meetBySection.get(normalSection)||[]).some(m=>read(src.meeting,m,'period')===r.period_number&&read(src.meeting,m,'cycle')===r.cycle);
+  if(!matched)continue;
+  const start=dateKey(read(src.cc,cc,'start')),end=dateKey(read(src.cc,cc,'end'));
+  if(!start||!end||!(start<=r.date&&r.date<end))continue;
+  out.push({ccid:read(src.cc,cc,'id'),original_section_id:originalSection,section_id:normalSection,
+   term_id:read(src.cc,cc,'term'),date_enrolled:start,date_left:end,
+   course:read(src.cc,cc,'course'),teacher_id:read(src.sections,section,'teacher'),room:read(src.sections,section,'room')});
+ }
+ return out;
+}
 function policyFor(row,preview){if(row.kind!=='meeting'||preview.school_id!=='2'||preview.year_id!=='36')return null;
  if(preview.days.some(d=>d.date===row.date&&d.special))return POLICIES[0];
  if(row.date==='2026-09-16'&&row.period_id==='1116')return POLICIES[1];
@@ -59,13 +86,40 @@ function build(raw,opts){const preview=rawBuild(raw,opts),src=constructSources(r
  const causes={},exclusions={};
  for(const r of preview.records){const p=policyFor(r,preview);r.meeting_obligation_eligible=r.kind==='meeting';
   if(p){r.meeting_obligation_eligible=false;r.schedule_policy_id=p.id;r.schedule_policy_reason=p.reason;r.original_warnings=[...r.warnings];r.status='EXCLUDED_POLICY';r.warnings=[];r.correction_candidate=false;r.section_inference='not_applicable_policy_exclusion';r.root_cause='';r.inferred_ccid='';r.inferred_section_id='';r.inferred_teacher_id='';r.inferred_room='';r.match_count=0;exclusions[p.id]=(exclusions[p.id]||0)+1;continue;}
-  if(r.kind==='meeting'&&(r.warnings.includes('no_dated_section_match')||r.warnings.includes('ambiguous_dated_section'))){const d=diagnose(r,src,preview.term_id);r.root_cause=d.root_cause;r.enrollment_investigation=d;causes[d.root_cause]=(causes[d.root_cause]||0)+1;}
+  if(r.kind==='meeting'&&(r.warnings.includes('no_dated_section_match')||r.warnings.includes('ambiguous_dated_section'))){
+   const recovered=recoverDroppedCC(r,src,preview.term_id);
+   if(recovered.length===1){
+    const c=recovered[0];
+    // CCID exists in the CC export, NOT in the Attendance source: provisional.
+    r.original_warnings=[...r.warnings];
+    r.warnings=r.warnings.filter(w=>w!=='no_dated_section_match'&&w!=='ambiguous_dated_section');
+    r.status='PROVISIONAL';r.root_cause='HISTORICAL_DROPPED_CC_RESOLVED';
+    r.section_inference='unique_historical_dated_cc_candidate_not_official_ccid';
+    r.inferred_ccid=c.ccid;r.inferred_section_id=c.section_id;
+    r.inferred_teacher_id=c.teacher_id;r.inferred_room=c.room;r.match_count=1;
+    r.historical_cc_original_section_id=c.original_section_id;
+    r.historical_cc_term_id=c.term_id;
+    r.historical_cc_date_enrolled=c.date_enrolled;
+    r.historical_cc_date_left=c.date_left;
+    r.historical_cc_course=c.course;
+    r.enrollment_investigation={root_cause:r.root_cause,
+     explanation:'A dropped-section CC row uniquely matches this date, period and cycle; the attendance CCID is inferred, not sourced directly.',
+     CC_rows_total:(src?.ccByStudent.get(r.ps_student_id)||[]).length,
+     traces:[{ccid:c.ccid,section_id:c.original_section_id,normalized_section_id:c.section_id,term_id:c.term_id,
+       date_enrolled:c.date_enrolled,date_left:c.date_left,course:c.course,teacher_id:c.teacher_id,room:c.room,
+       period_rotation_match:true,section_found:true,section_ambiguity:false,reason:'historical_dropped_cc_matches_effective_date'}]};
+    continue;
+   }
+   const d=diagnose(r,src,preview.term_id);
+   r.root_cause=d.root_cause;r.enrollment_investigation=d;
+   causes[d.root_cause]=(causes[d.root_cause]||0)+1;
+  }
  }
  const byDate=new Map();for(const r of preview.records){let d=byDate.get(r.date)||{issues:0,corrections:0,excluded:0,eligible:0};if(r.kind==='meeting'){if(r.status==='EXCLUDED_POLICY')d.excluded++;else d.eligible++;}if(r.warnings.length)d.issues++;if(r.correction_candidate)d.corrections++;byDate.set(r.date,d);}
  for(const day of preview.days){const sum=byDate.get(day.date)||{issues:0,corrections:0,excluded:0,eligible:0};day.source_issues=sum.issues;day.corrections=sum.corrections;day.meeting_excluded_by_policy=sum.excluded;day.meeting_obligations_eligible=sum.eligible;day.meeting_raw_records=day.meeting;}
  preview.issues=Object.fromEntries(preview.records.flatMap(r=>r.warnings).reduce((m,k)=>(m.set(k,(m.get(k)||0)+1),m),new Map()));
- preview.stats={...preview.stats,review:preview.records.filter(r=>r.status==='NEEDS_REVIEW').length,provisional:preview.records.filter(r=>r.status==='PROVISIONAL').length,correction_candidates:preview.records.filter(r=>r.correction_candidate).length,section_unique:preview.records.filter(r=>r.section_inference==='unique_dated_cc_candidate_not_official_ccid').length,meeting_excluded_by_policy:preview.records.filter(r=>r.status==='EXCLUDED_POLICY').length,meeting_obligations_eligible:preview.records.filter(r=>r.kind==='meeting'&&r.status!=='EXCLUDED_POLICY').length};
- preview.policy_version=POLICY_VERSION;preview.policies=POLICIES.map(p=>({...p,affected_record_count:exclusions[p.id]||0}));preview.enrollment_root_cause_counts=causes;preview.policy_exclusion_counts=exclusions;
+ preview.stats={...preview.stats,review:preview.records.filter(r=>r.status==='NEEDS_REVIEW').length,provisional:preview.records.filter(r=>r.status==='PROVISIONAL').length,correction_candidates:preview.records.filter(r=>r.correction_candidate).length,section_unique:preview.records.filter(r=>r.section_inference==='unique_dated_cc_candidate_not_official_ccid'||r.section_inference==='unique_historical_dated_cc_candidate_not_official_ccid').length,meeting_excluded_by_policy:preview.records.filter(r=>r.status==='EXCLUDED_POLICY').length,meeting_obligations_eligible:preview.records.filter(r=>r.kind==='meeting'&&r.status!=='EXCLUDED_POLICY').length,historical_dropped_cc_resolved:preview.records.filter(r=>r.root_cause==='HISTORICAL_DROPPED_CC_RESOLVED').length};
+ preview.policy_version=POLICY_VERSION;preview.policies=POLICIES.map(p=>({...p,affected_record_count:exclusions[p.id]||0}));preview.enrollment_root_cause_counts=causes;preview.policy_exclusion_counts=exclusions;preview.historical_cc_resolution_counts={resolved:preview.stats.historical_dropped_cc_resolved,students:new Set(preview.records.filter(r=>r.root_cause==='HISTORICAL_DROPPED_CC_RESOLVED').map(r=>r.student_number)).size};
  preview.limitations.push('Batch 6C schedule exclusions apply to this browser reconciliation preview; D1, PowerSchool, eligibility services and teacher accountability engines are NOT modified.','Enrollment explanations describe exported CC evidence, not approved PowerSchool enrollment edits.');
  return preview;}
 function compareD1(preview,index,maps={}){const c=rawCompare(preview,index,maps),byDate=new Map(preview.days.map(d=>[d.date,d]));
@@ -77,6 +131,6 @@ function compareD1(preview,index,maps={}){const c=rawCompare(preview,index,maps)
   if(!maps?.[`${r.date}@${bell}`]&&!maps?.[bell]){r.kind='d1_correction_not_comparable_without_approved_mapping';r.severity='PROVISIONAL';r.explanation='There is no approved PS-to-local mapping for the date/bell schedule.';c.counts.unexpected_d1--;c.counts.uncompared_d1++;}
  }
  c.policy_version=POLICY_VERSION;c.limitations.push('D1 source records excluded by preview policy remain stored and unchanged.');return c;}
-function safeSummary(preview,comparison){const out=rawSummary(preview,comparison);out.version='6C';out.policy_version=preview.policy_version;out.policies=preview.policies;out.enrollment_root_cause_counts=preview.enrollment_root_cause_counts;out.policy_exclusion_counts=preview.policy_exclusion_counts;return out;}
+function safeSummary(preview,comparison){const out=rawSummary(preview,comparison);out.version='6C';out.policy_version=preview.policy_version;out.policies=preview.policies;out.enrollment_root_cause_counts=preview.enrollment_root_cause_counts;out.policy_exclusion_counts=preview.policy_exclusion_counts;out.historical_cc_resolution_counts=preview.historical_cc_resolution_counts;return out;}
 return {build,compareD1,safeSummary,POLICY_VERSION,POLICIES,diagnose};
 });
