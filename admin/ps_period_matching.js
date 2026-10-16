@@ -14,7 +14,7 @@
   }
   function say(text,warning=false){msg.textContent=text;msg.className=warning?'warn':'ok';}
   function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  function localOptions(s){return [{value:'',label:'Select source…'},{value:'daily',label:'Official PowerSchool Daily Attendance'},
+  function localOptions(s){return [{value:'',label:'Select source…'},{value:'daily',label:'Official PowerSchool Daily Attendance'},{value:'eaglenest_daily',label:'EagleNEST Daily Attendance (live)'},
     ...s.local_periods.map(p=>({value:'local:'+p.id,label:`EagleNEST ${p.id} (${p.start}–${p.end})`})),{value:'skip',label:'Do Not Send'}];}
   function display(){
     rows.textContent='';save.disabled=true;
