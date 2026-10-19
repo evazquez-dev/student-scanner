@@ -13,8 +13,12 @@ const teacherJs=read('admin/teacher_attendance.js');
 const monitorHtml=read('admin/after_school_monitor.html');
 const monitorJs=read('admin/after_school_monitor.js');
 
-test('My Rosters exposes Special Actions with Club, Sports Team, and optional home room',()=>{
-  assert.match(rosterHtml,/Special Actions/);
+test('My Rosters exposes Club, Sports Team, and super-admin Regents types with optional home room',()=>{
+  // EAGLENEST_REGENTS_ROSTER_TEST_FIX_V1: UI now labels this section "Roster type".
+  assert.match(rosterHtml,/<b>Roster type<\/b>/);
+  assert.match(rosterHtml,/id="regentsTypeOption" value="regents" hidden disabled/);
+  assert.match(rosterJs,/can_create_regents/);
+  assert.match(rosterJs,/Regents roster: super admins only/);
   assert.match(rosterHtml,/value="club"/);
   assert.match(rosterHtml,/value="sports_team"/);
   assert.match(rosterHtml,/specialActionHomeRoom/);

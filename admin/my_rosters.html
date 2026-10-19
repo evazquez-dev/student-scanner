@@ -1,3 +1,4 @@
+<!-- EAGLENEST_MY_ROSTERS_REGENTS_TYPE_V1 -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -12,7 +13,7 @@
   <script src="./shared_auth.js"></script>
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./my_rosters.js?v=20260930-special-actions-v1" defer></script>
+  <script src="./my_rosters.js?v=20261019-regents-type-v1" defer></script>
   <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||((matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t;}catch(e){}})();</script>
   <style>
     :root{color-scheme:dark;--bg1:#111827;--bg2:#020617;--fg:#e5e7eb;--muted:#9ca3af;--border:#263244;--card:#0f172a;--soft:#111827;--control:#0b1220;--accent2:#0ea5e9}
@@ -50,10 +51,10 @@
           <div style="margin-top:10px"><label for="rosterName"><b>Roster name</b></label><input id="rosterName" type="text" maxlength="100" placeholder="e.g. Tuesday Tutoring"></div>
           <!-- EAGLENEST_MY_ROSTER_SPECIAL_ACTIONS_V1 -->
           <div class="specialActionBox">
-            <div class="row"><b>Special Actions</b><span class="pill">Optional</span></div>
-            <div class="muted tiny">Mark a roster as a Club or Sports Team to publish it to the After-School activity picker. The saved roster remains the permanent base membership; after-school extras never change it.</div>
+            <div class="row"><b>Roster type</b><span class="pill">Optional</span></div>
+            <div class="muted tiny">Club and Sports Team appear in the After-School activity picker. Regents is super-admin-only and does not start activities, attendance, or sync.</div>
             <div class="specialActionGrid">
-              <label><b>Type</b><select id="specialActionType"><option value="">None</option><option value="club">Club</option><option value="sports_team">Sports Team</option></select></label>
+              <label><b>Type</b><select id="specialActionType"><option value="">None</option><option value="club">Club</option><option value="sports_team">Sports Team</option><option id="regentsTypeOption" value="regents" hidden disabled>Regents</option></select></label>
               <label><b>Home room / default location</b><input id="specialActionHomeRoom" type="text" maxlength="120" list="specialActionLocations" placeholder="Optional — e.g. 405, Gym, Field"><datalist id="specialActionLocations"></datalist></label>
             </div>
             <div id="specialActionHint" class="muted tiny" style="margin-top:7px">No Special Action. This roster will not appear as an After-School activity.</div>
