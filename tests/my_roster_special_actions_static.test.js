@@ -18,7 +18,9 @@ test('My Rosters exposes Club, Sports Team, and super-admin Regents types with o
   assert.match(rosterHtml,/<b>Roster type<\/b>/);
   assert.match(rosterHtml,/id="regentsTypeOption" value="regents" hidden disabled/);
   assert.match(rosterJs,/can_create_regents/);
-  assert.match(rosterJs,/Regents roster: super admins only/);
+  // EAGLENEST_AFTER_SCHOOL_AUDIT_TEST_FIX_V1: Regents type is immutable; shared staff may maintain enrolled membership.
+  assert.match(rosterJs,/Regents roster type is locked/);
+  assert.match(rosterJs,/Shared Editors can add enrolled students/);
   assert.match(rosterHtml,/value="club"/);
   assert.match(rosterHtml,/value="sports_team"/);
   assert.match(rosterHtml,/specialActionHomeRoom/);

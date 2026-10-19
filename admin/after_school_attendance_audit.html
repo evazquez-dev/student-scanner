@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+<title>EagleNEST — After-School Attendance Audit</title>
+<link rel="stylesheet" href="./nav.css">
+<script src="./shared_auth.js"></script><script src="./brand.js" defer></script><script src="./nav.js" defer></script>
+<script src="./after_school_attendance_audit.js?v=20261019-v1" defer></script>
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--fg:#eef3fc;--muted:#bac6d6;--card:#152136;--border:#344761;--ctl:#0f1a2b}
+:root[data-theme="light"]{color-scheme:light;--bg:#f8fafc;--fg:#152235;--muted:#475569;--card:#fff;--border:#cbd5e1;--ctl:#f1f5f9}
+*{box-sizing:border-box}body{font-family:system-ui,Arial,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:74px 18px 30px}.wrap{max-width:1350px;margin:auto}h1{font-size:1.35rem}h2{font-size:1rem;margin:.3rem 0}.card{border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--card);margin-bottom:14px}.muted{color:var(--muted)}.tiny{font-size:.81rem}.inputs{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.inputs>label{display:grid;gap:5px;min-width:125px}select,input,button{font:inherit;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--ctl);color:var(--fg)}button{cursor:pointer;font-weight:700}.dayfilter{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}.dayfilter label{white-space:nowrap}table{width:100%;border-collapse:collapse;font-size:.89rem}td,th{border-bottom:1px solid var(--border);text-align:left;padding:8px;vertical-align:top}th{position:sticky;top:0;background:var(--card)}.scroll{max-height:68vh;overflow:auto}.chip{display:inline-block;padding:3px 7px;border-radius:999px;border:1px solid var(--border);font-size:.78rem}.cards{display:flex;flex-wrap:wrap;gap:12px}.metric{min-width:145px;flex:1}.metric strong{font-size:1.4rem;display:block}.status{padding:8px 0;white-space:pre-wrap}details{margin-top:7px}summary{cursor:pointer;font-weight:600}.subtable{font-size:.81rem}.subtable td,.subtable th{padding:5px}a{color:inherit}code{font-family:ui-monospace,SFMono-Regular,monospace}
+</style></head>
+<body data-module="after_school_attendance_audit"><main class="wrap">
+<section class="card"><h1>After-School Attendance Audit</h1><p class="muted">Club, Sports Team and Regents roster participation. Evidence is not official daily/meeting attendance. A student in another room may still have supporting evidence when their roster is the majority of scans in that room.</p><a href="./my_rosters.html">← Back to My Rosters</a></section>
+<section class="card" id="formSection" hidden><div class="inputs">
+<label style="flex:2;min-width:225px">Activity roster<select id="roster"></select></label>
+<label>From<input id="from" type="date"></label><label>Through<input id="to" type="date"></label>
+<label>From time<input id="startTime" type="time" value="14:30"></label><label>Until time<input id="endTime" type="time" value="18:00"></label>
+</div><div class="dayfilter" id="weekdays" role="group" aria-label="Which weekdays to inspect">
+<label><input type="checkbox" value="1" checked> Mon</label><label><input type="checkbox" value="2" checked> Tue</label><label><input type="checkbox" value="3" checked> Wed</label><label><input type="checkbox" value="4" checked> Thu</label><label><input type="checkbox" value="5" checked> Fri</label><label><input type="checkbox" value="6"> Sat</label><label><input type="checkbox" value="7"> Sun</label>
+</div><button id="run">Inspect attendance</button><button id="export" disabled>Export CSV</button><p class="tiny muted">Weekday selections filter the report only; they do not create or save recurring meeting schedules. Maximum 45 calendar days per report.</p></section>
+<section class="card" id="notice" role="status">Loading available rosters…</section>
+<section id="results" hidden><div class="cards" id="metrics"></div><div class="card"><p id="disclaimer" class="muted tiny"></p><div class="scroll"><table><thead><tr><th>Date</th><th>Evidence</th><th>Recorded attendance</th><th>Scanner supported</th><th>Seen elsewhere</th><th>No direct confirmation</th><th>Details</th></tr></thead><tbody id="daysBody"></tbody></table></div></div></section>
+</main></body></html>
