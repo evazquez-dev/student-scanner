@@ -55,6 +55,17 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
    <div class="buttons"><button class="primary" id="runPeriodAudit">Audit this period</button><button id="copyPeriodAuditSafe" disabled>Copy aggregate JSON (no student IDs)</button><button id="copyPeriodAuditPrivate" disabled>Copy private student detail JSON</button></div>
    <p id="periodAuditStatus" class="status" aria-live="polite">Choose a period and run the audit. This does not write to PowerSchool, attendance, or D1.</p>
    <div id="periodAuditSummary" class="snapshot small" hidden></div>
+  <!-- EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2B_V1 -->
+   <div id="periodPresence52b" class="snapshot small" hidden>
+    <h3>Unresolved students · Campus presence / official absence review</h3>
+    <p id="periodPresence52bMeta">Read-only reconciliation. This does not change any original period audit counts or attendance records.</p>
+    <div style="overflow:auto;max-height:450px"><table class="b6b-table">
+     <thead><tr><th>Classroom</th><th>Unresolved</th><th>Official absent</th><th>Official conflict</th><th>Seen in period</th><th>Seen earlier</th><th>Prior exit</th><th>Arrived later</th><th>Mapping</th><th>Unknown</th></tr></thead>
+     <tbody id="periodPresence52bRows"></tbody>
+    </table></div>
+    <p id="periodPresence52bEvents"></p>
+    <p>Earlier campus evidence is not proof of continuous attendance. Official absence requires a complete dated PowerSchool daily snapshot. No scan is never proof of absence. These are review categories, not attendance or teacher scores.</p>
+   </div>
    <div class="result table-wrap" style="overflow:auto;max-height:500px;margin-top:12px"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr><th>Room / class</th><th>Expected</th><th>Kiosk</th><th>Teacher P/L only</th><th>Teacher A/E only</th><th>Unresolved</th><th>Mapping</th></tr></thead><tbody id="periodAuditRows"></tbody></table></div>
    <details><summary>Private unresolved students and review flags (Super Admin only)</summary><pre id="periodAuditPrivate" class="audit-json">Run an audit to inspect individual cases.</pre></details>
    <p class="footer">Successful classroom check-ins are counted once per student-period. Synthetic teacher scans, cafeteria/entrance events, wrong-room scans and rejected/pending kiosk events do not count as classroom check-ins. The report is not independently verified against current PowerSchool membership.</p>

@@ -192,6 +192,27 @@
       if(!result.ok){$('periodAuditStatus').textContent=`Audit unavailable: ${result.error||'unknown'}${result.detail?' — '+result.detail:''}. No zero-coverage claim was made.`;return;}
       lastPeriodAudit52=result;
       const c=result.totals||{};
+      // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2B_V1
+      const pr=result.presence_reconciliation||null;
+      const presenceBox=$('periodPresence52b');
+      presenceBox.hidden=!pr;
+      if(pr){
+        const x=pr.categories||{},official=pr.official_daily||{},physical=pr.physical||{};
+        $('periodPresence52bMeta').textContent=`Reviewed ${pr.review_count} originally unresolved students. Documented official absences: ${x.documented_official_absence||0}; official/physical conflicts: ${x.official_absence_physical_conflict||0}; observed during period: ${x.observed_on_campus_during_period||0}; earlier campus evidence (unconfirmed): ${x.prior_campus_evidence_unconfirmed||0}; documented prior exit: ${x.documented_exit_before_period||0}; first documented later arrival: ${x.first_documented_arrival_after_period||0}; mapping issues: ${x.schedule_mapping_issue||0}; still unknown: ${x.unknown_presence||0}. PowerSchool complete daily snapshot: ${official.complete?'yes':'NO — absence status may be unavailable'}.`;
+        const tbody=$('periodPresence52bRows');tbody.replaceChildren();
+        for(const c of result.classrooms||[]){
+          const p=c.presence_review||{},tr=document.createElement('tr');
+          for(const v of [`${c.room} · ${c.course}`,c.counts?.unresolved||0,
+            p.documented_official_absence||0,p.official_absence_physical_conflict||0,
+            p.observed_on_campus_during_period||0,p.prior_campus_evidence_unconfirmed||0,
+            p.documented_exit_before_period||0,p.first_documented_arrival_after_period||0,
+            p.schedule_mapping_issue||0,p.unknown_presence||0]){
+            const td=document.createElement('td');td.textContent=String(v);tr.append(td);
+          }
+          tbody.append(tr);
+        }
+        $('periodPresence52bEvents').textContent=`Physical evidence: ${physical.credible_observations||0} credible observations from ${physical.rows_examined||0} dated PWA scan rows. Uncredited period event reasons (diagnostic only): ${JSON.stringify(pr.uncredited_kiosk_event_reasons||{})}.`;
+      }
       $('periodAuditStatus').textContent=`${result.school_date} · Period ${result.period_local} · ${result.report_state} · ${result.classrooms?.length||0} classrooms. ${result.warnings?.length||0} review flag(s).`;
       $('periodAuditSummary').hidden=false;
       $('periodAuditSummary').textContent=`Expected: ${c.expected} · Accepted classroom kiosk: ${c.kiosk_supported} (${c.kiosk_coverage_pct}%) · Teacher P/L only: ${c.teacher_present_or_late_only} · Teacher A/E only: ${c.teacher_absent_or_excused_only} · Unresolved: ${c.unresolved} · Teacher mapping unverified: ${c.unverified_mapping} · Post-check-in exits to review: ${c.exit_review}. Source checks: ${(result.warnings||[]).join(', ')||'none'}.`;
@@ -213,6 +234,7 @@
       const r=lastPeriodAudit52;
       copyText(JSON.stringify({school_date:r.school_date,period_local:r.period_local,report_state:r.report_state,
         totals:r.totals,source_coverage:r.source_coverage,warnings:r.warnings,
+        presence_reconciliation:r.presence_reconciliation||null,
         classrooms:(r.classrooms||[]).map(c=>({room:c.room,course:c.course,counts:c.counts,mapping_verified:c.mapping_verified})),
         limitations:r.limitations},null,2));
     });
