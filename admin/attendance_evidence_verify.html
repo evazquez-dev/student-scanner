@@ -44,6 +44,22 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
    <p class="small">Manual capture is the only write operation on this page. It requires explicit confirmation, a current-day Day Context, Live Mode, and Super Admin access.</p>
   </section>
 
+  <!-- EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2A_V1 -->
+  <section class="card" id="periodAuditCard">
+   <div class="head"><div><h2>Live classroom check-in coverage · Batch 5.2A</h2><p>Read-only, period-by-period comparison of dated classroom rosters, accepted kiosk check-ins (keypad or RFID), and individual teacher overrides.</p></div><span class="pill">Preliminary evidence, not teacher scores</span></div>
+   <div class="grid">
+    <div class="field"><label for="periodAuditPeriod">Instructional period</label><select id="periodAuditPeriod"><option value="1">Period 1</option><option value="2">Period 2</option><option value="3">Period 3</option><option value="4">Period 4</option><option value="5">Period 5</option><option value="6">Period 6</option></select></div>
+    <div class="field"><label>School date</label><p class="small">Uses the date selected above. Requires saved dated Day Context and staffing snapshots; never substitutes today's rosters for an earlier date.</p></div>
+    <div class="field"><label>Interpretation</label><p class="small">No classroom check-in is a review item, not proof of absence, staff negligence, or kiosk malfunction. Current-period results remain IN PROGRESS.</p></div>
+   </div>
+   <div class="buttons"><button class="primary" id="runPeriodAudit">Audit this period</button><button id="copyPeriodAuditSafe" disabled>Copy aggregate JSON (no student IDs)</button><button id="copyPeriodAuditPrivate" disabled>Copy private student detail JSON</button></div>
+   <p id="periodAuditStatus" class="status" aria-live="polite">Choose a period and run the audit. This does not write to PowerSchool, attendance, or D1.</p>
+   <div id="periodAuditSummary" class="snapshot small" hidden></div>
+   <div class="result table-wrap" style="overflow:auto;max-height:500px;margin-top:12px"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr><th>Room / class</th><th>Expected</th><th>Kiosk</th><th>Teacher P/L only</th><th>Teacher A/E only</th><th>Unresolved</th><th>Mapping</th></tr></thead><tbody id="periodAuditRows"></tbody></table></div>
+   <details><summary>Private unresolved students and review flags (Super Admin only)</summary><pre id="periodAuditPrivate" class="audit-json">Run an audit to inspect individual cases.</pre></details>
+   <p class="footer">Successful classroom check-ins are counted once per student-period. Synthetic teacher scans, cafeteria/entrance events, wrong-room scans and rejected/pending kiosk events do not count as classroom check-ins. The report is not independently verified against current PowerSchool membership.</p>
+  </section>
+
   <!-- EAGLENEST_ATTENDANCE_RECON_BATCH6_PAGE_V1 -->
   <section class="card" id="historyAuditCard">
    <div class="head"><div><h2>Historical reconciliation — PowerSchool vs EagleNEST</h2><p>Read-only coverage audit. Never treats missing scans or default PowerSchool Present as proof of physical presence.</p></div><span class="pill">Batch 6</span></div>

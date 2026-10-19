@@ -179,6 +179,48 @@
     // EAGLENEST_ATTENDANCE_RECON_BATCH6_PAGE_V1
     window.__evidenceSelectedStudent=()=>osisValue();
     $('histEnd').max=todayNY();
+    // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2A_V1
+    let lastPeriodAudit52=null;
+    $('runPeriodAudit').addEventListener('click',()=>task(async()=>{
+      if(!requireDate())return;
+      const period=$('periodAuditPeriod').value,date=dateValue();
+      $('periodAuditStatus').textContent='Reading saved rosters and D1 evidence. No data is being changed…';
+      $('periodAuditSummary').hidden=true;$('periodAuditRows').replaceChildren();
+      $('copyPeriodAuditSafe').disabled=true;$('copyPeriodAuditPrivate').disabled=true;
+      lastPeriodAudit52=null;
+      const result=await request(`/admin/attendance_evidence/reconciliation/period_audit?${qp({date,period})}`).catch(e=>({ok:false,error:'network_error',detail:String(e)}));
+      if(!result.ok){$('periodAuditStatus').textContent=`Audit unavailable: ${result.error||'unknown'}${result.detail?' — '+result.detail:''}. No zero-coverage claim was made.`;return;}
+      lastPeriodAudit52=result;
+      const c=result.totals||{};
+      $('periodAuditStatus').textContent=`${result.school_date} · Period ${result.period_local} · ${result.report_state} · ${result.classrooms?.length||0} classrooms. ${result.warnings?.length||0} review flag(s).`;
+      $('periodAuditSummary').hidden=false;
+      $('periodAuditSummary').textContent=`Expected: ${c.expected} · Accepted classroom kiosk: ${c.kiosk_supported} (${c.kiosk_coverage_pct}%) · Teacher P/L only: ${c.teacher_present_or_late_only} · Teacher A/E only: ${c.teacher_absent_or_excused_only} · Unresolved: ${c.unresolved} · Teacher mapping unverified: ${c.unverified_mapping} · Post-check-in exits to review: ${c.exit_review}. Source checks: ${(result.warnings||[]).join(', ')||'none'}.`;
+      const dest=$('periodAuditRows');
+      for(const r of result.classrooms||[]){
+        const tr=document.createElement('tr');
+        for(const v of [`${r.room} · ${r.course}`,r.counts?.expected,r.counts?.kiosk_supported,r.counts?.teacher_present_or_late_only,r.counts?.teacher_absent_or_excused_only,r.counts?.unresolved,r.mapping_verified?'verified':'unverified']){
+          const td=document.createElement('td');td.style.cssText='padding:8px;border-bottom:1px solid var(--line);vertical-align:top';td.textContent=String(v??'—');tr.append(td);
+        }
+        dest.append(tr);
+      }
+      $('periodAuditPrivate').textContent=JSON.stringify({school_date:result.school_date,period_local:result.period_local,
+        classrooms:(result.classrooms||[]).filter(r=>r.unresolved_students?.length||r.teacher_only_students?.length||r.review_students?.length).map(r=>({room:r.room,course:r.course,unresolved_students:r.unresolved_students,teacher_only_students:r.teacher_only_students,review_students:r.review_students})),
+        student_details:result.student_details},null,2);
+      $('copyPeriodAuditSafe').disabled=false;$('copyPeriodAuditPrivate').disabled=false;
+    }));
+    $('copyPeriodAuditSafe').addEventListener('click',()=>{
+      if(!lastPeriodAudit52)return;
+      const r=lastPeriodAudit52;
+      copyText(JSON.stringify({school_date:r.school_date,period_local:r.period_local,report_state:r.report_state,
+        totals:r.totals,source_coverage:r.source_coverage,warnings:r.warnings,
+        classrooms:(r.classrooms||[]).map(c=>({room:c.room,course:c.course,counts:c.counts,mapping_verified:c.mapping_verified})),
+        limitations:r.limitations},null,2));
+    });
+    $('copyPeriodAuditPrivate').addEventListener('click',()=>{
+      if(!lastPeriodAudit52)return;
+      if(!confirm('This contains identifiable student numbers. Only copy into an authorized private channel?'))return;
+      copyText(JSON.stringify(lastPeriodAudit52,null,2));
+    });
     $('runHistory').addEventListener('click',()=>task(async()=>{
       const start=$('histStart').value,end=$('histEnd').value;
       if(!start||!end||start>end){msg('Select a valid historical date range.','warn');return;}
