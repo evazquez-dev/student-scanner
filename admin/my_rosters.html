@@ -1,3 +1,4 @@
+<!-- EAGLENEST_REGENTS_GUEST_SCANNER_V1 -->
 <!-- EAGLENEST_MY_ROSTERS_REGENTS_TYPE_V1 -->
 <!doctype html>
 <html lang="en">
@@ -13,7 +14,7 @@
   <script src="./shared_auth.js"></script>
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
-  <script src="./my_rosters.js?v=20261019-regents-type-v1" defer></script>
+  <script src="./my_rosters.js?v=20261019-regents-guest-v1" defer></script>
   <script>(function(){try{var t=localStorage.getItem('ss_theme_v1')||((matchMedia&&matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t;}catch(e){}})();</script>
   <style>
     :root{color-scheme:dark;--bg1:#111827;--bg2:#020617;--fg:#e5e7eb;--muted:#9ca3af;--border:#263244;--card:#0f172a;--soft:#111827;--control:#0b1220;--accent2:#0ea5e9}
@@ -52,12 +53,22 @@
           <!-- EAGLENEST_MY_ROSTER_SPECIAL_ACTIONS_V1 -->
           <div class="specialActionBox">
             <div class="row"><b>Roster type</b><span class="pill">Optional</span></div>
-            <div class="muted tiny">Club and Sports Team appear in the After-School activity picker. Regents is super-admin-only and does not start activities, attendance, or sync.</div>
+            <div class="muted tiny">Club and Sports Team appear in the After-School activity picker. Regents is super-admin-only. Approved former students can check in at bound scanners; regular school attendance is unaffected.</div>
             <div class="specialActionGrid">
               <label><b>Type</b><select id="specialActionType"><option value="">None</option><option value="club">Club</option><option value="sports_team">Sports Team</option><option id="regentsTypeOption" value="regents" hidden disabled>Regents</option></select></label>
               <label><b>Home room / default location</b><input id="specialActionHomeRoom" type="text" maxlength="120" list="specialActionLocations" placeholder="Optional — e.g. 405, Gym, Field"><datalist id="specialActionLocations"></datalist></label>
             </div>
             <div id="specialActionHint" class="muted tiny" style="margin-top:7px">No Special Action. This roster will not appear as an After-School activity.</div>
+          </div>
+          <div id="regentsGuestBox" class="specialActionBox" hidden>
+            <b>Add former student · Regents guest</b>
+            <div class="muted tiny" style="margin-top:5px">For a student no longer enrolled here. Super admin must verify the student's identity/eligibility. This creates a guest identity, not a PowerSchool enrollment.</div>
+            <div class="specialActionGrid">
+              <label><b>9-digit OSIS</b><input id="regentsGuestOsis" type="text" inputmode="numeric" pattern="[0-9]{9}" maxlength="9" placeholder="123456789"></label>
+              <label><b>Student name</b><input id="regentsGuestName" type="text" maxlength="120" placeholder="First Last"></label>
+            </div>
+            <button type="button" id="addRegentsGuestBtn" style="margin-top:8px">Approve and add guest</button>
+            <div class="muted tiny" style="margin-top:5px">Then save the Regents roster. Check-ins require a bound kiosk and will be recorded separately from official attendance.</div>
           </div>
           <div style="margin-top:10px"><label for="pasteOsis"><b>Paste OSIS numbers</b></label><textarea id="pasteOsis" placeholder="Paste a column, comma-delimited list, or mixed text containing OSIS numbers"></textarea></div>
           <div class="row" style="margin-top:7px"><button id="addPastedBtn" type="button">Add pasted OSIS</button><span id="pasteResult" class="muted tiny"></span></div>

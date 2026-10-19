@@ -23,6 +23,7 @@
     const type=$('specialActionType')?.value||'',room=$('specialActionHomeRoom')?.value.trim()||'',suggest=state.builderMode==='suggest';
     const regents=$('regentsTypeOption');if(regents){regents.hidden=!state.canRegents;regents.disabled=!state.canRegents;}
     if(type==='regents'&&$('specialActionHomeRoom'))$('specialActionHomeRoom').value='';
+    if($('regentsGuestBox'))$('regentsGuestBox').hidden=!(state.canRegents&&type==='regents'&&!suggest);
     if($('specialActionType'))$('specialActionType').disabled=suggest;
     if($('specialActionHomeRoom'))$('specialActionHomeRoom').disabled=suggest||!type||type==='regents';
     if($('specialActionHint'))$('specialActionHint').textContent=suggest
@@ -35,6 +36,18 @@
   function resetBuilderUi(){state.builderMode='create';state.builderBase=null;$('rosterId').value='';$('rosterVersion').value='';$('rosterName').value='';$('specialActionType').value='';$('specialActionHomeRoom').value='';$('pasteOsis').value='';$('pasteResult').textContent='';$('builderTitle').textContent='Create custom roster';$('saveRosterBtn').textContent='Save roster';$('suggestionNoteWrap').hidden=true;$('suggestionNote').value='';renderSpecialActionUi();}
   function clearBuilder(){state.builder.clear();resetBuilderUi();renderBuilder();setStatus('Build a roster by searching students or pasting OSIS numbers.',true);}
   function addStudents(rows){let added=0;for(const s of Array.isArray(rows)?rows:[]){const osis=String(s?.osis||'').trim();if(!osis)continue;if(!state.builder.has(osis))added++;state.builder.set(osis,{osis,name:String(s.name||''),email:String(s.email||''),grade:String(s.grade||'')});}renderBuilder();return added;}
+  async function addRegentsGuest(){
+    if(!state.canRegents||$('specialActionType').value!=='regents'||state.builderMode==='suggest')return;
+    const osis=$('regentsGuestOsis').value.trim(),name=$('regentsGuestName').value.trim();
+    if(!/^\d{9}$/.test(osis))return setStatus('Enter the former student’s 9-digit OSIS.',false);
+    if(name.length<2)return setStatus('Enter the former student’s name.',false);
+    try{
+      const result=await api('/admin/my_rosters/regents_guest',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({osis,name})});
+      addStudents([result.student]);
+      $('regentsGuestOsis').value='';$('regentsGuestName').value='';
+      setStatus(`Added approved Regents guest ${result.student.name} (${result.student.osis}) to the working selection. Save this Regents roster to enable guest check-in.`,true);
+    }catch(e){setStatus(e.message,false);}
+  } // EAGLENEST_REGENTS_GUEST_SCANNER_V1
   async function addPasted(){const text=$('pasteOsis').value;if(!text.trim())return;try{const data=await api('/admin/my_rosters/resolve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({text})});const added=addStudents(data.students);$('pasteResult').textContent=`${data.students.length} found · ${added} added${data.missing_osis?.length?` · ${data.missing_osis.length} not found: ${data.missing_osis.join(', ')}`:''}`;setStatus(data.missing_osis?.length?`Some pasted OSIS numbers were not found: ${data.missing_osis.join(', ')}`:`Added ${added} student(s) from pasted OSIS.`,!data.missing_osis?.length);}catch(e){setStatus(e.message,false);}}
   async function search(){const q=$('studentSearch').value.trim(),box=$('searchResults');if(q.length<2){box.innerHTML='';return;}try{const data=await api(`/admin/my_rosters/student_search?q=${encodeURIComponent(q)}`,{method:'GET'});box.innerHTML=(data.results||[]).map(s=>`<div class="searchHit"><div><b>${esc(s.name||'')}</b><div class="tiny muted">${esc(s.email||'')} · ${esc(s.osis||'')} · Grade ${esc(s.grade||'')}</div></div><button type="button" data-add-search="${esc(s.osis)}" data-name="${esc(s.name||'')}" data-email="${esc(s.email||'')}" data-grade="${esc(s.grade||'')}">${state.builder.has(String(s.osis))?'Added':'Add'}</button></div>`).join('')||'<div class="muted tiny">No matches.</div>';}catch(e){box.innerHTML=`<div class="muted tiny">${esc(e.message)}</div>`;}}
   function metaText(row,section){if(section==='system')return row.system_type==='advisory'?'Current advisory roster':'Current class roster';if(section==='legacy')return `Previous ${row.source_label||''} roster`;const special=specialActionMeta(row),base=(section==='shared'||section==='hidden')?`Shared by ${row.owner_name||row.owner_email||'staff'} · ${permissionLabel(row.permission)}`:`Saved roster · ${permissionLabel(row.permission)}`;return special?`${base} · ${special}`:base;}
@@ -59,7 +72,7 @@
   async function shareAction(key,mode,staffEmail='',perm=''){const row=findRow(key);if(!row)return;try{const body={action:mode,id:row.id};if(staffEmail)body.staff_email=staffEmail;if(perm)body.permission=perm;await api('/admin/my_rosters',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});await refresh();await viewRoster(key,true);setStatus(mode==='remove_share'?`Removed access for ${staffEmail}.`:`Updated ${staffEmail} to ${permissionLabel(perm)}.`,true);}catch(e){setStatus(e.message,false);}}
   async function reviewSuggestion(key,suggestionId,decision){try{const row=findRow(key);await api('/admin/my_rosters',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'review_suggestion',id:row.id,suggestion_id:suggestionId,decision})});await refresh();await viewRoster(key,true);setStatus(`${decision==='accept'?'Accepted':'Rejected'} suggestion.`,true);}catch(e){setStatus(e.message,false);}}
   function wire(){
-    $('specialActionType').addEventListener('change',renderSpecialActionUi);$('specialActionHomeRoom').addEventListener('input',renderSpecialActionUi);$('addPastedBtn').addEventListener('click',addPasted);$('studentSearch').addEventListener('input',()=>{clearTimeout(state.searchTimer);state.searchTimer=setTimeout(search,180);});
+    $('specialActionType').addEventListener('change',renderSpecialActionUi);$('specialActionHomeRoom').addEventListener('input',renderSpecialActionUi);$('addRegentsGuestBtn').addEventListener('click',addRegentsGuest);$('addPastedBtn').addEventListener('click',addPasted);$('studentSearch').addEventListener('input',()=>{clearTimeout(state.searchTimer);state.searchTimer=setTimeout(search,180);});
     $('searchResults').addEventListener('click',e=>{const b=e.target.closest('[data-add-search]');if(!b)return;addStudents([{osis:b.dataset.addSearch,name:b.dataset.name,email:b.dataset.email,grade:b.dataset.grade}]);search();});
     $('builderBody').addEventListener('click',e=>{const b=e.target.closest('[data-remove-osis]');if(!b)return;state.builder.delete(String(b.dataset.removeOsis));renderBuilder();});
     $('saveRosterBtn').addEventListener('click',saveBuilder);$('clearBuilderBtn').addEventListener('click',clearBuilder);$('copyBuilderEmails').addEventListener('click',()=>copyBuilder('emails'));$('copyBuilderOsisColumn').addEventListener('click',()=>copyBuilder('column'));$('copyBuilderOsisComma').addEventListener('click',()=>copyBuilder('comma'));
