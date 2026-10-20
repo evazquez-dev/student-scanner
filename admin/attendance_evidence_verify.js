@@ -181,6 +181,86 @@
     $('histEnd').max=todayNY();
     // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2A_V1
     let lastPeriodAudit52=null;
+    // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2E_V1
+    let snapshot52e = null;
+    const snapshot52ePath = () => qp({date:dateValue(),period:$('periodAuditPeriod').value});
+    function status52e(s,kind=''){$('snapshot52eStatus').textContent=s;$('snapshot52eStatus').className='status '+kind;}
+    async function list52e(){
+      if(!requireDate())return;
+      status52e('Loading previously saved verification snapshots…');
+      const out=await request('/admin/attendance_evidence/reconciliation/period_snapshots?'+snapshot52ePath()).catch(e=>({ok:false,error:String(e)}));
+      if(!out.ok){status52e('Could not load historical snapshots: '+(out.error||out.http_status),'bad');return;}
+      const root=$('snapshot52eList');root.replaceChildren();
+      if(!out.snapshots?.length){root.textContent='No saved snapshots for this date / period.';status52e('No persistent snapshots yet.');return;}
+      for(const m of out.snapshots){
+        const line=document.createElement('div');line.className='result';
+        const b=document.createElement('button');b.type='button';b.textContent='Open snapshot';
+        b.addEventListener('click',()=>task(async()=>await open52e(m.snapshot_id)));
+        const label=document.createElement('span');label.textContent=` ${m.captured_at_iso} · ${m.case_count} student-periods · ${m.readiness_status} · ${m.snapshot_id.slice(0,17)}…`;
+        line.append(b,label);root.append(line);
+      }
+      status52e(`${out.snapshots.length} historical interpretation(s) available. Open one to inspect individual evidence.`,'good');
+    }
+    async function open52e(id){
+      status52e('Retrieving saved snapshot and validating its content hash…');
+      const r=await request('/admin/attendance_evidence/reconciliation/period_snapshot?'+qp({id})).catch(e=>({ok:false,error:String(e)}));
+      if(!r.ok){status52e('Snapshot read failed: '+(r.error||r.http_status),'bad');return;}
+      snapshot52e=r;
+      const ready=r.payload?.readiness||{},checks=ready.checks||[];
+      $('snapshot52eReview').hidden=false;
+      $('snapshot52eReadiness').textContent=`Captured ${r.meta?.captured_at_iso} by ${r.meta?.captured_by||'authorized staff'}. ${r.payload?.cases?.length||0} cases. ${ready.status||'REVIEW ONLY'} — ${ready.blocking_checks?.length||0} checks block scoring. Zero student or teacher scores enabled.`;
+      $('snapshot52eChecks').textContent=JSON.stringify(checks,null,2);
+      render52eCases();status52e(`Immutable snapshot verified: ${r.meta?.snapshot_id}. No attendance data changed.`,'good');
+    }
+    function render52eCases(){
+      const root=$('snapshot52eCases');root.replaceChildren();if(!snapshot52e)return;
+      const q=$('snapshot52eRoom').value.trim().toLowerCase(),cat=$('snapshot52eCategory').value;
+      const all=snapshot52e.payload?.cases||[];
+      const matches=all.filter(x=>(!q||String(x.room).toLowerCase().includes(q))&&(!cat||x.review_category===cat));
+      const table=document.createElement('table'),hdr=document.createElement('tr');
+      for(const label of ['Room','Course','Student OSIS (private)','Evidence class','Teacher action','Scan count','Timeline']){const c=document.createElement('th');c.textContent=label;hdr.append(c);}
+      const head=document.createElement('thead');head.append(hdr);table.append(head);
+      const body=document.createElement('tbody');
+      for(const item of matches){
+        const tr=document.createElement('tr');
+        for(const v of [item.room,item.course,item.osis,item.review_category,item.teacher_action_code||'—',item.recorded_classroom_checkins]){
+          const td=document.createElement('td');td.textContent=String(v??'—');tr.append(td);
+        }
+        const td=document.createElement('td'),btn=document.createElement('button');btn.type='button';btn.textContent='Inspect';
+        btn.addEventListener('click',()=>{
+          $('snapshot52eStudentJson').textContent=JSON.stringify(item,null,2);
+          $('snapshot52eStudentPanel').open=true;
+          status52e('Opened private student evidence. Historical snapshot remains unchanged.');
+        });td.append(btn);tr.append(td);body.append(tr);
+      }
+      table.append(body);root.append(table);
+      const foot=document.createElement('p');foot.className='small';foot.textContent=`Showing ${matches.length} of ${all.length} saved cases. Physical presence is not classroom attendance.`;root.append(foot);
+    }
+    $('snapshot52eRoom').addEventListener('input',render52eCases);
+    $('snapshot52eCategory').addEventListener('change',render52eCases);
+    $('listPeriodSnapshots52e').addEventListener('click',()=>task(list52e));
+    $('savePeriodSnapshot52e').addEventListener('click',()=>task(async()=>{
+      if(!lastPeriodAudit52||lastPeriodAudit52.school_date!==dateValue()||lastPeriodAudit52.period_local!==$('periodAuditPeriod').value){status52e('Run the chosen period audit before saving.','warn');return;}
+      if(!confirm('Save a private immutable D1 evidence snapshot for this school date and period? This recalculates on the SERVER and does not write attendance or PowerSchool.'))return;
+      status52e('Recomputing current evidence on the server, then saving the immutable snapshot…');
+      const r=await request('/admin/attendance_evidence/reconciliation/period_snapshot_capture',{
+        date:dateValue(),period:$('periodAuditPeriod').value}).catch(e=>({ok:false,error:String(e)}));
+      if(!r.ok){status52e('Snapshot save failed; nothing is certified: '+(r.error||r.http_status),'bad');return;}
+      status52e('Snapshot persisted in D1: '+r.snapshot_id+' · '+r.case_count+' student records. Scoring remains disabled.','good');
+      await list52e();await open52e(r.snapshot_id);
+    }));
+    $('copySnapshot52eSafe').addEventListener('click',()=>{
+      if(!snapshot52e)return;
+      const p=snapshot52e.payload,r=p.report||{};
+      copyText(JSON.stringify({snapshot_id:snapshot52e.meta.snapshot_id,school_date:p.school_date,period_local:p.period_local,
+        captured_at_iso:snapshot52e.meta.captured_at_iso,expected_count:p.cases?.length||0,
+        totals:r.totals,warnings:r.warnings,readiness:p.readiness,source_timeline_coverage:p.source_timeline_coverage,
+        campus_windows_52d2:r.campus_windows_52d2},null,2));
+    });
+    $('copySnapshot52ePrivate').addEventListener('click',()=>{
+      if(!snapshot52e||!confirm('This contains student OSIS, timestamps, and staff identifiers. Copy ONLY to a restricted authorized channel?'))return;
+      copyText(JSON.stringify(snapshot52e,null,2));
+    });
     $('runPeriodAudit').addEventListener('click',()=>task(async()=>{
       if(!requireDate())return;
       const period=$('periodAuditPeriod').value,date=dateValue();
@@ -188,12 +268,14 @@
       $('periodAuditSummary').hidden=true;$('periodAuditRows').replaceChildren();
       $('copyPeriodAuditSafe').disabled=true;$('copyPeriodAuditPrivate').disabled=true;
       lastPeriodAudit52=null;
+      $('savePeriodSnapshot52e').disabled=true;
       $('periodEligibility52d').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_V1
       $('periodFoundations52d1').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_1_V1
       $('periodWindows52d2').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_2_V1
       const result=await request(`/admin/attendance_evidence/reconciliation/period_audit?${qp({date,period})}`).catch(e=>({ok:false,error:'network_error',detail:String(e)}));
       if(!result.ok){$('periodAuditStatus').textContent=`Audit unavailable: ${result.error||'unknown'}${result.detail?' — '+result.detail:''}. No zero-coverage claim was made.`;return;}
       lastPeriodAudit52=result;
+      $('savePeriodSnapshot52e').disabled=false;
       const c=result.totals||{};
       // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2B_V1
       const pr=result.presence_reconciliation||null;

@@ -113,6 +113,30 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
    <p class="footer">Successful classroom check-ins are counted once per student-period. Synthetic teacher scans, cafeteria/entrance events, wrong-room scans and rejected/pending kiosk events do not count as classroom check-ins. The report is not independently verified against current PowerSchool membership.</p>
   </section>
 
+    <!-- EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2E_V1 -->
+    <section class="card" id="periodSnapshots52e">
+      <div class="head"><div><h2>Batch 5.2E · Persistent verification snapshots</h2>
+      <p>Explicitly save a server-recomputed period audit to D1, or reopen a historical interpretation and inspect private student evidence. Scoring remains disabled.</p></div><span class="pill">Super Admin · Read-only evidence</span></div>
+      <div class="buttons">
+        <button id="savePeriodSnapshot52e" type="button" disabled>Save immutable audit snapshot</button>
+        <button id="listPeriodSnapshots52e" type="button">Find saved snapshots for selected date / period</button>
+      </div>
+      <p id="snapshot52eStatus" class="status" role="status">Run a period audit first to save; saved snapshots may be opened separately.</p>
+      <div id="snapshot52eList" class="result table-wrap" style="max-height:240px;overflow:auto"></div>
+      <div id="snapshot52eReview" hidden>
+        <h3>Selected historical snapshot</h3>
+        <p id="snapshot52eReadiness" class="small"></p>
+        <details><summary>Readiness checks blocking accountability calculations</summary><pre id="snapshot52eChecks" class="audit-json"></pre></details>
+        <div class="grid">
+          <div class="field"><label for="snapshot52eRoom">Filter by room</label><input id="snapshot52eRoom" type="text" placeholder="e.g. 212"></div>
+          <div class="field"><label for="snapshot52eCategory">Review category</label><select id="snapshot52eCategory"><option value="">All students</option><option value="dual_gap_bracketed">Dual gap — bracketed</option><option value="dual_gap_observed_in_period">Dual gap — observed during</option><option value="dual_gap_prior_only">Dual gap — earlier scan only</option><option value="teacher_only_bracketed">Teacher action — bracketed</option><option value="classroom_scan_supported">Classroom scan supported</option><option value="official_daily_absence">Official daily absent</option><option value="teacher_action_only">Teacher action only</option><option value="other_review">Other review</option></select></div>
+        </div>
+        <div id="snapshot52eCases" class="result table-wrap" style="max-height:500px;overflow:auto"></div>
+        <details id="snapshot52eStudentPanel"><summary>Private student scan / teacher / pickup timeline</summary><pre id="snapshot52eStudentJson" class="audit-json">Select a student in the table.</pre></details>
+        <div class="buttons"><button id="copySnapshot52eSafe" type="button">Copy aggregate summary (no student IDs)</button><button id="copySnapshot52ePrivate" type="button">Copy private snapshot JSON</button></div>
+      </div>
+      <p class="footer">Historical snapshots contain student identifiers, precise event times and staff actions. Restrict access and copies to authorized personnel. Each distinct snapshot is content-addressed and cannot be overwritten. A later scan or correction creates a new interpretation, not a revision of the earlier one. Saved evidence is not proof of classroom attendance or staff fault.</p>
+    </section>
   <!-- EAGLENEST_ATTENDANCE_RECON_BATCH6_PAGE_V1 -->
   <section class="card" id="historyAuditCard">
    <div class="head"><div><h2>Historical reconciliation — PowerSchool vs EagleNEST</h2><p>Read-only coverage audit. Never treats missing scans or default PowerSchool Present as proof of physical presence.</p></div><span class="pill">Batch 6</span></div>
