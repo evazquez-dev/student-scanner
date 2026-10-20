@@ -190,6 +190,7 @@
       lastPeriodAudit52=null;
       $('periodEligibility52d').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_V1
       $('periodFoundations52d1').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_1_V1
+      $('periodWindows52d2').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_2_V1
       const result=await request(`/admin/attendance_evidence/reconciliation/period_audit?${qp({date,period})}`).catch(e=>({ok:false,error:'network_error',detail:String(e)}));
       if(!result.ok){$('periodAuditStatus').textContent=`Audit unavailable: ${result.error||'unknown'}${result.detail?' — '+result.detail:''}. No zero-coverage claim was made.`;return;}
       lastPeriodAudit52=result;
@@ -273,6 +274,23 @@
           dest.append(tr);
         }
       }
+      // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_2_V1
+      const windows=result.campus_windows_52d2||null;
+      $('periodWindows52d2').hidden=!windows;
+      if(windows){
+        const src=windows.source||{},cnt=windows.counts||{};
+        $('periodWindows52d2Meta').textContent=`Parent pickup form history: ${src.historical_import_complete?'COMPLETE for this date':'UNVERIFIED / NOT YET BACKFILLED'} · Events recorded: ${src.records_read??'unknown'} · Strong scan/pickup windows: ${(cnt.bracketed_by_scans||0)+(cnt.bracketed_with_pickup||0)} · Dual gap with strong bracket: ${cnt.dual_gap_bracketed||0}. No penalties or finalized denominators.`;
+        const dest=$('periodWindows52d2Rows');dest.replaceChildren();
+        for(const cl of result.classrooms||[]){
+          const a=cl.campus_windows_52d2?.counts||{},tr=document.createElement('tr');
+          for(const v of [`${cl.room} · ${cl.course}`,a.dual_gap_bracketed||0,
+            a.dual_gap_observed_in_period||0,a.dual_gap_prior_only||0,
+            a.dismissed_before_period||0,a.dismissed_during_period||0,
+            a.teacher_only_bracketed||0,a.physical_exit_or_pickup_conflict||0]){
+            const td=document.createElement('td');td.textContent=String(v);tr.append(td);
+          }dest.append(tr);
+        }
+      }
       $('periodAuditStatus').textContent=`${result.school_date} · Period ${result.period_local} · ${result.report_state} · ${result.classrooms?.length||0} classrooms. ${result.warnings?.length||0} review flag(s).`;
       $('periodAuditSummary').hidden=false;
       $('periodAuditSummary').textContent=`Expected: ${c.expected} · Accepted classroom kiosk: ${c.kiosk_supported} (${c.kiosk_coverage_pct}%) · Teacher P/L only: ${c.teacher_present_or_late_only} · Teacher A/E only: ${c.teacher_absent_or_excused_only} · Unresolved: ${c.unresolved} · Teacher mapping unverified: ${c.unverified_mapping} · Post-check-in exits to review: ${c.exit_review}. Source checks: ${(result.warnings||[]).join(', ')||'none'}.`;
@@ -298,9 +316,10 @@
         period_diagnostics_52c:r.period_diagnostics_52c||null,
         period_eligibility:r.period_eligibility||null,
         reconciliation_foundations_52d1:r.reconciliation_foundations_52d1||null,
+        campus_windows_52d2:r.campus_windows_52d2||null,
         classrooms:(r.classrooms||[]).map(c=>({room:c.room,course:c.course,counts:c.counts,mapping_verified:c.mapping_verified,
           presence_review:c.presence_review||null,meeting_review:c.meeting_review||null,prompt_review:c.prompt_review||null,
-          period_eligibility:c.period_eligibility||null,foundations_52d1:c.foundations_52d1||null})),
+          period_eligibility:c.period_eligibility||null,foundations_52d1:c.foundations_52d1||null,campus_windows_52d2:c.campus_windows_52d2||null})),
         limitations:r.limitations},null,2));
     });
     $('copyPeriodAuditPrivate').addEventListener('click',()=>{

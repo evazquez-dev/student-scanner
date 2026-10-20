@@ -98,6 +98,16 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
      </table></div>
      <p>PowerSchool Absent is a recorded attendance outcome, not proof of who entered it. Unchanged teacher submissions may not create individual change events. No student or teacher scores are produced. These are review flags only.</p>
    </div>
+   <!-- EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_2_V1 -->
+   <div id="periodWindows52d2" class="snapshot small" hidden>
+     <h3>Batch 5.2D.2 · Campus presence windows and parent pickup evidence</h3>
+     <p id="periodWindows52d2Meta">Read-only period timeline and dismissal history completeness.</p>
+     <div style="overflow:auto;max-height:400px"><table class="b6b-table">
+       <thead><tr><th>Room / class</th><th>Dual gap: bracketed by events</th><th>Dual gap: observed during</th><th>Dual gap: prior only</th><th>Documented dismissal before</th><th>Dismissal during</th><th>Teacher-only bracketed</th><th>Pickup conflict</th></tr></thead>
+       <tbody id="periodWindows52d2Rows"></tbody>
+     </table></div>
+     <p>Bracketing with scans or parent pickup provides strong evidence of expected campus presence, not proof of classroom attendance. Missing dismissal imports are never treated as proof nobody left. No attendance writes or scores.</p>
+   </div>
    <div class="result table-wrap" style="overflow:auto;max-height:500px;margin-top:12px"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr><th>Room / class</th><th>Expected</th><th>Kiosk</th><th>Teacher P/L only</th><th>Teacher A/E only</th><th>Unresolved</th><th>Mapping</th></tr></thead><tbody id="periodAuditRows"></tbody></table></div>
    <details><summary>Private unresolved students and review flags (Super Admin only)</summary><pre id="periodAuditPrivate" class="audit-json">Run an audit to inspect individual cases.</pre></details>
    <p class="footer">Successful classroom check-ins are counted once per student-period. Synthetic teacher scans, cafeteria/entrance events, wrong-room scans and rejected/pending kiosk events do not count as classroom check-ins. The report is not independently verified against current PowerSchool membership.</p>
