@@ -189,6 +189,7 @@
       $('copyPeriodAuditSafe').disabled=true;$('copyPeriodAuditPrivate').disabled=true;
       lastPeriodAudit52=null;
       $('periodEligibility52d').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_V1
+      $('periodFoundations52d1').hidden=true; // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_1_V1
       const result=await request(`/admin/attendance_evidence/reconciliation/period_audit?${qp({date,period})}`).catch(e=>({ok:false,error:'network_error',detail:String(e)}));
       if(!result.ok){$('periodAuditStatus').textContent=`Audit unavailable: ${result.error||'unknown'}${result.detail?' — '+result.detail:''}. No zero-coverage claim was made.`;return;}
       lastPeriodAudit52=result;
@@ -251,6 +252,27 @@
           dest.append(tr);
         }
       }
+      // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_1_V1
+      const foundation=result.reconciliation_foundations_52d1||null;
+      $('periodFoundations52d1').hidden=!foundation;
+      if(foundation){
+        const o=foundation.membership||{},m=foundation.meeting||{},c=foundation.counts||{};
+        $('periodFoundations52d1Meta').textContent=`PowerSchool daily roster: ${o.complete?o.official_students:'INCOMPLETE'} · Instructionally expected this period: ${o.expected_instructional_student_periods} · Officially enrolled without dated instructional assignment: ${o.no_instructional_assignment??'unknown'} · Incomplete local assignment: ${o.incomplete_instructional_assignment??'unknown'} · Incorrectly included as scheduled: ${o.no_schedule_but_counted_as_instructional??'unknown'}. No discharge status is inferred.`;
+        $('periodFoundations52d1Meeting').textContent=`PS meeting source: ${m.complete?'complete':'INCOMPLETE'} (${m.student_count??'unknown'} students). Missing expected PS meeting periods: ${m.expected_missing_meeting_period??'unknown'}. Meeting Absent with no individual teacher action recorded: ${c.meeting_absent_no_individual_teacher_action||0}. This does not identify the source of a PowerSchool Absent code.`;
+        const dest=$('periodFoundations52d1Rows');dest.replaceChildren();
+        for(const classroom of result.classrooms||[]){
+          const v=classroom.foundations_52d1?.counts||{},tr=document.createElement('tr');
+          for(const cell of [`${classroom.room} · ${classroom.course}`,
+            v.meeting_absent_no_individual_teacher_action||0,
+            v.dual_gap_campus_observed_during_period||0,
+            v.dual_gap_prior_campus_only||0,
+            v.teacher_only_accounted||0,
+            v.meeting_absent_with_class_scan||0]){
+            const td=document.createElement('td');td.textContent=String(cell);tr.append(td);
+          }
+          dest.append(tr);
+        }
+      }
       $('periodAuditStatus').textContent=`${result.school_date} · Period ${result.period_local} · ${result.report_state} · ${result.classrooms?.length||0} classrooms. ${result.warnings?.length||0} review flag(s).`;
       $('periodAuditSummary').hidden=false;
       $('periodAuditSummary').textContent=`Expected: ${c.expected} · Accepted classroom kiosk: ${c.kiosk_supported} (${c.kiosk_coverage_pct}%) · Teacher P/L only: ${c.teacher_present_or_late_only} · Teacher A/E only: ${c.teacher_absent_or_excused_only} · Unresolved: ${c.unresolved} · Teacher mapping unverified: ${c.unverified_mapping} · Post-check-in exits to review: ${c.exit_review}. Source checks: ${(result.warnings||[]).join(', ')||'none'}.`;
@@ -275,9 +297,10 @@
         presence_reconciliation:r.presence_reconciliation||null,
         period_diagnostics_52c:r.period_diagnostics_52c||null,
         period_eligibility:r.period_eligibility||null,
+        reconciliation_foundations_52d1:r.reconciliation_foundations_52d1||null,
         classrooms:(r.classrooms||[]).map(c=>({room:c.room,course:c.course,counts:c.counts,mapping_verified:c.mapping_verified,
           presence_review:c.presence_review||null,meeting_review:c.meeting_review||null,prompt_review:c.prompt_review||null,
-          period_eligibility:c.period_eligibility||null})),
+          period_eligibility:c.period_eligibility||null,foundations_52d1:c.foundations_52d1||null})),
         limitations:r.limitations},null,2));
     });
     $('copyPeriodAuditPrivate').addEventListener('click',()=>{
