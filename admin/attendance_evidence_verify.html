@@ -77,6 +77,16 @@ main{max-width:1150px;margin:0 auto;padding:24px 18px 80px}.head{display:flex;al
     </table></div>
     <p>For today, a verified successful PowerSchool end-of-day synchronization OR finalized Attendance Outreach can establish operational completion. An attempted, skipped, failed, or dry-run sync does not. Neither source is a verified canonical PowerSchool daily snapshot, and the end-of-day receipt contains counts, not individual absences. Prior dates still require complete PowerSchool snapshots. <!-- EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2C_1_V1 --> This report does not update attendance, compliance, eligibility or staff scores.</p>
    </div>
+   <!-- EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2D_V1 -->
+   <div id="periodEligibility52d" class="snapshot small" hidden>
+     <h3>Batch 5.2D · Period-aware attendance eligibility review</h3>
+     <p id="periodEligibility52dMeta">Read-only arrival/departure and official daily review.</p>
+     <div style="overflow:auto;max-height:430px"><table class="b6b-table">
+       <thead><tr><th>Room / class</th><th>Expected</th><th>Class scan</th><th>Arrival during</th><th>Arrival after</th><th>Official daily absent</th><th>Absence/scan conflict</th><th>Prior evidence</th><th>Needs review</th></tr></thead>
+       <tbody id="periodEligibility52dRows"></tbody>
+     </table></div>
+     <p>First entrance scans establish the first <em>documented</em> arrival, not guaranteed first actual arrival. Earlier scans cannot prove uninterrupted classroom presence. Student-period classifications do not establish official meeting attendance, denominator eligibility, student compliance, or teacher performance. No attendance changes are made.</p>
+   </div>
    <div class="result table-wrap" style="overflow:auto;max-height:500px;margin-top:12px"><table style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr><th>Room / class</th><th>Expected</th><th>Kiosk</th><th>Teacher P/L only</th><th>Teacher A/E only</th><th>Unresolved</th><th>Mapping</th></tr></thead><tbody id="periodAuditRows"></tbody></table></div>
    <details><summary>Private unresolved students and review flags (Super Admin only)</summary><pre id="periodAuditPrivate" class="audit-json">Run an audit to inspect individual cases.</pre></details>
    <p class="footer">Successful classroom check-ins are counted once per student-period. Synthetic teacher scans, cafeteria/entrance events, wrong-room scans and rejected/pending kiosk events do not count as classroom check-ins. The report is not independently verified against current PowerSchool membership.</p>
