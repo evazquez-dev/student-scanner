@@ -198,7 +198,7 @@
       presenceBox.hidden=!pr;
       if(pr){
         const x=pr.categories||{},official=pr.official_daily||{},physical=pr.physical||{};
-        $('periodPresence52bMeta').textContent=`Reviewed ${pr.review_count} originally unresolved students. Documented official absences: ${x.documented_official_absence||0}; official/physical conflicts: ${x.official_absence_physical_conflict||0}; observed during period: ${x.observed_on_campus_during_period||0}; earlier campus evidence (unconfirmed): ${x.prior_campus_evidence_unconfirmed||0}; documented prior exit: ${x.documented_exit_before_period||0}; first documented later arrival: ${x.first_documented_arrival_after_period||0}; mapping issues: ${x.schedule_mapping_issue||0}; still unknown: ${x.unknown_presence||0}. PowerSchool complete daily snapshot: ${official.complete?'yes':'NO — absence status may be unavailable'}.`;
+        $('periodPresence52bMeta').textContent=`Reviewed ${pr.review_count} originally unresolved students. Documented official absences: ${x.documented_official_absence||0}; official/physical conflicts: ${x.official_absence_physical_conflict||0}; observed during period: ${x.observed_on_campus_during_period||0}; earlier campus evidence (unconfirmed): ${x.prior_campus_evidence_unconfirmed||0}; documented prior exit: ${x.documented_exit_before_period||0}; first documented later arrival: ${x.first_documented_arrival_after_period||0}; mapping issues: ${x.schedule_mapping_issue||0}; still unknown: ${x.unknown_presence||0}. Daily source: ${official.source||'unavailable'}; completed PowerSchool snapshot: ${official.powerschool_complete===true?'yes':'no'}; operational daily complete: ${official.complete?'yes':'no'}.`;
         const tbody=$('periodPresence52bRows');tbody.replaceChildren();
         for(const c of result.classrooms||[]){
           const p=c.presence_review||{},tr=document.createElement('tr');
@@ -212,6 +212,25 @@
           tbody.append(tr);
         }
         $('periodPresence52bEvents').textContent=`Physical evidence: ${physical.credible_observations||0} credible observations from ${physical.rows_examined||0} dated PWA scan rows. Uncredited period event reasons (diagnostic only): ${JSON.stringify(pr.uncredited_kiosk_event_reasons||{})}.`;
+      }
+      // EAGLENEST_ATTENDANCE_ACCOUNTABILITY_BATCH5_2C_V1
+      const diag52c=result.period_diagnostics_52c||null;
+      $('periodPresence52c').hidden=!diag52c;
+      if(diag52c){
+        const d=diag52c.daily_source||{},m=diag52c.meeting||{},p=diag52c.prompts||{},o=d.attendance_outreach||{};
+        $('periodPresence52cMeta').textContent=`Daily completion: ${d.complete?'YES':'NO'} · Source: ${d.selected||'unavailable'} · PowerSchool complete: ${d.powerschool_complete?'yes':'no'} · Completed Attendance Outreach today: ${o.complete?'yes':'no'}${!o.complete?' ('+(o.reason||'not available')+')':''}. Outreach counts are operational, not official PowerSchool records.`;
+        $('periodPresence52cEvents').textContent=`Outreach archived absentee count: ${o.absent_count||0}, late: ${o.late_count||0}. Meeting import complete: ${m.meeting_import_complete?'yes':'no'}; official published corrections cover date: ${m.published_corrections_cover_date?'yes':'no'}; reviewed meeting statuses: ${JSON.stringify(m.counts||{})}. Pending/decision scan checks: ${JSON.stringify(p.counts||{})}. Raw non-credit event status categories: ${JSON.stringify(p.noncredit_status_buckets||{})}. No automatic scan credit added.`;
+        const tbody=$('periodPresence52cRows');tbody.replaceChildren();
+        for(const row of result.classrooms||[]){
+          const x=row.presence_review||{},meeting=row.meeting_review||{},prompt=row.prompt_review||{};
+          const tr=document.createElement('tr');
+          for(const v of [`${row.room} · ${row.course}`,x.outreach_documented_absence||0,
+            x.outreach_absence_physical_conflict||0,meeting.baseline_absent||0,
+            prompt.potential_uncredited_first_in_students||0]){
+            const td=document.createElement('td');td.textContent=String(v);tr.append(td);
+          }
+          tbody.append(tr);
+        }
       }
       $('periodAuditStatus').textContent=`${result.school_date} · Period ${result.period_local} · ${result.report_state} · ${result.classrooms?.length||0} classrooms. ${result.warnings?.length||0} review flag(s).`;
       $('periodAuditSummary').hidden=false;
@@ -235,7 +254,9 @@
       copyText(JSON.stringify({school_date:r.school_date,period_local:r.period_local,report_state:r.report_state,
         totals:r.totals,source_coverage:r.source_coverage,warnings:r.warnings,
         presence_reconciliation:r.presence_reconciliation||null,
-        classrooms:(r.classrooms||[]).map(c=>({room:c.room,course:c.course,counts:c.counts,mapping_verified:c.mapping_verified})),
+        period_diagnostics_52c:r.period_diagnostics_52c||null,
+        classrooms:(r.classrooms||[]).map(c=>({room:c.room,course:c.course,counts:c.counts,mapping_verified:c.mapping_verified,
+          presence_review:c.presence_review||null,meeting_review:c.meeting_review||null,prompt_review:c.prompt_review||null})),
         limitations:r.limitations},null,2));
     });
     $('copyPeriodAuditPrivate').addEventListener('click',()=>{
