@@ -170,7 +170,7 @@
         <td><strong>${esc(row.name || '-')}</strong><div class="muted mono">${esc(row.osis || '')}</div></td>
         <td><div>${esc(fmtDateTime(row.dismissal_when_iso || row.created_at))}</div><div class="muted mono">${esc(row.dismissal_when_iso || '')}</div></td>
         <td>${esc(row.reason || '-')}</td>
-        <td>${statusTag(row)}${row.used_at ? `<div class="muted mono">${esc(fmtDateTime(row.used_at))}</div>` : ''}</td>
+        <td>${statusTag(row)}${row.used_at ? `<div class="muted mono">${esc(fmtDateTime(row.used_at))}</div><div class="muted">${esc(row.used_by||'')}</div>` : ''}</td>
         <td>${location}</td>
         <td>${action}</td>
       </tr>`;
@@ -223,11 +223,17 @@
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data?.ok) throw new Error(data?.error || `undo_http_${resp.status}`);
       await refresh();
-      if (data?.log_cleanup && data.log_cleanup.ok === false) {
-        setStatus(`Undone: ${data.name || row.name || row.osis || 'student'}. Warning: the Early Dismissal log row could not be deleted (${data.log_cleanup.error || 'cleanup failed'}).`, true);
-      } else {
-        setStatus(`Undone: ${data.name || row.name || row.osis || 'student'}.`);
+      const problems=[];
+      if(data?.evidence_undo_52d2?.recorded !== true){
+        problems.push('D1 undo audit persistence failed: '+(data?.evidence_undo_52d2?.error||'not confirmed'));
       }
+      if(data?.log_cleanup?.marked !== true){
+        problems.push('form response was not marked Undone: '+(data?.log_cleanup?.error||'not confirmed'));
+      }
+      if(data?.undo_not_persisted && !problems.length)problems.push('undo audit persistence failed');
+      const label=data.name||row.name||row.osis||'student';
+      setStatus(problems.length?`Location undone for ${label}, but audit needs repair: ${problems.join(' · ')}`:
+        `Undone: ${label}. Pickup preserved and marked Undone in the evidence ledger and response sheet.`,!!problems.length);
     } catch (err) {
       setStatus(err?.message || String(err), true);
       await refresh();
