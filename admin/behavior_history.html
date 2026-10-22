@@ -16,7 +16,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
 
-  <title>EagleNEST — Logged Behaviors</title>
+  <title>EagleNEST — Behavior + Incidents</title>
   <link rel="stylesheet" href="./nav.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
@@ -410,8 +410,8 @@
 </head>
 <body data-module="behavior_history">
   <div id="loginCard" class="loginCard">
-    <div class="loginTitle" data-brand-title>Logged Behaviors</div>
-    <p class="loginSub">Sign in to view logged behavior entries, add notes, and soft-delete or restore behaviors.</p>
+    <div class="loginTitle" data-brand-title>Behavior + Incidents</div>
+    <p class="loginSub">Sign in to review behavior logs and submitted incident reports.</p>
     <div id="g_id_signin"></div>
     <p id="loginOut" class="loginSub">—</p>
   </div>
@@ -419,8 +419,8 @@
   <main id="appShell" class="wrap" style="display:none;">
     <header class="pageHeader">
       <div>
-        <h1 class="pageTitle" data-brand-module>Logged Behaviors</h1>
-        <p class="pageSub">Teachers see their own logged behaviors. Admins can view all logs and filter by behavior type or staff email.</p>
+        <h1 class="pageTitle" data-brand-module>Behavior + Incidents</h1>
+        <p class="pageSub">Behavior logs and incident reports together. Teachers see their submitted incidents; authorized Deans can follow up and close them.</p>
       </div>
       <div class="pillRow">
         <span class="pill">Viewer: <strong id="viewerPill">—</strong></span>
@@ -481,6 +481,20 @@
     </section>
 
     <div id="emptyState" class="emptyState" style="display:none;">No behaviors matched your filters.</div>
+    <!-- EAGLENEST_INCIDENT_WORKFLOW_V1 -->
+    <section class="panel" aria-labelledby="incidentsHeading">
+      <div class="pageHeader"><div><h2 id="incidentsHeading">Incident Reports</h2>
+        <p class="pageSub">Submitted teacher reports remain open until a Dean resolves or closes them.</p></div>
+        <div class="pillRow"><span class="pill" id="incidentCount">Loading…</span></div>
+      </div>
+      <div class="filtersGrid" style="margin-bottom:1rem">
+        <div class="field" style="grid-column:span 2"><label for="incidentQuery">Find an incident</label><input id="incidentQuery" type="text" placeholder="Student, incident ID, reporter, description…"></div>
+        <div class="field"><label for="incidentStateFilter">Incident status</label><select id="incidentStateFilter"><option value="open">Open incidents</option><option value="closed">Resolved / closed</option><option value="all">All incidents</option></select></div>
+        <div class="field"><button type="button" class="btn" id="incidentRefresh">Refresh incidents</button></div>
+      </div>
+      <div id="incidentResults" class="resultsStack"><div class="emptyState">Loading reports…</div></div>
+    </section>
+    <h2>Behavior Logs</h2>
     <section id="results" class="resultsStack"></section>
   </main>
 
@@ -492,6 +506,7 @@
     </div>
   </div>
 
+  <script src="./behavior_incidents.js?v=20261022-incident-v1" defer></script>
   <script type="module" src="./behavior_history.js?v=20260529-admin-filter"></script>
 </body>
 </html>

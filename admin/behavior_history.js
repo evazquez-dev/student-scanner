@@ -324,6 +324,7 @@ function applyBehaviorData(data){
   renderFilters(data);
   renderSummary(data);
   renderRows(data.rows || []);
+  document.dispatchEvent(new CustomEvent('eaglenest:behavior:loaded')); // EAGLENEST_INCIDENT_WORKFLOW_V1
 }
 
 async function fetchBehaviors(){

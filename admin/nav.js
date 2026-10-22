@@ -55,7 +55,7 @@
     phone_free_pass: 'Free Phone Pass', // EAGLENEST_DAILY_FREE_PHONE_PASS_V1
     notifications: 'My Settings',
     incident_creator: 'Incident Creator',
-    behavior_history: 'Logged Behaviors',
+    behavior_history: 'Behavior + Incidents',
     fidelity_dashboard: 'Operational Health',
     mtss: 'MTSS Case Management', // EAGLENEST_MTSS_V1_NAV_LABEL
     attendance_change: 'Attendance Corrections',
@@ -550,7 +550,7 @@
           { key:'supervised_lunch', label: MODULES.supervised_lunch || 'Supervised Lunch', href:'./supervised_lunch.html', description:'Supervised lunch assignments' },
           { key:'reflection_hold', label: MODULES.reflection_hold || 'Reflection Hold', href:'./reflection_hold.html', description:'After-school reflection holds' },
           { key:'incident_creator', label: MODULES.incident_creator || 'Incident Creator', href:'./incident_creator.html', description:'Create and submit incident reports' },
-          { key:'behavior_history', label: MODULES.behavior_history || 'Logged Behaviors', href:'./behavior_history.html', description:'Review and edit behavior logs' },
+          { key:'behavior_history', label: MODULES.behavior_history || 'Logged Behaviors', href:'./behavior_history.html', description:'Review behavior logs and teacher incident reports' },
           { key:'dreamer_of_week', label: MODULES.dreamer_of_week || 'Dreamer of the Week', href:'./dreamer_of_week.html', description:'Student recognition selections and history' },
         ]
       },
