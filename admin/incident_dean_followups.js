@@ -3,7 +3,7 @@
   'use strict';
   const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const base=()=>document.querySelector('meta[name="api-base"]')?.content||location.origin;
-  const isOpen=x=>!['resolved','closed','complete','completed'].includes(String(x.status||'').toLowerCase());
+  const isOpen=x=>!['resolved','closed','complete','completed','closed - submitted in error'].includes(String(x.status||'').toLowerCase());
   let active=null,busy=false;
   async function api(path,init={}){
     const headers=new Headers(init.headers||{}),sid=window.EAGLENEST_AUTH?.getSid?.()||'';
@@ -20,13 +20,14 @@
       <div class="detailRow" id="diDescription" style="white-space:pre-wrap;overflow-wrap:anywhere"></div>
       <div class="formGrid"><label>Status<select id="diStatus"><option>New</option><option>In Progress</option><option>Pending Follow-Up</option><option>Resolved</option><option>Closed</option></select></label>
       <label class="wide">Add a Dean note<textarea id="diNote" rows="4" maxlength="8000" placeholder="Investigation, contact with student/family, action taken, or resolution…"></textarea></label></div>
-      <p class="muted small">A note is required when closing or resolving an open incident. Notes are saved in the incident audit history; the original teacher report is unchanged.</p>
-      <h3>Dean notes and status history</h3><div id="diHistory" class="stack"></div><div id="diError" class="status" role="alert"></div>
+      <p class="muted small">A note is required when closing or resolving an open incident. Dean notes are saved in the incident audit. Corrections to teacher reports appear in the permanent edit history.</p>
+      <h3>Dean notes and status history</h3><div class="toolbar"><button type="button" id="diFullHistory">View complete edit log</button></div><div id="diHistory" class="stack"></div><div id="diError" class="status" role="alert"></div>
       <div class="toolbar end"><button type="button" id="diSave" class="primary">Save incident update</button></div>
     </section>`;
     document.body.appendChild(el);
     $('diClose').addEventListener('click',close);
     $('diSave').addEventListener('click',save);
+    $('diFullHistory').addEventListener('click',()=>{if(active?.incident_id){const id=active.incident_id;close();window.EAGLENEST_INCIDENT_REPORT_EDITOR?.open(id)}});
     el.addEventListener('click',e=>{if(e.target===el)close()});
   }
   function close(){if(busy)return;$('deanIncidentModal').hidden=true;active=null;}
@@ -41,7 +42,7 @@
       if(!['New','In Progress','Pending Follow-Up','Resolved','Closed'].includes(active.status)){$('diStatus').add(new Option(active.status,active.status));}
       $('diStatus').value=active.status;
       $('diNote').value='';
-      $('diHistory').innerHTML=(j.audit||[]).length?(j.audit||[]).map(a=>`<div class="detailRow"><strong>${esc(a.actor_email)}</strong><div class="meta">${esc(a.changed_at_iso)}${a.from_status!==a.to_status?` · ${esc(a.from_status)} → ${esc(a.to_status)}`:''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(a.note_text)}</div></div>`).join(''):'<div class="empty">No Dean notes yet.</div>';
+      $('diHistory').innerHTML=(j.audit||[]).length?(j.audit||[]).map(a=>`<div class="detailRow"><strong>${esc(a.actor_email)}</strong><div class="meta">${esc(a.changed_at_iso)} · ${esc(a.action||'Update')}${a.from_status!==a.to_status?` · ${esc(a.from_status)} → ${esc(a.to_status)}`:''}</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(a.note_text||a.reason||'')}</div></div>`).join(''):'<div class="empty">No history yet.</div>';
       $('diError').textContent='';$('diNote').focus();
     }catch(e){active=null;$('diError').textContent=e.message||String(e);}
   }
@@ -77,6 +78,9 @@
     if(list.length)parent.querySelectorAll(':scope > .empty').forEach(el=>{if(el.textContent.includes('No open Dean follow-ups'))el.remove()});
     parent.prepend(box);
     box.querySelectorAll('[data-incident-edit]').forEach(b=>b.addEventListener('click',()=>edit(b.dataset.incidentEdit)));
+    // Detailed teacher correction history is visible through the shared incident editor.
+    document.dispatchEvent(new CustomEvent('eaglenest:dean-incidents-rendered'));
   }
+  document.addEventListener('eaglenest:incident:changed',()=>$('refreshBtn')?.click());
   window.EAGLENEST_INCIDENT_FOLLOWUPS={render};
 })();

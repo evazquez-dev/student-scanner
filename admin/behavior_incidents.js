@@ -1,11 +1,11 @@
-/* EAGLENEST_BEHAVIOR_INCIDENTS_V1 — read-only incident list for reporters and authorized staff. */
+/* EAGLENEST_BEHAVIOR_INCIDENTS_V3 — incident list + transparent edit/history access. */
 (()=>{
   'use strict';
   const $=id=>document.getElementById(id);
   const base=()=>document.querySelector('meta[name="api-base"]')?.content||location.origin;
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let incidents=[];
-  const open=x=>!['resolved','closed','complete','completed'].includes(String(x.status||'').toLowerCase());
+  const open=x=>!['resolved','closed','complete','completed','closed - submitted in error'].includes(String(x.status||'').toLowerCase());
   async function load(){
     const out=$('incidentResults'),count=$('incidentCount');if(!out)return;
     out.innerHTML='<div class="emptyState">Loading incident reports…</div>';
@@ -31,10 +31,12 @@
       const students=(x.participants||[]).filter(p=>p.involvement_type==='involved').map(p=>p.student_name||p.student_number).join(', ')||x.primary_student_name||'Other people involved';
       const student=x.primary_student_number||(x.participants||[]).find(p=>p.involvement_type==='involved')?.student_number||'';
       const link=x.can_update?`<a class="btn btn--primary" href="./dean_dashboard.html${student?'?osis='+encodeURIComponent(student):''}">Dean Dashboard</a>`:'';
-      return `<article class="behaviorCard"><div class="behaviorTop"><div><div class="behaviorTitle">Incident ${esc(x.incident_id)}</div><div class="behaviorSub">${esc(students)}</div></div><div class="behaviorBadges"><span class="pill ${open(x)?'pill--deleted':'pill--active'}">${esc(x.status||'New')}</span><span class="pill">${esc(x.incident_date)}</span></div></div><div class="metaRow"><div><strong>Reported by:</strong> ${esc(x.reporter_email)}</div><div><strong>Location:</strong> ${esc(x.location_category)}${x.location_detail?' · '+esc(x.location_detail):''}</div></div><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(x.description)}</p>${link?`<div class="cardActions">${link}</div>`:''}</article>`;
+      return `<article class="behaviorCard"><div class="behaviorTop"><div><div class="behaviorTitle">Incident ${esc(x.incident_id)}</div><div class="behaviorSub">${esc(students)}</div></div><div class="behaviorBadges"><span class="pill ${open(x)?'pill--deleted':'pill--active'}">${esc(x.status||'New')}</span><span class="pill">${esc(x.incident_date)}</span></div></div><div class="metaRow"><div><strong>Reported by:</strong> ${esc(x.reporter_email)}</div><div><strong>Location:</strong> ${esc(x.location_category)}${x.location_detail?' · '+esc(x.location_detail):''}</div></div><p style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(x.description)}</p><div class="cardActions"><button class="btn" type="button" data-report-history="${esc(x.incident_id)}">${x.can_edit_report?'View history / edit my report':'View edit history'}</button>${link}</div></article>`;
     }).join(''):'<div class="emptyState">No incident reports match these filters.</div>';
+    out.querySelectorAll('[data-report-history]').forEach(b=>b.addEventListener('click',()=>window.EAGLENEST_INCIDENT_REPORT_EDITOR?.open(b.dataset.reportHistory)));
   }
   document.addEventListener('eaglenest:behavior:loaded',()=>load());
+  document.addEventListener('eaglenest:incident:changed',()=>load());
   window.addEventListener('DOMContentLoaded',()=>{
     $('incidentStateFilter')?.addEventListener('change',()=>render());
     $('incidentQuery')?.addEventListener('input',()=>render());

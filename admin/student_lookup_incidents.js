@@ -4,7 +4,7 @@
   const $=id=>document.getElementById(id);
   const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const base=()=>document.querySelector('meta[name="api-base"]')?.content||location.origin;
-  const open=i=>!['resolved','closed','complete','completed'].includes(String(i.status||'').trim().toLowerCase());
+  const open=i=>!['resolved','closed','complete','completed','closed - submitted in error'].includes(String(i.status||'').trim().toLowerCase());
   const session=()=>window.EAGLENEST_AUTH?.getSid?.()||sessionStorage.getItem('ss_admin_session_sid_v1')||localStorage.getItem('ss_admin_session_sid_v1')||'';
   let currentOsis='',records=[],nextOffset=null,total=0,loading=false,requestSerial=0;
 
@@ -46,10 +46,12 @@
         <div class="listMeta">${escape(location||'Location not recorded')}${involvement?` · Student role: ${escape(involvement)}`:''}</div>
         ${related?`<div class="listMeta">${escape(related)}</div>`:''}
         <div class="listBody" style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(r.description||'No description provided.')}</div>
-        ${r.resolved_at_iso?`<div class="listMeta">Resolved ${escape(new Date(r.resolved_at_iso).toLocaleString())}</div>`:''}
+        ${r.resolved_at_iso?`<div class="listMeta">${r.status==='Closed - Submitted in Error'?'Closed in error':'Resolved'} ${escape(new Date(r.resolved_at_iso).toLocaleString())}</div>`:''}
+        ${`<div class="inlineActions" style="margin-top:.6rem"><button class="btn secondary small" type="button" data-report-history="${escape(r.incident_id)}">${r.can_edit_report?'View history / edit my report':'View edit history'}</button></div>`}
         ${r.can_update?`<div class="inlineActions" style="margin-top:.6rem"><a class="btn secondary small" href="./dean_dashboard.html?osis=${encodeURIComponent(currentOsis)}">Manage in Dean Dashboard</a></div>`:''}
       </article>`;
     }).join(''):'<div class="emptyState">'+(records.length?'No incidents match this status filter.':'No incident reports are available for this student under your account permissions.')+'</div>';
+    host.querySelectorAll('[data-report-history]').forEach(b=>b.addEventListener('click',()=>window.EAGLENEST_INCIDENT_REPORT_EDITOR?.open(b.dataset.reportHistory)));
     if($('incidentsLoadMore'))$('incidentsLoadMore').hidden=nextOffset===null;
   }
   async function load(more=false){
@@ -74,6 +76,7 @@
     }finally{if(seq===requestSerial){loading=false;if($('incidentsLoadMore'))$('incidentsLoadMore').disabled=false;}}
   }
   document.addEventListener('eaglenest:student-lookup-selected',e=>reset(e.detail?.osis));
+  document.addEventListener('eaglenest:incident:changed',()=>{if(currentOsis&&!$('panelIncidents')?.hidden)load(false)});
   document.addEventListener('eaglenest:student-lookup-tab-changed',e=>{
     if(e.detail?.tab==='incidents'){
       if(String(e.detail?.osis||'')!==currentOsis)reset(e.detail?.osis);
