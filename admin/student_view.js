@@ -743,6 +743,7 @@ function setActiveTab(name, { focus = false } = {}){
   if (requested === 'scans') loadScans(false, seq);
   if (requested === 'behavior') loadBehaviorHistory(false, seq);
   if (requested === 'communications') loadCommunications(false, seq);
+  document.dispatchEvent(new CustomEvent('eaglenest:student-lookup-tab-changed',{detail:{tab:requested,osis:selected?.osis||''}})); // EAGLENEST_STUDENT_LOOKUP_INCIDENTS_V2
 }
 
 function onTabKeydown(event){
@@ -802,6 +803,7 @@ async function selectStudent(item){
   if (!osis) return;
   const seq = ++selectionSequence;
   selected = { osis, name:String(item?.name || ''), email:String(item?.email || ''), grade:'' };
+  document.dispatchEvent(new CustomEvent('eaglenest:student-lookup-selected',{detail:{osis}})); // EAGLENEST_STUDENT_LOOKUP_INCIDENTS_V2
   dashboard = null;
   resetLazyTabs();
   setActiveTab('overview');
@@ -855,6 +857,7 @@ async function refreshSelected(){
     if (activeTab === 'scans') await loadScans(true, seq);
     if (activeTab === 'behavior') await loadBehaviorHistory(true, seq);
     if (activeTab === 'communications') await loadCommunications(true, seq);
+    document.dispatchEvent(new CustomEvent('eaglenest:student-lookup-refreshed',{detail:{osis:selected?.osis||''}})); // EAGLENEST_STUDENT_LOOKUP_INCIDENTS_V2
   }catch(e){
     if (seq === selectionSequence) setActionStatus(`Refresh failed: ${e?.message || e}`, 'bad');
   }finally{

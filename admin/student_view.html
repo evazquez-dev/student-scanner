@@ -153,6 +153,7 @@
           <button id="tabGradesAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelGradesAttendance" data-tab="grades_attendance" tabindex="-1" hidden>Grades &amp; Attendance</button><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
           <button id="tabScans" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelScans" data-tab="scans" tabindex="-1">Scans <span id="scansCount" class="count"></span></button>
           <button id="tabBehavior" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelBehavior" data-tab="behavior" tabindex="-1">Behavior <span id="behaviorCount" class="count"></span></button>
+          <button id="tabIncidents" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelIncidents" data-tab="incidents" tabindex="-1">Incidents <span id="incidentsCount" class="count"></span></button>
           <button id="tabCommunications" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelCommunications" data-tab="communications" tabindex="-1">Communications <span id="communicationsCount" class="count"></span></button>
           <button id="tabEngagement" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelEngagement" data-tab="engagement" tabindex="-1">Campaigns &amp; Conferences <span id="engagementCount" class="count"></span></button><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 -->
         </div>
@@ -247,6 +248,21 @@
           <div id="behaviorList" class="list"><div class="loadingState">Open this tab to load behavior history.</div></div>
         </section>
 
+        <!-- EAGLENEST_STUDENT_LOOKUP_INCIDENTS_V2 -->
+        <section id="panelIncidents" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabIncidents" data-panel="incidents" hidden>
+          <div class="panelHead">
+            <div><h2>Incident Reports</h2><p id="incidentsMeta" class="muted small">Incident reports accessible to your account.</p></div>
+            <div class="inlineActions">
+              <label class="small">Status
+                <select id="incidentsStatus" class="input"><option value="all">All</option><option value="open">Open only</option><option value="closed">Resolved / closed</option></select>
+              </label>
+              <button id="refreshIncidentsBtn" class="btn secondary small" type="button">Refresh incidents</button>
+            </div>
+          </div>
+          <div id="incidentsList" class="list"><div class="loadingState">Open this tab to load incident reports.</div></div>
+          <div class="inlineActions" style="margin-top:1rem"><button id="incidentsLoadMore" class="btn secondary small" type="button" hidden>Load more incidents</button></div>
+        </section>
+
         <section id="panelCommunications" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabCommunications" data-panel="communications" hidden>
           <div class="panelHead">
             <div><h2>Communications</h2><p id="communicationsMeta" class="muted small">Recent communications logged for this student.</p></div>
@@ -319,6 +335,7 @@
 
   <script src="./student_view.js?v=20260930-family-communications-proxy-v2" defer></script>
   <script src="./student_lookup_phase3.js" defer></script>
+  <script src="./student_lookup_incidents.js?v=20261022-incident-v2" defer></script>
   <script src="./student_lookup_grades_attendance.js?v=20261001-v1" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
   <script src="./student_lookup_engagement.js?v=20261001-conference-outreach-datetime-v1" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 --><!-- EAGLENEST_STUDENT_LOOKUP_CONFERENCE_DATETIME_V1 -->
   <script src="./student_lookup_calls.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE2 -->
