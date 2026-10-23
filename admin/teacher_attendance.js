@@ -3534,6 +3534,10 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const name = snap?.name || '(Unknown)';
     const zone = snap?.zone || '';
     const locLabel = snap?.locLabel || snap?.loc || '';
+    // EAGLENEST_STAFF_PULL_TEACHER_BADGE_V1
+    const physicalLocLabel = snap?.physical_loc_label || '';
+    const staffPullActive = snap?.staff_pull_active === true;
+    const staffPullHolder = String(snap?.staff_pull_holder || '').trim();
     const regentsPrep = !!(snap?.regents_prep || snap?.rp);
     const phoneOutActive = !!(snap?.phone_out === true && String(snap?.date || '').trim() === String(date || '').trim());
     const phoneReturnRequested = !!(snap?.phone_return_requested === true && phoneOutActive);
@@ -3565,6 +3569,9 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
       name,
       zone,
       locLabel,
+      physicalLocLabel,
+      staffPullActive,
+      staffPullHolder,
       regentsPrep,
       phoneOutActive,
       phoneReturnRequested,
@@ -3698,6 +3705,14 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     top.appendChild(dot);      // ✅ shows on mobile (CSS)
     top.appendChild(student);
     top.appendChild(makePhoneIndicator_(r.osis, r.phoneOutActive, r.phoneReturnRequested));
+    if (r.staffPullActive) {
+      const staffChip = document.createElement('span');
+      staffChip.className = 'chip chip--staff';
+      staffChip.textContent = 'With Staff';
+      staffChip.title = r.staffPullHolder
+        ? `Current Staff Pull: ${r.staffPullHolder}` : 'Current Staff Pull (today)';
+      top.appendChild(staffChip);
+    }
 
     // TEACHER_ATTENDANCE_DAYTIME_PRESENCE_EXCEPTIONS_V1
     // Exception badges describe what EagleNEST actually knows. They do not infer
@@ -3772,9 +3787,10 @@ function renderRows({ date, room, period, whenType, snapshotRows, computedRows, 
     const isCurrentPeriodView = allowOutIn;
 
     // Determine wrong-room: student is in class zone, has a locLabel, and it doesn't match selected room
-    const studentRoomKey = normRoomKey(r.locLabel);
+    const studentRoomKey = normRoomKey(r.physicalLocLabel);
     const isWrongRoomNow =
       isCurrentPeriodView &&
+      !r.staffPullActive &&
       String(r.zone || '') === 'class' &&
       !!studentRoomKey &&
       !!selectedRoomKey &&
