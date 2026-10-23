@@ -417,6 +417,22 @@ function renderSummary(data) {
   }
 }
 
+// EAGLENEST_HALLWAY_STAFF_FILTER_V1_BEGIN
+// Use the server's DATE-VALIDATED staff status. Raw held_by_* is not authoritative.
+function hallwayStaffFilterState(student, selectedZones) {
+  const s = student && typeof student === 'object' ? student : {};
+  const zone = String(s.zone || '').trim();
+  const currentStaff = s.staff_hold_active === true || s.staff_pull_active === true;
+  const staffSelected = selectedZones.has('with_staff');
+  const physicalSelected = selectedZones.has(zone);
+  return {
+    show: physicalSelected || (staffSelected && currentStaff),
+    groupWithStaff: staffSelected && (currentStaff || zone === 'with_staff'),
+    showStaffBadge: currentStaff && zone !== 'with_staff'
+  };
+}
+// EAGLENEST_HALLWAY_STAFF_FILTER_V1_END
+
 function renderLocations(data) {
   listError.style.display = 'none';
   locContainer.innerHTML = '';
@@ -430,17 +446,28 @@ function renderLocations(data) {
   const byLoc = data.by_location || {};
   const rowsByFloor = new Map();
   let totalShown = 0;
+  const seenOsis = new Set();
 
-  // Flatten by_location → rows grouped by floor
+  // With Staff is an additional current-status filter, NOT a physical zone.
+  // Students may be selected by physical zone and staff hold simultaneously,
+  // but should only appear once in the rendered list.
   for (const [locLabel, arr] of Object.entries(byLoc)) {
+    if (!Array.isArray(arr)) continue;
     for (const s of arr) {
-      if (!activeZones.has(s.zone)) continue;
+      if (!s || typeof s !== 'object') continue;
+      const selection = hallwayStaffFilterState(s, activeZones);
+      if (!selection.show) continue;
+      const osis = String(s.osis || '').trim();
+      if (osis && seenOsis.has(osis)) continue;
+      if (osis) seenOsis.add(osis);
 
-      const floor = (s.zone === 'with_staff') ? 'With Staff' : inferFloor(locLabel, s.loc);
+      const floor = selection.groupWithStaff ? 'With Staff' : inferFloor(locLabel, s.loc);
       if (!rowsByFloor.has(floor)) rowsByFloor.set(floor, []);
       rowsByFloor.get(floor).push({
         ...s,
-        locLabel,
+        // Keep the server's date-validated holder + physical location label.
+        // Previously this was overwritten with the by_location bucket name.
+        locLabel: String(s.locLabel || locLabel || s.loc || '').trim(),
         floor
       });
       totalShown++;
@@ -559,6 +586,14 @@ function renderLocations(data) {
       chip.textContent = String(zone || '').toUpperCase().replace(/_/g, ' ');
 
       name.appendChild(chip);
+      if (hallwayStaffFilterState(s, activeZones).showStaffBadge) {
+        const staffChip = document.createElement('span');
+        staffChip.className = 'zone-chip zone-chip--staff';
+        staffChip.textContent = 'WITH STAFF';
+        const holder = String(s.staff_pull_holder || s.held_by_title || s.held_by_email || '').trim();
+        staffChip.title = holder ? `Current staff hold: ${holder}` : 'Current staff hold (today)';
+        name.appendChild(staffChip);
+      }
       col1.appendChild(name);
       col1.appendChild(osis);
 
