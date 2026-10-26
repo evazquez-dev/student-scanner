@@ -8,12 +8,14 @@
   <title>EagleNEST — Dean Dashboard</title>
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./dean_dashboard.css?v=20261007-dean-v1">
+  <link rel="stylesheet" href="./dean_morning_brief.css?v=20261026-morning-v1">
   <link rel="stylesheet" href="./mtss-awareness.css?v=mtss-awareness-1-2">
   <script src="./shared_auth.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="./brand.js"></script>
   <script src="./nav.js" defer></script>
   <script src="./dean_dashboard.js?v=20261007-dean-v1" defer></script>
+  <script src="./dean_morning_brief.js?v=20261026-morning-v1" defer></script>
   <script src="./incident_dean_followups.js?v=20261022-incident-v3" defer></script>
   <script src="./incident_report_editor.js?v=20261022-incident-v3" defer></script>
   <script src="./mtss-awareness.js?v=mtss-awareness-1-2" defer></script>
@@ -41,17 +43,31 @@
 
       <div id="practiceBanner" class="banner warn" hidden>Practice Mode is active. Dean intervention records are read-only.</div>
       <div id="statusOut" class="status"></div>
+      <!-- EAGLENEST_DEAN_MORNING_BRIEF_V1 -->
+      <section id="morningBrief" class="card morningBrief" aria-label="Dean morning briefing">
+        <div class="morningHeader"><div><h2>Morning briefing</h2>
+          <p>Historical attendance patterns and today's immediate priorities. Click a module to review students and dates.</p></div>
+          <label>Lookback <select id="morningDays"><option value="5">5 instructional days</option><option value="10" selected>10 instructional days</option><option value="20">20 instructional days</option></select></label>
+        </div>
+        <div id="morningFacts" class="morningFacts" aria-label="Today's priorities"></div>
+        <div id="morningCoverage" class="morningCoverage">Loading dated evidence…</div>
+        <div id="morningModules" class="morningModules" aria-label="Attendance pattern modules"></div>
+        <div id="morningDetail" class="morningDetail" hidden aria-live="polite"></div>
+        <p class="muted small">Review indicators only. Missing scans do not prove lateness or absence. All official attendance remains in PowerSchool.</p>
+      </section>
       <!-- EAGLENEST_MTSS_RECOMMENDATIONS_V1 -->
-      <section id="mtssAwarenessPanel" class="mtssAwarePanel" data-audience="dean" hidden>
+      <section id="mtssAwarenessPanel" class="mtssAwarePanel dean-collapsed" data-audience="dean" hidden>
         <div class="mtssAwareTop"><div><h2>MTSS support awareness</h2>
           <p>Teacher suggestions awaiting review and Tier 1 interventions delivered across your authorized students. <span id="mtssAwarenessScope"></span></p></div>
+          <button id="mtssAwarenessCollapse" type="button" aria-expanded="false" aria-controls="mtssAwarenessContent">Expand</button>
           <button id="mtssAwarenessRefresh" type="button">Refresh support activity</button>
         </div>
         <div id="mtssAwarenessContent" class="mtssAwareGrid" role="region" aria-live="polite">Loading…</div>
       </section>
 
 
-      <section class="card filters">
+      <details id="deanFilterFold" class="card deanFold"><summary>Filters &amp; search</summary>
+      <section class="filters">
         <label>Window
           <select id="preset">
             <option value="marking_period">Current marking period</option>
@@ -68,18 +84,23 @@
         <label class="search">Search<input id="searchInput" type="search" placeholder="Student name or OSIS"></label>
         <button id="applyBtn" class="primary">Apply</button>
       </section>
+      </details>
 
-      <section id="kpis" class="kpis"></section>
+      <details id="deanMetricsFold" class="card deanFold"><summary>All dashboard metrics</summary>
+        <section id="kpis" class="kpis"></section>
+      </details>
 
       <section class="grid">
-        <section class="card span8">
-          <div class="sectionHead"><div><h2>Students requiring attention</h2><p class="muted small">Explicit reasons only — no hidden discipline score.</p></div><span id="queueCount" class="pill"></span></div>
+        <details class="card span8 deanFold" id="deanQueueFold">
+          <summary>Students requiring attention <span id="queueCount" class="pill"></span></summary>
+          <p class="muted small">Explicit reasons only — no hidden discipline score.</p>
           <div id="queue" class="studentList"><div class="empty">Loading…</div></div>
-        </section>
-        <section class="card span4">
-          <div class="sectionHead"><div><h2>Open Dean follow-ups</h2><p class="muted small">Due and overdue actions in your scope.</p></div></div>
+        </details>
+        <details class="card span4 deanFold" id="deanFollowupsFold">
+          <summary>Open Dean follow-ups <span id="deanFollowupCount" class="pill">—</span></summary>
+          <p class="muted small">Due and overdue actions in your scope.</p>
           <div id="followups" class="stack"><div class="empty">Loading…</div></div>
-        </section>
+        </details>
       </section>
 
       <section id="studentPanel" class="card studentPanel" hidden>
@@ -89,10 +110,10 @@
         </div>
         <div id="studentStats" class="studentStats"></div>
         <div class="studentGrid">
-          <section><h3>Attendance</h3><div id="attendanceDetail" class="stack"></div></section>
-          <section><h3>Behavior & incidents</h3><div id="behaviorDetail" class="stack"></div></section>
-          <section><h3>MTSS / suspension</h3><div id="supportDetail" class="stack"></div></section>
-          <section><h3>Dean timeline</h3><div id="deanTimeline" class="stack"></div></section>
+          <details open><summary>Attendance</summary><div id="attendanceDetail" class="stack"></div></details>
+          <details><summary>Behavior &amp; incidents</summary><div id="behaviorDetail" class="stack"></div></details>
+          <details><summary>MTSS / suspension</summary><div id="supportDetail" class="stack"></div></details>
+          <details><summary>Dean timeline</summary><div id="deanTimeline" class="stack"></div></details>
         </div>
       </section>
     </section>
