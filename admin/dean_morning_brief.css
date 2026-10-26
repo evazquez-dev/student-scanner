@@ -14,3 +14,7 @@
 .morningModule.morningRoom{min-height:103px}.morningRoom .morningModuleName{font-size:1rem}.morningToggle{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0}.morningToggle button.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--card2))}.morningToggle button:last-child{margin-left:auto}.morningPerson .pill{max-width:45%;text-align:right;white-space:normal}.morningPerson .pill.warn{border-color:var(--warn);color:var(--warn)}
 
 .morningInlineBtn{padding:5px 9px;font-size:.75rem;font-weight:750;vertical-align:middle;margin-left:5px}
+
+/* EAGLENEST_DEAN_TODAY_LIST_V3 — Room number beside the name; numeric room order inside modules. */
+.morningRoomBadge{display:inline-flex;margin-left:9px;padding:3px 8px;font-size:.78rem;font-weight:800;color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--card2));border:1px solid var(--accent);border-radius:999px;white-space:nowrap}
+.morningRoomDivider{font-size:.92rem;font-weight:850;margin:19px 2px 8px;padding:7px 10px;background:var(--card2);border-left:3px solid var(--accent);border-radius:4px}
