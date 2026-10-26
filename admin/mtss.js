@@ -200,7 +200,9 @@
     const timeline=[...events,...interventions,...reviews].sort((a,b)=>String(b.at).localeCompare(String(a.at)));
     $('timelineCount').textContent=`${timeline.length} items`; $('caseTimeline').innerHTML=timeline.length?timeline.map(x=>`<div class="timelineItem"><strong>${esc(x.title)}</strong><div class="meta">${esc(fmtTime(x.at))}${x.meta?` · ${esc(x.meta)}`:''}</div>${x.detail?`<div class="detail">${esc(x.detail)}</div>`:''}</div>`).join(''):'<div class="empty">No timeline events yet.</div>';
 
-    const writable=data.permissions?.can_manage===true&&!data.permissions?.read_only; $('btnAddIntervention').disabled=!writable; $('btnAddReview').disabled=!writable;
+    const writable=data.permissions?.can_manage===true&&!data.permissions?.read_only;
+    const canLogInterventions=data.permissions?.can_log_interventions===true&&!data.permissions?.read_only;
+    $('btnAddIntervention').disabled=!canLogInterventions; $('btnAddReview').disabled=!writable;
     $('contentAreaField').hidden=c.domain!=='academic';
   }
 
@@ -255,3 +257,5 @@
   window.EagleNESTMTSS={api,openCase,openNewCase,loadDashboard,isReadOnly,canManageAll,canEditRules,currentCase:()=>state.currentCase,getAccess:()=>state.access};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
 })();
+
+/* EAGLENEST_MTSS_STUDENT_SUPPORT_SCOPE_V1_APPLIED */

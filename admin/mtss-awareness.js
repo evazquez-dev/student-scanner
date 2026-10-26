@@ -29,12 +29,12 @@
     const cards=rows.map(r=>{
       const student=`<a href="${href(r.student_number)}">${esc(r.student_name || r.student_number)}</a><span class="mtssAwareMeta"> · Grade ${esc(r.grade||'—')} · OSIS ${esc(r.student_number)}</span>`;
       if(kind==='rec'){
-        const action = r.recommendation_type==='escalation' ? `Escalation requested → Tier ${r.requested_tier}`:`Tier ${r.requested_tier} intervention suggested`;
+        const action = r.recommendation_type==='deescalation' ? `De-escalation suggested → Tier ${r.requested_tier}` : r.recommendation_type==='escalation' ? `Escalation requested → Tier ${r.requested_tier}`:`Tier ${r.requested_tier} intervention suggested`;
         const review=canReview?`<div class="mtssAwareReview" data-review-id="${esc(r.recommendation_id)}"><textarea class="mtssAwareNote" rows="2" placeholder="Decision note (required to decline)"></textarea><div class="mtssAwareActions"><button type="button" data-decision="accepted">Accept suggestion</button><button type="button" data-decision="declined">Decline</button></div><div class="mtssAwareDecisionStatus" role="status"></div></div>`:'';
         return `<article class="mtssAwareRow">${student}<strong>${esc(action)}</strong>${r.intervention_name_snapshot?`<div>${esc(r.intervention_name_snapshot)}</div>`:''}<div class="mtssAwareDetail">${esc(r.reason)}</div><div class="mtssAwareMeta">Submitted by ${esc(r.submitted_by_email)} · ${esc(new Date(r.submitted_at_iso).toLocaleDateString())}</div>${review}</article>`;
       }
       if(kind==='decision'){
-        const action=r.recommendation_type==='escalation'?'Escalation':'Tier '+r.requested_tier+' intervention';
+        const action=r.recommendation_type==='deescalation'?'De-escalation to Tier '+r.requested_tier:r.recommendation_type==='escalation'?'Escalation':'Tier '+r.requested_tier+' intervention';
         return `<article class="mtssAwareRow">${student}<strong>${esc(action)} — ${esc(name(r.status))}</strong><div class="mtssAwareDetail">${esc(r.intervention_name_snapshot||r.reason)}</div>${r.decision_note?`<div class="mtssAwareDetail">Decision: ${esc(r.decision_note)}</div>`:''}<div class="mtssAwareMeta">Reviewed by ${esc(r.decided_by_email)} · ${esc(new Date(r.decided_at_iso).toLocaleDateString())}</div></article>`;
       }
       return `<article class="mtssAwareRow">${student}<strong>Tier 1 · ${esc(name(r.domain))}: ${esc(r.intervention_name)}</strong><div class="mtssAwareDetail">${esc(r.outcome)}${r.notes?' · '+esc(r.notes):''}</div><div class="mtssAwareMeta">${esc(r.occurred_on)} · Logged by ${esc(r.actor_email)}</div></article>`;
@@ -88,3 +88,5 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
+
+/* EAGLENEST_MTSS_STUDENT_SUPPORT_SCOPE_V1_APPLIED */

@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id);
   const core = () => window.EagleNESTMTSS;
   const api = (path, init) => core().api(path, init);
-  const state = { student: null, pickSeq: 0, catalogSeq: 0, caseData: null, leader: false, canLog: false, initialized: false };
+  const state = { student: null, pickSeq: 0, catalogSeq: 0, caseData: null, leader: false, supportStaff: false, canLog: false, initialized: false };
   const escapeHtml = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const encode = v => encodeURIComponent(String(v || ''));
   const request = (path, body) => api(path, {method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
@@ -16,8 +16,9 @@
   };
   const displayStudent = s => `${s.name || 'Student'} · OSIS ${s.osis}`;
   const choices = rows => '<option value="">Select an approved intervention</option>' + (rows || []).map(r => `<option value="${escapeHtml(r.catalog_id)}">${escapeHtml(r.label)}</option>`).join('');
-  const isTier1 = () => Number($('newTier').value) === 1;
-  const isSuggestion = () => !canManageCases() && !isTier1();
+  const isTierOneStepDown = () => Number($('newTier').value) === 1 && !!$('newT1SuggestStepDown')?.checked;
+  const isTier1 = () => Number($('newTier').value) === 1 && !isTierOneStepDown();
+  const isSuggestion = () => isTierOneStepDown() || ((!canManageCases() || (state.supportStaff && !!$('newSubmitSuggestion')?.checked)) && !isTier1());
   const canManageCases = () => !!core().canManageAll();
 
   function showOther(selectId, wrapperId, inputId) {
@@ -103,28 +104,35 @@
     const suggested=isSuggestion();
     $('newCaseFields').hidden=t1;
     $('newTier1Fields').hidden=!t1;
-    $('newSuggestionKindRow').hidden=!suggested;
-    $('newSuggestionKind').disabled=!suggested;
-    $('newFrequencyRow').hidden=t1;
+    $('newSuggestionKindRow').hidden=!suggested || isTierOneStepDown();
+    $('newSuggestionKind').disabled=!suggested || isTierOneStepDown();
+    $('newT1SuggestStepDownRow').hidden=Number($('newTier').value)!==1;
+    $('newSubmitSuggestionRow').hidden=!state.supportStaff || !canManageCases() || Number($('newTier').value)===1;
+    const stepDown=suggested && (isTierOneStepDown() || $('newSuggestionKind').value==='deescalation');
+    $('newInterventionPlan').hidden=stepDown;
+    $('newFrequencyRow').hidden=t1 || stepDown;
     $('newReason').required=!t1;
     $('newReason').disabled=t1;
     $('newReviewDate').disabled=t1||suggested;
     $('newReviewDate').closest('label').hidden=t1||suggested;
     const escalation=suggested && $('newSuggestionKind').value==='escalation';
-    $('newCatalogChoice').required=!escalation;
+    $('newCatalogChoice').required=!escalation && !stepDown;
+    $('newCatalogChoice').disabled=stepDown;
+    if (stepDown) { $('newOtherWrapper').hidden=true; $('newOtherText').required=false; $('newOtherText').disabled=true; }
+    else showOther('newCatalogChoice','newOtherWrapper','newOtherText');
     $('newCatalogChoice').closest('label').querySelector('span').textContent=escalation?'Suggested intervention (optional)':'Approved intervention';
     $('newT1Date').required=t1;
     $('newT1Date').disabled=!t1;
     $('newT1Outcome').disabled=!t1;
     $('newT1Notes').disabled=!t1;
     $('newFrequency').disabled=t1;
-    $('newCaseTitle').textContent=t1?'Log Tier 1 intervention':suggested?'Suggest Tier '+$('newTier').value+' support':'Open MTSS case';
+    $('newCaseTitle').textContent=t1?'Log Tier 1 intervention':stepDown?'Suggest de-escalation to Tier '+$('newTier').value:suggested?'Suggest Tier '+$('newTier').value+' support':'Open MTSS case';
     $('newInterventionLegend').textContent=t1?'Tier 1 intervention':suggested?'Proposed support':'Required initial intervention plan';
     $('newInterventionHelp').textContent=t1
       ? 'Record an intervention delivered to this student. This will not open a case or change their tier.'
       : suggested ? 'This is a request for MTSS review, not a case opening or tier change.'
       : 'The assigned intervention will be saved when the case opens.';
-    $('newCaseSubmit').textContent=t1?'Log Tier 1 intervention':suggested?'Submit MTSS recommendation':'Open case and assign intervention';
+    $('newCaseSubmit').textContent=t1?'Log Tier 1 intervention':stepDown?'Suggest de-escalation':suggested?'Submit MTSS recommendation':'Open case and assign intervention';
     if(t1 && state.student)loadTier1History(state.student.osis);
     if(!t1)info('newTier1History','');
   }
@@ -158,6 +166,8 @@
     info('newCaseStatus','');$('newOtherText').value='';$('newT1Notes').value='';
     $('newT1Date').value=isoToday();$('newT1Outcome').value='delivered';
     $('newTier').value=canManageCases()?'2':'1';
+    $('newT1SuggestStepDown').checked=false;
+    $('newSubmitSuggestion').checked=false;
     updateMode();loadNewCatalog();
     const osis=new URL(location.href).searchParams.get('osis');if(osis)setOsis(osis);
   }
@@ -167,10 +177,11 @@
     const button=$('newCaseSubmit');button.disabled=true;
     try{
       const suggested=isSuggestion();
-      const kind=$('newSuggestionKind').value;
-      const id=(suggested&&kind==='escalation'&&!$('newCatalogChoice').value)
-        ? '' : await chosenCatalog('newCatalogChoice','newOtherText',domain,tier);
-      if(tier===1){
+      const kind=isTierOneStepDown()?'deescalation':$('newSuggestionKind').value;
+      const id=(suggested&&kind==='deescalation') ? ''
+        : (suggested&&kind==='escalation'&&!$('newCatalogChoice').value)
+          ? '' : await chosenCatalog('newCatalogChoice','newOtherText',domain,tier);
+      if(tier===1 && !suggested){
         info('newCaseStatus','Recording Tier 1 intervention…');
         await request('/admin/mtss/activity',{
           osis,domain,catalog_id:id,occurred_on:$('newT1Date').value,
@@ -242,7 +253,7 @@
     }
     showOther('interventionName','caseOtherWrapper','caseOtherText');
     $('caseActivityIntervention').innerHTML='<option value="">Choose an assigned intervention</option>'+(data.interventions||[]).map(row=>`<option value="${escapeHtml(row.intervention_id)}">${escapeHtml(row.intervention_name)}</option>`).join('');
-    $('caseActivityForm').hidden=!(data.permissions?.can_manage&&!data.permissions?.read_only&&data.case.is_active);
+    $('caseActivityForm').hidden=!(data.permissions?.can_log_interventions&&!data.permissions?.read_only&&data.case.is_active);
     $('caseActivityDate').value=isoToday();
     try{
       const result=await api(`/admin/mtss/activity?case_id=${encode(data.case.case_id)}`);
@@ -281,7 +292,8 @@
     state.initialized=true;
     const access=core().getAccess?.()||{};
     state.leader=!!(access.can?.admin||access.can?.super_admin||access.staff_profile?.is_grade_team_lead||access.staff_profile?.is_district_chair);
-    state.canLog=!!(access.can?.mtss||access.can?.mtss_manage||access.can?.teacher_attendance||access.can?.dean_dashboard||state.leader);
+    state.supportStaff=!!access.access_roles?.includes('student_support');
+    state.canLog=!!(state.supportStaff||access.can?.mtss||access.can?.mtss_manage||access.can?.teacher_attendance||access.can?.dean_dashboard||state.leader);
     if(!canManageCases()){
       ['2','3'].forEach(tier=>{const option=$('newTier').querySelector(`option[value="${tier}"]`);
         if(option){option.disabled=false;option.textContent=`Tier ${tier} — suggest support`;}});
@@ -291,6 +303,8 @@
     $('newDomain').addEventListener('change',loadNewCatalog);
     $('newTier').addEventListener('change',loadNewCatalog);
     $('newSuggestionKind').addEventListener('change',updateMode);
+    $('newT1SuggestStepDown').addEventListener('change',loadNewCatalog);
+    $('newSubmitSuggestion').addEventListener('change',updateMode);
     $('newCatalogChoice').addEventListener('change',()=>showOther('newCatalogChoice','newOtherWrapper','newOtherText'));
     $('interventionName').addEventListener('change',()=>showOther('interventionName','caseOtherWrapper','caseOtherText'));
     $('caseActivityForm').addEventListener('submit',e=>{e.preventDefault();logCaseActivity();});
@@ -298,3 +312,5 @@
   }
   window.EagleNESTMTSSEnhancements={init,openNewCase,setOsis,loadNewCatalog,createCase,addIntervention,caseLoaded};
 })();
+
+/* EAGLENEST_MTSS_STUDENT_SUPPORT_SCOPE_V1_APPLIED */

@@ -149,6 +149,8 @@
           <label class="field"><span>Domain</span><select id="newDomain" required><option value="attendance">Attendance</option><option value="academic">Academic</option><option value="behavior">Behavior / SEL</option></select></label>
           <label class="field"><span>Tier</span><select id="newTier"><option value="1">Tier 1 — log intervention</option><option value="2">Tier 2 — open case</option><option value="3">Tier 3 — open case</option></select></label>
         </div>
+        <label id="newT1SuggestStepDownRow" class="field" hidden><span>Different action</span><span><input id="newT1SuggestStepDown" type="checkbox"> Suggest de-escalation to Tier 1 (do not log a delivery)</span></label>
+        <label id="newSubmitSuggestionRow" class="field" hidden><span>Decision</span><span><input id="newSubmitSuggestion" type="checkbox"> Submit as a suggestion only (no case or tier change)</span></label>
         <fieldset id="newInterventionPlan" class="mtssEnhancedFieldset"><legend id="newInterventionLegend">Required initial intervention plan</legend>
           <label class="field"><span>Approved intervention</span><select id="newCatalogChoice" required></select></label>
           <label id="newOtherWrapper" class="field" hidden><span>New intervention catalog entry (leadership only)</span><input id="newOtherText" maxlength="300" placeholder="Write your intervention"></label>
@@ -156,7 +158,7 @@
           <div id="newInterventionHelp" class="mtssSubtle">The assigned intervention will be saved when the case opens.</div>
         </fieldset>
         <label id="newSuggestionKindRow" class="field" hidden><span>What are you recommending?</span>
-          <select id="newSuggestionKind"><option value="intervention">Add a targeted intervention</option><option value="escalation">Request escalation to this tier</option></select>
+          <select id="newSuggestionKind"><option value="intervention">Add a targeted intervention</option><option value="escalation">Request escalation to this tier</option><option value="deescalation">Suggest de-escalation to this tier (active higher tier required)</option></select>
         </label>
         <div id="newCaseFields">
           <label class="field"><span>Reason / concern</span><textarea id="newReason" rows="4" required placeholder="What targeted support is needed?"></textarea></label>
@@ -237,3 +239,5 @@
   <script src="./mtss-view-filters.js?v=20261015-2" defer></script>
 </body>
 </html>
+
+<!-- EAGLENEST_MTSS_STUDENT_SUPPORT_SCOPE_V1_APPLIED -->
