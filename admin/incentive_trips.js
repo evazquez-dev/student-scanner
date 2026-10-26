@@ -71,7 +71,7 @@ function putConfig(c){$('tripName').value=c.name||'Incentive Trip';$('tripDate')
  $('behaviorTypeRules').replaceChildren();for(const x of c.behavior?.types||[])typeRow(x.key,x.max);
  $('academicsEnabled').checked=!!c.academics?.enabled;$('gradeSource').value=c.academics?.source||'current';
  $('gradeSnapshot').value=c.academics?.snapshot||'';$('courseScope').value=c.academics?.course_scope||'all';
- $('courseCodes').value=(c.academics?.course_codes||[]).join(', ');$('passingScore').value=c.academics?.passing_score??65;putRules('academics',c.academics?.rules);renderEnabled('academics');renderGradeSource();dirty();}
+ $('courseCodes').value=(c.academics?.course_codes||[]).join(', ');$('passingScore').value=c.academics?.passing_score??70;putRules('academics',c.academics?.rules);renderEnabled('academics');renderGradeSource();dirty();}
 function badge(s){return `<span class="itBadge ${esc(s||'')}">${esc((s||'OFF').replaceAll('_',' '))}</span>`;}
 function renderReport(r){report=r;$('reportCard').hidden=false;$('reportTitle').textContent=r.config.name||'Incentive Trip';
  const parts=Object.entries(r.windows||{}).map(([k,w])=>`${k}: ${w.start} – ${w.end} (${w.school_day_count} school days)`);
