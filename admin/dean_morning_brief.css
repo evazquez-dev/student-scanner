@@ -10,3 +10,7 @@
 @media(max-width:1200px){.morningModules{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.morningModules,.morningFacts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.morningModules,.morningFacts{grid-template-columns:1fr}.morningModule{min-height:88px}}
+/* EAGLENEST_DEAN_TODAY_ROOMS_V2 */
+.morningModule.morningRoom{min-height:103px}.morningRoom .morningModuleName{font-size:1rem}.morningToggle{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:12px 0}.morningToggle button.active{border-color:var(--accent);color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--card2))}.morningToggle button:last-child{margin-left:auto}.morningPerson .pill{max-width:45%;text-align:right;white-space:normal}.morningPerson .pill.warn{border-color:var(--warn);color:var(--warn)}
+
+.morningInlineBtn{padding:5px 9px;font-size:.75rem;font-weight:750;vertical-align:middle;margin-left:5px}

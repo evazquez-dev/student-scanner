@@ -8,14 +8,14 @@
   <title>EagleNEST — Dean Dashboard</title>
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./dean_dashboard.css?v=20261007-dean-v1">
-  <link rel="stylesheet" href="./dean_morning_brief.css?v=20261026-morning-v1">
+  <link rel="stylesheet" href="./dean_morning_brief.css?v=20261026-morning-v2">
   <link rel="stylesheet" href="./mtss-awareness.css?v=mtss-awareness-1-2">
   <script src="./shared_auth.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="./brand.js"></script>
   <script src="./nav.js" defer></script>
   <script src="./dean_dashboard.js?v=20261007-dean-v1" defer></script>
-  <script src="./dean_morning_brief.js?v=20261026-morning-v1" defer></script>
+  <script src="./dean_morning_brief.js?v=20261026-morning-v2" defer></script>
   <script src="./incident_dean_followups.js?v=20261022-incident-v3" defer></script>
   <script src="./incident_report_editor.js?v=20261022-incident-v3" defer></script>
   <script src="./mtss-awareness.js?v=mtss-awareness-1-2" defer></script>
@@ -44,10 +44,10 @@
       <div id="practiceBanner" class="banner warn" hidden>Practice Mode is active. Dean intervention records are read-only.</div>
       <div id="statusOut" class="status"></div>
       <!-- EAGLENEST_DEAN_MORNING_BRIEF_V1 -->
-      <section id="morningBrief" class="card morningBrief" aria-label="Dean morning briefing">
+      <!-- EAGLENEST_DEAN_TODAY_ROOMS_V2 --><section id="morningBrief" class="card morningBrief" aria-label="Dean morning briefing">
         <div class="morningHeader"><div><h2>Morning briefing</h2>
-          <p>Historical attendance patterns and today's immediate priorities. Click a module to review students and dates.</p></div>
-          <label>Lookback <select id="morningDays"><option value="5">5 instructional days</option><option value="10" selected>10 instructional days</option><option value="20">20 instructional days</option></select></label>
+          <p>Today's expected-room walkthrough and historical attendance patterns. Click a room or module to inspect students.</p></div>
+          <label>Grade <select id="morningGrade"><option value="">All scoped grades</option></select></label><label>Lookback <select id="morningDays"><option value="today" selected>Today · room walkthrough</option><option value="5">5 instructional days</option><option value="10">10 instructional days</option><option value="20">20 instructional days</option></select></label>
         </div>
         <div id="morningFacts" class="morningFacts" aria-label="Today's priorities"></div>
         <div id="morningCoverage" class="morningCoverage">Loading dated evidence…</div>
