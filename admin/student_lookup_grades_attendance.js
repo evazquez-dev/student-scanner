@@ -1,4 +1,5 @@
 /* EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1
+ * EAGLENEST_COURSE_GRADE_POLICY_V1
  * Student Lookup — current Grades & Attendance summary.
  * Reuses the existing scoped Grades & Attendance endpoints. No new academic
  * authorization path is introduced here.
@@ -84,6 +85,7 @@
   }
 
   function gradeKind(row, passing) {
+    if (row?.grade_counted === false) return 'excluded';
     const n = gradeNumber(row);
     if (n == null) return 'missing';
     return n >= passing ? 'pass' : 'fail';
@@ -113,7 +115,7 @@
           <div class="listMeta">${esc(grade.academic_course_code || grade.course_code || 'Course')}</div>
           <div class="listTitle">${esc(grade.course_name || grade.academic_course_code || grade.course_code || 'Course')}</div>
         </div>
-        <strong class="lookupAcademicGrade">${esc(gradeText(grade))}</strong>
+        <strong class="lookupAcademicGrade">${esc(gradeText(grade))}${grade.grade_counted === false ? ' · Not counted' : ''}</strong>
       </article>`;
     }).join('');
   }
@@ -127,7 +129,7 @@
     const meeting = attendance?.on_time_class_requirement || {};
     const passing = Number(settings.passing_score ?? 70);
 
-    const gradeCount = Array.isArray(grades?.grades) ? grades.grades.length : 0;
+    const gradeCount = Number(grades?.counted_course_count ?? (Array.isArray(grades?.grades) ? grades.grades.filter(g => g.grade_counted !== false).length : 0));
     const below = Number(grades?.below_passing_count || 0);
     const missing = Number(grades?.missing_count || 0);
     const passingCount = Number(grades?.passing_count || 0);
@@ -142,11 +144,11 @@
 
     $('lookupGradeStatus').textContent = gradeCount
       ? (below ? `${below} below ${passing}%` : (missing ? 'Passing with missing grades' : 'All entered grades passing'))
-      : 'No current grades';
-    $('lookupGradeStatus').className = `statusBig${below ? ' academicBad' : missing ? ' academicWarn' : ' academicGood'}`;
+      : 'No counted course grades';
+    $('lookupGradeStatus').className = `statusBig${!gradeCount ? ' academicWarn' : below ? ' academicBad' : missing ? ' academicWarn' : ' academicGood'}`;
     $('lookupGradeDetail').textContent = gradeCount
       ? `${passingCount} passing • ${below} below passing • ${missing} not entered`
-      : `Passing threshold ${passing}%`;
+      : `Passing threshold ${passing}% · No counted course grades`;
 
     $('lookupDailyAttendance').textContent = pct(daily.percentage);
     $('lookupDailyDetail').textContent = `${Number(daily.attended_days || 0)}/${Number(daily.denominator_days || 0)} present • ${Number(daily.absent_days || 0)} absent • ${Number(daily.late_days || 0)} late`;
