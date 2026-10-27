@@ -1,4 +1,5 @@
 /* EAGLENEST_OUTSIDE_LUNCH_V1 */
+/* EAGLENEST_EXCUSED_LATENESS_ELIGIBILITY_V1 */
 (()=>{'use strict';
 const $=id=>document.getElementById(id);
 const API=(document.querySelector('meta[name="api-base"]')?.content||'').replace(/\/*$/,'')+'/';
@@ -65,7 +66,7 @@ function filterBoard(){
   $('board').innerHTML=table(['Student','Permission','School / arrival','Classes','Grades','Penalty','Eligibility'],list.map(r=>{
     const a=r.attendance||{},g=r.academics||{},c=checksFor(r);
     const schoolText=`${a.school_present??'—'}/${a.school_denominator??'—'} days`;
-    const arrivalText=a.today_arrival?.met?'On time today':a.today_arrival?.status==='late'?'Late today':a.today_arrival?.status==='absent'?'Absent today':'Arrival pending';
+    const arrivalText=a.today_arrival?.status==='excused_late'?'Excused late today':a.today_arrival?.met?'On time today':a.today_arrival?.status==='late'?'Late today':a.today_arrival?.status==='absent'?'Absent today':'Arrival pending';
     const classText=`${a.class_ontime??'—'}/${a.class_total??'—'} meetings`;
     const gradesText=!g.ready?'Grade data pending':Number(g.failing_course_count)===0?'All classes passing':`${g.failing_course_count} below passing`;
     return [
@@ -84,7 +85,7 @@ function showStudent(r){
   const a=r.attendance||{},g=r.academics||{},pen=r.penalty||{},c=checksFor(r);
   const readySchool=c.windowReady;
   const schoolValue=`${a.school_present??'—'}/${a.school_denominator??'—'} · ${pct(a.school_pct)}`;
-  const arrivalValue=a.today_arrival?.met?'On time today':a.today_arrival?.status==='late'?'Late today':a.today_arrival?.status==='absent'?'Absent today':'Not verified';
+  const arrivalValue=a.today_arrival?.status==='excused_late'?'Excused late today':a.today_arrival?.met?'On time today':a.today_arrival?.status==='late'?'Late today':a.today_arrival?.status==='absent'?'Absent today':'Not verified';
   const arrivalAt=a.today_arrival?.at?new Date(a.today_arrival.at).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'}):'No timed morning scan';
   const arrivalDetail=`Today ${a.today_arrival?.date||r.date||'—'} · ${arrivalAt} · School starts ${a.today_arrival?.cutoff||'—'} (NY time)`;
   const classValue=`${a.class_ontime??'—'}/${a.class_total??'—'} · ${pct(a.class_pct)}`;
@@ -98,14 +99,14 @@ function showStudent(r){
       const s=String(p.status||'unknown').toLowerCase();
       // EAGLENEST_OUTSIDE_LUNCH_CLASS_ABSENCE_EXCLUSION_V1: report absence as excluded, not a failed meeting.
       const excluded=['absent','excused','iss','oss','unknown'].includes(s);
-      const kind=s==='unknown'?'warn':excluded?'info':s==='present'?'good':'bad';
-      const label=s==='unknown'?'unknown · ignored':excluded?`${s.replaceAll('_',' ')} · excluded`:s.replaceAll('_',' ');
+      const kind=s==='unknown'?'warn':excluded?'info':(s==='present'||s==='excused_late')?'good':'bad';
+      const label=s==='excused_late'?'excused late · credited':s==='unknown'?'unknown · ignored':excluded?`${s.replaceAll('_',' ')} · excluded`:s.replaceAll('_',' ');
       return `<span class="ol-period"><span class="ol-detail">${escape(p.period_local||p.period_id||'Period')}</span>${badge(kind,label)}</span>`;
     }).join('')||'—';
-    const dailyKind=missing?'warn':x.excused_absence?'info':x.daily_status==='present'?'good':x.daily_status==='late'?'warn':'bad';
-    return [escape(x.date),badge(dailyKind,x.excused_absence?'Excused absence':missing?'Missing data':x.daily_status||'Unknown'),
+    const dailyKind=missing?'warn':(x.excused_absence||x.excused_late)?'info':x.daily_status==='present'?'good':x.daily_status==='late'?'warn':'bad';
+    return [escape(x.date),badge(dailyKind,x.excused_absence?'Excused absence':x.excused_late?'Excused late':missing?'Missing data':x.daily_status||'Unknown'),
       escape(x.detail_code),badge(missing?'warn':x.counted_present?'good':'bad',missing?'Pending':x.counted_present?'Counts as present':'Does not count'),
-      badge(missing?'warn':x.on_time_arrival?'good':'bad',missing?'Pending':x.on_time_arrival?'On time':'Not on time'),
+      badge(missing?'warn':x.on_time_arrival?'good':'bad',missing?'Pending':x.excused_late?'Excused · credited':x.on_time_arrival?'On time':'Not on time'),
       badge(classKind,classView.label),periods];
   });
   const courses=(g.courses||[]).map(x=>{
