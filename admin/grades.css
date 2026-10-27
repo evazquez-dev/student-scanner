@@ -13,3 +13,10 @@ html[data-theme="light"]{--bg:#f4f7fb;--card:#fff;--card2:#f7f9fc;--card3:#eef3f
 
 /* EAGLENEST_COURSE_GRADE_POLICY_V1 */
 .gradeChip.excluded { opacity:.65; border-style:dashed; }
+
+/* EAGLENEST_GRADES_HIDDEN_VISIBILITY_V1
+ * Author display:grid/flex declarations can override the browser's default
+ * hidden-attribute stylesheet. Respect the script-owned hidden state for
+ * teacher/admin KPIs, grade filters, attendance controls and all tab panels.
+ */
+[hidden] { display: none !important; }
