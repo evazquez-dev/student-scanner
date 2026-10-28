@@ -50,6 +50,7 @@
     visitor_desk: 'Visitor Desk',
     early_dismissal: 'Early Dismissal',
     after_school_monitor: 'After-School Monitor',
+    after_school_attendance_audit: 'After-School Attendance', // EAGLENEST_AFTER_SCHOOL_INSPECTOR_STANDALONE_V2
     staff_pull: 'Staff Pull',
     phone_pass: 'Phone Pass',
     phone_free_pass: 'Free Phone Pass', // EAGLENEST_DAILY_FREE_PHONE_PASS_V1
@@ -516,6 +517,7 @@
         items: [
           { key:'my_schedule', label: MODULES.my_schedule || 'My Schedule', href:'./my_schedule.html', description:"Today's classes and schedule" },
           { key:'teacher_attendance', label: MODULES.teacher_attendance || 'Teacher Attendance', href:'./teacher_attendance.html', description:'Class attendance and roster actions' },
+          { key:'after_school_attendance_audit', label: MODULES.after_school_attendance_audit || 'After-School Attendance', href:'./after_school_attendance_audit.html', description:'Read-only club and sports team attendance inspections across dates and rooms' },
           { key:'attendance_status', label: MODULES.attendance_status || 'Attendance Status', href:'./attendance_status.html', description:'Period attendance audit and status' },
           { key:'ps_period_matching', access_key:'attendance_status', label:MODULES.ps_period_matching || 'PowerSchool Period Matching', href:'./ps_period_matching.html', description:'Match official PowerSchool meeting periods to local and daily attendance' }, // EAGLENEST_PS_PERIOD_MATCHING_V1
           { key:'attendance_outreach', label: MODULES.attendance_outreach || 'Attendance Outreach', href:'./attendance_outreach.html', description:'Morning absence and late outreach' },
@@ -971,6 +973,20 @@
     }catch(_){}
   }
 
+  // The inspector capability is roster-derived, not a generic teacher permission.
+  // Check the same authenticated, read-only catalog that guards report requests.
+  async function hydrateAfterSchoolAuditAccess(access){
+    if(!access?.ok||DEMO_MODE)return;
+    if(!access.can||typeof access.can!=='object')access.can={};
+    access.can.after_school_attendance_audit=false; // fail closed on network errors
+    if(access.can.my_rosters!==true&&access.can.admin!==true&&access.can.super_admin!==true)return;
+    try{
+      const response=await adminFetch('/admin/after_school_attendance_audit/rosters',{method:'GET'});
+      const body=await response.json().catch(()=>null);
+      access.can.after_school_attendance_audit=response.ok&&body?.ok===true&&body.can_inspect===true;
+    }catch{}
+  }
+
   async function bootNav() {
     // Poll briefly so it appears right after a user logs in via popup
     for (let i = 0; i < 40; i++) {
@@ -978,6 +994,7 @@
       if (access?.ok) {
         const esas = await refreshEsasTakeover();
         if (esas?.active === true && esas?.incident?.incident_id) return;
+        await hydrateAfterSchoolAuditAccess(access);
         mountNav(access);
         void showPsPeriodMatchingNotice(access);
         await bootPhoneLive(access);

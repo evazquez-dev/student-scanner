@@ -28,9 +28,9 @@ async function run(){try{$('run').disabled=true;notice('Loading historical activ
  const qs=new URLSearchParams({roster_id:$('roster').value,from:$('from').value,to:$('to').value,weekdays:days,start:$('startTime').value,end:$('endTime').value});const r=await api('/admin/after_school_attendance_audit/report?'+qs);render(r);notice(`Report loaded for ${r.roster.name}. These are participation indicators, not official attendance.`);
  }catch(e){notice(e.message,false);}finally{$('run').disabled=false;}}
 async function init(){try{const today=dateNY(),d=new Date(today+'T12:00:00Z');d.setUTCDate(d.getUTCDate()-13);$('from').value=d.toISOString().slice(0,10);$('to').value=today;
- const data=await api('/admin/my_rosters');const items=[...(data.custom_rosters||[]),...(data.shared_rosters||[])].filter(x=>['club','sports_team','regents'].includes(x.special_action_type));
- $('roster').innerHTML=items.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} (${x.special_action_label||x.special_action_type})</option>`).join('');$('formSection').hidden=false;
- $('run').disabled=!items.length;notice(items.length?`Found ${items.length} accessible activity rosters. Select the days this activity normally meets.`:'No activity rosters are currently owned by or shared with you.');
+ const data=await api('/admin/after_school_attendance_audit/rosters');const items=Array.isArray(data.rosters)?data.rosters:[];
+ $('roster').innerHTML=items.map(x=>`<option value="${esc(x.id)}">${esc(x.name)} (${esc(x.special_action_label||x.special_action_type)})${data.admin_scope?` — ${esc(x.owner_email)}`:''}</option>`).join('');$('formSection').hidden=false;
+ $('run').disabled=!items.length;notice(items.length?`Found ${items.length} accessible activity rosters. Select the days this activity normally meets.`:'No club or sports team rosters are currently available.');
  $('run').addEventListener('click',run);$('export').addEventListener('click',csvExport);
  }catch(e){notice(`Could not load activity rosters: ${e.message}`,false);}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
