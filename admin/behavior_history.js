@@ -175,6 +175,13 @@ function fillSelect(el, items, placeholder, selected){
   if (prev) el.value = prev;
 }
 
+// EAGLENEST_GTL_BEHAVIOR_READ_V1 — grade team viewing is read-only.
+function isGradeTeamViewer(){
+  const staff = ACCESS?.staff_profile || {};
+  return !isAdminViewer() && (staff?.is_grade_team_lead === true ||
+    (ACCESS?.access_roles || []).includes('grade_team_lead'));
+}
+
 function isAdminViewer(){
   const role = String(ACCESS?.role || ACCESS?.viewer?.role || '').toLowerCase();
   return !!ACCESS?.viewer?.is_admin || role === 'admin' || role === 'super_admin';
@@ -202,7 +209,7 @@ function currentFilters(){
   return {
     q: String(qInput?.value || '').trim(),
     event_key: String(eventFilter?.value || '').trim(),
-    actor_email: isAdminViewer() ? String(actorFilter?.value || '').trim() : '',
+    actor_email: (isAdminViewer() || isGradeTeamViewer()) ? String(actorFilter?.value || '').trim() : '',
     include_deleted: (deleted === 'all') ? '1' : '',
     deleted_only: (deleted === 'deleted') ? '1' : '',
     date_from: String(dateFromInput?.value || '').trim(),
@@ -215,7 +222,7 @@ function updateViewerUi(){
   const role = ACCESS?.role || ACCESS?.viewer?.role || '—';
   viewerPill.textContent = email;
   rolePill.textContent = role;
-  if (isAdminViewer()) {
+  if (isAdminViewer() || isGradeTeamViewer()) {
     show(actorFilterWrap);
   } else {
     hide(actorFilterWrap);
@@ -232,9 +239,12 @@ function renderSummary(data){
   const deletedMatched = Number(counts.deleted_matched || 0);
   const activeMatched = Number(counts.active_matched || 0);
 
+  const team = viewer?.grade_team_read_only === true;
   summaryText.textContent = isAdmin
     ? `Showing ${matched} matched behavior log${matched === 1 ? '' : 's'} across staff.`
-    : `Showing your ${matched} matched behavior log${matched === 1 ? '' : 's'}.`;
+    : team
+      ? `Grade Team read-only • Grade ${(viewer.grade_teams || []).join(', ') || 'not configured'} • ${matched} matched behavior log${matched === 1 ? '' : 's'}.`
+      : `Showing your ${matched} matched behavior log${matched === 1 ? '' : 's'}.`;
 
   countPill.textContent = `${activeMatched} active • ${deletedMatched} deleted • ${accessible} accessible`;
 }
@@ -248,7 +258,7 @@ function renderFilters(data){
   fillSelect(eventFilter, eventItems, 'All behavior types', eventFilter.value);
 
   const role = String(ACCESS?.role || data?.viewer?.role || '').toLowerCase();
-  if (role === 'admin' || role === 'super_admin') {
+  if (role === 'admin' || role === 'super_admin' || isGradeTeamViewer()) {
     const actors = (opts.actor_emails || []).map(x => ({ value: String(x || ''), label: String(x || '') }));
     fillSelect(actorFilter, actors, 'All staff emails', actorFilter.value);
   }
@@ -282,6 +292,7 @@ function renderRows(rows){
       ? `<div class="deletedNote">Marked deleted ${escapeHtml_(fmtDateTime(row.deleted_at_iso))} by ${escapeHtml_(row.deleted_by_email || '—')}</div>`
       : '';
 
+    const gradeTeamReadOnly = LAST_DATA?.viewer?.grade_team_read_only === true;
     card.innerHTML = `
       <div class="behaviorTop">
         <div>
@@ -303,16 +314,18 @@ function renderRows(rows){
       ${deletedInfo}
 
       <label class="notesLabel" for="notes_${escapeHtml_(row.behavior_id)}">Notes</label>
-      <textarea class="notesBox" id="notes_${escapeHtml_(row.behavior_id)}" data-behavior-id="${escapeHtml_(row.behavior_id)}" rows="3" placeholder="Add notes to this behavior...">${escapeHtml_(row?.notes || '')}</textarea>
+      ${gradeTeamReadOnly
+        ? `<div class="notesBox" style="white-space:pre-wrap;overflow-wrap:anywhere">${escapeHtml_(row?.notes || '—')}</div>`
+        : `<textarea class="notesBox" id="notes_${escapeHtml_(row.behavior_id)}" data-behavior-id="${escapeHtml_(row.behavior_id)}" rows="3" placeholder="Add notes to this behavior...">${escapeHtml_(row?.notes || '')}</textarea>`}
 
-      <div class="cardActions">
+      ${gradeTeamReadOnly ? '' : `<div class="cardActions">
         <button type="button" class="btn btn--primary" data-act="save" data-behavior-id="${escapeHtml_(row.behavior_id)}">Save notes</button>
         ${canDeleteBehaviorRow(row) ? `
           <button type="button" class="btn ${row?.is_deleted ? 'btn--ghost' : 'btn--warn'}" data-act="${row?.is_deleted ? 'restore' : 'delete'}" data-behavior-id="${escapeHtml_(row.behavior_id)}">
             ${row?.is_deleted ? 'Restore' : 'Mark deleted'}
           </button>
         ` : ''}
-      </div>
+      </div>`}
     `;
 
     resultsEl.appendChild(card);
@@ -383,7 +396,7 @@ function rowByBehaviorId(id){
 }
 
 async function onResultsClick(ev){
-  if (BUSY) return;
+  if (BUSY || LAST_DATA?.viewer?.grade_team_read_only === true) return;
 
   const btn = ev.target?.closest?.('button[data-act]');
   if (!btn) return;
