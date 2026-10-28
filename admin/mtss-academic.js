@@ -81,7 +81,8 @@
     $('academicGradeSnapshot').innerHTML=doc?`<strong>PowerSchool grades · ${esc(doc.snapshot_date)} · ${esc(doc.marking_period)}</strong><div class="academicGradeChips">${(doc.courses||[]).map(x=>`<span>${esc(x.course_name||x.course_code)}: <strong>${esc(fmtCourseGrade(x))}</strong></span>`).join('')}</div>`
       :'<div class="muted">No current grade snapshot for this student.</div>';
     $('academicGradeHistoryRows').innerHTML=(academic.grades?.history||[]).slice(0,6).map(s=>`<span>${esc(s.snapshot_date)} · ${esc(s.marking_period)}: ${(s.courses||[]).map(x=>`${esc(x.course_code)} ${esc(fmtCourseGrade(x))}`).join(' · ')}</span>`).join('')||'<span>No prior snapshots available.</span>';
-    const writable=!core().isReadOnly()&&c.is_active;
+    // EAGLENEST_GTL_MTSS_CASE_READ_V2 — honor per-case server permission.
+    const writable=!core().isReadOnly() && !data.permissions?.grade_team_read_only && c.is_active;
     $('academicGoalForm').hidden=!writable;
     $('academicGoalBaselineDate').value=dateNY();
     $('academicGoalTargetDate').value='';

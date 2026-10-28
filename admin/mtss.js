@@ -89,9 +89,13 @@
       const d=s[domain]||{}; $(`${prefix}T1`).textContent=d.tier1??0; $(`${prefix}T2`).textContent=d.tier2??0; $(`${prefix}T3`).textContent=d.tier3??0;
     }
     $('statEnrolled').textContent=data?.enrolled??'—'; $('statDue').textContent=data?.due_reviews??0; $('statRecommend').textContent=data?.review_recommendations??0;
-    $('statScope').textContent=data?.viewer_scope==='all'?'Schoolwide':'Assigned';
+    // EAGLENEST_GTL_MTSS_CASE_READ_V2
+    const gtl=data?.viewer_scope==='grade_team';
+    $('statScope').textContent=data?.viewer_scope==='all'?'Schoolwide':gtl?'Grade Team':'Assigned';
     const assigned=data?.viewer_scope!=='all'; $('scopeBanner').hidden=!assigned;
-    if(assigned)$('scopeBanner').textContent='You are viewing MTSS cases assigned to you or your advisor team. Schoolwide case management is limited to authorized support/operations staff.';
+    if(assigned)$('scopeBanner').textContent=gtl
+      ? `Read-only Grade Team overview · Grade${(data?.grade_teams||[]).length===1?'':'s'} ${(data?.grade_teams||[]).join(', ')||'not configured'} · Attendance, Behavior, Academic. You can follow cases, interventions, reviews and goals; case management remains with authorized staff.`
+      : 'You are viewing MTSS cases assigned to you or your advisor team. Schoolwide case management is limited to authorized support/operations staff.';
     $('btnNewCase').hidden=!data?.permissions?.manage_all||isReadOnly();
     $('attendanceTools').hidden=!data?.permissions?.manage_all;
     $('rulesCard').hidden=!data?.permissions?.manage_all;
