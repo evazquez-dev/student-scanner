@@ -56,13 +56,20 @@ function typeRow(key='',max=0){const wrap=document.createElement('div');wrap.cla
 function renderEnabled(k){const on=$(k+'Enabled').checked;$(k+'Body').hidden=!on;$(k+'Status').textContent=on?'On':'Off';$(k+'Status').classList.toggle('off',!on);}
 function renderOverrides(k){$(k+'Custom').hidden=$(k+'UseGlobal').checked;}
 function renderGradeSource(){$('snapshotWrap').hidden=$('gradeSource').value!=='snapshot';$('courseCodesWrap').hidden=$('courseScope').value!=='selected';}
+// EAGLENEST_INCENTIVE_LANGUAGE_MASTERY_V1
+function renderLanguageMasterySource(){
+ $('languageMasterySnapshotWrap').hidden=$('languageMasterySource').value!=='snapshot';
+}
 function getConfig(){const cfg={name:$('tripName').value.trim(),trip_date:$('tripDate').value,grades:[...$('grades').querySelectorAll('input:checked')].map(x=>x.value),
  global_window:getWindow('globalWindow')};for(const k of ['behavior','daily','meeting']){
  cfg[k]={enabled:$(k+'Enabled').checked,use_global:$(k+'UseGlobal').checked,
  window:getWindow(k+'Custom'),rules:getRules(k)};}
  cfg.behavior.types=[...$('behaviorTypeRules').querySelectorAll('.itTypeRow')].map(x=>({key:x.querySelector('select').value,max:Number(x.querySelector('input[type=number]').value)})).filter(x=>x.key);
  cfg.academics={enabled:$('academicsEnabled').checked,source:$('gradeSource').value,snapshot:$('gradeSnapshot').value,
- passing_score:Number($('passingScore').value),course_scope:$('courseScope').value,course_codes:$('courseCodes').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),rules:getRules('academics')};return cfg;}
+ passing_score:Number($('passingScore').value),course_scope:$('courseScope').value,course_codes:$('courseCodes').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),rules:getRules('academics')};
+ cfg.language_mastery={enabled:$('languageMasteryEnabled').checked,source:$('languageMasterySource').value,
+  snapshot:$('languageMasterySnapshot').value,min_course_grade:Number($('languageMasteryThreshold').value)};
+ return cfg;}
 function putConfig(c){$('tripName').value=c.name||'Incentive Trip';$('tripDate').value=c.trip_date||'';
  for(const i of $('grades').querySelectorAll('input'))i.checked=(c.grades||[]).includes(i.value);
  putWindow('globalWindow',c.global_window);for(const k of ['behavior','daily','meeting']){
@@ -71,11 +78,17 @@ function putConfig(c){$('tripName').value=c.name||'Incentive Trip';$('tripDate')
  $('behaviorTypeRules').replaceChildren();for(const x of c.behavior?.types||[])typeRow(x.key,x.max);
  $('academicsEnabled').checked=!!c.academics?.enabled;$('gradeSource').value=c.academics?.source||'current';
  $('gradeSnapshot').value=c.academics?.snapshot||'';$('courseScope').value=c.academics?.course_scope||'all';
- $('courseCodes').value=(c.academics?.course_codes||[]).join(', ');$('passingScore').value=c.academics?.passing_score??70;putRules('academics',c.academics?.rules);renderEnabled('academics');renderGradeSource();dirty();}
+ $('courseCodes').value=(c.academics?.course_codes||[]).join(', ');$('passingScore').value=c.academics?.passing_score??70;putRules('academics',c.academics?.rules);renderEnabled('academics');renderGradeSource();
+ $('languageMasteryEnabled').checked=!!c.language_mastery?.enabled;
+ $('languageMasterySource').value=c.language_mastery?.source||'current';
+ $('languageMasterySnapshot').value=c.language_mastery?.snapshot||'';
+ $('languageMasteryThreshold').value=c.language_mastery?.min_course_grade??80;
+ renderEnabled('languageMastery');renderLanguageMasterySource();dirty();}
 function badge(s){return `<span class="itBadge ${esc(s||'')}">${esc((s||'OFF').replaceAll('_',' '))}</span>`;}
 function renderReport(r){report=r;$('reportCard').hidden=false;$('reportTitle').textContent=r.config.name||'Incentive Trip';
  const parts=Object.entries(r.windows||{}).map(([k,w])=>`${k}: ${w.start} – ${w.end} (${w.school_day_count} school days)`);
- if(r.grade_source)parts.push(`Grades: ${r.grade_source.snapshot_date} (${r.grade_source.received_at_iso||'date unavailable'})`);
+ if(r.grade_source)parts.push(`Grades: ${r.grade_source.snapshot_date||'current'} (${r.grade_source.received_at_iso||'date unavailable'})`);
+ if(r.language_grade_source)parts.push(`Language grades: ${r.language_grade_source.snapshot_date||'current'} (${r.language_grade_source.received_at_iso||'date unavailable'})`);
  $('reportMeta').textContent=`${r.report_id?'Saved report':'Preview only'} · ${r.produced_at_iso||''} · ${parts.join(' · ')}`;
  const sum=r.summary;$('kpis').innerHTML=[['Evaluated',sum.evaluated,''],['Eligible',sum.eligible,'good'],['Ineligible',sum.ineligible,'bad'],['Insufficient Data',sum.insufficient_data,'pending']]
  .map(([name,count,cl])=>`<div class="itKpi ${cl}"><small>${name}</small><strong>${Number(count).toLocaleString()}</strong></div>`).join('');
@@ -84,20 +97,21 @@ function renderReport(r){report=r;$('reportCard').hidden=false;$('reportTitle').
  $('reportCard').scrollIntoView({behavior:'smooth',block:'start'});}
 function renderRows(){if(!report)return;const status=$('statusFilter').value,grade=$('gradeFilter').value,q=$('search').value.trim().toLowerCase();
  const filtered=report.students.filter(x=>(!status||x.status===status)&&(!grade||x.grade===grade)&&(!q||x.student_number.includes(q)||x.student_name.toLowerCase().includes(q)));
- $('reportRows').innerHTML=filtered.map(x=>`<tr class="itStudentRow" data-osis="${esc(x.student_number)}"><td><strong>${esc(x.student_name||'Name unavailable')}</strong><br><span class="itMuted">${esc(x.student_number)}</span></td><td>${esc(x.grade)}</td>${['behavior','daily','meeting','academics'].map(k=>`<td>${x.categories[k]?badge(x.categories[k].status):'—'}</td>`).join('')}<td>${badge(x.status)}</td></tr>`).join('')||'<tr><td colspan="7">No matching students.</td></tr>';
+ $('reportRows').innerHTML=filtered.map(x=>`<tr class="itStudentRow" data-osis="${esc(x.student_number)}"><td><strong>${esc(x.student_name||'Name unavailable')}</strong><br><span class="itMuted">${esc(x.student_number)}</span></td><td>${esc(x.grade)}</td>${['behavior','daily','meeting','academics','language_mastery'].map(k=>`<td>${x.categories[k]?badge(x.categories[k].status):'—'}</td>`).join('')}<td>${badge(x.status)}</td></tr>`).join('')||'<tr><td colspan="8">No matching students.</td></tr>';
  for(const tr of $('reportRows').querySelectorAll('tr[data-osis]'))tr.addEventListener('click',()=>showStudent(tr.dataset.osis));}
 function showStudent(id){const s=report?.students.find(x=>x.student_number===id);if(!s)return;
- const parts=Object.entries(s.categories).map(([key,c])=>`<section class="itDetailCell"><h4>${esc(key[0].toUpperCase()+key.slice(1))} ${badge(c.status)}</h4>
+ const parts=Object.entries(s.categories).map(([key,c])=>`<section class="itDetailCell"><h4>${esc(key==='language_mastery'?'Language Mastery':key[0].toUpperCase()+key.slice(1))} ${badge(c.status)}</h4>
  ${c.window?`<p class="itMuted itSmall">${esc(c.window.start)} – ${esc(c.window.end)} (${esc(c.window.method)})</p>`:''}
  ${c.snapshot_date?`<p class="itMuted itSmall">Snapshot ${esc(c.snapshot_date)}</p>`:''}
  ${(c.rules||[]).map(t=>`<div class="itDetailRule"><div>${esc(t.key)}<br><span class="itMuted">${t.operator==='min'?'≥':'≤'} ${esc(t.required)} ${esc(t.unit)}</span></div><div>${t.actual==null?'Unknown':esc(t.actual)} ${badge(t.status)}</div></div>`).join('')}
+ ${key==='language_mastery'&&!c.course_count?'<p class="itMuted itSmall">No ELA/SP course grade records found; this requirement is pending.</p>':''}
  ${c.missing_dates?.length?`<p class="itMuted itSmall">Missing dates: ${esc(c.missing_dates.join(', '))}</p>`:''}
  ${c.missing_courses?.length?`<p class="itMuted itSmall">Unentered courses: ${esc(c.missing_courses.join(', '))}</p>`:''}</section>`).join('');
  $('studentDetail').innerHTML=`<h3>${esc(s.student_name)} · ${esc(s.student_number)} ${badge(s.status)}</h3><div class="itDetailGrid">${parts}</div>`;
  $('studentDetail').hidden=false;$('studentDetail').scrollIntoView({behavior:'smooth',block:'nearest'});}
 function download(onlyEligible){if(!report)return;const students=onlyEligible?report.students.filter(x=>x.status==='ELIGIBLE'):report.students;
- const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';const head=['Student Number','Name','Grade','Status','Behavior','Daily Attendance','Meeting Attendance','Academics','Details JSON'];
- const data=students.map(x=>[x.student_number,x.student_name,x.grade,x.status,...['behavior','daily','meeting','academics'].map(k=>x.categories[k]?.status||'DISABLED'),JSON.stringify(x.categories)]);
+ const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';const head=['Student Number','Name','Grade','Status','Behavior','Daily Attendance','Meeting Attendance','Academics','Language Mastery','Details JSON'];
+ const data=students.map(x=>[x.student_number,x.student_name,x.grade,x.status,...['behavior','daily','meeting','academics','language_mastery'].map(k=>x.categories[k]?.status||'DISABLED'),JSON.stringify(x.categories)]);
  const csv='\uFEFF'+[head,...data].map(x=>x.map(quote).join(',')).join('\r\n')+'\r\n';const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download=`EagleNEST_Incentive_${onlyEligible?'Eligible':'Full'}_${(report.report_id||'preview').slice(0,8)}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 async function reloadConfigs(){configs=(await request('/admin/incentive_trips/configs')).configs;
@@ -113,9 +127,12 @@ async function init(){renderWindow('globalWindow');for(const k of ['behavior','d
  renderWindow(k+'Custom','school_year');renderRules(k);$(k+'Enabled').addEventListener('change',()=>{renderEnabled(k);dirty();});
  $(k+'UseGlobal').addEventListener('change',()=>{renderOverrides(k);dirty();});}
  renderRules('academics');$('academicsEnabled').addEventListener('change',()=>{renderEnabled('academics');dirty();});
+ $('languageMasteryEnabled').addEventListener('change',()=>{renderEnabled('languageMastery');dirty();});
+ $('languageMasterySource').addEventListener('change',()=>{renderLanguageMasterySource();dirty();});
+ renderEnabled('languageMastery');renderLanguageMasterySource();
  $('gradeSource').addEventListener('change',()=>{renderGradeSource();dirty();});$('courseScope').addEventListener('change',()=>{renderGradeSource();dirty();});
  $('addBehaviorType').addEventListener('click',()=>{typeRow();dirty();});
- for(const id of ['tripName','tripDate','grades','globalWindow','behaviorBody','dailyBody','meetingBody','academicsBody']){
+ for(const id of ['tripName','tripDate','grades','globalWindow','behaviorBody','dailyBody','meetingBody','academicsBody','languageMasteryBody']){
   $(id).addEventListener('input',dirty);$(id).addEventListener('change',dirty);}
  $('saveConfig').addEventListener('click',async()=>{if(busy)return;busySet(true);message('Saving configuration…');try{
   const r=await request('/admin/incentive_trips/configs',{config:getConfig(),config_id:configId});configId=r.config_id;await reloadConfigs();
@@ -132,6 +149,7 @@ async function bootstrap(){const access=await request('/admin/access');if(!['adm
  $('actor').textContent=access.email||access.role;$('login').hidden=true;$('app').hidden=false;
  const opts=await request('/admin/incentive_trips/options');types=opts.behavior_types||[];
  $('gradeSnapshot').innerHTML='<option value="">Select a saved snapshot…</option>'+(opts.grade_snapshots||[]).map(s=>`<option value="${esc(s.dataset_hash)}">${esc(s.snapshot_date)} · ${esc(s.marking_period)} · ${esc(s.received_at_iso)}</option>`).join('');
+ $('languageMasterySnapshot').innerHTML=$('gradeSnapshot').innerHTML;
  await reloadConfigs();await reloadReports();}
 async function onGoogle(resp){$('loginMsg').textContent='Signing in…';try{const r=await fetch(new URL('/admin/session/login_google',api),{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({id_token:resp.credential}).toString(),credentials:'include'});
  storeSid(r.headers.get('x-admin-session'));const j=await r.json();if(j?.sid)storeSid(j.sid);if(!r.ok||!j.ok)throw new Error(j?.error||'Sign-in failed');await bootstrap();}catch(e){$('loginMsg').textContent=e.message;message(e.message,true);}}
