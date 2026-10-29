@@ -2654,8 +2654,9 @@
       showSuccess(resolved.name, code, result.label || '', result.detail || '', when);
     } else if (action === 'after_school_denied' || action.endsWith('_denied_hold')) {
       beepBad();
-      updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || 'DENIED', lockerColor:result.detail || '', when });
-      showSuccess(resolved.name, code, result.label || 'DENIED', result.detail || '', when);
+      // EAGLENEST_AFTER_SCHOOL_EXIT_DIRECTIONS_V1: instructions are visible on
+      // the kiosk and in the scan-history row, never mistaken for locker details.
+      showAfterSchoolExitDenial_(row, resolved.name, code, result, when);
     } else if (action === 'varied_in' || action === 'varied_out') {
       if (action === 'varied_out') beepNeutralUp(); else beepGood();
       updateRowToSuccess(row, { name:resolved.name, code, lockerNum:result.label || (action === 'varied_out'?'OUT':'IN'), lockerColor:result.detail || '', when });
@@ -3224,6 +3225,39 @@
   /* ============================================================
    * RESULT PANEL RENDER
    * ============================================================ */
+  // EAGLENEST_AFTER_SCHOOL_EXIT_DIRECTIONS_V1
+  // Use only the authoritative hold destination in the current scan response.
+  function afterSchoolExitRoomLabel_(room) {
+    const raw = String(room || '').trim().replace(/[\r\n\t]+/g, ' ').slice(0, 90);
+    if (!raw) return '';
+    if (/^(?:room|rm)\b/i.test(raw)) return raw;
+    return /^\d+[A-Za-z]?$/.test(raw) ? `Room ${raw}` : raw;
+  }
+  function showAfterSchoolExitDenial_(row, name, code, result, when) {
+    const room = afterSchoolExitRoomLabel_(result?.denial_room);
+    const kind = String(result?.denial_type || result?.denial_reason || '').toLowerCase();
+    const detail = String(result?.detail || 'Hold active').trim();
+    const instruction = room ? `GO TO ${room.toUpperCase()}`
+      : kind === 'reflection' ? 'SEE STAFF FOR YOUR ROOM' : 'SEE STAFF FOR INSTRUCTIONS';
+    const nameHtml = nameHtmlWithBadge(name || 'Student');
+    if (row) {
+      row.className = '';
+      row.innerHTML = `<td class="name history-name-col">${nameHtml}</td>
+        <td class="history-status-col"><span class="badge badge--na">EXIT DENIED</span>
+          <div class="bad">${esc(instruction)}</div></td>
+        <td class="history-dest-col">${room ? esc(room) : '—'}</td>
+        <td class="history-time-col">${fmtTime(when)}</td>`;
+    }
+    if (!__SCAN_RESULT_FOREGROUND) return;
+    resultEl.innerHTML = `<div class="err">EXIT DENIED</div>
+      <div class="name">${nameHtml}</div>
+      <div class="code">${esc(code)}</div>
+      <div class="muted" style="margin-top:8px">${esc(detail)}</div>
+      <div class="name" style="margin-top:12px; font-size:24px; font-weight:800">${esc(instruction)}</div>
+      <div class="muted">${fmtTime(when)}</div>`;
+    setStatus(room ? `Exit denied. Go to ${room}.` : 'Exit denied. See staff for instructions.');
+  }
+
   function showSuccess(name, code, lockerNum, lockerColor, when){
     if (!__SCAN_RESULT_FOREGROUND) return;
     const loc = getLocation();
