@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.11.0-2026-10-15'; // true network bypass for live/admin surfaces
+const VERSION = 'v20.12.0-2026-10-29'; // after-school exit directions kiosk release (network bypass preserved)
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [
