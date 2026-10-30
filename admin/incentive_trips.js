@@ -61,10 +61,11 @@ function renderLanguageMasterySource(){
  $('languageMasterySnapshotWrap').hidden=$('languageMasterySource').value!=='snapshot';
 }
 // EAGLENEST_INCENTIVE_ELIGIBILITY_COMBINATION_V2
+// EAGLENEST_INCENTIVE_CLUBS_SPORTS_V3
 const ELIGIBILITY_CRITERIA={behavior:'Behavior',daily:'Daily attendance',meeting:'Meeting attendance',
- academics:'Academic performance',language_mastery:'Language Mastery'};
+ academics:'Academic performance',language_mastery:'Language Mastery',clubs_sports:'Club or Sports Team'};
 function enabledEligibilityCriteria(){
- return Object.keys(ELIGIBILITY_CRITERIA).filter(key=>$(key==='language_mastery'?'languageMasteryEnabled':key+'Enabled').checked);
+ return Object.keys(ELIGIBILITY_CRITERIA).filter(key=>$(key==='language_mastery'?'languageMasteryEnabled':key==='clubs_sports'?'clubsSportsEnabled':key+'Enabled').checked);
 }
 function refreshEligibilityCombination(){
  const mode=$('eligibilityCombinationMode').value;
@@ -94,6 +95,7 @@ function getConfig(){const cfg={name:$('tripName').value.trim(),trip_date:$('tri
  passing_score:Number($('passingScore').value),course_scope:$('courseScope').value,course_codes:$('courseCodes').value.split(',').map(x=>x.trim().toUpperCase()).filter(Boolean),rules:getRules('academics')};
  cfg.language_mastery={enabled:$('languageMasteryEnabled').checked,source:$('languageMasterySource').value,
   snapshot:$('languageMasterySnapshot').value,min_course_grade:Number($('languageMasteryThreshold').value)};
+ cfg.clubs_sports={enabled:$('clubsSportsEnabled').checked,min_present:Number($('clubsSportsMinPresent').value)};
  cfg.eligibility_combination={mode:$('eligibilityCombinationMode').value,
   selected_criteria:[...document.querySelectorAll('.eligibilityCriterion:checked')].filter(x=>!x.disabled).map(x=>x.value),
   minimum:Number($('eligibilityCombinationMinimum').value)};
@@ -112,6 +114,8 @@ function putConfig(c){$('tripName').value=c.name||'Incentive Trip';$('tripDate')
  $('languageMasterySnapshot').value=c.language_mastery?.snapshot||'';
  $('languageMasteryThreshold').value=c.language_mastery?.min_course_grade??80;
  renderEnabled('languageMastery');renderLanguageMasterySource();
+ $('clubsSportsEnabled').checked=!!c.clubs_sports?.enabled;
+ $('clubsSportsMinPresent').value=c.clubs_sports?.min_present??5;renderEnabled('clubsSports');
  const combo=c.eligibility_combination||{};
  $('eligibilityCombinationMode').value=combo.mode==='at_least'?'at_least':'all';
  $('eligibilityCombinationMinimum').value=combo.minimum??1;
@@ -135,12 +139,13 @@ function renderReport(r){report=r;$('reportCard').hidden=false;$('reportTitle').
  $('reportCard').scrollIntoView({behavior:'smooth',block:'start'});}
 function renderRows(){if(!report)return;const status=$('statusFilter').value,grade=$('gradeFilter').value,q=$('search').value.trim().toLowerCase();
  const filtered=report.students.filter(x=>(!status||x.status===status)&&(!grade||x.grade===grade)&&(!q||x.student_number.includes(q)||x.student_name.toLowerCase().includes(q)));
- $('reportRows').innerHTML=filtered.map(x=>`<tr class="itStudentRow" data-osis="${esc(x.student_number)}"><td><strong>${esc(x.student_name||'Name unavailable')}</strong><br><span class="itMuted">${esc(x.student_number)}</span></td><td>${esc(x.grade)}</td>${['behavior','daily','meeting','academics','language_mastery'].map(k=>`<td>${x.categories[k]?badge(x.categories[k].status):'—'}</td>`).join('')}<td>${badge(x.status)}${x.eligibility_decision?`<div class="itMuted itSmall">${x.eligibility_decision.passed}/${x.eligibility_decision.minimum} met${x.eligibility_decision.pending?', '+x.eligibility_decision.pending+' pending':''}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="8">No matching students.</td></tr>';
+ $('reportRows').innerHTML=filtered.map(x=>`<tr class="itStudentRow" data-osis="${esc(x.student_number)}"><td><strong>${esc(x.student_name||'Name unavailable')}</strong><br><span class="itMuted">${esc(x.student_number)}</span></td><td>${esc(x.grade)}</td>${['behavior','daily','meeting','academics','language_mastery','clubs_sports'].map(k=>`<td>${x.categories[k]?badge(x.categories[k].status):'—'}</td>`).join('')}<td>${badge(x.status)}${x.eligibility_decision?`<div class="itMuted itSmall">${x.eligibility_decision.passed}/${x.eligibility_decision.minimum} met${x.eligibility_decision.pending?', '+x.eligibility_decision.pending+' pending':''}</div>`:''}</td></tr>`).join('')||'<tr><td colspan="9">No matching students.</td></tr>';
  for(const tr of $('reportRows').querySelectorAll('tr[data-osis]'))tr.addEventListener('click',()=>showStudent(tr.dataset.osis));}
 function showStudent(id){const s=report?.students.find(x=>x.student_number===id);if(!s)return;
- const parts=Object.entries(s.categories).map(([key,c])=>`<section class="itDetailCell"><h4>${esc(key==='language_mastery'?'Language Mastery':key[0].toUpperCase()+key.slice(1))} ${badge(c.status)}</h4>
+ const parts=Object.entries(s.categories).map(([key,c])=>`<section class="itDetailCell"><h4>${esc(key==='language_mastery'?'Language Mastery':key==='clubs_sports'?'Club or Sports Team':key[0].toUpperCase()+key.slice(1))} ${badge(c.status)}</h4>
  ${c.window?`<p class="itMuted itSmall">${esc(c.window.start)} – ${esc(c.window.end)} (${esc(c.window.method)})</p>`:''}
  ${c.snapshot_date?`<p class="itMuted itSmall">Snapshot ${esc(c.snapshot_date)}</p>`:''}
+ ${key==='clubs_sports'?`<p class="itMuted itSmall">${esc(c.roster_count||0)} current club/team rosters · ${esc(c.present_count||0)} confirmed sessions</p><p class="itMuted itSmall">${esc((c.rosters||[]).map(x=>x.name).join(', ')||'Not rostered')}</p>`:''}
  ${(c.rules||[]).map(t=>`<div class="itDetailRule"><div>${esc(t.key)}<br><span class="itMuted">${t.operator==='min'?'≥':'≤'} ${esc(t.required)} ${esc(t.unit)}</span></div><div>${t.actual==null?'Unknown':esc(t.actual)} ${badge(t.status)}</div></div>`).join('')}
  ${key==='language_mastery'&&!c.course_count?'<p class="itMuted itSmall">No ELA/SP course grade records found; this requirement is pending.</p>':''}
  ${c.missing_dates?.length?`<p class="itMuted itSmall">Missing dates: ${esc(c.missing_dates.join(', '))}</p>`:''}
@@ -153,8 +158,8 @@ function showStudent(id){const s=report?.students.find(x=>x.student_number===id)
  $('studentDetail').innerHTML=`<h3>${esc(s.student_name)} · ${esc(s.student_number)} ${badge(s.status)}</h3>${summary}<div class="itDetailGrid">${parts}</div>`;
  $('studentDetail').hidden=false;$('studentDetail').scrollIntoView({behavior:'smooth',block:'nearest'});}
 function download(onlyEligible){if(!report)return;const students=onlyEligible?report.students.filter(x=>x.status==='ELIGIBLE'):report.students;
- const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';const head=['Student Number','Name','Grade','Status','Behavior','Daily Attendance','Meeting Attendance','Academics','Language Mastery','Criteria Met','Criteria Required','Selected Criteria','Details JSON'];
- const data=students.map(x=>[x.student_number,x.student_name,x.grade,x.status,...['behavior','daily','meeting','academics','language_mastery'].map(k=>x.categories[k]?.status||'DISABLED'),x.eligibility_decision?.passed??'',x.eligibility_decision?.minimum??'',(x.eligibility_decision?.selected_criteria||[]).join('|'),JSON.stringify(x.categories)]);
+ const quote=x=>'"'+String(x??'').replaceAll('"','""')+'"';const head=['Student Number','Name','Grade','Status','Behavior','Daily Attendance','Meeting Attendance','Academics','Language Mastery','Clubs/Sports','Criteria Met','Criteria Required','Selected Criteria','Details JSON'];
+ const data=students.map(x=>[x.student_number,x.student_name,x.grade,x.status,...['behavior','daily','meeting','academics','language_mastery','clubs_sports'].map(k=>x.categories[k]?.status||'DISABLED'),x.eligibility_decision?.passed??'',x.eligibility_decision?.minimum??'',(x.eligibility_decision?.selected_criteria||[]).join('|'),JSON.stringify(x.categories)]);
  const csv='\uFEFF'+[head,...data].map(x=>x.map(quote).join(',')).join('\r\n')+'\r\n';const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
  const a=document.createElement('a');a.href=url;a.download=`EagleNEST_Incentive_${onlyEligible?'Eligible':'Full'}_${(report.report_id||'preview').slice(0,8)}.csv`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);}
 async function reloadConfigs(){configs=(await request('/admin/incentive_trips/configs')).configs;
@@ -171,22 +176,23 @@ async function init(){renderWindow('globalWindow');for(const k of ['behavior','d
  $(k+'UseGlobal').addEventListener('change',()=>{renderOverrides(k);dirty();});}
  renderRules('academics');$('academicsEnabled').addEventListener('change',()=>{renderEnabled('academics');dirty();});
  $('languageMasteryEnabled').addEventListener('change',()=>{renderEnabled('languageMastery');dirty();});
+ $('clubsSportsEnabled').addEventListener('change',()=>{renderEnabled('clubsSports');dirty();});
  $('languageMasterySource').addEventListener('change',()=>{renderLanguageMasterySource();dirty();});
  $('eligibilityCombinationMode').addEventListener('change',()=>{refreshEligibilityCombination();dirty();});
  $('eligibilityCombinationMinimum').addEventListener('input',()=>{refreshEligibilityCombination();dirty();});
  for(const el of document.querySelectorAll('.eligibilityCriterion'))el.addEventListener('change',()=>{refreshEligibilityCombination();dirty();});
  for(const key of Object.keys(ELIGIBILITY_CRITERIA)){
-  const checkbox=$(key==='language_mastery'?'languageMasteryEnabled':key+'Enabled');
+  const checkbox=$(key==='language_mastery'?'languageMasteryEnabled':key==='clubs_sports'?'clubsSportsEnabled':key+'Enabled');
   checkbox.addEventListener('change',()=>{
    if(checkbox.checked){const selected=document.querySelector(`.eligibilityCriterion[value="${key}"]`);if(selected)selected.checked=true;}
    refreshEligibilityCombination();dirty();
   });
  }
  refreshEligibilityCombination();
- renderEnabled('languageMastery');renderLanguageMasterySource();
+ renderEnabled('languageMastery');renderLanguageMasterySource();renderEnabled('clubsSports');
  $('gradeSource').addEventListener('change',()=>{renderGradeSource();dirty();});$('courseScope').addEventListener('change',()=>{renderGradeSource();dirty();});
  $('addBehaviorType').addEventListener('click',()=>{typeRow();dirty();});
- for(const id of ['tripName','tripDate','grades','globalWindow','behaviorBody','dailyBody','meetingBody','academicsBody','languageMasteryBody']){
+ for(const id of ['tripName','tripDate','grades','globalWindow','behaviorBody','dailyBody','meetingBody','academicsBody','languageMasteryBody','clubsSportsBody']){
   $(id).addEventListener('input',dirty);$(id).addEventListener('change',dirty);}
  $('saveConfig').addEventListener('click',async()=>{if(busy)return;busySet(true);message('Saving configuration…');try{
   const r=await request('/admin/incentive_trips/configs',{config:getConfig(),config_id:configId});configId=r.config_id;await reloadConfigs();
