@@ -1,4 +1,5 @@
 /* EAGLENEST_COMMUNICATION_REQUIREMENTS_V1
+ * EAGLENEST_COMMUNICATION_REQUIREMENTS_SCOPE_V3
  * Common multi-select used by Student Contacts AND Family & Student Conferences.
  * This UI never changes communication category; it only selects explicit campaign IDs.
  */
@@ -10,15 +11,15 @@
       '<button type="button" class="enReqToggle" aria-expanded="false">Select required communications (0)</button>' +
       '<div class="enReqPanel" hidden></div><div class="enReqHelp">The communication is logged once. Check every requirement actually discussed; checking these does not change its category.</div>';
     const button=host.querySelector('button'), panel=host.querySelector('.enReqPanel'), help=host.querySelector('.enReqHelp');
-    let choices=[], selected=new Set(), version=0, practice=false, outcome='Spoke/Connected';
+    let choices=[], selected=new Set(), version=0, practice=false, outcome='Spoke/Connected', loading=false, loadError='', availabilityNote='';
     const qualifies=()=>['Spoke/Connected','Resolved'].includes(outcome);
     function draw() {
       if(!qualifies() || practice) selected.clear();
       panel.replaceChildren();
-      button.textContent=`Select required communications (${selected.size})`;
+      button.textContent=loading ? 'Checking required communications…' : choices.length ? `Required communications: ${choices.length} available · ${selected.size} selected` : 'No eligible required communications';
       if(!choices.length) {
         const el=document.createElement('div'); el.className='enReqEmpty';
-        el.textContent='No applicable active required communications for this student/date.'; panel.append(el);
+        el.textContent=loading ? 'Checking applicable requirements…' : (loadError || availabilityNote || 'No applicable active required communications for this student/date.'); panel.append(el);
       }
       for (const c of choices) {
         const label=document.createElement('label');label.className='enReqItem';
@@ -34,7 +35,7 @@
       if(practice)help.textContent='Practice Mode: required-communication checkboxes are unavailable; no live requirement is fulfilled.';
       else if(!qualifies()) help.textContent='No Answer, voicemail, follow-up attempts and sent messages do not fulfill these discussion-based requirements. Select Spoke/Connected or Resolved to check completed requirements.';
       else help.textContent='One communication may fulfill multiple requirements. Select only what was actually discussed or resolved. Previously completed items may also be recorded.';
-      button.textContent=`Select required communications (${selected.size})`;
+      if (!loading && !loadError && !choices.length && availabilityNote) help.textContent='This list is filtered by the call date, student grade, course/advisory membership and staff permissions.';
     }
     button.addEventListener('click',()=>{
       panel.hidden=!panel.hidden;
@@ -43,20 +44,19 @@
     return {
       selected:()=>Array.from(selected),
       setOutcome(value){outcome=String(value||'');draw();},
-      clear(){version++;selected.clear();choices=[];practice=false;panel.hidden=true;button.setAttribute('aria-expanded','false');draw();},
+      clear(){version++;selected.clear();choices=[];practice=false;loading=false;loadError='';availabilityNote='';panel.hidden=true;button.setAttribute('aria-expanded','false');draw();},
       async load(studentNumber,contactDate){
-        const current=++version;selected.clear();choices=[];practice=false;draw();
-        if(!studentNumber || !/^\d{4}-\d{2}-\d{2}$/.test(contactDate||''))return;
-        help.textContent='Checking applicable requirements…';
+        const current=++version;selected.clear();choices=[];practice=false;loading=true;loadError='';availabilityNote='';draw();
+        if(!studentNumber || !/^\d{4}-\d{2}-\d{2}$/.test(contactDate||'')){ loading=false;loadError='Choose a valid student and communication date.';draw();return; }
         try {
           const data=await fetchData(studentNumber,contactDate);
           if(current!==version)return;
           choices=Array.isArray(data.campaigns)?data.campaigns:[];
-          practice=data.practice===true;draw();
+          availabilityNote=String(data.availability_note||'');loading=false;practice=data.practice===true;draw();
           if(data.history_complete===false)help.textContent+=' Older communication history may require review.';
         } catch(error) {
           if(current!==version)return;
-          draw();help.textContent='Could not load required communications. You may still log the communication without requirement selections.';
+          loading=false;loadError='Could not load requirements ('+String(error?.message||'request failed')+'). You can still log the communication without selecting requirements.';draw();
         }
       }
     };
