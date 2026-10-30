@@ -1092,8 +1092,29 @@ async function loadCommunicationCategories(){
 }
 
 // EAGLENEST_COMMUNICATION_REQUIREMENTS_V1
+const commFaSCBooking = window.EagleNESTFaSCBookingV4?.create({
+  host:document.getElementById('commFaSCBooking'),
+  context:()=>({
+    student_number:currentStudent?.osis || '',
+    student_name:currentData?.student_name || currentStudent?.name || '',
+    contact_display_name:communicatingWith?.display?.name || '',
+    contact_relationship:communicatingWith?.display?.relationship || '',
+    contact_assoc_id:communicatingWith?.contact_assoc_id || '',
+    contact_phone:communicatingWith?.display?.phone || '',
+    contact_email:communicatingWith?.display?.email || '',
+    actor_email:access?.email || '',
+    notes:commNotes.value.trim()
+  }),
+  post: async (path, body) => {
+    const r=await adminFetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok || !data.ok)throw new Error(data.error || `HTTP ${r.status}`);
+    return data;
+  }
+}); // EAGLENEST_FASC_COMMUNICATION_BRIDGE_V4
 const commRequirements = window.EagleNESTRequirementPicker?.create({
   host: document.getElementById('commRequirementPicker'),
+  onChange: ({selectedRows}) => commFaSCBooking?.setSelected(selectedRows),
   fetchData: async (studentNumber, contactDate) => {
     const r = await adminFetch(`/admin/communications/requirements/options?student_number=${encodeURIComponent(studentNumber)}&contact_date=${encodeURIComponent(contactDate)}`);
     const j = await r.json().catch(() => ({}));
@@ -1150,6 +1171,9 @@ async function saveCommunication() {
     commError.hidden = false;
     return;
   }
+  let fascBooking = null;
+  try { fascBooking = commFaSCBooking?.prepare() || null; }
+  catch (error) { commError.textContent=String(error.message || error);commError.hidden=false;return; }
   saveComm.disabled = true;
   commError.hidden = true;
   try {
@@ -1199,6 +1223,10 @@ async function saveCommunication() {
     });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.ok) throw new Error(j?.error || `HTTP ${r.status}`);
+    if (fascBooking) {
+      try { await commFaSCBooking.book(fascBooking); }
+      catch (error) { throw new Error(`Communication saved (${j.communication_id || 'recorded'}), but FaSC booking failed: ${error.message || error}. Update the booking details and save again; the communication submission ID prevents a second log.`); }
+    }
     closeCommunication();
     await loadCommunicationHistory();
   } catch (e) {

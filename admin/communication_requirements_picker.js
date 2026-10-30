@@ -5,7 +5,7 @@
  */
 (function () {
   'use strict';
-  function create({host, fetchData}) {
+  function create({host, fetchData, onChange}) {
     if (!host || typeof fetchData !== 'function') return null;
     host.innerHTML = '<div class="enReqHeading">Required communications fulfilled (optional)</div>' +
       '<button type="button" class="enReqToggle" aria-expanded="false">Select required communications (0)</button>' +
@@ -25,11 +25,13 @@
         const label=document.createElement('label');label.className='enReqItem';
         const check=document.createElement('input');check.type='checkbox';check.checked=selected.has(c.campaign_id);
         check.disabled=practice || !qualifies();check.addEventListener('change',()=>{
-          if(check.checked)selected.add(c.campaign_id);else selected.delete(c.campaign_id);draw();
+          if(check.checked)selected.add(c.campaign_id);else selected.delete(c.campaign_id);draw();notify();
         });
         const copy=document.createElement('span');
         const title=document.createElement('strong');title.textContent=c.name;
-        const detail=document.createElement('small');detail.textContent=`${c.category} • due ${c.due_date}${c.completed?' • previously completed':''}`;
+        const detail=document.createElement('small');detail.textContent=c.fasc_event_id
+          ? `FaSC event ${c.event_date} • ${c.booking_status || 'not yet booked'}${c.completed?' • family reached':''}`
+          : `${c.category} • due ${c.due_date}${c.completed?' • previously completed':''}`;
         copy.append(title,detail);label.append(check,copy);panel.append(label);
       }
       if(practice)help.textContent='Practice Mode: required-communication checkboxes are unavailable; no live requirement is fulfilled.';
@@ -37,14 +39,19 @@
       else help.textContent='One communication may fulfill multiple requirements. Select only what was actually discussed or resolved. Previously completed items may also be recorded.';
       if (!loading && !loadError && !choices.length && availabilityNote) help.textContent='This list is filtered by the call date, student grade, course/advisory membership and staff permissions.';
     }
+    function notify(){
+      if(typeof onChange==='function')onChange({selected:Array.from(selected),selectedRows:choices.filter(c=>selected.has(c.campaign_id)),choices:choices.slice()});
+    }
     button.addEventListener('click',()=>{
       panel.hidden=!panel.hidden;
       button.setAttribute('aria-expanded',String(!panel.hidden));
     });
     return {
       selected:()=>Array.from(selected),
-      setOutcome(value){outcome=String(value||'');draw();},
-      clear(){version++;selected.clear();choices=[];practice=false;loading=false;loadError='';availabilityNote='';panel.hidden=true;button.setAttribute('aria-expanded','false');draw();},
+      selectedRows:()=>choices.filter(c=>selected.has(c.campaign_id)),
+      all:()=>choices.slice(),
+      setOutcome(value){outcome=String(value||'');draw();notify();},
+      clear(){version++;selected.clear();choices=[];practice=false;loading=false;loadError='';availabilityNote='';panel.hidden=true;button.setAttribute('aria-expanded','false');draw();notify();},
       async load(studentNumber,contactDate){
         const current=++version;selected.clear();choices=[];practice=false;loading=true;loadError='';availabilityNote='';draw();
         if(!studentNumber || !/^\d{4}-\d{2}-\d{2}$/.test(contactDate||'')){ loading=false;loadError='Choose a valid student and communication date.';draw();return; }
@@ -52,7 +59,7 @@
           const data=await fetchData(studentNumber,contactDate);
           if(current!==version)return;
           choices=Array.isArray(data.campaigns)?data.campaigns:[];
-          availabilityNote=String(data.availability_note||'');loading=false;practice=data.practice===true;draw();
+          availabilityNote=String(data.availability_note||'');loading=false;practice=data.practice===true;draw();notify();
           if(data.history_complete===false)help.textContent+=' Older communication history may require review.';
         } catch(error) {
           if(current!==version)return;

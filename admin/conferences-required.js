@@ -151,7 +151,14 @@
             </div>
             <div id="reqRequirementPicker" class="wide enReqHost"></div><!-- EAGLENEST_COMMUNICATION_REQUIREMENTS_V1 -->
             <label class="wide">Notes<textarea id="reqNotes" rows="3" maxlength="3200" placeholder="Optional details about the conference outreach"></textarea></label>
-            <label class="wide">Book conference time now (optional)<select id="reqSlot"><option value="">Log communication only — do not book yet</option></select></label>
+            <label class="wide">Book official FaSC slot (optional)<select id="reqSlot"><option value="">Log communication only — do not book yet</option></select></label>
+            <label class="wide" style="display:flex;align-items:center;gap:9px"><input id="reqAlternateMeeting" type="checkbox" style="width:auto"> Schedule alternate FaSC meeting (outside event date permitted)</label>
+            <div class="wide" id="reqAlternateFields" hidden>
+              <label>Meeting starts<input id="reqAlternateAt" type="datetime-local"></label>
+              <label>Duration<select id="reqAlternateDuration"><option value="15">15 min</option><option value="30" selected>30 min</option><option value="45">45 min</option><option value="60">60 min</option><option value="90">90 min</option></select></label>
+              <label>Meeting host email<input id="reqAlternateHost" type="email"></label>
+              <label>Location / room<input id="reqAlternateLocation" maxlength="180" placeholder="Room or meeting location"></label>
+            </div>
           </div>
           <div class="reqBookHint" style="margin-top:12px">If you choose a time, EagleNEST will log this communication and create the conference booking in one workflow. Nothing is sent to the family automatically.</div>
           <div id="reqModalStatus" class="status" style="margin-top:10px"></div>
@@ -377,6 +384,11 @@
     document.getElementById('reqNotes').value='';
     document.getElementById('reqModalStatus').textContent='';
     populateRequirementSlots(row);
+    document.getElementById('reqAlternateMeeting').checked=false;
+    document.getElementById('reqAlternateFields').hidden=true;
+    document.getElementById('reqSlot').disabled=false;
+    document.getElementById('reqAlternateAt').value=reqLocalDateTimeValue();
+    document.getElementById('reqAlternateHost').value=row.advisor_email || access?.email || '';
     ensureConferenceReqPicker()?.load(row.student_number, (document.getElementById('reqContactAt')?.value || '').slice(0,10));
     conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome')?.value || '');
     modal.hidden=false;
@@ -431,6 +443,16 @@
       document.getElementById('reqContactAt')?.focus();
       return;
     }
+    const alternate=document.getElementById('reqAlternateMeeting')?.checked===true;
+    const altAt=document.getElementById('reqAlternateAt')?.value || '';
+    const alternateIso=alternate ? reqContactAtIsoFromLocalV4(altAt) : '';
+    const contactName=String(display.name || source.display_name || source.name || '').trim();
+    const nameParts=contactName.includes(',')
+      ? contactName.split(',').map(s=>s.trim()).reverse()
+      : contactName.split(/\s+/);
+    if (alternate && (!alternateIso || nameParts.length < 2 || !document.getElementById('reqAlternateHost')?.value.trim())) {
+      status.textContent='For an alternate meeting, choose a valid date/time, contact first and last name, and host email.';return;
+    }
     btn.disabled=true;status.textContent='Saving conference communication…';
     try{
       const payload={
@@ -443,7 +465,7 @@
         notes:document.getElementById('reqNotes').value.trim(),
         fulfilled_campaign_ids:conferenceReqPicker?.selected() || [], // EAGLENEST_COMMUNICATION_REQUIREMENTS_V1
         follow_up_needed:document.getElementById('reqOutcome').value==='Follow-up Needed',
-        slot_id:document.getElementById('reqSlot').value,
+        slot_id:alternate ? '' : document.getElementById('reqSlot').value,
         contact_assoc_id:contact?.contact_assoc_id||'',
         person_id:contact?.person_id||contact?.source?.person_id||'',
         contact_display_name:display.name||source.display_name||source.name||'',
@@ -452,6 +474,24 @@
         contact_email:display.email||source.email||''
       };
       const result=await api('/admin/conferences/engagement/log',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+      if (alternate) {
+        const startMs=Date.parse(alternateIso);
+        const duration=Number(document.getElementById('reqAlternateDuration')?.value || 30);
+        const meeting={
+          visitor_first_name:nameParts.slice(0,-1).join(' '),visitor_last_name:nameParts.at(-1),
+          visitor_phone:display.phone || source.phone || '',visitor_email:display.email || source.email || '',
+          relationship:display.relationship || source.relationship || '',
+          student_number:requirementStudent.student_number,student_name:requirementStudent.student_name,
+          contact_assoc_id:contact?.contact_assoc_id || '',
+          start_iso:alternateIso,end_iso:new Date(startMs+duration*60000).toISOString(),
+          host_email:document.getElementById('reqAlternateHost').value.trim(),
+          location:document.getElementById('reqAlternateLocation').value.trim(),
+          purpose:`Student & Family Conference — ${bundle.event.title}`,
+          conference_event_id:bundle.event.event_id,source:'conference_outreach'
+        };
+        try {await api('/admin/visitor_appointments/create',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({appointment:meeting})});}
+        catch(e){status.textContent=`Outreach saved (${result.communication_id}), but alternate meeting booking failed: ${e.message}. You can schedule it from Student Contacts without logging a second call.`;await loadBundle(bundle.event.event_id);return;}
+      }
       document.getElementById('conferenceOutreachModal').hidden=true;
       await loadBundle(bundle.event.event_id);
       if(result.booking_error){
@@ -466,6 +506,11 @@
     }finally{btn.disabled=false;}
   }
 
+  function reqContactAtIsoFromLocalV4(value) {
+    const date=new Date(value);
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value||'') && Number.isFinite(date.getTime()) ? date.toISOString() : '';
+  }
+
   function bindRequirementUi(){
     document.getElementById('requirementRefreshBtn')?.addEventListener('click',snapshotRequirement);
     document.getElementById('requirementSnapshotBtn')?.addEventListener('click',snapshotRequirement);
@@ -475,6 +520,12 @@
     document.getElementById('closeConferenceOutreach')?.addEventListener('click',()=>{document.getElementById('conferenceOutreachModal').hidden=true;});
     document.getElementById('conferenceOutreachModal')?.addEventListener('click',(e)=>{if(e.target.id==='conferenceOutreachModal')e.currentTarget.hidden=true;});
     document.getElementById('saveConferenceOutreach')?.addEventListener('click',saveRequirementOutreach);
+    document.getElementById('reqAlternateMeeting')?.addEventListener('change',(event)=>{
+      const enabled=event.target.checked;
+      document.getElementById('reqAlternateFields').hidden=!enabled;
+      document.getElementById('reqSlot').disabled=enabled;
+      if(enabled)document.getElementById('reqSlot').value='';
+    });
     document.getElementById('reqOutcome')?.addEventListener('change', () => conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome').value));
     document.getElementById('reqQuickOutcomes')?.addEventListener('click', () => queueMicrotask(() => conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome')?.value || '')));
     document.getElementById('reqContactAt')?.addEventListener('change', () => conferenceReqPicker?.load(requirementStudent?.student_number || '', (document.getElementById('reqContactAt').value || '').slice(0,10)));
