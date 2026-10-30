@@ -1,0 +1,12 @@
+/* EAGLENEST_COMMUNICATION_REQUIREMENTS_V1 */
+.enReqHost{margin:12px 0; min-width:0;}
+.enReqHeading{font-weight:650;margin-bottom:6px}
+.enReqToggle{width:100%;text-align:left;background:var(--surface,#172535);color:inherit;border:1px solid var(--border,#738195);border-radius:8px;padding:10px 12px;cursor:pointer}
+.enReqToggle::after{content:' ▾';float:right}
+.enReqPanel{border:1px solid var(--border,#738195);border-radius:8px;padding:8px;max-height:220px;overflow:auto;margin-top:4px}
+.enReqItem{display:flex;align-items:flex-start;gap:9px;padding:8px 5px;cursor:pointer}
+.enReqItem+ .enReqItem{border-top:1px solid var(--border,#344355)}
+.enReqItem input{margin-top:4px;flex:0 0 auto}
+.enReqItem span{display:flex;flex-direction:column;gap:2px}
+.enReqItem small,.enReqHelp,.enReqEmpty{font-size:12px;opacity:.82}
+.enReqHelp{margin-top:5px}

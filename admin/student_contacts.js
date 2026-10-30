@@ -887,6 +887,7 @@ function renderCommunicationHistory() {
       </div>
       <div class="historyNotes">${esc(row.notes)}</div>
       ${follow}
+      ${Array.isArray(row.fulfilled_campaign_ids) && row.fulfilled_campaign_ids.length ? `<div class="historyMeta">Requirements fulfilled: ${row.fulfilled_campaign_ids.map(esc).join(', ')}</div>` : ''}
       ${categoryAudit}
       ${deletedAudit}
       <div class="historyMeta">Logged by ${esc(row.actor_email || '—')}${row.related_incident_id ? ` • Incident ${esc(row.related_incident_id)}` : ''} • ${esc(row.communication_id || '')}</div>`;
@@ -1090,6 +1091,17 @@ async function loadCommunicationCategories(){
   }
 }
 
+// EAGLENEST_COMMUNICATION_REQUIREMENTS_V1
+const commRequirements = window.EagleNESTRequirementPicker?.create({
+  host: document.getElementById('commRequirementPicker'),
+  fetchData: async (studentNumber, contactDate) => {
+    const r = await adminFetch(`/admin/communications/requirements/options?student_number=${encodeURIComponent(studentNumber)}&contact_date=${encodeURIComponent(contactDate)}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+    return j;
+  }
+});
+
 function openCommunication(contact = null, prefill = {}) {
   if (!currentStudent) return;
   if (access?.can?.communication_log !== true) { alert('Communication Logging is not enabled for your account.'); return; }
@@ -1118,12 +1130,15 @@ function openCommunication(contact = null, prefill = {}) {
   commFollowUpAt.value = '';
   commFollowUpOwner.value = access?.email || '';
   commError.hidden = true;
+  commRequirements?.load(currentStudent.osis, (commAt.value || '').slice(0,10));
+  commRequirements?.setOutcome(commOutcome.value);
   commBackdrop.hidden = false;
   setTimeout(() => commNotes.focus(), 0);
 }
 
 function closeCommunication() {
   commBackdrop.hidden = true;
+  commRequirements?.clear();
   communicatingWith = null;
   communicationSubmissionId = '';
 }
@@ -1167,6 +1182,7 @@ async function saveCommunication() {
       method: commMethod.value,
       direction: commDirection.value,
       category: commCategory.value,
+      fulfilled_campaign_ids: commRequirements?.selected() || [], // EAGLENEST_COMMUNICATION_REQUIREMENTS_V1
       outcome: commOutcome.value,
       notes: commNotes.value.trim(),
       follow_up_needed: commFollowUp.checked,
@@ -1234,6 +1250,8 @@ async function boot() {
   $('closeComm').addEventListener('click', closeCommunication);
   $('cancelComm').addEventListener('click', closeCommunication);
   saveComm.addEventListener('click', saveCommunication);
+  commAt.addEventListener('change', () => commRequirements?.load(currentStudent?.osis || '', (commAt.value || '').slice(0,10)));
+  commOutcome.addEventListener('change', () => commRequirements?.setOutcome(commOutcome.value));
   commFollowUp.addEventListener('change', () => {
     followUpFields.hidden = !commFollowUp.checked;
     if (commFollowUp.checked && !commFollowUpAt.value) {

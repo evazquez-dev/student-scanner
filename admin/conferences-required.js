@@ -149,6 +149,7 @@
                 <button type="button" data-req-outcome="Follow-up Needed">Follow-up needed</button>
               </div>
             </div>
+            <div id="reqRequirementPicker" class="wide enReqHost"></div><!-- EAGLENEST_COMMUNICATION_REQUIREMENTS_V1 -->
             <label class="wide">Notes<textarea id="reqNotes" rows="3" maxlength="3200" placeholder="Optional details about the conference outreach"></textarea></label>
             <label class="wide">Book conference time now (optional)<select id="reqSlot"><option value="">Log communication only — do not book yet</option></select></label>
           </div>
@@ -376,6 +377,8 @@
     document.getElementById('reqNotes').value='';
     document.getElementById('reqModalStatus').textContent='';
     populateRequirementSlots(row);
+    ensureConferenceReqPicker()?.load(row.student_number, (document.getElementById('reqContactAt')?.value || '').slice(0,10));
+    conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome')?.value || '');
     modal.hidden=false;
     await loadRequirementContacts(row);
   }
@@ -400,6 +403,21 @@
     return `conference:${Date.now().toString(36)}:${Math.random().toString(36).slice(2,10)}`;
   }
 
+  // EAGLENEST_COMMUNICATION_REQUIREMENTS_V1: conference outreach may also
+  // fulfill other required campaigns; the conference roster itself remains separate.
+  function ensureConferenceReqPicker(){
+    if(conferenceReqPicker) return conferenceReqPicker;
+    conferenceReqPicker=window.EagleNESTRequirementPicker?.create({
+    host: document.getElementById('reqRequirementPicker'),
+    fetchData: async (studentNumber, contactDate) => {
+      const r = await api(`/admin/communications/requirements/options?student_number=${encodeURIComponent(studentNumber)}&contact_date=${encodeURIComponent(contactDate)}`);
+      return r;
+    }
+  });
+    return conferenceReqPicker;
+  }
+  let conferenceReqPicker=null;
+
   async function saveRequirementOutreach(){
     if(!requirementStudent||!bundle?.event)return;
     const btn=document.getElementById('saveConferenceOutreach');
@@ -423,6 +441,7 @@
         method:document.getElementById('reqMethod').value,
         outcome:document.getElementById('reqOutcome').value,
         notes:document.getElementById('reqNotes').value.trim(),
+        fulfilled_campaign_ids:conferenceReqPicker?.selected() || [], // EAGLENEST_COMMUNICATION_REQUIREMENTS_V1
         follow_up_needed:document.getElementById('reqOutcome').value==='Follow-up Needed',
         slot_id:document.getElementById('reqSlot').value,
         contact_assoc_id:contact?.contact_assoc_id||'',
@@ -456,6 +475,9 @@
     document.getElementById('closeConferenceOutreach')?.addEventListener('click',()=>{document.getElementById('conferenceOutreachModal').hidden=true;});
     document.getElementById('conferenceOutreachModal')?.addEventListener('click',(e)=>{if(e.target.id==='conferenceOutreachModal')e.currentTarget.hidden=true;});
     document.getElementById('saveConferenceOutreach')?.addEventListener('click',saveRequirementOutreach);
+    document.getElementById('reqOutcome')?.addEventListener('change', () => conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome').value));
+    document.getElementById('reqQuickOutcomes')?.addEventListener('click', () => queueMicrotask(() => conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome')?.value || '')));
+    document.getElementById('reqContactAt')?.addEventListener('change', () => conferenceReqPicker?.load(requirementStudent?.student_number || '', (document.getElementById('reqContactAt').value || '').slice(0,10)));
     document.getElementById('reqOutcome')?.addEventListener('change',syncQuickOutcome);
     document.getElementById('reqContactSelect')?.addEventListener('change',renderRequirementContactDetails);
     document.querySelectorAll('[data-req-outcome]').forEach((btn)=>btn.addEventListener('click',()=>{
