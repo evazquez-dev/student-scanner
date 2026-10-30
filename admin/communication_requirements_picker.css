@@ -1,12 +1,95 @@
-/* EAGLENEST_COMMUNICATION_REQUIREMENTS_V1 */
-.enReqHost{margin:12px 0; min-width:0;}
-.enReqHeading{font-weight:650;margin-bottom:6px}
-.enReqToggle{width:100%;text-align:left;background:var(--surface,#172535);color:inherit;border:1px solid var(--border,#738195);border-radius:8px;padding:10px 12px;cursor:pointer}
-.enReqToggle::after{content:' ▾';float:right}
-.enReqPanel{border:1px solid var(--border,#738195);border-radius:8px;padding:8px;max-height:220px;overflow:auto;margin-top:4px}
-.enReqItem{display:flex;align-items:flex-start;gap:9px;padding:8px 5px;cursor:pointer}
-.enReqItem+ .enReqItem{border-top:1px solid var(--border,#344355)}
-.enReqItem input{margin-top:4px;flex:0 0 auto}
-.enReqItem span{display:flex;flex-direction:column;gap:2px}
-.enReqItem small,.enReqHelp,.enReqEmpty{font-size:12px;opacity:.82}
-.enReqHelp{margin-top:5px}
+/* EAGLENEST_COMMUNICATION_REQUIREMENTS_V2_THEME_CONTRAST
+ * Shared by Student Contacts and Family & Student Conferences.
+ * Student Contacts: --fg / --soft / --border.
+ * Conferences: --text / --card2 / --line.
+ * In both light and dark themes these variables stay in sync with the page.
+ */
+.enReqHost {
+  margin: 12px 0;
+  min-width: 0;
+  color: var(--fg, var(--text, #0f172a));
+}
+.enReqHeading {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.enReqToggle {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  text-align: left;
+  font: inherit;
+  font-weight: 650;
+  background: var(--soft, var(--card2, #f1f5f9));
+  color: var(--fg, var(--text, #0f172a));
+  border: 1px solid var(--border, var(--line, #cbd5e1));
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  color-scheme: inherit;
+}
+.enReqToggle::after {
+  content: ' ▾';
+  float: right;
+  color: var(--muted, #64748b);
+}
+.enReqToggle[aria-expanded="true"]::after { content: ' ▴'; }
+.enReqToggle:focus-visible,
+.enReqItem:focus-within {
+  outline: 2px solid var(--accent, #6366f1);
+  outline-offset: 2px;
+}
+.enReqPanel {
+  margin-top: 5px;
+  padding: 8px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--card, var(--card2, #fff));
+  color: var(--fg, var(--text, #0f172a));
+  border: 1px solid var(--border, var(--line, #cbd5e1));
+  border-radius: 10px;
+  color-scheme: inherit;
+}
+.enReqPanel[hidden] { display: none !important; }
+.enReqItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 7px;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--fg, var(--text, #0f172a));
+}
+.enReqItem + .enReqItem {
+  border-top: 1px solid var(--border, var(--line, #cbd5e1));
+}
+.enReqItem:hover { background: var(--soft, var(--card2, #f1f5f9)); }
+.enReqItem input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 3px 0 0;
+  padding: 0;
+  flex: 0 0 auto;
+  accent-color: var(--accent, #6366f1);
+  cursor: pointer;
+}
+.enReqItem input[type="checkbox"]:disabled { cursor: not-allowed; }
+.enReqItem span {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.enReqItem strong { font-weight: 700; }
+.enReqItem small,
+.enReqHelp,
+.enReqEmpty {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted, #64748b);
+}
+.enReqHelp { margin-top: 6px; }
+.enReqEmpty { padding: 9px 7px; }
