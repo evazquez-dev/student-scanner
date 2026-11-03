@@ -1,0 +1,39 @@
+/* EAGLENEST_GRADE_BANDS_TRENDS_V1 — presentation only.
+   Bands match the high school course pie-chart bins. */
+:root{
+  --engv-90:#00e5ea;
+  --engv-80:#00e900;
+  --engv-70:#ffff00;
+  --engv-60:#ff9900;
+  --engv-low:#ff1515;
+  --engv-missing:#9ca3af;
+}
+.engv-band[data-en-band="nineties"]{--engv-color:var(--engv-90);--engv-text:#00676b}
+.engv-band[data-en-band="eighties"]{--engv-color:var(--engv-80);--engv-text:#087108}
+.engv-band[data-en-band="seventies"]{--engv-color:var(--engv-70);--engv-text:#776900}
+.engv-band[data-en-band="sixties"]{--engv-color:var(--engv-60);--engv-text:#aa5500}
+.engv-band[data-en-band="low"]{--engv-color:var(--engv-low);--engv-text:#d61f1f}
+.engv-band[data-en-band="ungraded"]{--engv-color:var(--engv-missing);--engv-text:#6b7280}
+/* Override old red/green pass-fail styling without changing the calculations. */
+.engv-band:not(.gradeChip){color:var(--engv-text)!important}
+.gradeChip.engv-band{border-color:color-mix(in srgb,var(--engv-color) 72%,#94a3b8)!important;background:color-mix(in srgb,var(--engv-color) 9%,transparent)!important}
+.currentCourse .engv-grade-row,.lookupAcademicCourse .engv-grade-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.currentCourse .engv-grade-row{justify-content:flex-start;margin-top:4px}
+.currentCourse .engv-grade-row>strong{font-weight:850;flex:0 0 auto}
+.lookupAcademicCourse .engv-grade-row>strong{font-size:18px;white-space:nowrap}
+.engv-spark{display:inline-flex;vertical-align:middle;flex:none;width:112px;height:42px;align-items:center;justify-content:center;border:1px solid color-mix(in srgb,currentColor 16%,transparent);border-radius:6px;overflow:hidden;background:#f8fafc;line-height:1}
+.engv-spark-svg{display:block;pointer-events:none}
+.engv-spark-empty{color:#89919e;font-size:17px;border-style:dashed}
+.academicGradeChips .engv-grade-row{display:inline-flex;align-items:center;gap:7px;flex-wrap:wrap;margin-left:4px}
+.academicGradeChips .engv-spark{width:84px;height:32px}
+.academicGradeChips .engv-spark svg{width:84px;height:32px}
+@media(max-width:500px){.engv-spark{width:94px;height:36px}.engv-spark svg{width:94px;height:36px}.lookupAcademicCourse .engv-grade-row{justify-content:flex-start}}
+.gradeChip.engv-band{border-left:4px solid var(--engv-color)!important}
+@media(prefers-color-scheme:dark){
+  .engv-band[data-en-band="nineties"]{--engv-text:#67f7ff}
+  .engv-band[data-en-band="eighties"]{--engv-text:#70fb70}
+  .engv-band[data-en-band="seventies"]{--engv-text:#fff570}
+  .engv-band[data-en-band="sixties"]{--engv-text:#ffc16a}
+  .engv-band[data-en-band="low"]{--engv-text:#ff8888}
+  .engv-band[data-en-band="ungraded"]{--engv-text:#b6bcc7}
+}

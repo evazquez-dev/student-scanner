@@ -112,7 +112,7 @@ function showStudent(r){
   const courses=(g.courses||[]).map(x=>{
     const result=x.status==='passing'?'good':x.status==='failing'?'bad':'warn';
     return [escape(x.course_code),escape(x.course_name),
-      x.grade==null?badge('warn','Not entered'):`<strong>${escape(x.grade)}</strong>`,
+      x.grade==null?badge('neutral','Not entered'):`<strong data-en-grade="${escape(x.grade)}">${escape(x.grade)}</strong>`,
       badge(result,x.status==='passing'?'Passing':x.status==='failing'?'Below passing':'Not entered')];
   });
   const actions=(r.admin_actions||[]).map(x=>[

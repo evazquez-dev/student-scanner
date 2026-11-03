@@ -118,6 +118,7 @@
         <strong class="lookupAcademicGrade">${esc(gradeText(grade))}${grade.grade_counted === false ? ' · Not counted' : ''}</strong>
       </article>`;
     }).join('');
+    window.EagleNESTGradeBands?.decorateLookupCourses(host, grades);
   }
 
   function render(gradesData, attendanceData) {
@@ -210,6 +211,16 @@
     if (seq !== loadSequence || currentOsis() !== osis) return;
     loadedForOsis = osis;
     renderPartial(gradesResult, attendanceResult);
+    // Optional history; failure never blocks the current-grade view.
+    if (gradesResult.status === 'fulfilled') {
+      getJson(`/admin/grades/student/history?osis=${encodeURIComponent(osis)}`)
+        .then(history => {
+          if (seq !== loadSequence || currentOsis() !== osis) return;
+          window.EagleNESTGradeBands?.decorateLookupCourses(
+            $('lookupAcademicCourses'), gradesResult.value?.student?.grades || [], history?.snapshots || []);
+        })
+        .catch(() => {});
+    }
   }
 
   function academicTabSelected() {

@@ -78,9 +78,10 @@
     section.hidden=data?.case?.domain!=='academic';
     if(section.hidden)return;
     const c=data.case, academic=data.academic||{}, doc=academic.grades?.current;
-    $('academicGradeSnapshot').innerHTML=doc?`<strong>PowerSchool grades · ${esc(doc.snapshot_date)} · ${esc(doc.marking_period)}</strong><div class="academicGradeChips">${(doc.courses||[]).map(x=>`<span>${esc(x.course_name||x.course_code)}: <strong>${esc(fmtCourseGrade(x))}</strong></span>`).join('')}</div>`
+    $('academicGradeSnapshot').innerHTML=doc?`<strong>PowerSchool grades · ${esc(doc.snapshot_date)} · ${esc(doc.marking_period)}</strong><div class="academicGradeChips">${(doc.courses||[]).map(x=>`<span>${esc(x.course_name||x.course_code)}: <strong data-en-grade="${esc(fmtCourseGrade(x))}">${esc(fmtCourseGrade(x))}</strong></span>`).join('')}</div>`
       :'<div class="muted">No current grade snapshot for this student.</div>';
-    $('academicGradeHistoryRows').innerHTML=(academic.grades?.history||[]).slice(0,6).map(s=>`<span>${esc(s.snapshot_date)} · ${esc(s.marking_period)}: ${(s.courses||[]).map(x=>`${esc(x.course_code)} ${esc(fmtCourseGrade(x))}`).join(' · ')}</span>`).join('')||'<span>No prior snapshots available.</span>';
+    $('academicGradeHistoryRows').innerHTML=(academic.grades?.history||[]).slice(0,6).map(s=>`<span>${esc(s.snapshot_date)} · ${esc(s.marking_period)}: ${(s.courses||[]).map(x=>`<span data-en-grade="${esc(fmtCourseGrade(x))}">${esc(x.course_code)} ${esc(fmtCourseGrade(x))}</span>`).join(' · ')}</span>`).join('')||'<span>No prior snapshots available.</span>';
+    window.EagleNESTGradeBands?.decorateMtssAcademic($('academicGradeSnapshot'),doc?.courses||[],academic.grades?.history||[]);
     // EAGLENEST_GTL_MTSS_CASE_READ_V2 — honor per-case server permission.
     const writable=!core().isReadOnly() && !data.permissions?.grade_team_read_only && c.is_active;
     $('academicGoalForm').hidden=!writable;
