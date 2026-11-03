@@ -14,12 +14,14 @@
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
   <link rel="stylesheet" href="./nav.css">
   <link rel="stylesheet" href="./attendance_outreach.css">
+  <link rel="stylesheet" href="./attendance_outreach_async.css?v=20261103-async-panel-v3">
   <link rel="stylesheet" href="./attendance_daily_email.css">
   <link rel="stylesheet" href="./contact_language.css">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script src="./contact_language.js?v=20261009-contact-language-context-reset-v1" defer></script>
-  <script src="./attendance_outreach.js?v=20261009-manual-arrival-v1-contactreset-v1" defer></script>
+  <script src="./attendance_outreach_async.js?v=20261103-async-panel-v3" defer></script>
+  <script src="./attendance_outreach.js?v=20261103-async-panel-v3" defer></script>
   <script src="./attendance_daily_email.js" defer></script>
   <title>EagleNEST — Attendance Outreach</title>
 </head>
@@ -57,6 +59,24 @@
         <button class="kpi neutral" type="button" data-filter="confirmed"><span id="countConfirmed">0</span><small>Morning Scan</small></button>
       </section>
 
+      <!-- EAGLENEST_ASYNC_FORM_OUTREACH_V3: shown only with verified form-day presence -->
+      <details id="asyncDailyPanel" class="card asyncDailyCard" hidden>
+        <summary aria-label="Expand or collapse asynchronous attendance">
+          <div>
+            <h2>Asynchronous Attendance</h2>
+            <p class="muted">Verified Google Form daily presence · <span id="asyncDailyDate">—</span></p>
+          </div>
+          <div class="asyncDailySummary"><span class="asyncDailyCount" id="asyncDailyCount">0</span><span class="muted">students</span></div>
+        </summary>
+        <div class="asyncDailyBody">
+          <p class="asyncDailyNotice">These students have qualifying daily form attendance and do not require a Needs Call. This is not a physical scan or proof of class attendance. AM_Att_Only receipts reflect delivery acknowledgements; a real arrival record takes precedence.</p>
+          <div class="tableWrap"><table>
+            <thead><tr><th>Student</th><th>Submitted (NY)</th><th>Evidence</th><th>AM_Att_Only</th></tr></thead>
+            <tbody id="asyncDailyBody"></tbody>
+          </table></div>
+        </div>
+      </details>
+
       <section class="card dailyEmailCard" aria-labelledby="dailyEmailTitle">
         <div class="dailyEmailHead">
           <div>
@@ -90,6 +110,7 @@
               <option value="contacted">Contacted</option>
               <option value="verified">Verified</option>
               <option value="confirmed">Morning Scan</option>
+              <option id="asyncStatusOption" value="asynchronous" hidden disabled>Asynchronous Present</option>
               <option value="suspended">OSS / Not Expected</option>
               <option value="all">All Students</option>
             </select>
@@ -98,7 +119,7 @@
         </div>
 
         <div class="ruleNote">
-          <strong>Queue rule:</strong> no morning-entry scan + no physical evidence today → <b>Needs Call</b>. No morning-entry scan + another scan/location evidence today → <b>Needs Verification</b>. Logging an Attendance communication moves the student to <b>Contacted</b>. <b>OSS daily status</b> suppresses outreach as Not Expected; <b>ISS</b> remains expected on campus and keeps the normal outreach workflow. PowerSchool is authoritative.
+          <strong>Queue rule:</strong> no morning-entry scan + no physical evidence today → <b>Needs Call</b>. No morning-entry scan + another scan/location evidence today → <b>Needs Verification</b>. Logging an Attendance communication moves the student to <b>Contacted</b>. Valid asynchronous form confirmation also satisfies daily presence and suppresses a Needs Call without creating a morning scan. <b>OSS daily status</b> suppresses outreach as Not Expected; <b>ISS</b> remains expected on campus and keeps the normal outreach workflow. PowerSchool is authoritative.
         </div>
 
         <div class="tableWrap">

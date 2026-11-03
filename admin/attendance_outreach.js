@@ -229,6 +229,7 @@ function statusLabel(status) {
     contacted:'Contacted',
     verified:'Verified',
     confirmed:'Morning Scan',
+    asynchronous:'Asynchronous Present', // EAGLENEST_ASYNC_FORM_OUTREACH_V3
     suspended:'OSS · Not Expected' // EAGLENEST_DAILY_STUDENT_STATUS_V1
   })[status] || status || '—';
 }
@@ -250,6 +251,9 @@ function evidenceMarkup(row) {
   }
   if (row.has_today_evidence) {
     return `<strong>${row.evidence_kind === 'scan' ? 'Other scan/evidence' : 'Location evidence'}</strong><div class="subline">${esc(fmtTime(row.evidence_at))} · ${esc(row.evidence_location || 'Location recorded')} · ${esc(row.evidence_source || 'evidence')}</div>`;
+  }
+  if (row.async_daily_present) {
+    return `<strong>Verified Google Form</strong><div class="subline">Daily attendance · ${esc(fmtTime(row.async_form_submitted_at_iso))} · not a campus scan</div>`;
   }
   return '<strong>No arrival evidence</strong><div class="subline">No morning entry or other physical evidence recorded today.</div>';
 }
@@ -308,6 +312,7 @@ function filteredRows() {
 }
 
 function renderQueue() {
+  window.EagleNestAsyncOutreach?.render(QUEUE); // EAGLENEST_ASYNC_FORM_OUTREACH_V3
   const summary = QUEUE?.summary || {};
   $('countNeedsCall').textContent = Number(summary.needs_call || 0);
   $('countNeedsVerification').textContent = Number(summary.needs_verification || 0);
@@ -383,6 +388,7 @@ async function loadQueue() {
     renderQueue();
   } catch (error) {
     if (seq !== loadSequence) return;
+    window.EagleNestAsyncOutreach?.hide(); // EAGLENEST_ASYNC_FORM_OUTREACH_V3
     errorOut.textContent = String(error?.message || error);
     errorCard.hidden = false;
     queueBody.innerHTML = '<tr><td colspan="6" class="empty">Queue unavailable.</td></tr>';

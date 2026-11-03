@@ -1,0 +1,21 @@
+/* EAGLENEST_ASYNC_FORM_OUTREACH_V3 — no panel when no valid daily presence */
+.asyncDailyCard{margin:0 0 .9rem;border-color:rgba(56,189,248,.32)}
+.asyncDailyCard[hidden]{display:none!important}
+.asyncDailyCard summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.asyncDailyCard summary::-webkit-details-marker{display:none}
+.asyncDailyCard summary::after{content:'▾';color:var(--muted);font-size:1.15rem}
+.asyncDailyCard[open] summary::after{content:'▴'}
+.asyncDailyCard summary h2{font-size:1.05rem;margin:0}
+.asyncDailyCard summary .muted{margin:.25rem 0 0}
+.asyncDailySummary{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-left:auto}
+.asyncDailyCount{display:inline-block;font-weight:800;color:var(--blue);font-size:1.1rem}
+.asyncDailyBody{margin-top:.9rem}
+.asyncDailyNotice{font-size:.82rem;color:var(--muted);margin:0 0 .7rem}
+.asyncDailyCard .tableWrap{max-height:410px;overflow:auto}
+.asyncAmStatus{display:inline-flex;padding:.14rem .4rem;border-radius:999px;border:1px solid var(--line);font-weight:700;font-size:.74rem}
+.asyncAmStatus.confirmed{border-color:rgba(34,197,94,.4);color:var(--green)}
+.asyncAmStatus.retry{border-color:rgba(245,158,11,.5);color:var(--yellow)}
+.asyncAmStatus.unverified{color:var(--muted)}
+.status.asynchronous{color:#bae6fd;border-color:rgba(56,189,248,.6);background:rgba(56,189,248,.12)}
+:root[data-theme="light"] .status.asynchronous{color:#075985}
+@media(max-width:640px){.asyncDailyCard summary{align-items:flex-start}.asyncDailySummary{margin-left:0}}
