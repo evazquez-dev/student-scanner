@@ -1,4 +1,4 @@
-/* EAGLENEST_GRADE_BANDS_TRENDS_V1
+/* EAGLENEST_GRADE_COURSE_AVERAGES_V2
  * Presentation only. Does not change course grades, missing-grade policy,
  * academic calculations, passing threshold, or permissions.
  */
@@ -22,7 +22,7 @@
     const m=raw.match(/^(-?\d+(?:\.\d+)?)\s*%?$/);
     if(!m)return null;
     const n=Number(m[1]);
-    return Number.isFinite(n)&&n>0&&n<=100?n:null;
+    return Number.isFinite(n)&&n>0&&n<=200?n:null;
   }
   function score(grade) {
     if (grade && typeof grade==='object') {
@@ -74,15 +74,14 @@
       const g=findGrade(s,current);
       if(!g)continue;
       const key=String(s.snapshot_date||s.date||s.received_at_iso||'').slice(0,10);
-      data.push({key:key||`undated-${index}`,seq:index,val:score(g)});
+      data.push({key:key||`undated-${index}`,seq:index,val:score(g),avg:score(g.course_average)});
     }
-    // Snapshot dates, not array order, determine direction on the chart.
     data.sort((a,b)=>a.key.localeCompare(b.key)||a.seq-b.seq);
     const byDate=new Map();for(const p of data)byDate.set(p.key,p);
     const seq=[...byDate.values()];
-    const live=score(current);
-    if(live!==null && (!seq.length||seq[seq.length-1].val!==live))
-      seq.push({key:'zz-current',val:live,seq:999999});
+    const live=score(current),avg=score(current?.course_average);
+    if((live!==null||avg!==null)&&(!seq.length||seq[seq.length-1].val!==live||seq[seq.length-1].avg!==avg))
+      seq.push({key:'zz-current',val:live,avg,seq:999999});
     return seq.slice(-12);
   }
   function svg(tag, attrs){
@@ -92,31 +91,49 @@
   }
   function sparkline(points){
     const box=document.createElement('span');box.className='engv-spark';
-    const good=points.filter(p=>p.val!==null);
-    if(good.length<2){
+    const nStudent=points.filter(p=>p.val!==null).length;
+    const nAverage=points.filter(p=>p.avg!==null).length;
+    if(nStudent<2 && nAverage<2){
       box.classList.add('engv-spark-empty');box.textContent='—';
       box.setAttribute('aria-label','Not enough stored snapshots for a trend');
       return box;
     }
     const w=112,h=42,padX=4,padY=2;
-    const y=v=>padY+(100-v)/100*(h-2*padY);
+    const y=v=>padY+(100-Math.max(0,Math.min(100,v)))/100*(h-2*padY);
     const x=i=>padX+(points.length<=1?0:i/(points.length-1)*(w-2*padX));
-    const node=svg('svg',{viewBox:`0 0 ${w} ${h}`,width:w,height:h,role:'img','aria-label':'Recent grade trend with colored performance bands; dates and exact values hidden',focusable:'false'});
+    const node=svg('svg',{viewBox:`0 0 ${w} ${h}`,width:w,height:h,role:'img',
+      'aria-label':'Grade trends: solid dark line is student, dashed slate line is course-wide average; performance bands in background. No axes or exact dates shown.',focusable:'false'});
     node.classList.add('engv-spark-svg');
     for(const z of ZONES){
       const top=y(z.max===59.999?60:z.max===69.999?70:z.max===79.999?80:z.max===89.999?90:z.max);
       const bottom=y(z.min);
       node.appendChild(svg('rect',{x:0,y:top,width:w,height:bottom-top,fill:z.color,'fill-opacity':'.34'}));
     }
-    let segment=[];
-    const flush=()=>{if(segment.length>=2)node.appendChild(svg('polyline',{points:segment.join(' '),fill:'none',stroke:'#17243a','stroke-width':2.7,'stroke-linecap':'round','stroke-linejoin':'round'}));segment=[]};
-    for(let i=0;i<points.length;i++){
-      if(points[i].val===null){flush();continue;}
-      segment.push(`${x(i).toFixed(2)},${y(points[i].val).toFixed(2)}`);
+    // Break the line across missing grades. Never treat a missing/zero score as 0%.
+    function draw(key,stroke,width,dashed){
+      let segment=[];
+      const flush=()=>{
+        if(segment.length>=2){
+          const attrs={points:segment.join(' '),fill:'none',stroke,'stroke-width':width,
+            'stroke-linecap':'round','stroke-linejoin':'round'};
+          if(dashed)attrs['stroke-dasharray']='4 3';
+          node.appendChild(svg('polyline',attrs));
+        }
+        segment=[];
+      };
+      for(let i=0;i<points.length;i++){
+        const v=points[i][key];
+        if(v===null||v===undefined){flush();continue;}
+        segment.push(`${x(i).toFixed(2)},${y(v).toFixed(2)}`);
+      }
+      flush();
     }
-    flush();
+    // Average is behind the student so student movement remains dominant.
+    draw('avg','#5a7293',2,true);
+    draw('val','#17243a',2.7,false);
     const last=points.map((p,i)=>({...p,i})).filter(p=>p.val!==null).at(-1);
-    node.appendChild(svg('circle',{cx:x(last.i),cy:y(last.val),r:3.5,fill:'#17243a',stroke:'#fff','stroke-width':1}));
+    if(last)node.appendChild(svg('circle',{cx:x(last.i),cy:y(last.val),r:3.2,fill:'#17243a',stroke:'#fff','stroke-width':1}));
+    box.title='Solid: student · Dashed: course average (all graded students in the course code)';
     box.appendChild(node);return box;
   }
   function enhanceRow(strong, current, snapshots){
