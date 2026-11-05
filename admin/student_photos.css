@@ -78,3 +78,128 @@
 
 /* Allow global System Admin settings to remove the portrait entirely. */
 .studentPortrait[hidden]{display:none!important;}
+
+/* EAGLENEST_STUDENT_PHOTOS_V1_2: personal, account-scoped portrait sizing. */
+#studentCard.studentPhotoEnabled { grid-template-columns:minmax(0,1fr) auto; }
+.studentPortrait {
+  width:min(calc(112px * var(--student-photo-scale, 1)), 55vw);
+  height:auto;
+  aspect-ratio:1 / 1;
+}
+.studentPortrait.studentPortraitClickable { cursor:zoom-in; }
+.studentPortrait.studentPortraitClickable:focus-visible {
+  outline:3px solid var(--accent, #5043ca);
+  outline-offset:3px;
+}
+.studentPhotoHoverCard {
+  box-sizing:border-box;
+  width:min(calc(188px * var(--student-photo-scale, 1)), calc(100vw - 24px));
+  max-height:calc(100dvh - 24px);
+  overflow:hidden;
+}
+.studentPhotoHoverCard img {
+  box-sizing:border-box;
+  width:100%;
+  height:auto;
+  aspect-ratio:1;
+  max-height:calc(100dvh - 128px);
+}
+@media(max-width:600px) {
+  .studentPortrait {
+    width:min(calc(88px * var(--student-photo-scale, 1)), 80vw);
+    height:auto;
+  }
+  #studentCard.studentPhotoEnabled.studentPhotoSizeLarge {
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:repeat(5,auto);
+  }
+  #studentCard.studentPhotoEnabled.studentPhotoSizeLarge .studentPhotoIdentity { grid-column:1; grid-row:1; }
+  #studentCard.studentPhotoEnabled.studentPhotoSizeLarge .studentPortrait {
+    grid-column:1; grid-row:2; justify-self:start;
+  }
+  #studentCard.studentPhotoEnabled.studentPhotoSizeLarge .quickActions { grid-column:1; grid-row:3; }
+  #studentCard.studentPhotoEnabled.studentPhotoSizeLarge #actionStatus { grid-column:1; grid-row:4; }
+  #studentCard.studentPhotoEnabled.studentPhotoSizeLarge #readOnlyNote { grid-column:1; grid-row:5; }
+}
+
+/* Click-to-enlarge dialog. Nothing appears on hover in Student Lookup. */
+.studentPhotoLightbox {
+  position:fixed;
+  inset:0;
+  z-index:2147483590;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  padding:12px;
+  background:rgba(5,10,25,.82);
+}
+.studentPhotoLightbox[hidden] { display:none!important; }
+.studentPhotoLightboxPanel {
+  box-sizing:border-box;
+  width:min(980px,100%);
+  height:min(840px,calc(100dvh - 24px));
+  min-height:240px;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  color:var(--fg,#172033);
+  background:var(--panel, #fff);
+  border:1px solid var(--border,#cbd5e1);
+  border-radius:18px;
+  box-shadow:0 22px 90px rgba(0,0,0,.48);
+}
+.studentPhotoLightboxHead {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--border,#cbd5e1);
+}
+.studentPhotoLightboxName { overflow-wrap:anywhere; }
+.studentPhotoLightboxClose {
+  font:inherit;
+  font-size:26px;
+  line-height:1;
+  font-weight:600;
+  border:1px solid var(--border,#cbd5e1);
+  background:var(--panel2, #f2f5fa);
+  color:inherit;
+  cursor:pointer;
+  border-radius:10px;
+  min-width:40px;
+  min-height:40px;
+}
+.studentPhotoLightboxViewport {
+  flex:1;
+  min-height:0;
+  overflow:auto;
+  overscroll-behavior:contain;
+  background:var(--panel2, #f2f5fa);
+}
+.studentPhotoLightboxCanvas {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:100%;
+  min-height:100%;
+}
+.studentPhotoLightboxCanvas img {
+  display:block;
+  flex:0 0 auto;
+  max-width:none;
+  max-height:none;
+  object-fit:contain;
+  user-select:none;
+}
+.studentPhotoLightboxZoom {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:14px 16px;
+  border-top:1px solid var(--border,#cbd5e1);
+}
+.studentPhotoLightboxZoom label { font-weight:800; }
+.studentPhotoLightboxZoom input { flex:1;min-width:70px;accent-color:var(--accent,#5043ca); }
+.studentPhotoLightboxZoom output { width:54px;text-align:right;font-variant-numeric:tabular-nums;font-weight:800; }

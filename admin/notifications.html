@@ -62,6 +62,34 @@
 
       <div id="notice" class="notice" hidden></div>
 
+      <!-- EAGLENEST_STUDENT_PHOTOS_V1_2: personal photo size preference -->
+      <section id="studentPhotoSizeSettings" class="card sectionCard">
+        <div class="sectionHeading">
+          <div>
+            <span class="statusIcon" aria-hidden="true">🖼️</span>
+            <div>
+              <h2>Student photo size</h2>
+              <p class="muted">Choose your preferred photo size in Student Lookup and Teacher Attendance. This setting is personal to your EagleNEST account; the System Admin photo switches still apply to everyone.</p>
+            </div>
+          </div>
+        </div>
+        <label for="studentPhotoSizeMultiplier" style="display:block;margin:10px 0 8px;font-weight:800">Preferred photo size</label>
+        <select id="studentPhotoSizeMultiplier" class="classReminderSelect" aria-label="Student photo display size">
+          <option value="0.5">0.5× — Half size</option>
+          <option value="1" selected>1× — Default size</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+          <option value="2.5">2.5×</option>
+          <option value="3">3×</option>
+        </select>
+        <div class="actions" style="margin-top:12px">
+          <button id="saveStudentPhotoSize" class="btn btnPrimary" type="button" disabled>Save photo size</button>
+          <button id="reloadStudentPhotoSize" class="btn" type="button">Reload</button>
+        </div>
+        <div id="studentPhotoSizeStatus" class="statusText" role="status">Sign in to load your preference.</div>
+      </section>
+
+
       <section class="card sectionCard">
         <div class="sectionHeading">
           <div>
@@ -226,5 +254,6 @@
   </main>
   <script src="./notifications.js"></script>
   <script src="./class_reminders.js?v=20260911-settings-personal-lead"></script>
+  <script src="./student_photo_personal_settings.js?v=20261105-v1_2" defer></script>
 </body>
 </html>

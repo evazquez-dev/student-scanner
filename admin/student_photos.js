@@ -1,4 +1,4 @@
-/* EAGLENEST_STUDENT_PHOTOS_V1_1
+/* EAGLENEST_STUDENT_PHOTOS_V1_2
  * Private Student Lookup portrait and configurable Teacher Attendance hover.
  * Config is fetched from the Worker and refreshed while the page is open.
  */
@@ -10,6 +10,33 @@
   let settings = emptySettings; // fail closed until authenticated settings load
   const listeners = new Set();
   const photoCache = new Map();
+  const ALLOWED_SIZES = new Set([0.5, 1, 1.5, 2, 2.5, 3]);
+  let sizeMultiplier = 1;
+  const sizeListeners = new Set();
+
+  async function refreshPersonalSize() {
+    try {
+      const response = await fetch(new URL('/admin/student/photo/preferences', apiBase), {
+        method:'GET', headers:sessionHeaders(), credentials:'include', cache:'no-store'
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      const size = Number(data?.size_multiplier);
+      if (!data?.ok || !ALLOWED_SIZES.has(size)) throw new Error('Invalid personal photo size');
+      if (size === sizeMultiplier) return;
+      sizeMultiplier = size;
+      for (const listener of sizeListeners) listener(sizeMultiplier);
+    } catch {
+      // Default sizing is safe even when the personal preference service is offline.
+      if (sizeMultiplier === 1) return;
+      sizeMultiplier = 1;
+      for (const listener of sizeListeners) listener(1);
+    }
+  }
+  function onSizeChange(listener) {
+    sizeListeners.add(listener);
+    listener(sizeMultiplier);
+  }
 
   function sessionHeaders() {
     const headers = new Headers();
@@ -89,18 +116,128 @@
     if (!card || !portrait || !image || !placeholder) return;
     let sequence = 0;
     let current = '';
+    let lightbox = null, lightboxImage = null, lightboxViewport = null;
+    let lightboxCanvas = null, zoomRange = null, zoomOutput = null;
+    let focusBeforeLightbox = null, savedBodyOverflow = '';
+
+    function closeLightbox() {
+      if (!lightbox || lightbox.hidden) return;
+      lightbox.hidden = true;
+      lightboxImage.removeAttribute('src');
+      document.body.style.overflow = savedBodyOverflow;
+      const target = focusBeforeLightbox;
+      focusBeforeLightbox = null;
+      if (target?.isConnected) target.focus({preventScroll:true});
+    }
+    function resizeLightbox() {
+      if (!lightbox || lightbox.hidden || !lightboxImage?.naturalWidth) return;
+      const ratio = lightboxImage.naturalWidth / lightboxImage.naturalHeight;
+      const baseWidth = Math.max(40, Math.min(
+        lightboxImage.naturalWidth,
+        lightboxViewport.clientWidth - 28,
+        (lightboxViewport.clientHeight - 28) * ratio
+      ));
+      const zoom = Number(zoomRange.value) || 1;
+      const pixelWidth = Math.max(1, Math.round(baseWidth * zoom));
+      const pixelHeight = Math.max(1, Math.round(pixelWidth / ratio));
+      lightboxImage.style.width = pixelWidth + 'px';
+      lightboxImage.style.height = pixelHeight + 'px';
+      lightboxCanvas.style.width = Math.max(lightboxViewport.clientWidth, pixelWidth + 28) + 'px';
+      lightboxCanvas.style.height = Math.max(lightboxViewport.clientHeight, pixelHeight + 28) + 'px';
+      zoomOutput.textContent = Math.round(zoom * 100) + '%';
+      lightboxViewport.scrollLeft = Math.max(0, (lightboxViewport.scrollWidth - lightboxViewport.clientWidth) / 2);
+      lightboxViewport.scrollTop = Math.max(0, (lightboxViewport.scrollHeight - lightboxViewport.clientHeight) / 2);
+    }
+    function ensureLightbox() {
+      if (lightbox) return;
+      lightbox = document.createElement('div');
+      lightbox.className = 'studentPhotoLightbox';
+      lightbox.hidden = true;
+      lightbox.setAttribute('role','dialog');
+      lightbox.setAttribute('aria-modal','true');
+      lightbox.setAttribute('aria-label','Student photo enlargement');
+      lightbox.innerHTML = `
+        <div class="studentPhotoLightboxPanel">
+          <header class="studentPhotoLightboxHead">
+            <strong class="studentPhotoLightboxName"></strong>
+            <button type="button" class="studentPhotoLightboxClose" aria-label="Close enlarged photo">×</button>
+          </header>
+          <div class="studentPhotoLightboxViewport">
+            <div class="studentPhotoLightboxCanvas"><img alt="Enlarged student portrait"></div>
+          </div>
+          <footer class="studentPhotoLightboxZoom">
+            <label for="studentPhotoZoom">Zoom</label>
+            <input id="studentPhotoZoom" type="range" min="1" max="4" step="0.25" value="1" aria-label="Photo zoom">
+            <output for="studentPhotoZoom">100%</output>
+          </footer>
+        </div>`;
+      document.body.appendChild(lightbox);
+      lightboxImage = lightbox.querySelector('img');
+      lightboxViewport = lightbox.querySelector('.studentPhotoLightboxViewport');
+      lightboxCanvas = lightbox.querySelector('.studentPhotoLightboxCanvas');
+      zoomRange = lightbox.querySelector('input[type="range"]');
+      zoomOutput = lightbox.querySelector('output');
+      lightbox.querySelector('.studentPhotoLightboxClose').addEventListener('click',closeLightbox);
+      lightbox.addEventListener('click', (event) => {
+        if (event.target === lightbox) closeLightbox();
+      });
+      zoomRange.addEventListener('input', resizeLightbox);
+      lightboxImage.addEventListener('load', resizeLightbox);
+      window.addEventListener('resize', resizeLightbox);
+      document.addEventListener('keydown', (event) => {
+        if (lightbox.hidden) return;
+        if (event.key === 'Escape') { event.preventDefault(); closeLightbox(); }
+        if (event.key === 'Tab') {
+          const close = lightbox.querySelector('.studentPhotoLightboxClose');
+          if (event.shiftKey && document.activeElement === close) {
+            event.preventDefault(); zoomRange.focus();
+          } else if (!event.shiftKey && document.activeElement === zoomRange) {
+            event.preventDefault(); close.focus();
+          }
+        }
+      });
+    }
+    function openLightbox() {
+      if (!settings.enabled || image.hidden || !image.getAttribute('src')) return;
+      ensureLightbox();
+      focusBeforeLightbox = document.activeElement;
+      savedBodyOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      lightbox.hidden = false;
+      lightbox.querySelector('.studentPhotoLightboxName').textContent =
+        document.getElementById('studentName')?.textContent?.trim() || 'Student portrait';
+      zoomRange.value = '1';
+      lightboxImage.src = image.src; // same authenticated object URL; no second network request
+      resizeLightbox();
+      lightbox.querySelector('.studentPhotoLightboxClose').focus({preventScroll:true});
+    }
+    portrait.addEventListener('click', openLightbox);
+    portrait.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        if (!portrait.classList.contains('studentPortraitClickable')) return;
+        event.preventDefault(); openLightbox();
+      }
+    });
+    onSizeChange(size => {
+      card.style.setProperty('--student-photo-scale',String(size));
+      card.classList.toggle('studentPhotoSizeLarge', size >= 2);
+    });
 
     function clear() {
       ++sequence;
+      closeLightbox();
+      portrait.classList.remove('studentPortraitClickable');
+      portrait.removeAttribute('role');
+      portrait.removeAttribute('tabindex');
+      portrait.removeAttribute('aria-label');
       image.hidden = true;
       image.removeAttribute('src');
       placeholder.hidden = false;
     }
     async function changeStudent(value) {
       current = String(value || '').trim();
-      const ticket = ++sequence;
-      image.hidden = true;
-      image.removeAttribute('src');
+      clear(); // also closes the enlargement when selecting a different student
+      const ticket = sequence;
       placeholder.hidden = false;
       if (!settings.enabled) return;
       placeholder.textContent = /^\d{9}$/.test(current) ? 'Loading photo…' : 'No photo';
@@ -113,6 +250,10 @@
         image.alt = 'Student portrait';
         image.hidden = false;
         placeholder.hidden = true;
+        portrait.classList.add('studentPortraitClickable');
+        portrait.setAttribute('role','button');
+        portrait.setAttribute('tabindex','0');
+        portrait.setAttribute('aria-label','Enlarge student portrait');
       } catch {
         if (ticket === sequence && settings.enabled) placeholder.textContent = 'Photo unavailable';
       }
@@ -154,6 +295,10 @@
     document.body.appendChild(popup);
 
     let hovered = null, osis = '', timer = null, generation = 0, px = 0, py = 0;
+    onSizeChange(size => {
+      popup.style.setProperty('--student-photo-scale',String(size));
+      if (!popup.hidden) locate();
+    });
 
     function resolveName(element) {
       const target = element?.closest?.('#rows .student, .outInName');
@@ -174,12 +319,14 @@
       return null;
     }
     function locate() {
-      const width = 188, height = popup.offsetHeight || 254, margin = 12;
+      const width = popup.offsetWidth || 188;
+      const height = popup.offsetHeight || 254;
+      const margin = 12;
       let x = px + 18, y = py + 16;
       if (x + width + margin > window.innerWidth) x = px - width - 14;
       if (y + height + margin > window.innerHeight) y = py - height - 14;
-      popup.style.left = Math.max(margin, x) + 'px';
-      popup.style.top = Math.max(margin, y) + 'px';
+      popup.style.left = Math.max(margin, Math.min(x, window.innerWidth - width - margin)) + 'px';
+      popup.style.top = Math.max(margin, Math.min(y, window.innerHeight - height - margin)) + 'px';
     }
     function cancel() {
       if (timer != null) clearTimeout(timer);
@@ -239,8 +386,16 @@
     initStudentLookup();
     initTeacherAttendance();
     refreshSettings();
-    setInterval(() => { if (!document.hidden) refreshSettings(); }, 60000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSettings(); });
+    refreshPersonalSize();
+    setInterval(() => {
+      if (!document.hidden) { refreshSettings(); refreshPersonalSize(); }
+    }, 60000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { refreshSettings(); refreshPersonalSize(); }
+    });
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'eaglenest_student_photo_preference_changed_v1') refreshPersonalSize();
+    });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once:true });
   else start();
