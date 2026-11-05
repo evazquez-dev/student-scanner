@@ -283,6 +283,9 @@ function showApp() {
 
 async function afterLoginBoot() {
   showApp();
+  // EAGLENEST_STUDENT_PHOTOS_V1_1: signal that super-admin auth succeeded.
+  document.documentElement.dataset.studentPhotoSysAdminReady = '1';
+  document.dispatchEvent(new CustomEvent('eaglenest:sysadmin-ready'));
   await loadSystemMode();
   await loadEsasStatus();
   await loadExternalNavLinks();

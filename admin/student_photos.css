@@ -1,4 +1,4 @@
-/* EAGLENEST_STUDENT_PHOTOS_V1 */
+/* EAGLENEST_STUDENT_PHOTOS_V1_1 */
 #studentCard.studentPhotoEnabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 116px;
@@ -75,3 +75,6 @@
   padding:20px 4px;
 }
 .studentPhotoHoverCard .studentPhotoHoverStatus[hidden] { display:none; }
+
+/* Allow global System Admin settings to remove the portrait entirely. */
+.studentPortrait[hidden]{display:none!important;}
