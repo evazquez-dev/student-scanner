@@ -100,6 +100,7 @@
   </style>
   <link rel="stylesheet" href="./eaglenest_grade_bands.css?v=20261103-v1">
   <script src="./eaglenest_grade_bands.js?v=20261103-v2" defer></script>
+  <link rel="stylesheet" href="./student_photos.css?v=20261105-v1">
 </head>
 <body data-module="student_view">
   <div class="wrap">
@@ -129,9 +130,13 @@
       </section>
 
       <section id="studentCard" class="card selectedCard" hidden>
-        <div>
+        <div class="studentPhotoIdentity">
           <div id="studentName" class="studentName">—</div>
           <div id="studentMeta" class="studentMeta mono">—</div>
+        </div>
+        <div class="studentPortrait" aria-label="Student photo">
+          <img id="studentLookupPortraitImage" alt="" hidden>
+          <span id="studentLookupPortraitFallback" class="studentPortraitPlaceholder">No photo</span>
         </div>
         <div class="quickActions">
           <button id="refreshStudentBtn" class="btn secondary" type="button">Refresh</button>
@@ -344,5 +349,6 @@
   <script src="./student_lookup_calls.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE2 -->
   <script src="./student_lookup_campus_routing.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE3_2 -->
   <script src="./student_lookup_mtss.js" defer></script><!-- EAGLENEST_MTSS_V1_STUDENT_LOOKUP -->
+  <script src="./student_photos.js?v=20261105-v1" defer></script>
 </body>
 </html>
