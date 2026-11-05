@@ -50,7 +50,7 @@ test('SAFETY: email generation uses authoritative EagleNEST attendance context a
   assert.match(service, /crypto\.subtle\.sign\('HMAC'/);
   assert.match(service, /hsdreamteam@theamericandreamschool\.org/);
   assert.match(service, /Percentage Absent/);
-  assert.match(service, /Students Present/);
+  assert.match(service, /Confirmed Present/);
 });
 
 test('SAFETY: Apps Script relay adds only doGet mail delivery and does not replace behavioral doPost', () => {

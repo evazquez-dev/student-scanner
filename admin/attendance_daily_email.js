@@ -125,7 +125,7 @@
     const summary=PREVIEW?.summary||{};
     if($('dailyEmailAbsent'))$('dailyEmailAbsent').textContent=PREVIEW?Number(summary.absent||0):'—';
     if($('dailyEmailLate'))$('dailyEmailLate').textContent=PREVIEW?Number(summary.late||0):'—';
-    if($('dailyEmailPresent'))$('dailyEmailPresent').textContent=PREVIEW?Number(summary.present||0):'—';
+    if($('dailyEmailPresent'))$('dailyEmailPresent').textContent=PREVIEW?Number(summary.present||0):'—'; // EAGLENEST_ASYNC_CONSISTENCY_V4 confirmed only
     if($('dailyEmailNeedsAction'))$('dailyEmailNeedsAction').textContent=PREVIEW?Number(summary.needs_action||0):'—';
     const btn=$('reviewDailyEmailBtn');
     if(btn){btn.disabled=!PREVIEW;btn.textContent=PREVIEW?'Review Email':'Loading Summary…';}
