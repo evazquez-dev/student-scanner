@@ -1,0 +1,18 @@
+/* EAGLENEST_STUDENT_ASSIGNMENT_FLAGS_V1 */
+.flagSearchCard{max-width:100%}.flagSearchLabel{display:block;font-weight:750;margin-bottom:8px}
+.flagSearchLine{display:flex;align-items:center;gap:10px;max-width:730px}
+.flagSearchLine input{flex:1;min-width:120px;background:var(--gb-bg);color:var(--gb-text);border:1px solid var(--gb-line);border-radius:10px;padding:12px 14px;font:inherit}
+.flagResults{display:grid;gap:7px;margin-top:12px;max-width:730px}.flagStudentChoice{width:100%;text-align:left;background:var(--gb-bg);color:var(--gb-text);border:1px solid var(--gb-line);border-radius:9px;padding:10px 14px;font:inherit;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px}
+.flagStudentChoice:hover,.flagStudentChoice:focus-visible{border-color:var(--gb-blue);outline:2px solid var(--gb-blue);outline-offset:1px}.flagStudentChoice small{color:var(--gb-muted)}
+.flagReportHeader{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;align-items:center}
+.flagReportHeader h2{margin:5px 0;font-size:26px}.flagSummary{display:flex;flex-wrap:wrap;gap:8px}
+.flagCount{display:flex;flex-direction:column;min-width:90px;padding:9px 15px;border:1px solid var(--gb-line);border-radius:10px;background:var(--gb-bg)}.flagCount strong{font-size:24px}.flagCount small{font-size:12px;color:var(--gb-muted)}
+.flagSection{margin-bottom:18px}.flagSection h3{font-size:20px;margin:0 0 8px}.flagSectionMeta{color:var(--gb-muted);font-size:13px;margin-bottom:12px}.flagGroups{display:grid;gap:12px}
+.flagTypeGroup{border:1px solid var(--gb-line);border-radius:12px;padding:15px;background:var(--gb-bg)}.flagTypeGroup h4{margin:0 0 12px;font-size:16px;display:flex;gap:10px;align-items:center}
+.flagTag{font-weight:700;font-size:12px;border-radius:6px;padding:3px 8px;border:1px solid currentColor}.flagTagM{color:var(--gb-red)}.flagTagA{color:var(--gb-blue)}.flagTagI{color:var(--gb-yellow)}
+.flagCategoryTitle{font-size:14px;font-weight:700;color:var(--gb-muted);margin:12px 0 6px}
+.flagTable{width:100%;border-collapse:collapse}.flagTable th,.flagTable td{padding:8px 9px;text-align:left;border-bottom:1px solid var(--gb-line)}.flagTable th{font-size:11px}
+.flagTableWrap{overflow:auto}.flagNoItems{color:var(--gb-muted);padding:10px}.flagScore{font-weight:650}.flagNote{font-size:12px;color:var(--gb-muted)}
+.flagZero{border:1px dashed var(--gb-line);border-radius:10px;padding:20px;color:var(--gb-muted)}
+@media(max-width:700px){.flagSearchLine{flex-direction:column;align-items:stretch}.flagStudentChoice{align-items:flex-start}.flagSummary{width:100%}.flagCount{flex:1}}
+@media print{#ssNavToggle,#ssNavDrawer,#ssNavBackdrop,#printReport,.flagSearchCard,#login,.gbHero>button{display:none!important}body,.gbCard,.flagTypeGroup{background:#fff!important;color:#111!important;box-shadow:none!important}.gbWrap{max-width:none;margin:0;padding:0}.flagSection,.flagTypeGroup{break-inside:avoid}.gbCard{border:1px solid #ccc}}

@@ -534,6 +534,8 @@
           { key:'my_rosters', label: MODULES.my_rosters || 'My Rosters', href:'./my_rosters.html', description:'Reusable student sets, email lists and OSIS exports' }, // EAGLENEST_MY_ROSTERS_V1
           { key:'grades', label: MODULES.grades || 'Grades & Attendance', href:'./grades.html', description:'Student grades, daily attendance, meeting attendance and history' },
           { key:'gradebook_analytics', label:'Gradebook Analytics', href:'./gradebook_analytics.html', description:'Weekly, role-scoped gradebook assignment and score-entry snapshots' },
+          // EAGLENEST_STUDENT_ASSIGNMENT_FLAGS_V1
+          { key:'student_assignment_flags', access_key:'gradebook_analytics', label:'Student Assignment Flags', href:'./student_assignment_flags.html', description:'Look up student Missing, Absent and Incomplete assignments by section and category' },
           { key:'grading', label: MODULES.grading || 'Grading', href:'./grading.html', description:'Enter, preview and submit PowerTeacher assignment scores' }, // EAGLENEST_GRADING_V1
           { key:'student_scans', label: MODULES.student_scans || 'Student Scan Report', href:'./student_scans.html', description:'Scan and bathroom history' },
           { key:'communications', label: MODULES.communications || 'Parent & Family Communications', href:'./communications.html', description:'Outreach, required communication and follow-ups' },
