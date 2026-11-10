@@ -68,3 +68,10 @@ dialog.gbGridMode{width:min(1500px,98vw)}
 #gbGridSelected .gbSelectedGrade{margin-top:9px;border-top:1px solid var(--gb-line);padding-top:7px}
 @media (prefers-reduced-motion: no-preference){.gbGridColumn{transition:background-color .15s ease}}
 
+/* EAGLENEST_GRADEBOOK_SECTION_SWITCHER_V1 */
+.gbDetailActions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:12px}
+.gbSectionSwitcherWrap{display:flex;flex-direction:column;gap:4px;color:var(--gb-muted);font-size:12px;font-weight:650}
+.gbSectionSwitcherWrap[hidden]{display:none!important}
+.gbSectionSwitcherWrap select{min-width:195px;max-width:300px;padding:9px 10px;border-radius:9px;border:1px solid var(--gb-line);background:var(--gb-bg);color:var(--gb-text);font:inherit;font-size:14px;cursor:pointer}
+.gbSectionSwitcherWrap select:focus-visible{outline:2px solid var(--gb-blue);outline-offset:2px}
+@media(max-width:700px){.gbDetailHeader{flex-wrap:wrap}.gbDetailActions{width:100%;justify-content:space-between}.gbSectionSwitcherWrap{flex:1}.gbSectionSwitcherWrap select{max-width:100%;width:100%}}
