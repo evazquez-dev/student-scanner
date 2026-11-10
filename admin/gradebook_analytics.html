@@ -33,6 +33,16 @@
 <section class="gbCard" id="historyCard"><h2>Published snapshots</h2><div id="history" class="gbMeta">Loading history…</div></section>
 <section id="error" class="gbCard gbError" role="alert" hidden></section>
 </main></div>
-<dialog id="details"><div class="gbDetailHeader"><div><div class="gbEyebrow">ASSIGNMENT REVIEW</div><h2 id="detailTitle"></h2><p id="detailMeta" class="gbMeta"></p></div><button id="closeDetails" class="gbBtn" type="button">Close</button></div><div id="detailBody" class="gbTableWrap"></div></dialog>
+<dialog id="details"><div class="gbDetailHeader"><div><div class="gbEyebrow">ASSIGNMENT REVIEW</div><h2 id="detailTitle"></h2><p id="detailMeta" class="gbMeta"></p></div><button id="closeDetails" class="gbBtn" type="button">Close</button></div><!-- EAGLENEST_GRADEBOOK_GRID_V1 -->
+<div class="gbViewTabs" role="tablist" aria-label="Section details view">
+  <button type="button" class="gbBtn gbSelectedTab" id="gbTabReview" role="tab" aria-selected="true">Assignment Review</button>
+  <button type="button" class="gbBtn" id="gbTabGrid" role="tab" aria-selected="false">Gradebook Grid</button>
+</div>
+<div id="detailBody" class="gbTableWrap"></div>
+<section id="gbGridPane" hidden aria-label="Read-only student gradebook">
+  <p class="gbGridNote" id="gbGridSnapshot">Snapshot data · Read-only · Scores and flags update after the next successful publication</p>
+  <div id="gbGridSelected" class="gbGridSelected" aria-live="polite"></div>
+  <div id="gbGridScroll" class="gbGridScroll" role="region" tabindex="0" aria-label="Gradebook scores by student and assignment"></div>
+</section></dialog>
 <script src="./gradebook_analytics.js"></script>
 </body></html>

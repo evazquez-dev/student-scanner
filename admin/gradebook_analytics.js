@@ -17,6 +17,83 @@ function gbPolicyWarnings_(assignment){
   if(!Array.isArray(warnings)||!warnings.length)return '<small>—</small>';
   return warnings.map(w=>`<small class="gbWarn" title="${esc(w.code||'Policy review')}">⚠ ${esc(w.message||w.code||'Review policy')} (${Number(w.count)||1})</small>`).join('');
 }
+// EAGLENEST_GRADEBOOK_GRID_V1 — read-only gradebook projection.
+let GB_GRID_CONTEXT=null;
+function gbFlagLabels_(flags){
+  return [...String(flags||'')].map(k=>({L:'Late',M:'Missing',A:'Absent',I:'Incomplete',E:'Exempt'}[k])).filter(Boolean);
+}
+function gbFlagChips_(flags){
+  const labels={L:'Late',M:'Missing',A:'Absent',I:'Incomplete',E:'Exempt'};
+  return [...String(flags||'')].filter(k=>labels[k]).map(k=>
+    `<span class="gbFlag gbFlag${k}" title="${labels[k]}">${k==='E'?'EXC':k}</span>`).join('');
+}
+function gbSwitchView_(view){
+  const grid=view==='grid';
+  $('gbTabReview').classList.toggle('gbSelectedTab',!grid);
+  $('gbTabGrid').classList.toggle('gbSelectedTab',grid);
+  $('gbTabReview').setAttribute('aria-selected',String(!grid));
+  $('gbTabGrid').setAttribute('aria-selected',String(grid));
+  $('detailBody').hidden=grid;
+  $('gbGridPane').hidden=!grid;
+  $('details').classList.toggle('gbGridMode',grid);
+  if(grid)gbLoadGrid_();
+}
+async function gbLoadGrid_(){
+  const ctx=GB_GRID_CONTEXT;
+  if(!ctx)return;
+  if(ctx.grid){gbRenderGrid_(ctx.grid);return;}
+  $('gbGridScroll').innerHTML='<div class="gbEmpty">Loading student scores…</div>';
+  $('gbGridSelected').textContent='This grid shows the latest published PowerSchool snapshot. Scores cannot be edited here.';
+  try{
+    const response=await api('/admin/gradebook-analytics/grid?section_dcid='+encodeURIComponent(ctx.dcid));
+    if(GB_GRID_CONTEXT!==ctx)return;
+    ctx.grid=response.grid;
+    $('gbGridSnapshot').textContent='Snapshot '+(response.snapshot_date||'')+' · Read-only';
+    gbRenderGrid_(response.grid);
+  }catch(e){if(GB_GRID_CONTEXT===ctx)$('gbGridScroll').textContent='Unable to load gradebook grid: '+(e.message||String(e));}
+}
+function gbSelectGrid_(grid,studentIndex,assignmentIndex,scoreMap){
+  const assignment=grid.assignments[assignmentIndex];
+  const student=studentIndex>=0?grid.students[studentIndex]:null;
+  if(!assignment)return;
+  const score=student?scoreMap.get(student.key+'|'+assignment.id):null;
+  const max=assignment.max==null?'—':assignment.max;
+  const name=esc(assignment.name||'Unnamed assignment');
+  const value=score?.entry!==undefined&&score.entry!==''?esc(score.entry):'No score entered';
+  const calc=score?.percent==null?'':` · ${Number(score.percent).toFixed(1)}%`;
+  const flags=score?gbFlagChips_(score.flags):'';
+  $('gbGridSelected').innerHTML=`<div><strong>Assignment: ${name}</strong> <span class="gbMeta">Due ${esc(assignment.due)} · ${esc(assignment.category||'Uncategorized')} · Out of ${esc(max)} points</span></div>`+
+    (student?`<div class="gbSelectedGrade"><strong>${esc(student.name)}</strong> · Score: <strong>${value}</strong>${calc}${flags?` <span class="gbCellFlags">${flags}</span>`:''}</div>`:'<div class="gbMeta">Select a score below to see student details and flags.</div>');
+  $('gbGridScroll').querySelectorAll('.gbGridActive').forEach(el=>el.classList.remove('gbGridActive'));
+  const selected=$('gbGridScroll').querySelector(studentIndex<0?`[data-gb-col="${assignmentIndex}"]`:`[data-gb-a="${assignmentIndex}"][data-gb-s="${studentIndex}"]`);
+  if(selected)selected.classList.add('gbGridActive');
+}
+function gbRenderGrid_(grid){
+  if(!grid||!Array.isArray(grid.students)||!Array.isArray(grid.assignments)||!Array.isArray(grid.cells)){
+    $('gbGridScroll').innerHTML='<div class="gbEmpty">No grid data is stored for this snapshot. Republish analytics after deploying the Cloud Run grid update.</div>';
+    return;
+  }
+  const scoreMap=new Map(grid.cells.map(r=>[r.student+'|'+r.assignment,r]));
+  const head=grid.assignments.map((a,i)=>`<th scope="col"><button type="button" class="gbGridColumn" data-gb-col="${i}" title="${esc(a.name)}"><span>${esc(a.due)}</span><strong>${esc(a.name)}</strong><small>Out of ${esc(a.max??'—')}</small></button></th>`).join('');
+  const rows=grid.students.map((s,si)=>`<tr><th scope="row" class="gbGridName" title="${esc(s.name)}">${esc(s.name)}</th>`+
+    grid.assignments.map((a,ai)=>{
+      const score=scoreMap.get(s.key+'|'+a.id);
+      // No raw score entry is different from a legitimate numerical zero.
+      const text=score?.entry!==undefined&&score.entry!==''?score.entry:'—';
+      const kind=score?.kind==='SCORE_CODE'?' gbGridSpecial':'';
+      const flags=score?gbFlagChips_(score.flags):'';
+      return `<td><button type="button" class="gbGridCell${kind}" data-gb-s="${si}" data-gb-a="${ai}" aria-label="${esc(s.name)} · ${esc(a.name)} · ${esc(text)}${score?.flags?' · '+esc(gbFlagLabels_(score.flags).join(', ')):''}"><span class="gbScoreText">${esc(text)}</span><span class="gbCellFlags">${flags}</span></button></td>`;
+    }).join('')+'</tr>').join('');
+  $('gbGridScroll').innerHTML=`<table class="gbGridTable"><thead><tr><th scope="col" class="gbGridCorner">STUDENTS (${grid.students.length})</th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  $('gbGridScroll').onclick=ev=>{
+    const btn=ev.target.closest('button[data-gb-a],button[data-gb-col]');
+    if(!btn||!$('gbGridScroll').contains(btn))return;
+    const ai=Number(btn.dataset.gbA??btn.dataset.gbCol),si=btn.dataset.gbS===undefined?-1:Number(btn.dataset.gbS);
+    gbSelectGrid_(grid,si,ai,scoreMap);
+  };
+  if(grid.assignments.length)gbSelectGrid_(grid,-1,0,scoreMap);
+}
+
 function setError(e){$('error').hidden=!e;$('error').textContent=String(e||'')}
 function renderSummary(s){const cards=[['My / selected sections',s.section_count],['Assignments retrieved',s.assignment_count],['Due assignments graded',`${s.fully_graded_count}/${s.due_count}`],['Recorded score completion',s.grading_completion==null?'—':Number(s.grading_completion).toFixed(1)+'%'],['Due assignments pending',s.outstanding_count],['Assignments needing policy review',s.policy_warning_assignment_count||0]];$('kpis').innerHTML=cards.map(([name,v])=>`<div class="gbKpi"><span>${esc(name)}</span><strong>${esc(v)}</strong></div>`).join('')}
 // EAGLENEST_GRADEBOOK_COURSE_SORT_V1
@@ -37,7 +114,7 @@ function gbCourseSort(a,b){
 function renderTable(){const q=$('search').value.trim().toLowerCase();const teacher=$('teacherFilter').value;const visible=SECTION_ROWS.filter(r=>(!teacher||r.teacher_email===teacher||(r.additional_teacher_emails||[]).includes(teacher))&&(!q||[r.section_code,r.teacher_name,r.course_number].some(v=>String(v||'').toLowerCase().includes(q))));$('listCaption').textContent=`${visible.length} section(s) · click a course for its assignment breakdown.`;
   $('table').innerHTML=visible.length?`<table><thead><tr><th>Section</th>${IS_ADMIN?'<th>Teacher</th>':''}<th>Enrolled</th><th>Retrieved assignments</th><th>Due fully graded</th><th>Recorded completion</th><th>Pending due</th><th>Policy reviews</th><th>Last score entry</th></tr></thead><tbody>${visible.map(r=>`<tr><td><button class="gbRowButton" data-section="${esc(r.section_dcid)}">${esc(r.section_code)}</button>${r.coverage==='NO_RETRIEVED_ASSIGNMENTS'?'<small>No returned scored assignments</small>':''}</td>${IS_ADMIN?`<td>${esc(r.teacher_name||'Unmapped teacher')}<small>${esc(r.teacher_email||'Email not mapped')}</small>${r.additional_teacher_emails?.length?`<small>Additional: ${esc(r.additional_teacher_emails.join(', '))}</small>`:''}</td>`:''}<td>${r.enrolled_count}</td><td>${r.assignment_count}</td><td>${r.fully_graded_count}/${r.due_count}</td><td>${percent(r)}</td><td class="${r.outstanding_count?'gbWarn':'gbGood'}">${r.outstanding_count}</td><td class="${Number(r.policy_warning_assignment_count)?'gbWarn':''}">${Number(r.policy_warning_assignment_count)||0}</td><td>${esc(r.latest_score_entry||'—')}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No sections match your filters, or your teacher email has not yet been mapped to a PowerSchool section.</div>';
   $('table').querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>showSection(b.dataset.section));}
-async function showSection(dcid){$('details').showModal();$('detailTitle').textContent='Loading section…';$('detailBody').innerHTML='';try{const data=await api('/admin/gradebook-analytics/section?section_dcid='+encodeURIComponent(dcid));$('detailTitle').textContent=data.section.section_code+' · '+(data.section.teacher_name||'');$('detailMeta').textContent=`${data.assignments.length} assignment(s) retrieved · ${data.section.enrolled_count} enrolled · completion ${percent(data.section)}`;
+async function showSection(dcid){GB_GRID_CONTEXT={dcid,grid:null};gbSwitchView_('review');$('details').showModal();$('detailTitle').textContent='Loading section…';$('detailBody').innerHTML='';try{const data=await api('/admin/gradebook-analytics/section?section_dcid='+encodeURIComponent(dcid));$('detailTitle').textContent=data.section.section_code+' · '+(data.section.teacher_name||'');$('detailMeta').textContent=`${data.assignments.length} assignment(s) retrieved · ${data.section.enrolled_count} enrolled · completion ${percent(data.section)}`;
   $('detailBody').innerHTML=data.assignments.length?`<table><thead><tr><th>Due</th><th>Assignment</th><th>Category</th><th>Points</th><th>Recorded / expected</th><th>Status</th><th>Flags</th><th>Policy review</th></tr></thead><tbody>${data.assignments.map(a=>`<tr><td>${esc(a.due_date)}</td><td>${esc(a.name)}${a.counted?'':'<small>Not counted in final grade</small>'}</td><td>${esc(a.category||'Uncategorized')}</td><td>${a.max_points??'—'}</td><td>${a.entered_scores}/${a.expected_scores}<small>${a.exempt_count} exempt</small></td><td>${pill(a.status)}</td><td><span class="${a.unentered_count?'gbBad':''}">${a.unentered_count} unentered</span><small>${a.missing_flag_count} missing · ${a.absent_flag_count} absent · ${a.incomplete_flag_count} incomplete</small>${a.nonstandard_max&&!Number(a.policy_warning_count)?'<small class="gbWarn">Review maximum-point rule</small>':''}${a.overmax_count?`<small class="gbWarn">${a.overmax_count} score(s) over maximum</small>`:''}</td><td>${gbPolicyWarnings_(a)}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No assignment records were returned for this section. The existing PowerSchool query excludes assignments with no qualifying score records.</div>';
 }catch(e){$('detailTitle').textContent='Unable to load section';$('detailBody').textContent=e.message||String(e)}}
 async function renderHistory(){try{const d=await api('/admin/gradebook-analytics/history');$('history').textContent=d.history?.length?d.history.map(s=>`${s.snapshot_date} · published ${nice(s.published_at)}`).join('  ·  '):'No earlier snapshots yet.'}catch{$('history').textContent='History temporarily unavailable.'}}
@@ -49,7 +126,7 @@ async function load(){setError('');$('table').textContent='Loading weekly report
   $('teacherFilterWrap').hidden=!IS_ADMIN;$('teacherFilter').innerHTML='<option value="">All teachers</option>'+teachers.map(([email,name])=>`<option value="${esc(email)}">${esc(name)}</option>`).join('');renderSummary(data.summary||{});renderTable();renderHistory();
 }catch(e){setError(e.message||String(e));$('table').textContent='Could not load report.'}}
 async function signIn(){try{await api('/admin/access');await load()}catch{if(!window.google?.accounts?.id){$('loginMessage').textContent='Loading Google Sign-In…';let i=0;while(!window.google?.accounts?.id&&i++<100)await new Promise(r=>setTimeout(r,80));}if(!window.google?.accounts?.id){$('loginMessage').textContent='Google Sign-In failed to load';return}window.google.accounts.id.initialize({client_id:CLIENT_ID,callback:async r=>{try{const response=await fetch(new URL('/admin/session/login_google',API_BASE),{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({id_token:r.credential}).toString(),credentials:'include'});const j=await response.json();if(!response.ok||!j.ok)throw new Error(j.error||'Sign-in failed');window.EAGLENEST_AUTH?.setSid?.(j.sid||response.headers.get('x-admin-session'));await load()}catch(e){$('loginMessage').textContent=e.message||String(e)}}});window.google.accounts.id.renderButton($('g_id_signin'),{theme:'outline',size:'large'});$('loginMessage').textContent='Please sign in with your school account.'}}
-$('refresh').onclick=load;$('search').oninput=renderTable;$('teacherFilter').onchange=renderTable;$('closeDetails').onclick=()=>$('details').close();window.addEventListener('DOMContentLoaded',signIn);
+$('refresh').onclick=load;$('search').oninput=renderTable;$('teacherFilter').onchange=renderTable;$('closeDetails').onclick=()=>$('details').close();$('gbTabReview').onclick=()=>gbSwitchView_('review');$('gbTabGrid').onclick=()=>gbSwitchView_('grid');window.addEventListener('DOMContentLoaded',signIn);
 
 // EAGLENEST_GRADEBOOK_MANUAL_CONTROL_V1 — frontend visibility is only UX;
 // Worker validates super_admin for both GET and POST (and blocks View-as writes).

@@ -6,3 +6,34 @@
 /* EAGLENEST_GRADEBOOK_MANUAL_CONTROL_V1 */
 .gbManualHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}.gbManualHeader h2{margin:6px 0}.gbManualButtons{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}.gbManualButtons .gbBtn:disabled{opacity:.48;cursor:not-allowed}.gbPrimary{background:var(--gb-blue);color:var(--gb-card);font-weight:700}.gbManual #manualMessage{font-weight:600;white-space:pre-wrap}.gbManual #manualHistory{line-height:1.8}
 @media(max-width:700px){.gbManualHeader{display:block}.gbManualButtons .gbBtn{width:100%}}
+
+
+/* EAGLENEST_GRADEBOOK_GRID_V1 */
+.gbViewTabs{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 14px}
+.gbSelectedTab{border-color:var(--gb-blue);box-shadow:inset 0 -3px var(--gb-blue);font-weight:700}
+dialog.gbGridMode{width:min(1500px,98vw)}
+#gbGridPane[hidden],#detailBody[hidden]{display:none!important}
+.gbGridNote{color:var(--gb-muted);font-size:12px;margin:3px 0 11px}
+.gbGridSelected{border:1px solid var(--gb-line);background:var(--gb-bg);padding:12px 15px;margin:0 0 12px;border-radius:10px;line-height:1.6}
+.gbSelectedGrade{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.gbGridScroll{overflow:auto;max-height:63vh;border:1px solid var(--gb-line);border-radius:10px}
+.gbGridTable{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:13px}
+.gbGridTable th,.gbGridTable td{border-bottom:1px solid var(--gb-line);border-right:1px solid var(--gb-line);padding:0}
+.gbGridTable thead th{position:sticky;top:0;z-index:3;background:var(--gb-card);min-width:108px;max-width:120px;text-transform:none;letter-spacing:0}
+.gbGridTable th.gbGridCorner{position:sticky;left:0;top:0;z-index:5;min-width:210px;max-width:210px;padding:10px 12px;text-align:left;background:var(--gb-card)}
+.gbGridTable tbody th.gbGridName{position:sticky;left:0;z-index:2;min-width:210px;max-width:210px;padding:9px 11px;text-align:left;background:var(--gb-card);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;text-transform:none;letter-spacing:normal;color:var(--gb-text)}
+.gbGridTable tbody tr:nth-child(even){background:rgba(130,160,190,.07)}
+.gbGridColumn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-width:108px;max-width:120px;width:100%;height:90px;text-align:center;padding:8px;color:var(--gb-text);font:inherit;background:transparent;border:0;cursor:pointer}
+.gbGridColumn span,.gbGridColumn small{font-size:11px;color:var(--gb-muted)}
+.gbGridColumn strong{font-size:12px;width:100%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.gbGridCell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-width:108px;min-height:46px;border:0;background:transparent;color:var(--gb-text);cursor:pointer;font:inherit;padding:6px}
+.gbGridCell:hover,.gbGridColumn:hover,.gbGridActive{outline:2px solid var(--gb-blue);outline-offset:-2px;background:rgba(100,160,210,.13)}
+.gbScoreText{font-weight:600;white-space:nowrap}
+.gbGridSpecial .gbScoreText{color:var(--gb-blue);font-style:italic}
+.gbCellFlags{display:inline-flex;align-items:center;gap:3px;flex-wrap:wrap;justify-content:center}
+.gbFlag{display:inline-block;font-size:10px;line-height:1;padding:3px 4px;border-radius:4px;background:rgba(255,145,65,.17);color:var(--gb-yellow);font-weight:750}
+.gbFlagM{background:rgba(230,70,70,.16);color:var(--gb-red)}
+.gbFlagA{background:rgba(70,150,240,.16);color:var(--gb-blue)}
+.gbFlagE{background:rgba(168,105,222,.18);color:var(--gb-blue)}
+@media(max-width:650px){.gbGridTable th.gbGridCorner,.gbGridTable tbody th.gbGridName{min-width:155px;max-width:155px}}
+
