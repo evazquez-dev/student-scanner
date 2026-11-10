@@ -1,6 +1,7 @@
 (()=>{
 'use strict';
 // EAGLENEST_STUDENT_FLAGS_ROSTER_BATCH_PRINT_V1
+// EAGLENEST_FLAG_REPORT_COURSE_TITLES_V1
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const collator=new Intl.Collator('en',{numeric:true,sensitivity:'base'});
@@ -8,6 +9,13 @@ const state={groups:new Map(),selected:new Set(),rows:[],rosterLoaded:false,load
 const FLAG_NAMES={M:'Missing',A:'Absent',I:'Incomplete'};
 const FLAG_ORDER=['M','A','I'];
 const GROUP_TYPES=[['grade','Grade'],['department','Department'],['teacher','Teacher'],['course','Course'],['section','Section'],['advisory','Advisory']];
+// Keep labels tied to the Grades & Attendance course catalog; never guess course titles.
+function prettySectionLabel(sectionCode, courseName){
+  const code=String(sectionCode||'').trim(), name=String(courseName||'').trim();
+  if(!code||!name||name.replace(/\s+/g,'').toUpperCase()===code.split('.')[0].replace(/\s+/g,'').toUpperCase())return code||name||'Section';
+  const suffix=code.includes('.')?code.split('.').slice(1).join('.').trim():'';
+  return `${name}${suffix?` (${suffix})`:''}`;
+}
 function status(text){$('flagRosterStatus').textContent=text;}
 function choice(id){return state.groups.get(id);}
 function renderSelected(){
@@ -47,8 +55,15 @@ async function initRosters(){
   if(!overview){status('Roster explorer requires Grades & Attendance access. Individual student search remains available.');return;}
   const admin=['admin','super_admin'].includes(String(overview.viewer?.role||''));
   const possible=admin?overview.all_groups||[]:[...(overview.my_groups||[]),...(overview.leadership_groups||[])];
-  for(const row of possible){if(!row?.id)continue;state.groups.set(row.id,{
-    id:row.id,label:row.type==='section'?row.section_code||row.label:row.label||row.id,
+  const courseNames=new Map(possible.filter(row=>row?.type==='course'&&row.course_code&&row.label)
+    .map(row=>[String(row.course_code).toUpperCase(),String(row.label)]));
+  for(const row of possible){if(!row?.id)continue;
+    const sectionCode=String(row.section_code||row.label||'');
+    const courseName=courseNames.get(String(row.course_code||'').toUpperCase()) ||
+      (row.type==='section'&&String(row.subtitle||'').endsWith(` · ${sectionCode}`)
+        ? String(row.subtitle).slice(0,-(` · ${sectionCode}`).length) : '');
+    state.groups.set(row.id,{
+    id:row.id,label:row.type==='section'?prettySectionLabel(sectionCode,courseName):row.label||row.id,
     type:row.type,student_count:row.student_count,source:'group'});}
   const allId=admin?'school:all':'mine:all';
   if(!state.groups.has(allId))state.groups.set(allId,{id:allId,label:admin?'Entire school':'All my students',type:'mine',source:'group'});
@@ -136,7 +151,7 @@ async function loadRoster(){
 function asItems(report){
   const items=[];
   for(const section of report.sections||[])for(const flag of section.by_flag||[])for(const cat of flag.categories||[])
-    for(const assignment of cat.assignments||[])items.push({section:section.section_code||section.course_number||'Section',
+    for(const assignment of cat.assignments||[])items.push({section:section.section_display_name||section.section_code||section.course_number||'Section',
       flag:FLAG_NAMES[flag.code]||flag.code,category:cat.category||'Uncategorized',assignment});
   return items;
 }

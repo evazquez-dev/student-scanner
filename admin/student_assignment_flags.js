@@ -1,5 +1,6 @@
 'use strict';
 // EAGLENEST_STUDENT_ASSIGNMENT_FLAGS_V1
+// EAGLENEST_FLAG_REPORT_COURSE_TITLES_V1
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const API_BASE=(document.querySelector('meta[name="api-base"]')?.content||'').replace(/\/*$/,'')+'/';
@@ -50,7 +51,7 @@ function renderReport(data){
   const sections=data.sections||[];
   const nonempty=sections.filter(section=>Number(section.unique_assignment_count)>0);
   $('reportBody').innerHTML=nonempty.length?nonempty.map(section=>
-    `<section class="gbCard flagSection"><h3>${esc(section.section_code||section.course_number)}</h3><p class="flagSectionMeta">${esc(section.teacher_name||'')} · ${section.unique_assignment_count} flagged assignment(s)</p><div class="flagGroups">`+
+    `<section class="gbCard flagSection"><h3>${esc(section.section_display_name||section.section_code||section.course_number)}</h3><p class="flagSectionMeta">${esc(section.teacher_name||'')} · ${section.unique_assignment_count} flagged assignment(s)</p><div class="flagGroups">`+
       (section.by_flag||[]).filter(type=>type.count>0).map(type=>
         `<div class="flagTypeGroup"><h4><span class="flagTag flagTag${esc(type.code)}">${esc(FLAG_NAMES[type.code]||type.code)}</span> ${type.count} assignment(s)</h4>`+
         (type.categories||[]).map(cat=>`<h5 class="flagCategoryTitle">${esc(cat.category||'Uncategorized')}</h5>${reportTable(cat.assignments||[])}`).join('')+
