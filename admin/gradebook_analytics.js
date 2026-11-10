@@ -17,6 +17,82 @@ function gbPolicyWarnings_(assignment){
   if(!Array.isArray(warnings)||!warnings.length)return '<small>—</small>';
   return warnings.map(w=>`<small class="gbWarn" title="${esc(w.code||'Policy review')}">⚠ ${esc(w.message||w.code||'Review policy')} (${Number(w.count)||1})</small>`).join('');
 }
+// EAGLENEST_GRADEBOOK_GRID_POLICY_HEADER_V1
+// Display-only ADS policy explanation; Cloud Run remains the authority for policy warnings.
+const GB_GRID_POINT_RULES = Object.freeze({
+  'Exams/Quizzes':[100,50,10],
+  'Projects/Labs':[100,50,20],
+  'Classwork':[20,5],
+  'Prepwork':[10]
+});
+const GB_GRID_CORE_PREFIXES = ['ELA','ENG','MTH','MATH','MAT','SCI','HIS','HST','HIST','SOC','SS','SP'];
+function gbGridCoreCourse_(courseNumber){
+  const code=String(courseNumber||'').trim().toUpperCase().replace(/\s+/g,'');
+  return GB_GRID_CORE_PREFIXES.some(p=>code.startsWith(p) &&
+    (code.length===p.length || /[\d_-]/.test(code[p.length])));
+}
+// Color groups are visual classifications, not automatic policy-category remapping.
+function gbGridCategory_(category){
+  const label=String(category||'').trim().toLowerCase().replace(/\s+/g,' ');
+  if(['exams/quizzes','exam','exams','quiz','quizzes','test','tests','assessment','assessments','exit ticket','exit tickets'].includes(label))
+    return {key:'assessments',label:'Exams / assessments'};
+  if(['projects/labs','projects','project','lab','labs'].includes(label))
+    return {key:'projects',label:'Projects / labs'};
+  if(['classwork','class work'].includes(label))
+    return {key:'classwork',label:'Classwork'};
+  if(['prepwork','preparation','homework','hw','prepwork (hw)'].includes(label))
+    return {key:'prepwork',label:'Prepwork / homework'};
+  return {key:'other',label:'Other categories'};
+}
+function gbGridReviewRecord_(assignment){
+  return GB_GRID_CONTEXT?.assignmentById?.get(String(assignment?.id||'')) || null;
+}
+function gbGridPolicyWarnings_(assignment){
+  const record=gbGridReviewRecord_(assignment);
+  if(!record)return [];
+  try{
+    const raw=record.policy_warnings;
+    const parsed=Array.isArray(raw)?raw:JSON.parse(String(raw||'[]'));
+    return Array.isArray(parsed)?parsed.filter(w=>w && typeof w.code==='string' && typeof w.message==='string'):[];
+  }catch{return [];}
+}
+function gbGridAllowedPoints_(assignment){
+  const course=GB_GRID_CONTEXT?.courseNumber;
+  if(!gbGridCoreCourse_(course))return null;
+  // Exact PowerSchool category name: a display color alias is never a policy match.
+  return GB_GRID_POINT_RULES[String(assignment?.category||'').trim()]||null;
+}
+function gbGridPolicyHeader_(assignment){
+  const warnings=gbGridPolicyWarnings_(assignment);
+  const allowed=gbGridAllowedPoints_(assignment);
+  const category=String(assignment?.category||'Uncategorized');
+  const max=assignment?.max==null?'not specified':String(assignment.max);
+  const pointsWarning=warnings.find(w=>w.code==='POINTS_OUT_OF_POLICY');
+  const policyStatus=(pointsWarning && allowed)
+    ? `<div class="gbGridPointsViolation"><strong>⚠ Out-of-points mismatch:</strong> This ${esc(category)} assignment is out of <strong>${esc(max)}</strong> points. Allowed: <strong>${allowed.join(' or ')} points</strong>.</div>`
+    : '';
+  const rules=allowed
+    ? `<div class="gbGridAllowed"><strong>ADS core-subject rule:</strong> Allowed out-of values for ${esc(category)}: <strong>${allowed.join(', ')} points</strong>.</div>`
+    : '';
+  const otherWarnings=warnings.filter(w=>w!==pointsWarning || !allowed);
+  const issues=otherWarnings.map(w=>`<li><strong>${esc(w.code.replace(/_/g,' '))}:</strong> ${esc(w.message)}${Number(w.count)>1?` <span class="gbMeta">(${Number(w.count)} occurrences)</span>`:''}</li>`).join('');
+  const review=issues?`<div class="gbGridWarningList"><strong>⚠ Policy review</strong><ul>${issues}</ul></div>`:'';
+  const record=gbGridReviewRecord_(assignment);
+  const fallback=Number(record?.nonstandard_max)>0 && !warnings.length
+    ? '<div class="gbGridWarningList">⚠ Review the assignment maximum against ADS policy.</div>':'';
+  return `${policyStatus}${rules}${review}${fallback}`;
+}
+function gbGridCategoryLegend_(grid){
+  const used=new Set(grid.assignments.map(a=>gbGridCategory_(a.category).key));
+  const groups=[
+    ['assessments','Exams / assessments'],['projects','Projects / labs'],
+    ['classwork','Classwork'],['prepwork','Prepwork / homework'],['other','Other']
+  ];
+  return '<span class="gbGridLegendIntro">Category colors:</span>'+
+    groups.filter(([key])=>used.has(key)).map(([key,label])=>
+      `<span class="gbGridLegendItem"><i class="gbGridCatDot gbCat-${key}" aria-hidden="true"></i>${label}</span>`).join('');
+}
+
 // EAGLENEST_GRADEBOOK_GRID_V1 — read-only gradebook projection.
 let GB_GRID_CONTEXT=null;
 function gbFlagLabels_(flags){
@@ -62,7 +138,8 @@ function gbSelectGrid_(grid,studentIndex,assignmentIndex,scoreMap){
   const value=score?.entry!==undefined&&score.entry!==''?esc(score.entry):'No score entered';
   const calc=score?.percent==null?'':` · ${Number(score.percent).toFixed(1)}%`;
   const flags=score?gbFlagChips_(score.flags):'';
-  $('gbGridSelected').innerHTML=`<div><strong>Assignment: ${name}</strong> <span class="gbMeta">Due ${esc(assignment.due)} · ${esc(assignment.category||'Uncategorized')} · Out of ${esc(max)} points</span></div>`+
+  $('gbGridSelected').innerHTML=`<div class="gbGridSelectedAssignment"><strong>Assignment: ${name}</strong> <span class="gbMeta">Due ${esc(assignment.due)} · ${esc(assignment.category||'Uncategorized')} · Out of ${esc(max)} points</span></div>`+
+    gbGridPolicyHeader_(assignment)+
     (student?`<div class="gbSelectedGrade"><strong>${esc(student.name)}</strong> · Score: <strong>${value}</strong>${calc}${flags?` <span class="gbCellFlags">${flags}</span>`:''}</div>`:'<div class="gbMeta">Select a score below to see student details and flags.</div>');
   $('gbGridScroll').querySelectorAll('.gbGridActive').forEach(el=>el.classList.remove('gbGridActive'));
   const selected=$('gbGridScroll').querySelector(studentIndex<0?`[data-gb-col="${assignmentIndex}"]`:`[data-gb-a="${assignmentIndex}"][data-gb-s="${studentIndex}"]`);
@@ -74,7 +151,11 @@ function gbRenderGrid_(grid){
     return;
   }
   const scoreMap=new Map(grid.cells.map(r=>[r.student+'|'+r.assignment,r]));
-  const head=grid.assignments.map((a,i)=>`<th scope="col"><button type="button" class="gbGridColumn" data-gb-col="${i}" title="${esc(a.name)}"><span>${esc(a.due)}</span><strong>${esc(a.name)}</strong><small>Out of ${esc(a.max??'—')}</small></button></th>`).join('');
+  const head=grid.assignments.map((a,i)=>{
+    const group=gbGridCategory_(a.category);
+    const warningCount=gbGridPolicyWarnings_(a).length;
+    return `<th scope="col"><button type="button" class="gbGridColumn gbCat-${group.key}${warningCount?' gbGridColumnWarn':''}" data-gb-col="${i}" title="${esc(a.name)} · ${esc(a.category||'Uncategorized')}${warningCount?' · '+warningCount+' policy warning(s)':''}" aria-label="${esc(a.name)} · ${esc(a.category||'Uncategorized')}${warningCount?' · '+warningCount+' policy warning(s)':''}"><span class="gbGridCategoryName">${esc(a.category||'Uncategorized')}</span><span>${esc(a.due)}</span><strong>${esc(a.name)}</strong><small>Out of ${esc(a.max??'—')}</small>${warningCount?'<span class="gbGridColumnAlert" title="Policy warnings — select assignment to review">⚠ '+warningCount+'</span>':''}</button></th>`;
+  }).join('');
   const rows=grid.students.map((s,si)=>`<tr><th scope="row" class="gbGridName" title="${esc(s.name)}">${esc(s.name)}</th>`+
     grid.assignments.map((a,ai)=>{
       const score=scoreMap.get(s.key+'|'+a.id);
@@ -85,6 +166,7 @@ function gbRenderGrid_(grid){
       return `<td><button type="button" class="gbGridCell${kind}" data-gb-s="${si}" data-gb-a="${ai}" aria-label="${esc(s.name)} · ${esc(a.name)} · ${esc(text)}${score?.flags?' · '+esc(gbFlagLabels_(score.flags).join(', ')):''}"><span class="gbScoreText">${esc(text)}</span><span class="gbCellFlags">${flags}</span></button></td>`;
     }).join('')+'</tr>').join('');
   $('gbGridScroll').innerHTML=`<table class="gbGridTable"><thead><tr><th scope="col" class="gbGridCorner">STUDENTS (${grid.students.length})</th>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+  $('gbGridLegend').innerHTML=gbGridCategoryLegend_(grid);
   $('gbGridScroll').onclick=ev=>{
     const btn=ev.target.closest('button[data-gb-a],button[data-gb-col]');
     if(!btn||!$('gbGridScroll').contains(btn))return;
@@ -114,7 +196,7 @@ function gbCourseSort(a,b){
 function renderTable(){const q=$('search').value.trim().toLowerCase();const teacher=$('teacherFilter').value;const visible=SECTION_ROWS.filter(r=>(!teacher||r.teacher_email===teacher||(r.additional_teacher_emails||[]).includes(teacher))&&(!q||[r.section_code,r.teacher_name,r.course_number].some(v=>String(v||'').toLowerCase().includes(q))));$('listCaption').textContent=`${visible.length} section(s) · click a course for its assignment breakdown.`;
   $('table').innerHTML=visible.length?`<table><thead><tr><th>Section</th>${IS_ADMIN?'<th>Teacher</th>':''}<th>Enrolled</th><th>Retrieved assignments</th><th>Due fully graded</th><th>Recorded completion</th><th>Pending due</th><th>Policy reviews</th><th>Last score entry</th></tr></thead><tbody>${visible.map(r=>`<tr><td><button class="gbRowButton" data-section="${esc(r.section_dcid)}">${esc(r.section_code)}</button>${r.coverage==='NO_RETRIEVED_ASSIGNMENTS'?'<small>No returned scored assignments</small>':''}</td>${IS_ADMIN?`<td>${esc(r.teacher_name||'Unmapped teacher')}<small>${esc(r.teacher_email||'Email not mapped')}</small>${r.additional_teacher_emails?.length?`<small>Additional: ${esc(r.additional_teacher_emails.join(', '))}</small>`:''}</td>`:''}<td>${r.enrolled_count}</td><td>${r.assignment_count}</td><td>${r.fully_graded_count}/${r.due_count}</td><td>${percent(r)}</td><td class="${r.outstanding_count?'gbWarn':'gbGood'}">${r.outstanding_count}</td><td class="${Number(r.policy_warning_assignment_count)?'gbWarn':''}">${Number(r.policy_warning_assignment_count)||0}</td><td>${esc(r.latest_score_entry||'—')}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No sections match your filters, or your teacher email has not yet been mapped to a PowerSchool section.</div>';
   $('table').querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>showSection(b.dataset.section));}
-async function showSection(dcid){GB_GRID_CONTEXT={dcid,grid:null};gbSwitchView_('review');$('details').showModal();$('detailTitle').textContent='Loading section…';$('detailBody').innerHTML='';try{const data=await api('/admin/gradebook-analytics/section?section_dcid='+encodeURIComponent(dcid));$('detailTitle').textContent=data.section.section_code+' · '+(data.section.teacher_name||'');$('detailMeta').textContent=`${data.assignments.length} assignment(s) retrieved · ${data.section.enrolled_count} enrolled · completion ${percent(data.section)}`;
+async function showSection(dcid){GB_GRID_CONTEXT={dcid,grid:null,courseNumber:'',assignmentById:new Map()};gbSwitchView_('review');$('details').showModal();$('detailTitle').textContent='Loading section…';$('detailBody').innerHTML='';try{const data=await api('/admin/gradebook-analytics/section?section_dcid='+encodeURIComponent(dcid));if(GB_GRID_CONTEXT?.dcid===dcid){GB_GRID_CONTEXT.courseNumber=data.section?.course_number||'';GB_GRID_CONTEXT.assignmentById=new Map((data.assignments||[]).map(a=>[String(a.assignment_section_id),a]));if(GB_GRID_CONTEXT.grid&&!$('gbGridPane').hidden)gbRenderGrid_(GB_GRID_CONTEXT.grid);}$('detailTitle').textContent=data.section.section_code+' · '+(data.section.teacher_name||'');$('detailMeta').textContent=`${data.assignments.length} assignment(s) retrieved · ${data.section.enrolled_count} enrolled · completion ${percent(data.section)}`;
   $('detailBody').innerHTML=data.assignments.length?`<table><thead><tr><th>Due</th><th>Assignment</th><th>Category</th><th>Points</th><th>Recorded / expected</th><th>Status</th><th>Flags</th><th>Policy review</th></tr></thead><tbody>${data.assignments.map(a=>`<tr><td>${esc(a.due_date)}</td><td>${esc(a.name)}${a.counted?'':'<small>Not counted in final grade</small>'}</td><td>${esc(a.category||'Uncategorized')}</td><td>${a.max_points??'—'}</td><td>${a.entered_scores}/${a.expected_scores}<small>${a.exempt_count} exempt</small></td><td>${pill(a.status)}</td><td><span class="${a.unentered_count?'gbBad':''}">${a.unentered_count} unentered</span><small>${a.missing_flag_count} missing · ${a.absent_flag_count} absent · ${a.incomplete_flag_count} incomplete</small>${a.nonstandard_max&&!Number(a.policy_warning_count)?'<small class="gbWarn">Review maximum-point rule</small>':''}${a.overmax_count?`<small class="gbWarn">${a.overmax_count} score(s) over maximum</small>`:''}</td><td>${gbPolicyWarnings_(a)}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No assignment records were returned for this section. The existing PowerSchool query excludes assignments with no qualifying score records.</div>';
 }catch(e){$('detailTitle').textContent='Unable to load section';$('detailBody').textContent=e.message||String(e)}}
 async function renderHistory(){try{const d=await api('/admin/gradebook-analytics/history');$('history').textContent=d.history?.length?d.history.map(s=>`${s.snapshot_date} · published ${nice(s.published_at)}`).join('  ·  '):'No earlier snapshots yet.'}catch{$('history').textContent='History temporarily unavailable.'}}

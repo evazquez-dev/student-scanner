@@ -37,3 +37,34 @@ dialog.gbGridMode{width:min(1500px,98vw)}
 .gbFlagE{background:rgba(168,105,222,.18);color:var(--gb-blue)}
 @media(max-width:650px){.gbGridTable th.gbGridCorner,.gbGridTable tbody th.gbGridName{min-width:155px;max-width:155px}}
 
+
+/* EAGLENEST_GRADEBOOK_GRID_POLICY_HEADER_V1 */
+.gbGridLegend{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:5px 0 10px;font-size:12px;color:var(--gb-muted)}
+.gbGridLegendIntro{font-weight:650;color:var(--gb-text)}
+.gbGridLegendItem{display:inline-flex;align-items:center;gap:6px}
+.gbGridCatDot{width:11px;height:11px;border-radius:3px;display:inline-block;flex:0 0 auto}
+.gbGridCatDot.gbCat-assessments{background:#4d9bff}
+.gbGridCatDot.gbCat-projects{background:#af88ed}
+.gbGridCatDot.gbCat-classwork{background:#32b6a0}
+.gbGridCatDot.gbCat-prepwork{background:#e9aa40}
+.gbGridCatDot.gbCat-other{background:#8795aa}
+.gbGridColumn.gbCat-assessments{background:rgba(77,155,255,.18);box-shadow:inset 0 4px #4d9bff}
+.gbGridColumn.gbCat-projects{background:rgba(175,136,237,.18);box-shadow:inset 0 4px #af88ed}
+.gbGridColumn.gbCat-classwork{background:rgba(50,182,160,.18);box-shadow:inset 0 4px #32b6a0}
+.gbGridColumn.gbCat-prepwork{background:rgba(233,170,64,.18);box-shadow:inset 0 4px #e9aa40}
+.gbGridColumn.gbCat-other{background:rgba(135,149,170,.12);box-shadow:inset 0 4px #8795aa}
+.gbGridColumn{height:116px;gap:4px;position:relative}
+.gbGridColumn .gbGridCategoryName{font-size:10px;color:var(--gb-text);font-weight:750;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gbGridColumnWarn .gbGridColumnAlert{color:#f8d18b;font-size:11px;font-weight:800;border-radius:5px;background:#764019;line-height:1.2;padding:3px 6px}
+:root[data-theme="light"] .gbGridColumnWarn .gbGridColumnAlert{color:#85420b;background:#fff0d6}
+.gbGridSelectedAssignment{margin-bottom:7px}
+.gbGridPointsViolation,.gbGridWarningList{padding:9px 11px;margin:9px 0;border-radius:8px;border:1px solid rgba(234,170,78,.55);background:rgba(234,170,78,.10);color:var(--gb-text)}
+.gbGridPointsViolation strong,.gbGridWarningList>strong{color:var(--gb-yellow)}
+.gbGridAllowed{padding:6px 0;color:var(--gb-muted);font-size:13px}
+.gbGridAllowed strong{color:var(--gb-text)}
+.gbGridWarningList ul{padding-left:20px;margin:5px 0 0}
+.gbGridWarningList li+li{margin-top:6px}
+.gbGridWarningList li{overflow-wrap:anywhere}
+#gbGridSelected .gbSelectedGrade{margin-top:9px;border-top:1px solid var(--gb-line);padding-top:7px}
+@media (prefers-reduced-motion: no-preference){.gbGridColumn{transition:background-color .15s ease}}
+
