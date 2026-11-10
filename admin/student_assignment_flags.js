@@ -41,6 +41,7 @@ function reportTable(assignments){
     '</tbody></table></div>';
 }
 function renderReport(data){
+  window.EAGLENEST_CURRENT_FLAG_REPORT=data; // read-only single-report print projection
   const s=data.summary||{},student=data.student||{};
   $('reportName').textContent=student.name||'Student';
   $('reportScope').textContent=(student.number?`Student number: ${student.number} · `:'')+`Snapshot ${data.snapshot_date||'—'} · ${Number(s.section_count)||0} accessible section(s)`;
@@ -61,6 +62,8 @@ function renderReport(data){
 }
 async function selectStudent(key){
   const request=++REQUEST_ID;
+  window.EAGLENEST_CURRENT_FLAG_REPORT=null;
+  $('printReport').hidden=true;
   $('searchMessage').textContent='Loading assignment flags…';$('report').hidden=true;
   errorMessage('');
   try{
@@ -72,7 +75,7 @@ async function selectStudent(key){
   }catch(e){if(request===REQUEST_ID)errorMessage('Could not load student report: '+e.message);}
 }
 async function signIn(){
-  try{await api('/admin/access');$('login').hidden=true;$('app').hidden=false;return;}
+  try{await api('/admin/access');$('login').hidden=true;$('app').hidden=false;document.dispatchEvent(new Event('eaglenest-flags-auth-ready'));return;}
   catch{};
   for(let i=0;!window.google?.accounts?.id && i<70;i++)await new Promise(r=>setTimeout(r,100));
   if(!window.google?.accounts?.id){$('loginMessage').textContent='Google Sign-In is unavailable. Refresh and try again.';return;}
@@ -81,7 +84,7 @@ async function signIn(){
       const r=await fetch(new URL('/admin/session/login_google',API_BASE),{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({id_token:x.credential}).toString(),credentials:'include'});
       const j=await r.json();if(!r.ok||!j.ok)throw new Error(j.error||'Sign-in failed');
       window.EAGLENEST_AUTH?.setSid?.(j.sid||r.headers.get('x-admin-session'));
-      $('login').hidden=true;$('app').hidden=false;
+      $('login').hidden=true;$('app').hidden=false;document.dispatchEvent(new Event('eaglenest-flags-auth-ready'));
     }catch(e){$('loginMessage').textContent=e.message;}
   }});
   window.google.accounts.id.renderButton($('g_id_signin'),{theme:'outline',size:'large'});
@@ -91,5 +94,5 @@ $('studentSearch').addEventListener('input',()=>{clearTimeout(SEARCH_TIMER);SEAR
 $('studentSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(SEARCH_TIMER);searchStudents();}});
 $('searchButton').addEventListener('click',()=>{clearTimeout(SEARCH_TIMER);searchStudents();});
 $('studentMatches').addEventListener('click',e=>{const b=e.target.closest('[data-key]');if(b)selectStudent(b.dataset.key);});
-$('printReport').addEventListener('click',()=>window.print());
+$('printReport').addEventListener('click',()=>{if(window.EagleNESTFlagRosters?.printSingle)window.EagleNESTFlagRosters.printSingle();else window.print();});
 window.addEventListener('DOMContentLoaded',signIn);

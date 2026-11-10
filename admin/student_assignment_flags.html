@@ -6,7 +6,7 @@
 <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
 <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
 <script src="./shared_auth.js"></script><script src="https://accounts.google.com/gsi/client" async defer></script>
-<link rel="stylesheet" href="./nav.css"><link rel="stylesheet" href="./gradebook_analytics.css"><link rel="stylesheet" href="./student_assignment_flags.css">
+<link rel="stylesheet" href="./nav.css"><link rel="stylesheet" href="./gradebook_analytics.css"><link rel="stylesheet" href="./student_assignment_flags.css"><link rel="stylesheet" href="./student_assignment_flags_rosters.css">
 <script src="./brand.js" defer></script><script src="./nav.js" defer></script>
 <script>(()=>{try{const t=localStorage.getItem('ss_theme_v1')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t}catch{}})();</script>
 </head>
@@ -14,12 +14,38 @@
 <section id="login" class="gbCard"><h2>Staff sign-in</h2><p>This report contains student assignment records. Sign in with your school account.</p><div id="g_id_signin"></div><p id="loginMessage" role="status">Checking your session…</p></section>
 <main id="app" hidden>
 <header class="gbHero gbCard"><div><div class="gbEyebrow">EAGLENEST / STUDENT SUPPORT</div><h1>Student Assignment Flags</h1><p>Find assignments marked Missing, Absent, or Incomplete.</p><p class="gbMeta" id="snapshotMeta">Latest published PowerSchool snapshot · Read only</p><p class="gbMeta">A flag can appear alongside a valid grade. These are PowerSchool score flags, not grading-policy violations or a live assignment-status feed.</p></div><button type="button" id="printReport" class="gbBtn" hidden>Print report</button></header>
+<!-- EAGLENEST_STUDENT_FLAGS_ROSTER_BATCH_PRINT_V1 -->
+<section id="flagRosterPicker" class="gbCard flagRosterPicker" hidden>
+  <h2>Roster reports &amp; batch printing</h2>
+  <p class="gbMeta">Choose from Schoolwide Explorer populations or owned/shared My Rosters. Gradebook assignment access remains independently permission-scoped.</p>
+  <div id="flagRosterPickers" class="flagRosterPickers"></div>
+  <details class="flagMyRosterWrap"><summary>My Rosters — owned and shared</summary><div id="flagMyRosterChoices" class="flagMyRosterChoices"></div></details>
+  <div id="flagRosterSelected" class="flagRosterSelected" aria-label="Selected roster populations"></div>
+  <div class="flagRosterActionRow"><button type="button" class="gbBtn gbPrimary" id="flagRosterLoad" disabled>Load roster</button></div>
+  <p id="flagRosterStatus" role="status" aria-live="polite" class="gbMeta"></p>
+</section>
 <section class="gbCard flagSearchCard"><label for="studentSearch" class="flagSearchLabel">Search student name or PowerSchool student number</label><div class="flagSearchLine"><input id="studentSearch" type="search" placeholder="Start typing a name or student number" autocomplete="off" aria-controls="studentMatches" aria-describedby="scopeNote"><button id="searchButton" class="gbBtn" type="button">Search</button></div><p id="scopeNote" class="gbMeta">Search results only include classes you are authorized to view. Administrators can see schoolwide records.</p><p id="searchMessage" class="gbMeta" role="status" aria-live="polite">Enter at least two characters.</p><div id="studentMatches" class="flagResults" role="listbox" aria-label="Matching students"></div></section>
+<section id="flagRosterOverview" class="gbCard flagRosterOverview" hidden>
+  <h2>Roster overview <span class="gbMeta">(not printed)</span></h2>
+  <p id="flagRosterOverviewMeta" class="gbMeta"></p>
+  <div class="flagRosterActionRow">
+    <button class="gbBtn" id="flagRosterToggleAll" type="button">Select / deselect all</button>
+    <label><input type="checkbox" id="flagOnlyFlagged"> Print only students with flags</label>
+    <label><input type="checkbox" id="flagDuplex" checked> Double-sided: keep each student on a new front side</label>
+    <button class="gbBtn gbPrimary" id="flagRosterPrint" type="button">Print selected student reports</button>
+  </div>
+  <p class="gbMeta">Counts are shown here only; printed sheets contain individual assignment details, not this roster overview. Choose two-sided printing separately in the print dialog. A student with no accessible gradebook record is unavailable, not a verified zero.</p>
+  <div class="flagRosterTableWrap"><table class="flagRosterTable"><thead><tr>
+    <th>Print</th><th>Student</th><th>Grade</th><th>Missing</th><th>Absent</th><th>Incomplete</th><th>Unique</th><th>Report status</th>
+  </tr></thead><tbody id="flagRosterBody"></tbody></table></div>
+</section>
 <section id="report" hidden>
   <header class="gbCard flagReportHeader"><div><div class="gbEyebrow">STUDENT FLAG REPORT</div><h2 id="reportName"></h2><p id="reportScope" class="gbMeta"></p></div><div class="flagSummary" id="flagSummary" aria-label="Flagged assignment totals"></div></header>
   <div id="reportBody"></div>
 </section>
 <section class="gbCard gbError" id="error" hidden role="alert"></section>
 </main></div>
+<div id="flagPrintRoot" aria-hidden="true"></div>
 <script src="./student_assignment_flags.js"></script>
+<script src="./student_assignment_flags_rosters.js"></script>
 </body></html>

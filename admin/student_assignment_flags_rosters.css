@@ -1,0 +1,53 @@
+/* EAGLENEST_STUDENT_FLAGS_ROSTER_BATCH_PRINT_V1 */
+.flagRosterPicker h2,.flagRosterOverview h2{margin:0 0 5px;font-size:21px}
+.flagRosterPickers{display:flex;flex-wrap:wrap;align-items:end;gap:9px;margin-top:14px}
+.flagRosterPickers label{font-size:12px;color:var(--gb-muted);display:flex;flex-direction:column;gap:5px}
+.flagRosterPickers select{min-width:148px;max-width:255px;background:var(--gb-bg);color:var(--gb-text);border:1px solid var(--gb-line);border-radius:9px;padding:10px;font:inherit;font-size:13px}
+.flagRosterSelected{margin:12px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.flagRosterChip{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--gb-line);border-radius:20px;padding:4px 9px;background:var(--gb-bg);font-size:13px}
+.flagRosterChip button{cursor:pointer;color:var(--gb-red);border:0;background:transparent;font-weight:800;font-size:17px}
+.flagMyRosterWrap{margin-top:8px}.flagMyRosterWrap summary{cursor:pointer;font-weight:650;font-size:14px}
+.flagMyRosterChoices{display:flex;flex-wrap:wrap;gap:7px;padding:12px 0}
+.flagSavedRoster{display:flex;flex-direction:column;gap:4px;text-align:left;background:var(--gb-bg);color:var(--gb-text);border:1px solid var(--gb-line);border-radius:9px;padding:8px 12px;cursor:pointer}
+.flagSavedRoster:hover,.flagSavedRoster:focus-visible{border-color:var(--gb-blue)}
+.flagSavedRoster small{font-size:11px;color:var(--gb-muted)}
+.flagRosterActionRow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:13px 0 8px}
+.flagRosterActionRow label{font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.flagRosterActionRow button:disabled,.flagRosterPickers select:disabled{opacity:.45;cursor:not-allowed}
+.flagRosterTableWrap{overflow:auto;max-height:65vh;border:1px solid var(--gb-line);border-radius:10px;margin-top:10px}
+.flagRosterTable{width:100%;border-collapse:collapse;min-width:750px;font-size:13px}
+.flagRosterTable th,.flagRosterTable td{padding:9px 12px;border-bottom:1px solid var(--gb-line);text-align:left;vertical-align:middle}
+.flagRosterTable td:nth-child(n+4):nth-child(-n+7){font-variant-numeric:tabular-nums;font-weight:700;text-align:center}
+.flagRosterStudentLink{background:none;border:0;padding:2px 0;color:var(--gb-blue);font:inherit;font-weight:750;cursor:pointer;text-align:left}
+.flagRosterTable td small{display:block;font-size:11px;color:var(--gb-muted)}
+@media(max-width:680px){.flagRosterPickers select{min-width:160px}.flagRosterActionRow button{width:100%}}
+
+/* Exact Letter-sheet staging is rendered off-screen (not display:none) so JS
+ * can measure each page before printing and prevent student crossovers. */
+#flagPrintRoot{position:absolute;left:-10000px;top:0;visibility:hidden;width:7.6in;pointer-events:none;color:#111;font:10.5pt/1.3 Arial,Helvetica,sans-serif}
+.flagPrintPage{box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden;width:7.6in;height:10.1in;padding:.08in 0;color:#111;background:#fff}
+.flagPrintHeader{flex:0 0 auto;display:flex;justify-content:space-between;gap:.25in;border-bottom:2px solid #303c4a;padding:.08in 0 .13in;margin-bottom:.16in}
+.flagPrintHeader strong{font-size:15pt;display:block;margin-bottom:4px}
+.flagPrintHeader small{display:block;font-size:9pt;color:#444}
+.flagPrintPageNumber{font-size:9pt;color:#444;white-space:nowrap}
+.flagPrintContent{min-height:0;flex:1 1 auto;overflow:hidden}
+.flagPrintFooter{flex:0 0 auto;border-top:1px solid #aaa;padding-top:.10in;margin-top:.13in;font-size:8pt;color:#666}
+.flagPrintTable{table-layout:fixed;border-collapse:collapse;width:100%;font-size:9.25pt;line-height:1.25}
+.flagPrintTable th,.flagPrintTable td{border-bottom:1px solid #ddd;padding:.065in .06in;vertical-align:top;overflow-wrap:anywhere;white-space:normal;color:#111;letter-spacing:normal;text-transform:none;font-weight:400}
+.flagPrintTable th{background:#e9eef2;color:#222;font-size:9pt;font-weight:750}
+.flagPrintTable th:first-child{width:56%}
+.flagPrintTable th:nth-child(2){width:15%}
+.flagPrintTable th:nth-child(3){width:12%}
+.flagPrintTable th:nth-child(4){width:9%}
+.flagPrintTable th:nth-child(5){width:8%}
+.flagPrintTable .flagPrintGroup td{background:#f0f2f5;color:#243b50;font-weight:750;border-top:1px solid #7b8995;padding:.07in .06in}
+.flagPrintBlank::before{content:'\00a0';font-size:1px;color:transparent;display:block}
+@page { size:letter portrait; margin:.45in }
+@media print {
+  body > :not(#flagPrintRoot){display:none!important}
+  html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important;width:auto!important;min-height:0!important}
+  #flagPrintRoot{position:static!important;left:auto!important;top:auto!important;visibility:visible!important;display:block!important;pointer-events:auto!important;width:7.6in!important;margin:0!important;padding:0!important}
+  .flagPrintPage{break-after:page;page-break-after:always;box-shadow:none!important;border:0!important}
+  .flagPrintPage.flagPrintLast{break-after:auto;page-break-after:auto}
+  .flagPrintTable tr{break-inside:avoid;page-break-inside:avoid}
+}
