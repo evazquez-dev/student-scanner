@@ -222,6 +222,39 @@ function gbPopulateSectionSwitcher_(dcid){
 function renderTable(){gbRefreshTeacherSummary_();const q=$('search').value.trim().toLowerCase();const teacher=$('teacherFilter').value;const visible=SECTION_ROWS.filter(r=>(!teacher||r.teacher_email===teacher||(r.additional_teacher_emails||[]).includes(teacher))&&(!q||[r.section_code,r.teacher_name,r.course_number].some(v=>String(v||'').toLowerCase().includes(q))));$('listCaption').textContent=`${visible.length} section(s) · click a course for its assignment breakdown.`;
   $('table').innerHTML=visible.length?`<table><thead><tr><th>Section</th>${IS_ADMIN?'<th>Teacher</th>':''}<th>Enrolled</th><th>Retrieved assignments</th><th>Due fully graded</th><th>Recorded completion</th><th>Pending due</th><th>Policy reviews</th><th>Last score entry</th></tr></thead><tbody>${visible.map(r=>`<tr><td><button class="gbRowButton" data-section="${esc(r.section_dcid)}">${esc(r.section_code)}</button>${r.coverage==='NO_RETRIEVED_ASSIGNMENTS'?'<small>No returned scored assignments</small>':''}</td>${IS_ADMIN?`<td>${esc(r.teacher_name||'Unmapped teacher')}<small>${esc(r.teacher_email||'Email not mapped')}</small>${r.additional_teacher_emails?.length?`<small>Additional: ${esc(r.additional_teacher_emails.join(', '))}</small>`:''}</td>`:''}<td>${r.enrolled_count}</td><td>${r.assignment_count}</td><td>${r.fully_graded_count}/${r.due_count}</td><td>${percent(r)}</td><td class="${r.outstanding_count?'gbWarn':'gbGood'}">${r.outstanding_count}</td><td class="${Number(r.policy_warning_assignment_count)?'gbWarn':''}">${Number(r.policy_warning_assignment_count)||0}</td><td>${esc(r.latest_score_entry||'—')}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No sections match your filters, or your teacher email has not yet been mapped to a PowerSchool section.</div>';
   $('table').querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>showSection(b.dataset.section));}
+// EAGLENEST_GRADEBOOK_CATEGORY_TOTALS_V1
+// Uses only the already authorized /section assignment list. Color grouping is
+// cosmetic; counts reflect exact PowerSchool category names, not color bands.
+function gbCategoryCounts_(assignments) {
+  const grouped = new Map();
+  for (const assignment of Array.isArray(assignments) ? assignments : []) {
+    const category = String(assignment?.category ?? '').trim().replace(/\s+/g, ' ') || 'Uncategorized';
+    const key = category.toLocaleLowerCase('en-US');
+    const previous = grouped.get(key);
+    if (previous) previous.count++;
+    else grouped.set(key, { name: category, count: 1 });
+  }
+  return [...grouped.values()].sort((a, b) => b.count - a.count ||
+    a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
+}
+function gbRenderCategorySummary_(assignments) {
+  const target = $('gbCategorySummary');
+  if (!target) return;
+  const items = Array.isArray(assignments) ? assignments : [];
+  const groups = gbCategoryCounts_(items);
+  const total = items.length;
+  target.innerHTML = `<div class="gbCategorySummaryHeader"><strong>Assignment categories</strong>`+
+    `<span class="gbCategorySummaryNote">${total} retrieved assignment${total === 1 ? '' : 's'} · published snapshot</span></div>`+
+    (total ? `<div class="gbCategoryBreakdown">`+
+      groups.map(group => {
+        const colorKey = gbGridCategory_(group.name).key;
+        return `<span class="gbCategoryChip"><i class="gbGridCatDot gbCat-${colorKey}" aria-hidden="true"></i>`+
+          `<span>${esc(group.name)}</span><strong>${group.count}</strong></span>`;
+      }).join('') + `</div>` : '<p class="gbCategoryEmpty">No retrieved assignments for this section.</p>') +
+    '<p class="gbCategoryFootnote">Counts include assignments marked “Not counted in final grade.” Assignments absent from the published snapshot are not included.</p>';
+}
+// EAGLENEST_GRADEBOOK_CATEGORY_TOTALS_V1_END
+
 async function showSection(dcid,keepGrid=false){
   const showGrid=keepGrid&&$('gbTabGrid').getAttribute('aria-selected')==='true';
   const ctx={dcid,grid:null,courseNumber:'',assignmentById:new Map()};
@@ -231,13 +264,15 @@ async function showSection(dcid,keepGrid=false){
   gbPopulateSectionSwitcher_(dcid);
   $('detailTitle').textContent='Loading section…';
   $('detailBody').innerHTML='';
+  $('gbCategorySummary').textContent='Loading assignment categories…';
   try{
     const data=await api('/admin/gradebook-analytics/section?section_dcid='+encodeURIComponent(dcid));
     if(GB_GRID_CONTEXT!==ctx)return;
+    gbRenderCategorySummary_(data.assignments||[]);
 if(GB_GRID_CONTEXT?.dcid===dcid){GB_GRID_CONTEXT.courseNumber=data.section?.course_number||'';GB_GRID_CONTEXT.assignmentById=new Map((data.assignments||[]).map(a=>[String(a.assignment_section_id),a]));if(GB_GRID_CONTEXT.grid&&!$('gbGridPane').hidden)gbRenderGrid_(GB_GRID_CONTEXT.grid);}$('detailTitle').textContent=data.section.section_code+' · '+(data.section.teacher_name||'');$('detailMeta').textContent=`${data.assignments.length} assignment(s) retrieved · ${data.section.enrolled_count} enrolled · completion ${percent(data.section)}`;
   $('detailBody').innerHTML=data.assignments.length?`<table><thead><tr><th>Due</th><th>Assignment</th><th>Category</th><th>Points</th><th>Recorded / expected</th><th>Status</th><th>Flags</th><th>Policy review</th></tr></thead><tbody>${data.assignments.map(a=>`<tr><td>${esc(a.due_date)}</td><td>${esc(a.name)}${a.counted?'':'<small>Not counted in final grade</small>'}</td><td>${esc(a.category||'Uncategorized')}</td><td>${a.max_points??'—'}</td><td>${a.entered_scores}/${a.expected_scores}<small>${a.exempt_count} exempt</small></td><td>${pill(a.status)}</td><td><span class="${a.unentered_count?'gbBad':''}">${a.unentered_count} unentered</span><small>${a.missing_flag_count} missing · ${a.absent_flag_count} absent · ${a.incomplete_flag_count} incomplete</small>${a.nonstandard_max&&!Number(a.policy_warning_count)?'<small class="gbWarn">Review maximum-point rule</small>':''}${a.overmax_count?`<small class="gbWarn">${a.overmax_count} score(s) over maximum</small>`:''}</td><td>${gbPolicyWarnings_(a)}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No assignment records were returned for this section. The existing PowerSchool query excludes assignments with no qualifying score records.</div>';
 if(showGrid&&GB_GRID_CONTEXT===ctx)gbSwitchView_('grid');
-}catch(e){if(GB_GRID_CONTEXT!==ctx)return;$('detailTitle').textContent='Unable to load section';$('detailBody').textContent=e.message||String(e)}}
+}catch(e){if(GB_GRID_CONTEXT!==ctx)return;$('gbCategorySummary').textContent='Category totals unavailable for this section.';$('detailTitle').textContent='Unable to load section';$('detailBody').textContent=e.message||String(e)}}
 async function renderHistory(){try{const d=await api('/admin/gradebook-analytics/history');$('history').textContent=d.history?.length?d.history.map(s=>`${s.snapshot_date} · published ${nice(s.published_at)}`).join('  ·  '):'No earlier snapshots yet.'}catch{$('history').textContent='History temporarily unavailable.'}}
 async function load(){setError('');$('table').textContent='Loading weekly report…';try{const data=await api('/admin/gradebook-analytics/overview');$('login').hidden=true;$('app').hidden=false;CURRENT=data;await gbControlAuthorize_();IS_ADMIN=data.viewer?.role==='admin'||data.viewer?.role==='department_chair' /* EAGLENEST_GRADEBOOK_DEPARTMENT_CHAIR_UI_V1 */;$('listTitle').textContent=data.viewer?.role==='department_chair'?'My Department Sections':IS_ADMIN?'Schoolwide sections':'My Sections';if(!data.snapshot){$('table').innerHTML='<div class="gbEmpty">No published gradebook analytics snapshot yet. Run Cloud Run /run?mode=eaglenest after both source exports show SUCCESS.</div>';$('kpis').innerHTML='';return}
   $('meta').textContent=`Assignment data refreshed ${nice(data.snapshot.assignment_export_completed_at)} · roster refreshed ${nice(data.snapshot.dde_export_completed_at)} · report published ${nice(data.snapshot.published_at)} · school ${data.snapshot.school_id}, term ${data.snapshot.term_id}`;
