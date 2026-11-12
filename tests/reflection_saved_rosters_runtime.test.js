@@ -133,17 +133,30 @@ test('saved roster loading filters no-shows, early dismissals, and students alre
 test('Reflection uses My Rosters only as a temporary working selection', () => {
   const fs = require('node:fs');
   const html = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/reflection_hold.html'), 'utf8');
-  const frontend = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/reflection_saved_rosters.js'), 'utf8');
   const route = fs.readFileSync(path.join(ROOT, 'cf-redcake/red-cake-77d5/src/routes/reflection-hold.js'), 'utf8');
-  assert.match(html, /reflection_saved_rosters\.js/);
-  assert.match(frontend, /EAGLENEST_MY_ROSTERS_V1_REFLECTION_CONSUMER/);
-  assert.match(frontend, /\/admin\/my_rosters/);
-  assert.match(frontend, /\/admin\/my_rosters\/detail/);
-  assert.match(frontend, /Manage My Rosters/);
-  assert.match(frontend, /source roster can only be changed from My Rosters/);
-  assert.match(frontend, /#rosterBody tr/);
-  assert.match(frontend, /dispatchEvent\(new Event\('change'/);
-  assert.doesNotMatch(frontend, /Save this roster|saveActiveRoster|action:\s*['"]save['"]|action:\s*['"]delete['"]/);
+  if (/reflection_sessions\.js/.test(html)) {
+    // The unified Reflection & Study Hall UI consumes My Rosters directly.
+    const frontend = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/reflection_sessions.js'), 'utf8');
+    assert.match(frontend, /api\(['"]\/admin\/my_rosters['"]\)/);
+    assert.match(frontend, /\/admin\/my_rosters\/detail/);
+    assert.match(frontend, /async function loadRoster\(/);
+    assert.match(frontend, /state\.selected=new Set/);
+    assert.doesNotMatch(frontend, /post\(['"]\/admin\/my_rosters/);
+    assert.doesNotMatch(frontend, /action:\s*['"](?:save|delete)['"]/);
+  } else {
+    // Preserve all the original read-only checks when the legacy page is used.
+    assert.match(html, /reflection_saved_rosters\.js/);
+    const frontend = fs.readFileSync(path.join(ROOT, 'student-scanner/admin/reflection_saved_rosters.js'), 'utf8');
+    assert.match(frontend, /EAGLENEST_MY_ROSTERS_V1_REFLECTION_CONSUMER/);
+    assert.match(frontend, /\/admin\/my_rosters/);
+    assert.match(frontend, /\/admin\/my_rosters\/detail/);
+    assert.match(frontend, /Manage My Rosters/);
+    assert.match(frontend, /source roster can only be changed from My Rosters/);
+    assert.match(frontend, /#rosterBody tr/);
+    assert.match(frontend, /dispatchEvent\(new Event\('change'/);
+    assert.doesNotMatch(frontend, /Save this roster|saveActiveRoster|action:\s*['"]save['"]|action:\s*['"]delete['"]/);
+  }
+  // Legacy endpoints may only READ saved rosters; writes belong to My Rosters.
   assert.match(route, /legacy_saved_rosters_read_only_use_my_rosters/);
   assert.match(route, /loadReflectionSavedRoster/);
 });

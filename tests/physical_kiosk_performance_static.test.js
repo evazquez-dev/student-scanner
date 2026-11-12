@@ -34,7 +34,16 @@ test('common kiosk scans use lazy LiveLocation reads instead of a mandatory glob
   assert.match(handler, /normalizeSeniorOutInState\(await ensureLive\(\), date\)/);
   assert.match(handler, /normalizeGymOutInState\(await ensureLive\(\), date\)/);
   assert.match(handler, /computeSuperLunchGateAccess_\(osis, cls, await ensureLive\(\), date\)/);
-  assert.match(handler, /afterSchoolExitHoldFor_\(rec, await ensureLive\(\), date/);
+  // Scheduled sessions merge an overlay while keeping the original lazy live read.
+  const standardExit = /afterSchoolExitHoldFor_\(rec,\s*await ensureLive\(\),\s*date/;
+  const unifiedExit = /afterSchoolExitHoldFor_\(rec,\s*\{\s*\.\.\.\(await ensureLive\(\)\s*\|\|\s*\{\}\),\s*\.\.\.\(sessionHoldOverlay\s*\|\|\s*\{\}\)\s*\},\s*date/;
+  assert.ok(standardExit.test(handler) || unifiedExit.test(handler),
+    'After-school exit gate must preserve the lazy ensureLive() read');
+  if (unifiedExit.test(handler)) {
+    // New scheduled holds must fail closed if their DB/activation step fails.
+    assert.match(handler, /student_sessions_exit_lookup_failed/);
+    assert.match(handler, /student_sessions_hold_activation_failed/);
+  }
 });
 
 test('authoritative class scans do not re-read/rewrite ClassSession and post-state work runs in parallel', () => {

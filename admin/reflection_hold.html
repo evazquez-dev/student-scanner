@@ -1,214 +1,42 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="robots" content="noindex,nofollow">
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
   <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
-  <title>EagleNEST — Reflection Hold</title>
-
-  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
-  <link rel="apple-touch-icon" href="../icons/icon-192.png">
-
-  <link rel="stylesheet" href="./nav.css">
-  <script src="./shared_auth.js"></script>
-
-  <script src="./brand.js" defer></script>
-  <script src="./nav.js" defer></script>
-  <script src="./reflection_hold.js?v=20260515-badges" defer></script>
-  <script src="./reflection_saved_rosters.js?v=20260930-my-rosters-v1" defer></script>
-  <script>
-    (function(){
-      try{
-        var key = 'ss_theme_v1';
-        var t = localStorage.getItem(key);
-        if(!t){
-          t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
-        }
-        document.documentElement.dataset.theme = t;
-      }catch(e){}
-    })();
-  </script>
+  <title>EagleNEST — Reflection & Study Hall</title>
+  <link rel="stylesheet" href="./nav.css"><script src="./shared_auth.js"></script>
+  <script defer src="./brand.js"></script><script defer src="./nav.js"></script><script defer src="./reflection_sessions.js?v=20261112-1"></script>
   <style>
-    :root{
-      color-scheme:dark;
-      --bg1:#111827; --bg2:#020617; --fg:#e5e7eb; --muted:#9ca3af; --border:#1f2937;
-      --card1:rgba(15,23,42,.96); --card2:rgba(17,24,39,.92); --soft:rgba(2,6,23,.32);
-      --soft2:rgba(2,6,23,.48); --head:rgba(2,6,23,.72); --hover:rgba(148,163,184,.08);
-      --control:#0b1220; --accent:#f97316; --accentSoft:rgba(249,115,22,.16); --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b;
-    }
-    :root[data-theme="light"]{
-      color-scheme:light;
-      --bg1:#fff7ed; --bg2:#e2e8f0; --fg:#0f172a; --muted:#475569; --border:#cbd5e1;
-      --card1:rgba(255,255,255,.98); --card2:rgba(241,245,249,.98); --soft:rgba(148,163,184,.10);
-      --soft2:rgba(148,163,184,.14); --head:rgba(241,245,249,.92); --hover:rgba(148,163,184,.16);
-      --control:#ffffff;
-    }
-    *{box-sizing:border-box}
-    body{margin:0;min-height:100vh;padding:1rem;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:radial-gradient(circle at top left,var(--bg1),var(--bg2));color:var(--fg)}
-    .wrap{max-width:1280px;margin:0 auto;padding-top:56px}
-    .card{border:1px solid var(--border);border-radius:16px;background:linear-gradient(145deg,var(--card1),var(--card2));padding:14px;margin-bottom:12px;box-shadow:0 10px 28px rgba(2,6,23,.14)}
-    h1{margin:0 0 8px;font-size:1.16rem} h2{margin:0 0 8px;font-size:.98rem}
-    .muted{color:var(--muted)} .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.grow{flex:1 1 190px;min-width:190px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:980px){.grid{grid-template-columns:1fr}}
-    label{display:block;font-weight:800;margin-bottom:4px}
-    input[type="text"], select, textarea{width:100%;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--fg);font:inherit}
-    textarea{min-height:42px;resize:vertical}
-    button{border:1px solid var(--border);background:var(--soft2);color:var(--fg);border-radius:10px;padding:10px 12px;cursor:pointer;font-weight:800}
-    button.primary{border-color:var(--accent);background:var(--accentSoft)} button.danger{border-color:var(--bad)} button[disabled]{opacity:.55;cursor:not-allowed}
-    .pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);background:var(--soft);font-size:.82rem}
-    .status{border-radius:10px;padding:10px 12px;border:1px solid var(--border);background:var(--soft);white-space:pre-wrap}
-    .status.ok{border-color:rgba(34,197,94,.55);background:rgba(34,197,94,.12)} .status.bad{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.12)}
-    .listBox{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--soft)}
-    .listHead{padding:8px 10px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;justify-content:space-between;background:var(--soft)}
-    .listBody{max-height:430px;overflow:auto}
-    table{width:100%;border-collapse:collapse;font-size:.9rem} th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle}
-    th{position:sticky;top:0;z-index:2;background:var(--head);backdrop-filter:blur(6px)} tr:hover td{background:var(--hover)}
-    .chip{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:4px 8px;font-size:.78rem;font-weight:800}
-    .chip.ok{border-color:rgba(34,197,94,.55);color:var(--ok)} .chip.bad{border-color:rgba(239,68,68,.55);color:var(--bad)} .chip.warn{border-color:rgba(245,158,11,.65);color:var(--warn)}
-    .nameBadges{display:inline-flex;gap:4px;flex-wrap:wrap;margin-left:6px;vertical-align:middle}
-    .nameBadge{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:1px 5px;font-size:.64rem;font-weight:900;line-height:1.35;text-transform:uppercase;letter-spacing:.03em}
-    .nameBadge.regents{border-color:rgba(167,139,250,.65);color:#a78bfa}
-    .nameBadge.late{border-color:rgba(239,68,68,.65);color:var(--bad)}
+    :root{color-scheme:dark;--bg:#0b1220;--surface:#172234;--fg:#e5e7eb;--muted:#9baaba;--border:#364052;--accent:#f97316;--button:#263952}
+    :root[data-theme="light"]{color-scheme:light;--bg:#f6f9ff;--surface:white;--fg:#15223a;--muted:#4c6078;--border:#cbd5e1;--accent:#b45309;--button:#edf4fa}
+    *{box-sizing:border-box}body{font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);color:var(--fg);margin:0;padding:65px 18px 30px}
+    main{max-width:1200px;margin:auto}h1{font-size:1.5rem;margin:0 0 6px}h2{font-size:1.1rem;margin:0 0 12px}.muted,.help{color:var(--muted);font-size:.89rem}.help{margin:6px 0 0}
+    .panel{background:var(--surface);border:1px solid var(--border);padding:16px;border-radius:14px;margin:12px 0}.flex{display:flex;flex-wrap:wrap;align-items:center;gap:10px}.flex>*{min-width:0}
+    .cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:850px){.cols{grid-template-columns:1fr}}
+    label{display:block;font-size:.9rem;font-weight:700;margin-bottom:5px}input,select,textarea,button{font:inherit}input:not([type=checkbox]),select,textarea{display:block;width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--border);padding:10px;border-radius:9px}
+    button{background:var(--button);color:var(--fg);border:1px solid var(--border);padding:9px 12px;border-radius:9px;cursor:pointer;font-weight:650}button.primary{background:var(--accent);color:white;border-color:var(--accent)}button:disabled{opacity:.5;cursor:not-allowed}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}.tabs button[aria-pressed=true]{background:var(--accent);color:white}table{width:100%;border-collapse:collapse}th,td{padding:8px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top;font-size:.87rem}th{color:var(--muted)}.scroll{max-height:340px;overflow:auto}
+    .callout{border-left:3px solid var(--accent);padding:10px;background:var(--button);border-radius:6px}.error{color:#fb7185;white-space:pre-wrap}.success{color:#22c55e;white-space:pre-wrap}
+    .checkline{display:flex;align-items:flex-start;gap:9px}.checkline input{margin-top:4px}.checkline label{margin:0;font-weight:550}
+    .badge{border:1px solid var(--border);border-radius:100px;padding:3px 8px;font-size:.78rem;white-space:nowrap}a{color:#60a5fa}.hidden{display:none!important}
   </style>
 </head>
 <body data-module="reflection_hold">
-  <button id="themeToggle" class="pill" style="position:fixed;top:12px;right:12px;z-index:10000;">Theme</button>
-  <div class="wrap">
-    <div class="card">
-      <h1 data-brand-title>EagleNEST — Reflection Hold</h1>
-      <div class="muted">Teacher setup for after-school reflection holds. Students on a confirmed hold will be denied when they scan out at an entrance after school.</div>
-    </div>
-
-    <div id="authCard" class="card" style="display:none;">
-      <h2>Staff access required</h2>
-      <div class="muted">Sign in with your school staff account, then refresh this page.</div>
-    </div>
-
-    <div id="app" style="display:none;">
-      <div class="card">
-        <div class="row">
-          <div class="pill">Date: <span id="todayLabel" class="mono">—</span></div>
-          <div class="pill">Owner: <span id="adminLabel" class="mono">—</span></div>
-          <div class="pill">Selected: <span id="selectedCount" class="mono">0</span></div>
-          <div class="pill">Ready after check: <span id="eligibleCount" class="mono">0</span></div>
-        </div>
-
-        <div id="activeHoldPanel" class="status" style="margin-top:10px;display:none;">
-          <b>Active hold for this owner</b>
-          <div id="activeHoldSummary" class="muted" style="margin-top:6px;">—</div>
-          <div class="row" style="margin-top:10px;">
-            <button id="saveActiveBtn" class="primary" type="button">Save hold changes</button>
-            <button id="releaseAllBtn" type="button">Release hold</button>
-            <button id="cancelAllBtn" class="danger" type="button">Cancel hold</button>
-          </div>
-        </div>
-
-        <div class="row" style="margin-top:10px;">
-          <div class="grow">
-            <label for="holdLabel">Hold label</label>
-            <input id="holdLabel" type="text" value="Reflection Hold" />
-          </div>
-          <div class="grow">
-            <label for="roomInput">Room / location <span class="muted">(required)</span></label>
-            <select id="roomInput">
-              <option value="">Loading locations...</option>
-            </select>
-          </div>
-        </div>
-
-        <div style="margin-top:10px;">
-          <label for="reasonInput">Reason / note</label>
-          <textarea id="reasonInput" placeholder="Optional note shown to staff reviewing the hold"></textarea>
-        </div>
-
-        <div class="row" style="margin-top:10px;">
-          <button id="loadCheckBtn" class="primary" type="button">Load selected roster / check holds</button>
-          <button id="confirmBtn" class="primary" type="button" disabled>Confirm hold for eligible students</button>
-          <button id="refreshBtn" type="button">Refresh active holds</button>
-        </div>
-
-        <div id="resultBox" class="status" style="margin-top:10px;">Select students, then load the hold check before confirming.</div>
-      </div>
-
-      <div class="grid">
-        <div class="card">
-          <h2>Roster</h2>
-          <div class="row" style="margin-bottom:8px;">
-            <input id="rosterSearch" class="grow" type="text" placeholder="Search by name or OSIS..." />
-            <button id="selVisibleBtn" type="button">Select visible</button>
-            <button id="clrVisibleBtn" type="button">Clear visible</button>
-          </div>
-          <div class="listBox">
-            <div class="listHead">
-              <div class="muted">Students</div>
-              <div class="mono">Selected: <span id="rosterSelectedCount">0</span></div>
-            </div>
-            <div class="listBody">
-              <table>
-                <thead>
-                  <tr>
-                    <th style="width:44px;">Pick</th>
-                    <th>Name</th>
-                    <th>OSIS</th>
-                    <th>Grade</th>
-                  </tr>
-                </thead>
-                <tbody id="rosterBody"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h2>Hold check</h2>
-          <div class="muted" style="margin-bottom:8px;">Students already held for any reason are skipped. Confirm only applies the hold to students marked ready.</div>
-          <div class="listBox">
-            <div class="listBody">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Name</th>
-                    <th>OSIS</th>
-                    <th>Current hold / location</th>
-                  </tr>
-                </thead>
-                <tbody id="previewBody">
-                  <tr><td colspan="4" class="muted">No hold check loaded yet.</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Your active reflection holds today</h2>
-        <div class="listBox">
-          <div class="listBody">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>OSIS</th>
-                  <th>Hold</th>
-                  <th>Room</th>
-                  <th>Note</th>
-                  <th>Since</th>
-                  <th style="width:120px;">Action</th>
-                </tr>
-              </thead>
-              <tbody id="activeBody">
-                <tr><td colspan="7" class="muted">Loading...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <main>
+    <div class="flex" style="justify-content:space-between"><div><h1>Reflection &amp; Study Hall</h1><div class="muted">Schedule supervised sessions, document required conversations, and manage after-school exit obligations.</div></div><button id="themeBtn" type="button">Toggle theme</button></div>
+    <section class="panel"><div class="tabs"><button id="tabForm" aria-pressed="true">Schedule Session</button><button id="tabUpcoming" aria-pressed="false">Upcoming &amp; History</button></div><p id="banner" class="help">Loading your staff session…</p></section>
+    <section id="formPanel" class="panel">
+      <div class="cols"><div><label for="type">Session type</label><select id="type"><option value="reflection">Reflection Hold</option><option value="study_hall">Study Hall</option></select></div><div><label for="rosterSelect">Start from a roster (optional)</label><div class="flex"><select id="rosterSelect" style="flex:1"><option value="">Choose a roster...</option></select><button id="loadRoster">Load</button></div></div></div>
+      <div class="cols" style="margin-top:12px"><div><label for="sessionDate">Date (published schedules only)</label><select id="sessionDate"></select></div><div><label for="sessionPeriod">Session time</label><select id="sessionPeriod"><option value="LCH1">First Lunch</option><option value="LCH2">Second Lunch</option><option value="AFTER_SCHOOL">After School</option></select></div></div>
+      <p class="help" id="scheduleInfo"></p>
+      <div class="cols" style="margin-top:12px"><div><label for="sessionStart">Start time</label><input id="sessionStart" type="time" required></div><div><label for="sessionEnd">End time</label><input id="sessionEnd" type="time" required></div></div>
+      <div class="cols" style="margin-top:12px"><div><label for="sessionRoom">Room / location</label><select id="sessionRoom"><option value="">Loading school locations...</option></select></div><div><label for="sessionReason">Reason / purpose (required)</label><textarea id="sessionReason" rows="2" placeholder="Describe the reflection reason or academic support needed"></textarea></div></div>
+      <div class="cols" style="margin-top:14px"><div><h2>Select students <span class="badge" id="selectedCount">0 selected</span></h2><input id="search" type="search" placeholder="Search by student or OSIS"><div class="flex" style="margin:8px 0"><button id="selectVisible" type="button">Select visible</button><button id="clearSelected" type="button">Clear selection</button></div><div class="scroll"><table><thead><tr><th></th><th>Student</th><th>OSIS</th><th>Lunch</th></tr></thead><tbody id="studentBody"></tbody></table></div></div>
+      <div><h2>Parent contact for selected students</h2><p class="help">For each student, record the contact status. “Contacted and logged” requires a same-day parent/guardian communication record in EagleNEST.</p><div class="scroll"><table><thead><tr><th>Student</th><th>Parent contact</th><th>Logged record</th></tr></thead><tbody id="parentBody"></tbody></table></div></div></div>
+      <div class="panel callout" style="margin-top:16px"><div class="checkline"><input type="checkbox" id="studentInformed"><label for="studentInformed"><strong>Required:</strong> I confirm I spoke directly with <em>every selected student</em> and informed them of this assignment. I understand EagleNEST will log a separate student communication for each student.</label></div></div>
+      <p id="formResult" class="error" role="status"></p><div class="flex"><button class="primary" id="submitBtn" type="button" disabled>Schedule session</button><span class="help">After-school sessions block checkout until an authorized release. A lunch-only session does not create an after-school exit restriction.</span></div>
+    </section>
+    <section id="upcomingPanel" class="panel hidden"><div class="flex" style="justify-content:space-between"><h2>My sessions</h2><button id="refreshUpcoming">Refresh</button></div><div class="scroll" style="max-height:680px"><table><thead><tr><th>Date</th><th>Student</th><th>Type</th><th>Time / Room</th><th>Parent</th><th>Status / Action</th></tr></thead><tbody id="upcomingBody"></tbody></table></div><div class="panel"><h2>Legacy Reflection Holds active today</h2><p class="help">Holds created before the unified scheduler remain enforceable and may be released here.</p><div id="legacyHolds"></div></div></section>
+  </main>
 </body>
 </html>
