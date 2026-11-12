@@ -219,7 +219,7 @@ function gbPopulateSectionSwitcher_(dcid){
   select.disabled=choices.length<2;
 }
 
-function renderTable(){const q=$('search').value.trim().toLowerCase();const teacher=$('teacherFilter').value;const visible=SECTION_ROWS.filter(r=>(!teacher||r.teacher_email===teacher||(r.additional_teacher_emails||[]).includes(teacher))&&(!q||[r.section_code,r.teacher_name,r.course_number].some(v=>String(v||'').toLowerCase().includes(q))));$('listCaption').textContent=`${visible.length} section(s) · click a course for its assignment breakdown.`;
+function renderTable(){gbRefreshTeacherSummary_();const q=$('search').value.trim().toLowerCase();const teacher=$('teacherFilter').value;const visible=SECTION_ROWS.filter(r=>(!teacher||r.teacher_email===teacher||(r.additional_teacher_emails||[]).includes(teacher))&&(!q||[r.section_code,r.teacher_name,r.course_number].some(v=>String(v||'').toLowerCase().includes(q))));$('listCaption').textContent=`${visible.length} section(s) · click a course for its assignment breakdown.`;
   $('table').innerHTML=visible.length?`<table><thead><tr><th>Section</th>${IS_ADMIN?'<th>Teacher</th>':''}<th>Enrolled</th><th>Retrieved assignments</th><th>Due fully graded</th><th>Recorded completion</th><th>Pending due</th><th>Policy reviews</th><th>Last score entry</th></tr></thead><tbody>${visible.map(r=>`<tr><td><button class="gbRowButton" data-section="${esc(r.section_dcid)}">${esc(r.section_code)}</button>${r.coverage==='NO_RETRIEVED_ASSIGNMENTS'?'<small>No returned scored assignments</small>':''}</td>${IS_ADMIN?`<td>${esc(r.teacher_name||'Unmapped teacher')}<small>${esc(r.teacher_email||'Email not mapped')}</small>${r.additional_teacher_emails?.length?`<small>Additional: ${esc(r.additional_teacher_emails.join(', '))}</small>`:''}</td>`:''}<td>${r.enrolled_count}</td><td>${r.assignment_count}</td><td>${r.fully_graded_count}/${r.due_count}</td><td>${percent(r)}</td><td class="${r.outstanding_count?'gbWarn':'gbGood'}">${r.outstanding_count}</td><td class="${Number(r.policy_warning_assignment_count)?'gbWarn':''}">${Number(r.policy_warning_assignment_count)||0}</td><td>${esc(r.latest_score_entry||'—')}</td></tr>`).join('')}</tbody></table>`:'<div class="gbEmpty">No sections match your filters, or your teacher email has not yet been mapped to a PowerSchool section.</div>';
   $('table').querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>showSection(b.dataset.section));}
 async function showSection(dcid,keepGrid=false){
@@ -310,3 +310,54 @@ async function gbControlQueue_(action){
     await gbControlStatus_();
   }catch(e){$('manualMessage').textContent='Could not queue refresh: '+(e.message||e);}
 }
+
+// EAGLENEST_GRADEBOOK_TEACHER_SUMMARY_V1_BEGIN
+// Gradebook Analytics is already scoped by the Worker. This only recalculates
+// the KPI cards over the same authorized rows as the teacher dropdown/table.
+// A co-taught section contributes once (not once per matching teacher email).
+function gbSummaryForSelectedTeacher_(rows, teacherEmail, allTeacherSummary = {}) {
+  const selected = String(teacherEmail ?? '').trim().toLowerCase();
+  if (!selected) return { ...allTeacherSummary }; // Preserve authoritative all-teachers totals.
+
+  const filtered = (Array.isArray(rows) ? rows : []).filter(row => {
+    const primary = String(row?.teacher_email ?? '').trim().toLowerCase();
+    const additional = Array.isArray(row?.additional_teacher_emails)
+      ? row.additional_teacher_emails : [];
+    return primary === selected || additional.some(email =>
+      String(email ?? '').trim().toLowerCase() === selected);
+  });
+
+  // These are the additive per-section totals used by the Worker overview.
+  // Preserve other summary properties for forward compatibility, but never
+  // let a whole-school total leak into a supported teacher-specific KPI.
+  const additive = [
+    'assignment_count', 'due_count', 'fully_graded_count', 'outstanding_count',
+    'expected_scores', 'entered_scores', 'unentered_count', 'exempt_count',
+    'missing_flag_count', 'absent_flag_count', 'incomplete_flag_count',
+    'late_flag_count', 'overmax_count', 'nonstandard_max_count',
+    'policy_warning_count', 'policy_warning_assignment_count'
+  ];
+  const summary = { ...allTeacherSummary, section_count: filtered.length };
+  for (const field of additive) summary[field] = 0;
+  for (const row of filtered) {
+    for (const field of additive) {
+      const value = Number(row?.[field]);
+      if (Number.isFinite(value) && value > 0) summary[field] += value;
+    }
+  }
+  summary.grading_completion = summary.expected_scores > 0
+    ? Math.round(summary.entered_scores / summary.expected_scores * 10000) / 100
+    : null;
+  return summary;
+}
+
+function gbRefreshTeacherSummary_() {
+  // Never request or use data outside the existing authorized overview payload.
+  if (!CURRENT || !Array.isArray(SECTION_ROWS)) return;
+  const picker = document.getElementById('teacherFilter');
+  if (!picker) return;
+  renderSummary(gbSummaryForSelectedTeacher_(
+    SECTION_ROWS, picker.value, CURRENT.summary || {}
+  ));
+}
+// EAGLENEST_GRADEBOOK_TEACHER_SUMMARY_V1_END
