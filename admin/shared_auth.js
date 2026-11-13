@@ -204,4 +204,17 @@
   installGoogleRedirectPatch();
   window.addEventListener('pageshow',sync);
   window.addEventListener('storage',e=>{if(SESSION_KEYS.includes(String(e?.key||''))&&e?.newValue)sync()});
+  // EAGLENEST_SESSION_RECOVERY_LOADER_V1
+  // Load one recovery controller across current and future authenticated staff pages.
+  // The handoff page and isolated sign-in page must not load this controller.
+  if (!/(?:^|\/)(?:signin|auth_return)\.html$/i.test(location.pathname)) {
+    const existingRecovery = document.querySelector('script[data-eaglenest-session-recovery]');
+    if (!existingRecovery) {
+      const recovery = document.createElement('script');
+      recovery.dataset.eaglenestSessionRecovery = 'v1';
+      recovery.src = new URL('./session_recovery.js?v=20261113-v1', document.currentScript?.src || location.href).href;
+      recovery.async = true;
+      (document.head || document.documentElement).appendChild(recovery);
+    }
+  }
 })();
