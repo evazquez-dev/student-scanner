@@ -1,3 +1,4 @@
+// EAGLENEST_Q2_Y1_REPORTING_V1
 /* EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1
  * EAGLENEST_COURSE_GRADE_POLICY_V1
  * Student Lookup — current Grades & Attendance summary.
@@ -115,7 +116,7 @@
           <div class="listMeta">${esc(grade.academic_course_code || grade.course_code || 'Course')}</div>
           <div class="listTitle">${esc(grade.course_name || grade.academic_course_code || grade.course_code || 'Course')}</div>
         </div>
-        <strong class="lookupAcademicGrade">${esc(gradeText(grade))}${grade.grade_counted === false ? ' · Not counted' : ''}</strong>
+        <strong class="lookupAcademicGrade">${esc(gradeText(grade))}${grade.grade_counted === false ? ' · Not counted' : ''}${Number.isFinite(grade.y1_grade_numeric)?`<small style="display:block;opacity:.8;font-weight:500">Y1 ${Number(grade.y1_grade_numeric).toFixed(1)}%</small>`:''}</strong>
       </article>`;
     }).join('');
     window.EagleNESTGradeBands?.decorateLookupCourses(host, grades);
@@ -136,8 +137,8 @@
     const passingCount = Number(grades?.passing_count || 0);
 
     $('lookupAcademicMeta').textContent = [
-      current.marking_period ? `Grades: ${current.marking_period}` : 'Current grades',
-      current.snapshot_date ? `snapshot ${fmtDate(current.snapshot_date)}` : '',
+      gradesData?.reporting_terms?.selected_term ? `Grades: ${gradesData.reporting_terms.selected_term}` : 'Current grades',
+      gradesData?.reporting_terms?.source_available && current.snapshot_date ? `snapshot ${fmtDate(current.snapshot_date)}` : 'No current-quarter grade snapshot yet',
       attendanceData?.window?.label || (attendanceData?.window?.start && attendanceData?.window?.end
         ? `${fmtDate(attendanceData.window.start)} – ${fmtDate(attendanceData.window.end)}`
         : 'Current marking period attendance')
@@ -162,7 +163,11 @@
       ? `Attendance data note: ${quality}.`
       : 'Attendance data is complete for the resolved window.';
 
-    renderGradeCourses(Array.isArray(grades?.grades) ? grades.grades : [], passing);
+    const termGrades=Array.isArray(grades?.grades)?grades.grades:[];
+    const yearGrades=Array.isArray(gradesData?.year_student?.grades)?gradesData.year_student.grades:[];
+    renderGradeCourses(termGrades.length?termGrades:yearGrades, passing);
+    if(!termGrades.length && yearGrades.length)
+      $('lookupAcademicMeta').textContent += ' • Showing Y1 while current-quarter grades are unavailable';
     $('lookupAcademicContent').hidden = false;
     $('lookupAcademicStatus').textContent = '';
   }

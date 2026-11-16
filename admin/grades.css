@@ -20,3 +20,8 @@ html[data-theme="light"]{--bg:#f4f7fb;--card:#fff;--card2:#f7f9fc;--card3:#eef3f
  * teacher/admin KPIs, grade filters, attendance controls and all tab panels.
  */
 [hidden] { display: none !important; }
+
+/* EAGLENEST_Q2_Y1_REPORTING_V1 */
+.gradeTermPicker{display:inline-flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600}
+.gradeTermPicker select{padding:7px 10px;border-radius:8px;background:var(--card,#1c273b);color:inherit;border:1px solid var(--line,#6b7280)}
+.gradeY1Comparison{font-size:12px;opacity:.8;margin-left:5px;white-space:nowrap}

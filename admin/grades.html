@@ -35,6 +35,8 @@
           <div id="snapshotMeta" class="snapshotMeta muted">Loading current grade snapshot…</div>
         </div>
         <div class="heroActions">
+          <!-- EAGLENEST_Q2_Y1_REPORTING_V1 -->
+          <label class="gradeTermPicker">Grades period <select id="gradesTermSelect" aria-label="Select grade reporting period"><option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option><option value="Y1">Y1</option></select></label>
           <span id="passingPill" class="pill good">Passing: 70%+</span>
           <span id="viewerPill" class="pill">—</span>
           <button id="refreshBtn" class="btn" type="button">Refresh</button>
@@ -120,7 +122,11 @@
           <label>
             <span>Attendance window</span>
             <select id="attendanceWindowPreset">
-              <option value="marking_period" selected>Current marking period</option>
+              <option value="marking_period" selected>Current quarter</option>
+              <option value="q1">Quarter 1</option>
+              <option value="q2">Quarter 2</option>
+              <option value="q3">Quarter 3</option>
+              <option value="q4">Quarter 4</option>
               <option value="ytd">School year to date</option>
               <option value="last_5_school_days">Last 5 completed school days</option>
               <option value="last_10_school_days">Last 10 completed school days</option>

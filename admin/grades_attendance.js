@@ -12,7 +12,7 @@
 
   function api(){return window.EagleNESTGradesPage||null;}
   function esc(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
-  function pct(v){return Number.isFinite(Number(v))?`${Number(v).toFixed(Number(v)%1?1:0)}%`:'—'}
+  function pct(v){return v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))?`${Number(v).toFixed(Number(v)%1?1:0)}%`:'—'}
   function niceDate(v){const s=String(v||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return s||'—';const d=new Date(`${s}T12:00:00`);return d.toLocaleDateString([],{month:'short',day:'numeric',year:'numeric'})}
   function qualityText(row){
     const q=row?.data_quality||{},parts=[];
@@ -111,7 +111,7 @@
     if(!rows.length){$('overviewResults').innerHTML='<div class="empty">No students match this scope and filter.</div>';return;}
     $('overviewResults').innerHTML=`<table><thead><tr><th>Student</th><th>Grade</th><th>Grades</th><th>Daily Attendance</th><th>Meeting Attendance</th><th>Data</th></tr></thead><tbody>${rows.map(({grade,att})=>{
       const row=att||grade||{},name=att?.name||grade?.name||row.osis,level=att?.grade_level||grade?.grade_level||'—';
-      return `<tr><td><button class="studentBtn gaStudent" data-osis="${esc(row.osis)}" data-student-tab="grades" type="button">${esc(name)}</button><div class="muted small mono">${esc(row.osis)}</div></td><td>${esc(level)}</td><td>${gradeSignal(grade)}</td><td>${dailySignal(att)}</td><td>${meetingSignal(att)}</td><td><span class="small muted">${esc(att?qualityText(att):'No attendance data')}</span></td></tr>`;
+      return `<tr><td><button class="studentBtn gaStudent" data-osis="${esc(row.osis)}" data-student-tab="grades" type="button">${esc(name)}</button><div class="muted small mono">${esc(row.osis)}</div></td><td>${esc(level)}</td><td>${grades?.reporting_terms?.source_available===false?'<span class="missingTag">No '+esc(grades?.reporting_terms?.selected_term||'term')+' snapshot</span>':gradeSignal(grade)}</td><td>${dailySignal(att)}</td><td>${meetingSignal(att)}</td><td><span class="small muted">${esc(att?qualityText(att):'No attendance data')}</span></td></tr>`;
     }).join('')}</tbody></table>`;
     wireStudentButtons($('overviewResults'));
   }
@@ -160,7 +160,7 @@
     try{
       if(state.tab==='overview'){
         $('overviewResults').innerHTML='<div class="empty">Loading grades and attendance…</div>';
-        const gp=scopeParams();gp.set('status','all');
+        const gp=scopeParams();gp.set('status','all');gp.set('term',api()?.term?.()||'');
         const [att,grades]=await Promise.all([
           getJson('/admin/grades/attendance/students',p),
           getJson('/admin/grades/students',gp)
@@ -239,6 +239,7 @@
     $('searchInput')?.addEventListener('input',()=>{clearTimeout(boot.searchTimer);boot.searchTimer=setTimeout(()=>{if(state.tab!=='grades')reload()},220)});
     $('gradeFilter')?.addEventListener('change',()=>{if(state.tab!=='grades')reload()});
     window.addEventListener('eaglenest-grades-scope-change',()=>{applyVisibility();if(state.tab!=='grades')reload()});
+    window.addEventListener('eaglenest-grade-term-change',()=>{if(state.tab!=='grades')reload()}); // EAGLENEST_Q2_Y1_REPORTING_V1
     customWrap.hidden=(preset?.value||'marking_period')!=='custom';
     setStudentTab('grades');setTab('overview');
   }
