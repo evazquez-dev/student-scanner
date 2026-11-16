@@ -85,16 +85,25 @@ function renderDateNavigator(data){
 
 function render(data){
   renderDateNavigator(data);
-  if(!data.teacher_mapping_ok){hide(scheduleArea);show(mappingProblem);mappingProblemText.textContent=data.mapping_message||'Please contact Erick or Edwin for a fix.';setStatus('Teacher assignment mapping needs attention.','error');return;}
-  hide(mappingProblem);show(scheduleArea);
+  const matchedSchedule=data.teacher_mapping_ok===true;
+  if(!matchedSchedule){
+    show(mappingProblem);
+    mappingProblemText.textContent='Your account has no matched teaching schedule. This is normal for staff without classroom assignments. If you expected classes, please contact Erick or Edwin.';
+  }else{
+    hide(mappingProblem);
+  }
+  // Bell periods are available even when no teaching assignment is matched.
+  show(scheduleArea);
   const preview=data.preview===true;
   const linksEnabled=data.attendance_links_enabled!==false&&!preview;
   scheduleArea.classList.toggle('preview',preview);
   teacherName.textContent=data.teacher_name||data.who?.email||'—';
-  teacherMatch.textContent=data.teacher_assignment_match||'—';
+  teacherMatch.textContent=data.teacher_assignment_match||(matchedSchedule?'—':'Not matched');
   scheduleDate.textContent=displayDate(data.schedule_date||data.date);
   scheduleMode.textContent=preview?String(data.projection_status||'PLANNED').replaceAll('_',' '):'LIVE';
-  scheduleSubtitle.textContent=preview?`${displayDate(data.date)} schedule preview`:`${displayDate(data.date)} teaching schedule`;
+  scheduleSubtitle.textContent=preview
+    ? `${displayDate(data.date)} ${matchedSchedule?'teaching schedule':'bell schedule'} preview`
+    : `${displayDate(data.date)} ${matchedSchedule?'teaching schedule':'bell schedule'}`;
 
   const status=String(data.projection_status||'');
   if(preview&&status==='CUSTOM_NOT_PUBLISHED')setStatus(data.projection_note||'Custom schedule day. Detailed bells are not published yet.','warn');
@@ -105,10 +114,15 @@ function render(data){
   else if(!data.schedule_configured)setStatus("Today's teacher schedule has not been pushed to EagleNEST yet.",'warn');
   else if(data.schedule_stale)setStatus(`The latest teacher schedule is dated ${displayDate(data.schedule_date)}. Attendance links are disabled until today's schedule is pushed.`,'warn');
   else if(data.resource_booking_error)setStatus('⚠ ChromeCart reservation status could not be loaded. Please contact the main office.','warn'); // EAGLENEST_CHROMECART_SYNC_HEALTH_V1
+  else if(!matchedSchedule)setStatus((Array.isArray(data.periods)&&data.periods.length>0)
+    ? 'Bell schedule available. No teaching schedule is currently matched to your account.'
+    : 'No teaching schedule is matched to your account. Bell periods are not available for this date.','info');
   else if(data.highlight_kind==='current')setStatus(`Period ${data.current_period_local} is in progress and highlighted below.`,'good');
   else if(data.highlight_kind==='up_next')setStatus(`Transition time — Period ${data.current_period_local} is highlighted as up next.`,'info');
   else if(Number(data.coverage_assignment_count||0)>0)setStatus(`Today's schedule is loaded with ${Number(data.coverage_assignment_count)} coverage assignment${Number(data.coverage_assignment_count)===1?'':'s'}.`,'good');
   else if(Number(data.resource_booking_count||0)>0)setStatus(`Today's schedule is loaded with ${Number(data.resource_booking_count)} ChromeCart reservation${Number(data.resource_booking_count)===1?'':'s'}.`,'good');
+  else if(Number(data.advisor_link_count||0)>0)setStatus("Today's advisory schedule is loaded.",'good');
+  else if(Number(data.class_count||0)===0)setStatus('No classes are assigned for this date. The bell schedule is shown below.','info');
   else setStatus("Today's schedule is loaded.",'good');
 
   const periods=Array.isArray(data.periods)?data.periods:[];

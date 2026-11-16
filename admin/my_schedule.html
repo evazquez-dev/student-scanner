@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
   <link rel="apple-touch-icon" href="../icons/icon-192.png">
   <link rel="stylesheet" href="./nav.css">
-  <link rel="stylesheet" href="./my_schedule.css?v=20260918-future-preview-v1">
+  <link rel="stylesheet" href="./my_schedule.css?v=20261116-no-assignments-v1">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script>
@@ -60,9 +60,10 @@
 
       <p class="muted" style="margin:10px 2px 16px;font-size:.86rem;">Class notifications are available in <a href="./notifications.html">My Settings</a>.</p>
 
-      <section id="mappingProblem" class="scheduleCard problemCard hidden">
-        <h2>We couldn't load your schedule</h2>
-        <p id="mappingProblemText">Please contact Erick or Edwin for a fix.</p>
+      <section id="mappingProblem" class="scheduleCard problemCard hidden" role="note">
+        <h2>No matched teaching schedule</h2>
+        <p id="mappingProblemText">Your account has no matched teaching schedule. If you expected classes, please contact Erick or Edwin.</p>
+        <p class="muted">Bell periods are shown below whenever they are published for the selected date.</p>
       </section>
 
       <section id="scheduleArea" class="hidden">
@@ -89,6 +90,6 @@
       </section>
     </div>
   </main>
-  <script src="./my_schedule.js?v=20260923-chromecart-sync-health-v1" type="module"></script>
+  <script src="./my_schedule.js?v=20261116-no-assignments-v1" type="module"></script>
 </body>
 </html>
