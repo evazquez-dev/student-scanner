@@ -1,3 +1,4 @@
+// EAGLENEST_GTL_PROXY_LEGACY_STATIC_COMPAT_V2: legacy static assertions now cover both original office and GTL scoped permissions.
 const fs=require('fs'),path=require('path'),assert=require('assert');
 const ROOT=path.resolve(__dirname,'..');
 const read=p=>fs.readFileSync(path.join(ROOT,p),'utf8');
@@ -15,7 +16,8 @@ assert.match(access,/department/);
 
 assert.match(conferences,/conference_booking_proxy/);
 assert.match(conferences,/conference_event_admin/);
-assert.match(required,/conference_booking_proxy/);
+assert.match(required,/function reqIsBookingDesk\(\)\{return !reqIsAdmin\(\)&&isBookingDesk\(\);\}/);
+assert.match(conferences,/function isGtlBookingDesk\(\)/);
 assert.match(required,/conference_event_admin/);
 assert.match(lookup,/booking_proxy_advisor_scoped/);
 assert.match(html,/Conference Booking Proxy/);

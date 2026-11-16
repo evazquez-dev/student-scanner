@@ -22,7 +22,9 @@ const manageStaffSelection=new Map();
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function isAdmin(){return access?.can?.conference_event_admin===true;}
-function isBookingDesk(){return !isAdmin()&&access?.can?.conference_booking_proxy===true;} // EAGLENEST_CONFERENCE_BOOKING_PROXY_V2
+function isGtlBookingDesk(){const p=access?.staff_profile||{};const raw=Array.isArray(p.grade_teams)&&p.grade_teams.length?p.grade_teams:[p.grade_team];
+  return !isAdmin()&&access?.can?.conference_booking_proxy!==true&&access?.can?.conference_scheduler===true&&(p.is_grade_team_lead===true||(p.leadership_roles||[]).includes('grade_team_lead'))&&raw.some(x=>/\d/.test(String(x||'')));}
+function isBookingDesk(){return !isAdmin()&&(access?.can?.conference_booking_proxy===true||isGtlBookingDesk());} // EAGLENEST_GTL_BOOKING_PROXY_PATCH_V1
 function canViewAllLanes(){return isAdmin()||isBookingDesk();}
 function getSid(){try{return String(sessionStorage.getItem(ADMIN_SESSION_KEY)||localStorage.getItem(ADMIN_SESSION_KEY)||sessionStorage.getItem(ADMIN_SESSION_LEGACY_KEY)||localStorage.getItem(ADMIN_SESSION_LEGACY_KEY)||'').trim();}catch{return '';}}
 function setSid(sid){const v=String(sid||'').trim();if(!v)return;try{for(const k of [ADMIN_SESSION_KEY,ADMIN_SESSION_LEGACY_KEY]){sessionStorage.setItem(k,v);localStorage.setItem(k,v);}}catch{}}
@@ -141,7 +143,10 @@ function renderSlots(){
   root.querySelectorAll('[data-slot-id]').forEach((btn)=>btn.addEventListener('click',()=>{selectedSlotId=btn.dataset.slotId||'';renderSlots();updateBookButton();}));
   updateBookButton();
 }
-function updateBookButton(){$('bookBtn').disabled=!(selectedStudent&&selectedSlotId&&bundle?.event);}
+function updateBookButton(){const slot=(bundle?.slots||[]).find(s=>s.slot_id===selectedSlotId);
+  const required=(bundle?.requirement?.students||[]).find(r=>r.student_number===selectedStudent?.osis);
+  const scopedOk=!isGtlBookingDesk()||(required&&slot&&required.advisor_email===slot.staff_email);
+  $('bookBtn').disabled=!(selectedStudent&&selectedSlotId&&bundle?.event&&scopedOk);}
 
 function contactFromSelect(){const idx=Number($('contactSelect').value);return Number.isInteger(idx)&&idx>=0?selectedContacts[idx]||null:null;}
 function renderSelectedStudent(){
@@ -154,7 +159,11 @@ function renderSelectedStudent(){
 
 async function searchStudents(q){
   const term=String(q||'').trim();const menu=$('studentSearchMenu');if(term.length<2){menu.hidden=true;return;}
-  try{const data=await api(`/admin/roster/search?q=${encodeURIComponent(term)}`);const results=Array.isArray(data.results)?data.results:[];menu.innerHTML=results.length?results.map((r)=>`<button type="button" data-osis="${esc(r.osis)}" data-name="${esc(r.name||'')}"><strong>${esc(r.name||'—')}</strong><div class="muted small">${esc(r.osis||'')}</div></button>`).join(''):'<div class="muted small" style="padding:10px">No matches.</div>';menu.hidden=false;menu.querySelectorAll('[data-osis]').forEach((b)=>b.addEventListener('click',()=>selectStudent({osis:b.dataset.osis,name:b.dataset.name})));}
+  try{const data=isGtlBookingDesk()
+    ? {results:(bundle?.requirement?.students||[]).filter(row=>
+        [row.student_name,row.student_number].some(value=>String(value||'').toLowerCase().includes(term.toLowerCase())))
+        .map(row=>({osis:row.student_number,name:row.student_name})).slice(0,35)}
+    : await api(`/admin/roster/search?q=${encodeURIComponent(term)}`);const results=Array.isArray(data.results)?data.results:[];menu.innerHTML=results.length?results.map((r)=>`<button type="button" data-osis="${esc(r.osis)}" data-name="${esc(r.name||'')}"><strong>${esc(r.name||'—')}</strong><div class="muted small">${esc(r.osis||'')}</div></button>`).join(''):'<div class="muted small" style="padding:10px">No matches.</div>';menu.hidden=false;menu.querySelectorAll('[data-osis]').forEach((b)=>b.addEventListener('click',()=>selectStudent({osis:b.dataset.osis,name:b.dataset.name})));}
   catch(e){menu.innerHTML=`<div class="small" style="padding:10px;color:var(--danger)">${esc(e.message)}</div>`;menu.hidden=false;}
 }
 async function selectStudent(student,preferredContactAssoc=''){

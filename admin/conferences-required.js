@@ -35,7 +35,7 @@
     })[status] || String(status||'—');
   }
   function reqIsAdmin(){return access?.can?.conference_event_admin===true;}
-  function reqIsBookingDesk(){return !reqIsAdmin()&&access?.can?.conference_booking_proxy===true;} // EAGLENEST_CONFERENCE_BOOKING_PROXY_V2
+  function reqIsBookingDesk(){return !reqIsAdmin()&&isBookingDesk();} // EAGLENEST_GTL_BOOKING_PROXY_PATCH_V1
   function reqCanViewAll(){return reqIsAdmin()||reqIsBookingDesk();}
 
   function injectRequirementUi(){
@@ -203,6 +203,9 @@
     card.hidden=!hasEvent;
     document.querySelectorAll('.reqAdminOnly').forEach((el)=>el.hidden=!reqIsAdmin());
     document.querySelectorAll('.reqAllLaneOnly').forEach((el)=>el.hidden=!reqCanViewAll()); // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
+    const alternate=document.getElementById('reqAlternateMeeting');
+    if(alternate){alternate.checked=false;const label=alternate.closest('label');if(label)label.hidden=isGtlBookingDesk();
+      const fields=document.getElementById('reqAlternateFields');if(fields&&isGtlBookingDesk())fields.hidden=true;}
     if(!hasEvent) return;
 
     const refresh=document.getElementById('requirementRefreshBtn');
@@ -364,6 +367,7 @@
     const own=String(access?.email||'').toLowerCase();
     let slots=(bundle?.slots||[]).filter((slot)=>slot.status==='open');
     if(!reqCanViewAll())slots=slots.filter((slot)=>slot.staff_email===own); // EAGLENEST_CONFERENCE_OFFICE_BOOKING_DESK_V1
+    if(isGtlBookingDesk())slots=slots.filter(slot=>slot.staff_email===row.advisor_email);
     slots.sort((a,b)=>String(a.start_iso).localeCompare(String(b.start_iso))||String(a.staff_email).localeCompare(String(b.staff_email)));
     for(const slot of slots){
       select.appendChild(new Option(`${fmtTime(slot.start_iso)} – ${fmtTime(slot.end_iso)} • ${staffLabel(slot.staff_email)}${staffLocation(slot.staff_email)?` • ${staffLocation(slot.staff_email)}`:''}`,slot.slot_id));

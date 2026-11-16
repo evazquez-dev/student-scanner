@@ -1,3 +1,4 @@
+// EAGLENEST_GTL_PROXY_LEGACY_STATIC_COMPAT_V2: legacy static assertions now cover both original office and GTL scoped permissions.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -37,7 +38,9 @@ assert.match(confRoute, /validateStudentConferenceAdvisorSlot/);
 // may proxy across participating staff lanes.
 assert.match(confRoute, /if \(studentLookupBookingProxy\)[\s\S]*validateStudentConferenceAdvisorSlot/);
 assert.match(confRoute, /isAdmin \|\| conferenceBookingProxy/);
-assert.match(confRoute, /createConferenceBooking\(env, bookingInput, actorEmail, isAdmin \|\| bookingProxy\)/);
+assert.match(confRoute, /gtlBookingGrant = gtlBookingProxy && \(await assertGtlConferenceBooking\(/);
+assert.match(confRoute, /createConferenceBooking\(env, bookingInput, actorEmail, isAdmin \|\| bookingProxy \|\| gtlBookingGrant\)/);
+assert.match(confRoute, /gtlEngagementGrant = gtlBookingProxy && \(await assertGtlConferenceBooking\(/);
 assert.match(confRoute, /const canViewAllConferenceLanes = isAdmin \|\| bookingProxy/);
 
 assert.match(confContext, /isBookingProxy \? advisorEmail : actorEmail/);
