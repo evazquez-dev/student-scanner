@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $=(id)=>document.getElementById(id);
-  const state={tab:'overview',seq:0,studentOsis:'',studentTab:'grades',attendance:null,grades:null};
+  const state={tab:'overview',seq:0,studentOsis:'',studentTab:'grades',studentSeq:0,attendance:null,grades:null}; // EAGLENEST_STUDENT_MODAL_TERM_SWITCH_V1
 
   const tabs=[...document.querySelectorAll('[data-ga-tab]')];
   const overviewPanel=$('overviewPanel'),dailyPanel=$('dailyAttendancePanel'),meetingPanel=$('meetingAttendancePanel');
@@ -200,20 +200,32 @@
     $('studentMeetingSummary').innerHTML=`<div class="detailKpis"><span class="pill">${pct(ev.percentage)} on time</span><span class="pill">${Number(ev.on_time_meetings||0)} on time</span><span class="pill">${Number(ev.not_on_time_meetings||0)} not on time</span><span class="pill">${Number(ev.excluded_full_day_absence_meetings||0)} excluded for full-day absence</span></div>`;
     $('studentMeetingRows').innerHTML=rows.length?`<div class="meetingDayList">${rows.map(r=>`<details class="historySnapshot"><summary>${esc(niceDate(r.school_date))} · ${esc(studentStatusLabel(r))}${r.expected_count?` · ${Number(r.on_time_count||0)}/${Number(r.expected_count||0)} on time`:''}${r.official_correction_count?` · ${Number(r.official_correction_count)} official correction(s)`:''}</summary><div class="meetingPeriodChips">${(r.periods||[]).map(meetingPeriodHtml).join('')||'<span class="muted small">No period detail for this date.</span>'}</div></details>`).join('')}</div>`:'<div class="empty">No meeting attendance rows in this window.</div>';
   }
-  async function loadStudent(osis){
+  // EAGLENEST_STUDENT_MODAL_TERM_SWITCH_V1
+  // The student modal's term is independent of the main page's attendance preset.
+  // Q1..Q4 are sourced from Reporting Terms; Y1 is school-year-to-date.
+  async function loadStudent(osis,selectedTerm=''){
     state.studentOsis=String(osis||'');
     if(!state.studentOsis)return;
+    const request=++state.studentSeq;
+    const term=String(selectedTerm||api()?.term?.()||'Q1').toUpperCase();
+    const modalPreset=term==='Y1'?'ytd':/^Q[1-4]$/.test(term)?term.toLowerCase():'marking_period';
+    $('studentAttendanceWindow').textContent=`Attendance: ${term} · Loading…`;
     $('studentDailyRows').innerHTML='<div class="empty">Loading daily attendance…</div>';
     $('studentMeetingRows').innerHTML='<div class="empty">Loading meeting attendance…</div>';
-    const p=scopeParams();p.set('osis',state.studentOsis);p.set('preset',preset?.value||'marking_period'); // EAGLENEST_ROSTER_GRADES_ATTENDANCE_ACCESS_V1
-    if((preset?.value||'')==='custom'){if(customStart?.value)p.set('start',customStart.value);if(customEnd?.value)p.set('end',customEnd.value);}
+    $('studentDailySummary').replaceChildren();$('studentMeetingSummary').replaceChildren();
+    const p=scopeParams();p.set('osis',state.studentOsis);p.set('preset',modalPreset);
+    // Do not copy the main page's Custom / Rolling / 5-day window into the modal.
     try{
       const data=await getJson('/admin/grades/attendance/student',p);
-      $('studentAttendanceWindow').textContent=`Attendance window: ${data.window?.label||''} · ${niceDate(data.window?.start)} – ${niceDate(data.window?.end)}`;
+      if(request!==state.studentSeq)return;
+      const w=data.window||{};
+      $('studentAttendanceWindow').textContent=`Attendance window: ${term==='Y1'?'Y1 · School year to date':w.label||term} · ${niceDate(w.start)} – ${niceDate(w.end)}`;
       renderStudentDaily(data);renderStudentMeeting(data);
-    }catch(e){
-      $('studentDailyRows').innerHTML=`<div class="empty">${esc(e?.message||e)}</div>`;
-      $('studentMeetingRows').innerHTML=`<div class="empty">${esc(e?.message||e)}</div>`;
+    }catch(error){
+      if(request!==state.studentSeq)return;
+      $('studentAttendanceWindow').textContent=`Attendance window: ${term} unavailable`;
+      $('studentDailyRows').innerHTML=`<div class="empty">${esc(error?.message||error)}</div>`;
+      $('studentMeetingRows').innerHTML=`<div class="empty">${esc(error?.message||error)}</div>`;
     }
   }
   function setStudentTab(tab){

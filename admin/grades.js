@@ -15,10 +15,11 @@ const adminGradePicker=$('adminGradePicker'),adminDepartmentPicker=$('adminDepar
 const searchInput=$('searchInput'),gradeFilter=$('gradeFilter'),adminGradeFilterWrap=$('adminGradeFilterWrap'),statusQuick=$('statusQuick');
 const teacherKpis=$('teacherKpis'),adminKpis=$('adminKpis'),results=$('results'),resultMeta=$('resultMeta'),activeScopeSummary=$('activeScopeSummary'),resultsTitle=$('resultsTitle');
 const rosterScopeCard=$('rosterScopeCard'),gradeRosterGroups=$('gradeRosterGroups'),gradeRosterNote=$('gradeRosterNote'); // EAGLENEST_MY_ROSTERS_CONSUMERS_V1
-const errorCard=$('errorCard'),errorOut=$('errorOut'),studentDialog=$('studentDialog'),studentDialogClose=$('studentDialogClose'),studentDialogTitle=$('studentDialogTitle'),studentDialogMeta=$('studentDialogMeta'),studentCurrent=$('studentCurrent'),studentHistory=$('studentHistory');
+const errorCard=$('errorCard'),errorOut=$('errorOut'),studentDialog=$('studentDialog'),studentDialogClose=$('studentDialogClose'),studentDialogTermSelect=$('studentDialogTermSelect'),studentDialogTitle=$('studentDialogTitle'),studentDialogMeta=$('studentDialogMeta'),studentCurrent=$('studentCurrent'),studentHistory=$('studentHistory');
 
 let ACCESS=null,OVERVIEW=null,MODE='teacher',ACTIVE_STATUS='all',loadTimer=null;
 let SELECTED_GRADE_TERM='',GRADE_REQUEST_SEQ=0; // EAGLENEST_Q2_Y1_REPORTING_V1
+let STUDENT_MODAL_OSIS='',STUDENT_MODAL_TERM='',STUDENT_MODAL_SEQ=0; // EAGLENEST_STUDENT_MODAL_TERM_SWITCH_V1
 const SELECTED=new Set();
 
 function esc(v){return String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
@@ -164,9 +165,90 @@ function renderRows(data){renderTermMeta(data?.reporting_terms,data?.current);up
 
 async function loadStudents(){if(!OVERVIEW)return;const requestSeq=++GRADE_REQUEST_SEQ;setError('');const url=new URL('/admin/grades/students',API_BASE);for(const id of SELECTED){const row=groupMap().get(id);if(row?.type==='roster'&&row.roster_ref)url.searchParams.append('roster',row.roster_ref);else url.searchParams.append('group',id);}if(searchInput.value.trim())url.searchParams.set('q',searchInput.value.trim());if(isAdminMode()&&gradeFilter.value)url.searchParams.set('grade',gradeFilter.value);url.searchParams.set('status',ACTIVE_STATUS);url.searchParams.set('term',SELECTED_GRADE_TERM);results.innerHTML='<div class="empty">Loading grades…</div>';try{const r=await adminFetch(url);const j=await r.json().catch(()=>null);if(!r.ok||!j?.ok)throw new Error(j?.error||`HTTP ${r.status}`);if(requestSeq!==GRADE_REQUEST_SEQ)return;renderRows(j)}catch(e){if(requestSeq!==GRADE_REQUEST_SEQ)return;setError(e?.message||e);results.innerHTML='<div class="empty">Could not load grade rows.</div>'}}
 
-function renderCurrentStudent(student){const name=[student?.first,student?.last].filter(Boolean).join(' ')||student?.osis||'Student';studentDialogTitle.textContent=name;studentDialogMeta.textContent=`Grade ${student?.grade_level||'—'} · OSIS ${student?.osis||'—'} · Passing threshold ${passingScore()}%`;studentCurrent.innerHTML=`<div class="currentGrid">${(student?.grades||[]).map(g=>`<article class="currentCourse"><div class="muted small">${esc(g.academic_course_code||g.course_code||'')}</div><div>${esc(g.course_name||'Course')}</div><strong class="${gradeKind(g)==='fail'?'statusBad':gradeKind(g)==='pass'?'statusGood':''}">${esc(fmtGrade(g))}${g.grade_counted===false?' · Not counted':''}</strong>${SELECTED_GRADE_TERM!=='Y1'&&Number.isFinite(g.y1_grade_numeric)?`<span class="gradeY1Comparison">Y1: ${Number(g.y1_grade_numeric).toFixed(1)}%</span>`:''}</article>`).join('')||'<div class="empty">No current grades.</div>'}</div>`}
+function renderCurrentStudent(student){const name=[student?.first,student?.last].filter(Boolean).join(' ')||student?.osis||'Student';studentDialogTitle.textContent=name;studentDialogMeta.textContent=`Grade ${student?.grade_level||'—'} · OSIS ${student?.osis||'—'} · Passing threshold ${passingScore()}%`;studentCurrent.innerHTML=`<div class="currentGrid">${(student?.grades||[]).map(g=>`<article class="currentCourse"><div class="muted small">${esc(g.academic_course_code||g.course_code||'')}</div><div>${esc(g.course_name||'Course')}</div><strong class="${gradeKind(g)==='fail'?'statusBad':gradeKind(g)==='pass'?'statusGood':''}">${esc(fmtGrade(g))}${g.grade_counted===false?' · Not counted':''}</strong>${STUDENT_MODAL_TERM!=='Y1'&&Number.isFinite(g.y1_grade_numeric)?`<span class="gradeY1Comparison">Y1: ${Number(g.y1_grade_numeric).toFixed(1)}%</span>`:''}</article>`).join('')||'<div class="empty">No current grades.</div>'}</div>`}
 function renderHistory(history){const snapshots=history?.snapshots||[];if(!snapshots.length){studentHistory.innerHTML='<div class="empty">No historical grade snapshots are stored for this student yet.</div>';return}studentHistory.innerHTML=snapshots.map((s,i)=>`<details class="historySnapshot" ${i===0?'open':''}><summary>${esc(s.marking_period||'Snapshot')} · ${esc(fmtDate(s.snapshot_date))} · ${Number(s.below_passing_count||0)} below ${esc(passingScore())}%</summary><div class="gradeChips" style="margin-top:10px">${(s.grades||[]).map(g=>`<span class="gradeChip ${gradeKind(g)}"><strong>${esc(g.course_name||g.course_code)}</strong> ${esc(fmtGrade(g))}${g.grade_counted===false?' · Not counted':''}</span>`).join('')}</div></details>`).join('')}
-async function openStudent(osis){studentDialogTitle.textContent='Loading…';studentDialogMeta.textContent='';studentCurrent.innerHTML='';studentHistory.innerHTML='<div class="empty">Loading history…</div>';studentDialog.showModal();window.EagleNESTGradesAttendance?.loadStudent?.(osis);try{const scope=gradesAttendanceScopeParams();scope.set('osis',osis);scope.set('term',SELECTED_GRADE_TERM);const qs=scope.toString();const [curR,histR,trendsR]=await Promise.all([adminFetch(`/admin/grades/student?${qs}`),adminFetch(`/admin/grades/student/history?${qs}`).catch(()=>null),adminFetch(`/admin/grades/student/trends?${qs}`).catch(()=>null)]); /* EAGLENEST_TERM_AWARE_STUDENT_GRADE_TRENDS_V1 | EAGLENEST_GRADE_TRENDS_ROUTE_CORS_FIX_V1 */const cur=await curR.json().catch(()=>null),hist=histR?await histR.json().catch(()=>null):null,trends=trendsR?await trendsR.json().catch(()=>null):null;if(!curR.ok||!cur?.ok)throw new Error(cur?.error||`HTTP ${curR.status}`);const shown=cur.student?.grades?.length?cur.student:(cur.year_student||cur.student);renderCurrentStudent(shown);if(shown===cur.year_student&&cur.reporting_terms?.selected_term!=='Y1')studentDialogMeta.textContent+=' · Showing Y1 until current-quarter grades arrive';const graphTerm=shown===cur.year_student?'Y1':(cur.reporting_terms?.selected_term||SELECTED_GRADE_TERM);let graphPayload=trendsR?.ok&&trends?.ok?trends:null;if(graphTerm==='Y1'&&cur.reporting_terms?.selected_term!=='Y1'){const u=new URL(`/admin/grades/student/trends?${qs}`,API_BASE);u.searchParams.set('term','Y1');const yr=await adminFetch(u).catch(()=>null);graphPayload=yr?.ok?await yr.json().catch(()=>null):null;}window.EagleNESTGradeBands?.decorateGradeCards(studentCurrent,shown?.grades||[],graphPayload,graphTerm);if(histR?.ok&&hist?.ok)renderHistory(hist);else studentHistory.innerHTML=`<div class="empty">History unavailable: ${esc(hist?.error||`HTTP ${histR?.status||'network failure'}`)}</div>`}catch(e){studentDialogTitle.textContent='Student Grades';studentCurrent.innerHTML=`<div class="empty">${esc(e?.message||e)}</div>`}} // EAGLENEST_ROSTER_GRADES_ATTENDANCE_ACCESS_V1
+// EAGLENEST_STUDENT_MODAL_TERM_SWITCH_V1
+// Select only quarters that have actual Grade Hub snapshots. Y1 is offered
+// after Q1 is past, even if the current quarter has not yet received a push.
+function studentModalAvailableTerms(meta=OVERVIEW?.reporting_terms){
+  const ordered=['Q1','Q2','Q3','Q4'];
+  const available=ordered.filter(q=>(meta?.available_quarters||[]).includes(q));
+  const active=String(meta?.active_term||'').toUpperCase();
+  const pastQ1=['Q2','Q3','Q4'].includes(active)||available.some(q=>q!=='Q1');
+  if(pastQ1&&available.length)available.push('Y1');
+  return available.length?available:['Q1']; // safe empty-hub placeholder
+}
+function setupStudentModalTerm(preferred=''){
+  const terms=studentModalAvailableTerms();
+  studentDialogTermSelect.replaceChildren();
+  for(const term of terms){
+    const option=document.createElement('option');option.value=term;
+    option.textContent=term==='Y1'?'Y1 (year-to-date)':term;
+    studentDialogTermSelect.appendChild(option);
+  }
+  const quarterFallback=terms.filter(q=>q!=='Y1').at(-1)||terms[0];
+  STUDENT_MODAL_TERM=terms.includes(preferred)?preferred:quarterFallback;
+  studentDialogTermSelect.value=STUDENT_MODAL_TERM;
+}
+async function refreshStudentModal(){
+  const osis=STUDENT_MODAL_OSIS,term=STUDENT_MODAL_TERM;
+  if(!osis||!studentDialog.open)return;
+  const request=++STUDENT_MODAL_SEQ;
+  const current=()=>request===STUDENT_MODAL_SEQ&&studentDialog.open&&
+    STUDENT_MODAL_OSIS===osis&&STUDENT_MODAL_TERM===term;
+  studentDialogTitle.textContent='Loading…';studentDialogMeta.textContent=`${term} · Loading grades…`;
+  studentCurrent.innerHTML='<div class="empty">Loading grades…</div>';
+  studentHistory.innerHTML='<div class="empty">Loading history…</div>';
+  const help=$('studentHistoryHelp');if(help)help.textContent=term==='Y1'
+    ?'Recent original Q1–Q4 source snapshots; the Y1 graph above is calculated from their grades.'
+    :`Recent ${term} grade snapshots for this student.`;
+  // Daily and Meeting Attendance share the SAME term, but fail independently.
+  window.EagleNESTGradesAttendance?.loadStudent?.(osis,term);
+  try{
+    const scope=gradesAttendanceScopeParams();scope.set('osis',osis);scope.set('term',term);
+    const qs=scope.toString();
+    const [curR,histR,trendsR]=await Promise.all([
+      adminFetch(`/admin/grades/student?${qs}`),
+      adminFetch(`/admin/grades/student/history?${qs}`).catch(()=>null),
+      adminFetch(`/admin/grades/student/trends?${qs}`).catch(()=>null)
+    ]);
+    const cur=await curR.json().catch(()=>null);
+    const hist=histR?await histR.json().catch(()=>null):null;
+    const trends=trendsR?await trendsR.json().catch(()=>null):null;
+    if(!current())return; // rapid dropdown changes cannot resurrect stale data
+    if(!curR.ok||!cur?.ok)throw new Error(cur?.error||`HTTP ${curR.status}`);
+    const fallback=cur.reporting_terms?.source_available===false&&term!=='Y1'&&
+      cur.year_student?.grades?.length;
+    const shown=fallback?cur.year_student:cur.student;
+    renderCurrentStudent(shown);
+    studentDialogMeta.textContent+=` · ${term} reporting`;
+    if(fallback)studentDialogMeta.textContent+=' · Showing Y1: selected-quarter grades unavailable';
+    const graphTerm=fallback?'Y1':(cur.reporting_terms?.selected_term||term);
+    let graphPayload=trendsR?.ok&&trends?.ok?trends:null;
+    if(fallback){
+      const u=new URL(`/admin/grades/student/trends?${qs}`,API_BASE);
+      u.searchParams.set('term','Y1');
+      const yr=await adminFetch(u).catch(()=>null);
+      graphPayload=yr?.ok?await yr.json().catch(()=>null):null;
+      if(!current())return;
+    }
+    window.EagleNESTGradeBands?.decorateGradeCards(studentCurrent,shown?.grades||[],graphPayload,graphTerm);
+    if(histR?.ok&&hist?.ok)renderHistory(hist);
+    else studentHistory.innerHTML=`<div class="empty">History unavailable: ${esc(hist?.error||`HTTP ${histR?.status||'network failure'}`)}</div>`;
+  }catch(error){
+    if(!current())return;
+    studentDialogTitle.textContent='Student Grades';
+    studentCurrent.innerHTML=`<div class="empty">${esc(error?.message||error)}</div>`;
+    studentHistory.innerHTML='<div class="empty">Grade history could not be loaded.</div>';
+  }
+}
+function openStudent(osis){
+  STUDENT_MODAL_OSIS=String(osis||'').trim();
+  if(!STUDENT_MODAL_OSIS)return;
+  setupStudentModalTerm(SELECTED_GRADE_TERM);
+  if(!studentDialog.open)studentDialog.showModal();
+  refreshStudentModal();
+}
 
 
 function gradesAttendanceScopeParams(){
@@ -202,4 +284,10 @@ allMineBtn.addEventListener('click',()=>setSingleGroup('mine:all'));backToMineBt
 for(const picker of [adminGradePicker,adminDepartmentPicker,adminTeacherPicker,adminCoursePicker,adminSectionPicker,adminAdvisoryPicker])picker.addEventListener('change',()=>{const id=picker.value;picker.value='';addAdminGroup(id)});
 $('gradesTermSelect')?.addEventListener('change',()=>{SELECTED_GRADE_TERM=$('gradesTermSelect').value;renderTermMeta({selected_term:SELECTED_GRADE_TERM,source_available:false,available_quarters:OVERVIEW?.reporting_terms?.available_quarters||[]},{});loadStudents();window.dispatchEvent(new Event('eaglenest-grade-term-change'));});
 refreshBtn.addEventListener('click',async()=>{try{OVERVIEW=await fetchOverviewWithRosters();MODE=determineMode();resetSelectionForMode();renderMode();await loadStudents()}catch(e){setError(e?.message||e)}});searchInput.addEventListener('input',debounceLoad);gradeFilter.addEventListener('change',loadStudents);studentDialogClose.addEventListener('click',()=>studentDialog.close());
+studentDialogTermSelect.addEventListener('change',()=>{
+  if(!studentModalAvailableTerms().includes(studentDialogTermSelect.value))return;
+  STUDENT_MODAL_TERM=studentDialogTermSelect.value;
+  refreshStudentModal(); // keep current student and active Daily/Meeting/Grades tab
+});
+studentDialog.addEventListener('close',()=>{++STUDENT_MODAL_SEQ;STUDENT_MODAL_OSIS='';});
 window.addEventListener('DOMContentLoaded',startPage);

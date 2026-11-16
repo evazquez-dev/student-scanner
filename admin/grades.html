@@ -10,7 +10,7 @@
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="stylesheet" href="./nav.css">
-  <link rel="stylesheet" href="./grades.css?v=20261027-hidden-v1">
+  <link rel="stylesheet" href="./grades.css?v=20261116-modal-term-v1">
   <script src="./brand.js" defer></script>
   <script src="./nav.js" defer></script>
   <script>(()=>{try{const t=localStorage.getItem('ss_theme_v1')||((window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark');document.documentElement.dataset.theme=t}catch(e){}})();</script>
@@ -236,7 +236,13 @@
         <h2 id="studentDialogTitle">Student Grades</h2>
         <div id="studentDialogMeta" class="muted">—</div>
       </div>
-      <button id="studentDialogClose" class="btn ghost" type="button">Close</button>
+      <!-- EAGLENEST_STUDENT_MODAL_TERM_SWITCH_V1: applies to all three student tabs -->
+      <div class="studentDialogControls">
+        <label class="studentDialogTerm" for="studentDialogTermSelect">Term
+          <select id="studentDialogTermSelect" aria-label="Student reporting term"></select>
+        </label>
+        <button id="studentDialogClose" class="btn ghost" type="button">Close</button>
+      </div>
     </div>
     <div class="studentDataTabs" role="tablist" aria-label="Student grades and attendance">
       <button class="dataTab active" data-student-tab-button="grades" type="button" role="tab" aria-selected="true">Grades</button>
@@ -247,7 +253,7 @@
     <div id="studentGradesPane">
       <div id="studentCurrent" class="studentCurrent"></div>
       <section class="historySection">
-        <div class="sectionHead"><div><h3>Grade History</h3><p class="muted">Every stored EagleNEST grade snapshot for this student.</p></div></div>
+        <div class="sectionHead"><div><h3>Grade History</h3><p class="muted" id="studentHistoryHelp">Recent EagleNEST grade snapshots for the selected reporting term.</p></div></div>
         <div id="studentHistory"></div>
       </section>
     </div>
@@ -261,7 +267,7 @@
     </section>
   </dialog>
 
-  <script src="./grades.js"></script>
-  <script src="./grades_attendance.js"></script>
+  <script src="./grades.js?v=20261116-modal-term-v1"></script>
+  <script src="./grades_attendance.js?v=20261116-modal-term-v1"></script>
 </body>
 </html>
