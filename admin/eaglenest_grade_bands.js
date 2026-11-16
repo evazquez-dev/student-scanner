@@ -68,7 +68,7 @@
     const code=courseId(current),name=courseName(current);
     return rows.find(g=>(code&&courseId(g)===code)||(name&&courseName(g)===name))||null;
   }
-  function pointsFor(current,snapshots){
+  function pointsForLegacy(current,snapshots){
     const data=[];
     for (const [index,s] of (Array.isArray(snapshots)?snapshots:[]).entries()) {
       const g=findGrade(s,current);
@@ -84,16 +84,33 @@
       seq.push({key:'zz-current',val:live,avg,seq:999999});
     return seq.slice(-12);
   }
+  // EAGLENEST_TERM_AWARE_STUDENT_GRADE_TRENDS_V1
+  function pointsFor(current, payload, term){
+    const t=String(term||'').trim().toUpperCase();
+    // MTSS has no reporting-term selector; preserve its existing historic graph.
+    if(!t)return pointsForLegacy(current,payload);
+    if(!payload?.courses)return [];
+    const code=courseId(current);
+    const found=payload.courses[code] || Object.values(payload.courses)
+      .find(c=>courseId(c)===code) || null;
+    if(!found)return [];
+    return (found.points||[]).map((p,i)=>({
+      key:String(p.date||''),seq:i,
+      val:score(p.student),avg:score(p.course_average),
+      y1:t!=='Q1'&&t!=='Y1'?score(p.y1):null
+    })).slice(-12);
+  }
   function svg(tag, attrs){
     const el=document.createElementNS(NS,tag);
     for(const [key,value] of Object.entries(attrs||{}))el.setAttribute(key,String(value));
     return el;
   }
-  function sparkline(points){
+  function sparkline(points,term){
+    const t=String(term||'').trim().toUpperCase();
     const box=document.createElement('span');box.className='engv-spark';
-    const nStudent=points.filter(p=>p.val!==null).length;
-    const nAverage=points.filter(p=>p.avg!==null).length;
-    if(nStudent<2 && nAverage<2){
+    const active=points.filter(p=>p.val!==null||p.avg!==null||p.y1!==null);
+    const seriesCount=(['val','avg','y1'].filter(key=>points.filter(p=>p[key]!==null).length>=2)).length;
+    if(active.length<2||!seriesCount){
       box.classList.add('engv-spark-empty');box.textContent='—';
       box.setAttribute('aria-label','Not enough stored snapshots for a trend');
       return box;
@@ -101,22 +118,24 @@
     const w=112,h=42,padX=4,padY=2;
     const y=v=>padY+(100-Math.max(0,Math.min(100,v)))/100*(h-2*padY);
     const x=i=>padX+(points.length<=1?0:i/(points.length-1)*(w-2*padX));
+    const label=t==='Y1'?'Y1 grade':(t||'Student')+' grade';
+    const chartLabel=`${label} solid charcoal; course average dashed steel blue${t!=='Q1'&&t!=='Y1'?'; running Y1 dash-dot purple':''}`;
     const node=svg('svg',{viewBox:`0 0 ${w} ${h}`,width:w,height:h,role:'img',
-      'aria-label':'Grade trends: solid dark line is student, dashed slate line is course-wide average; performance bands in background. No axes or exact dates shown.',focusable:'false'});
+      'aria-label':chartLabel,focusable:'false'});
     node.classList.add('engv-spark-svg');
+    const title=svg('title',{});title.textContent=chartLabel;node.appendChild(title);
     for(const z of ZONES){
       const top=y(z.max===59.999?60:z.max===69.999?70:z.max===79.999?80:z.max===89.999?90:z.max);
       const bottom=y(z.min);
       node.appendChild(svg('rect',{x:0,y:top,width:w,height:bottom-top,fill:z.color,'fill-opacity':'.34'}));
     }
-    // Break the line across missing grades. Never treat a missing/zero score as 0%.
-    function draw(key,stroke,width,dashed){
+    function draw(key,stroke,width,dashes,marker){
       let segment=[];
       const flush=()=>{
         if(segment.length>=2){
           const attrs={points:segment.join(' '),fill:'none',stroke,'stroke-width':width,
             'stroke-linecap':'round','stroke-linejoin':'round'};
-          if(dashed)attrs['stroke-dasharray']='4 3';
+          if(dashes)attrs['stroke-dasharray']=dashes;
           node.appendChild(svg('polyline',attrs));
         }
         segment=[];
@@ -127,37 +146,61 @@
         segment.push(`${x(i).toFixed(2)},${y(v).toFixed(2)}`);
       }
       flush();
+      const last=points.map((p,i)=>({...p,i})).filter(p=>p[key]!==null).at(-1);
+      if(last&&marker==='circle')node.appendChild(svg('circle',
+        {cx:x(last.i),cy:y(last[key]),r:3.2,fill:stroke,stroke:'#fff','stroke-width':1}));
+      if(last&&marker==='diamond'){
+        const cx=x(last.i),cy=y(last[key]),r=3.5;
+        node.appendChild(svg('polygon',{points:`${cx},${cy-r} ${cx+r},${cy} ${cx},${cy+r} ${cx-r},${cy}`,
+          fill:stroke,stroke:'#fff','stroke-width':.8}));
+      }
     }
-    // Average is behind the student so student movement remains dominant.
-    draw('avg','#5a7293',2,true);
-    draw('val','#17243a',2.7,false);
-    const last=points.map((p,i)=>({...p,i})).filter(p=>p.val!==null).at(-1);
-    if(last)node.appendChild(svg('circle',{cx:x(last.i),cy:y(last.val),r:3.2,fill:'#17243a',stroke:'#fff','stroke-width':1}));
-    box.title='Solid: student · Dashed: course average (all graded students in the course code)';
-    box.appendChild(node);return box;
+    draw('avg','#5a7293',2,'4 3','');          // dashed: course average
+    if(t!=='Q1'&&t!=='Y1')draw('y1','#8b5cf6',2.3,'7 3 2 3','diamond'); // dash-dot annual
+    draw('val','#17243a',2.7,'','circle');      // solid: student
+    box.title=chartLabel;box.appendChild(node);return box;
   }
-  function enhanceRow(strong, current, snapshots){
+  function ensureTrendLegend(host,term){
+    if(!host)return;
+    const t=String(term||'').toUpperCase();
+    let legend=[...host.children].find(c=>c.classList?.contains('engv-line-legend'));
+    if(!t){legend?.remove();return;}
+    if(!legend){legend=document.createElement('div');legend.className='engv-line-legend';
+      host.prepend(legend);}
+    const entries=[['student',t==='Y1'?'Student Y1':`Student ${t}`],
+      ['course',t==='Y1'?'Y1 course average':`Course ${t} average`]];
+    if(t!=='Q1'&&t!=='Y1')entries.push(['year','Running Y1 average']);
+    legend.replaceChildren();
+    for(const [kind,label] of entries){
+      const item=document.createElement('span');item.className='engv-legend-key';
+      const line=document.createElement('span');line.className=`engv-legend-line ${kind}`;
+      line.setAttribute('aria-hidden','true');
+      const text=document.createElement('span');text.textContent=label;
+      item.append(line,text);legend.appendChild(item);
+    }
+  }
+  function enhanceRow(strong,current,snapshots,term=''){
     if(!strong)return;
     paint(strong,score(current));
     let wrap=strong.closest('.engv-grade-row');
-    if(!wrap){
-      wrap=document.createElement('div');wrap.className='engv-grade-row';
-      strong.parentNode.insertBefore(wrap,strong);wrap.appendChild(strong);
-    }
+    if(!wrap){wrap=document.createElement('div');wrap.className='engv-grade-row';
+      strong.parentNode.insertBefore(wrap,strong);wrap.appendChild(strong);}
     wrap.querySelector('.engv-spark')?.remove();
-    wrap.appendChild(sparkline(pointsFor(current,snapshots)));
+    wrap.appendChild(sparkline(pointsFor(current,snapshots,term),term));
   }
-  function decorateGradeCards(host, currentGrades, snapshots){
+  function decorateGradeCards(host,currentGrades,trends=null,term=''){
     if(!host||!Array.isArray(currentGrades))return;
+    ensureTrendLegend(host,term);
     host.querySelectorAll('.currentCourse').forEach((card,i)=>{
-      enhanceRow(card.querySelector('strong'),currentGrades[i],snapshots);
+      enhanceRow(card.querySelector('strong'),currentGrades[i],trends,term);
     });
     decorate(host);
   }
-  function decorateLookupCourses(host, currentGrades, snapshots=[]){
+  function decorateLookupCourses(host,currentGrades,trends=null,term=''){
     if(!host||!Array.isArray(currentGrades))return;
+    ensureTrendLegend(host,term);
     host.querySelectorAll('.lookupAcademicCourse').forEach((card,i)=>{
-      enhanceRow(card.querySelector('.lookupAcademicGrade'),currentGrades[i],snapshots);
+      enhanceRow(card.querySelector('.lookupAcademicGrade'),currentGrades[i],trends,term);
     });
     decorate(host);
   }

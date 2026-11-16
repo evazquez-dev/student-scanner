@@ -123,7 +123,7 @@
   }
 
   function render(gradesData, attendanceData) {
-    const grades = gradesData?.student || null;
+    const grades = gradesData?.student?.grades?.length ? gradesData.student : (gradesData?.year_student || gradesData?.student || null); // EAGLENEST_TERM_AWARE_STUDENT_GRADE_TRENDS_V1
     const settings = gradesData?.settings || {};
     const current = gradesData?.current || {};
     const attendance = attendanceData?.attendance || {};
@@ -216,15 +216,25 @@
     if (seq !== loadSequence || currentOsis() !== osis) return;
     loadedForOsis = osis;
     renderPartial(gradesResult, attendanceResult);
-    // Optional history; failure never blocks the current-grade view.
+    // EAGLENEST_TERM_AWARE_STUDENT_GRADE_TRENDS_V1:
+    // The Student Lookup default term is the active reporting quarter.
+    // History is *never* interpreted as a mixed-quarter student trend.
     if (gradesResult.status === 'fulfilled') {
-      getJson(`/admin/grades/student/history?osis=${encodeURIComponent(osis)}`)
-        .then(history => {
+      const response = gradesResult.value;
+      const hasQuarter = !!response?.student?.grades?.length;
+      const term = hasQuarter ? (response?.reporting_terms?.selected_term || 'Q1') : 'Y1';
+      const shown = hasQuarter ? response.student : (response?.year_student || response?.student);
+      getJson(`/admin/grades/student/trends?osis=${encodeURIComponent(osis)}&term=${encodeURIComponent(term)}`)
+        .then(trends => {
           if (seq !== loadSequence || currentOsis() !== osis) return;
           window.EagleNESTGradeBands?.decorateLookupCourses(
-            $('lookupAcademicCourses'), gradesResult.value?.student?.grades || [], history?.snapshots || []);
+            $('lookupAcademicCourses'), shown?.grades || [], trends, term);
         })
-        .catch(() => {});
+        .catch(() => {
+          if (seq !== loadSequence || currentOsis() !== osis) return;
+          window.EagleNESTGradeBands?.decorateLookupCourses(
+            $('lookupAcademicCourses'), shown?.grades || [], null, term);
+        });
     }
   }
 

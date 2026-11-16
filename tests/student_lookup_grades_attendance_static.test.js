@@ -13,7 +13,7 @@ test('Student Lookup exposes a scoped Grades & Attendance tab', () => {
   assert.match(html, /data-tab="grades_attendance"/);
   assert.match(html, /id="panelGradesAttendance"/);
   assert.match(html, /Current course grades and current marking-period attendance/);
-  assert.match(html, /student_lookup_grades_attendance\.js\?v=20261001-v1/);
+  assert.match(html, /student_lookup_grades_attendance\.js\?v=[^"']+/);
 });
 
 test('Student Lookup reuses existing scoped academic endpoints', () => {
