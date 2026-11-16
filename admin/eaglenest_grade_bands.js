@@ -84,15 +84,37 @@
       seq.push({key:'zz-current',val:live,avg,seq:999999});
     return seq.slice(-12);
   }
+  // EAGLENEST_STUDENT_TREND_SOURCE_CODE_MAPPING_V1
+  // The Grade Hub indexes trends by ORIGINAL course_code. Academic mapping is
+  // for display and roster grouping, so it must never obscure source identity.
+  function findTrendCourse(current,courses){
+    if(!current||!courses||typeof courses!=='object')return null;
+    const key=v=>String(v??'').trim().toUpperCase();
+    const keys=[current.course_code,current.mapped_course_code,
+      current.academic_course_code,current.course_number]
+      .map(key).filter(Boolean);
+    // Exact source code always wins. For example DNC1001, not DANCE.
+    for(const id of keys){if(Object.prototype.hasOwnProperty.call(courses,id))return courses[id];}
+    const records=Object.values(courses).filter(Boolean);
+    // Accommodate an API payload whose object keys differ from course_code.
+    for(const id of keys){
+      const matches=records.filter(row=>key(row.course_code)===id);
+      if(matches.length===1)return matches[0];
+    }
+    // Name fallback is safe ONLY when exactly one source course shares it.
+    const name=courseName(current).replace(/\s+/g,' ').trim();
+    if(!name)return null;
+    const matches=records.filter(row=>courseName(row).replace(/\s+/g,' ').trim()===name);
+    return matches.length===1?matches[0]:null;
+  }
+
   // EAGLENEST_TERM_AWARE_STUDENT_GRADE_TRENDS_V1
   function pointsFor(current, payload, term){
     const t=String(term||'').trim().toUpperCase();
     // MTSS has no reporting-term selector; preserve its existing historic graph.
     if(!t)return pointsForLegacy(current,payload);
     if(!payload?.courses)return [];
-    const code=courseId(current);
-    const found=payload.courses[code] || Object.values(payload.courses)
-      .find(c=>courseId(c)===code) || null;
+    const found=findTrendCourse(current,payload.courses);
     if(!found)return [];
     return (found.points||[]).map((p,i)=>({
       key:String(p.date||''),seq:i,
