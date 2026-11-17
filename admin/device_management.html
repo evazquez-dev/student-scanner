@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <title>Device Management · EagleNEST</title>
+  <script src="./shared_auth.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="stylesheet" href="./nav.css">
+  <link rel="stylesheet" href="./device_management.css">
+  <script>(()=>{try{document.documentElement.dataset.theme=localStorage.getItem('ss_theme_v1')||((matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark')}catch{}})();</script>
+  <script src="./brand.js" defer></script><script src="./nav.js" defer></script>
+  <script src="./device_management.js" defer></script>
+</head>
+<body data-module="super_admin">
+  <div class="dmShell">
+    <section id="dmLogin" class="dmCard dmLogin">
+      <h1>Device Management</h1><p>Sys Admin access only. Sign in using your EagleNEST staff account.</p>
+      <div id="g_id_signin"></div><p id="dmLoginStatus" role="status">Checking session…</p>
+    </section>
+    <main id="dmApp" hidden>
+      <header class="dmHero dmCard">
+        <div><span class="dmEyebrow">EAGLENEST / SYSTEM ADMINISTRATION</span><h1>Device Management</h1><p>Chromebook inventory, permanent student assignment history, loaners, and in-house repairs.</p></div>
+        <div class="dmActions"><button type="button" data-action="create-device" class="dmButton dmPrimary">+ Add device</button><button type="button" data-action="new-ticket" class="dmButton">+ Report issue</button><button type="button" id="dmRefresh" class="dmButton">Refresh</button></div>
+      </header>
+      <div id="dmMessage" class="dmMessage" role="status" aria-live="polite"></div>
+      <section id="dmStats" class="dmStats" aria-label="Inventory summary"></section>
+      <nav class="dmTabs" aria-label="Device management sections">
+        <button data-tab="queue" class="active" type="button">Work Queue</button>
+        <button data-tab="inventory" type="button">Inventory</button>
+        <button data-tab="students" type="button">Student History</button>
+        <button data-tab="carts" type="button">ChromeCarts</button>
+      </nav>
+      <section id="dmPane" aria-live="polite"></section>
+    </main>
+  </div>
+  <dialog id="dmDialog" class="dmDialog"><div id="dmDialogContent"></div></dialog>
+</body>
+</html>

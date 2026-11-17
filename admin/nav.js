@@ -586,6 +586,8 @@
           { key:'exports', label:'Exports', href:'./exports.html', description:'Filtered historical CSV exports across EagleNEST modules' },
           { key:'fidelity_dashboard', label: MODULES.fidelity_dashboard || 'Operational Health', href:'./fidelity.html', description:'Attendance fidelity and operational health' },
           { key:'scan_injector', label: MODULES.scan_injector || 'Scan Injector', href:'./scan_injector.html', description:'Admin scan simulation and testing' },
+          // EAGLENEST_DEVICE_MANAGEMENT_V1_NAV
+          { key:'device_management', access_key:'super_admin', label:'Device Management', href:'./device_management.html', description:'Chromebook inventory, in-house repairs and permanent loaner history' },
           { key:'access_control', label: MODULES.access_control || 'Access Control', href:'./access_control.html', description:'Role policies, individual overrides, effective access and audit' }, // EAGLENEST_ACCESS_CONTROL_V1
           { key:'admin_roles', label: MODULES.admin_roles || 'Role Sources', href:'./admin_roles.html', description:'Manage upstream role and allowlist memberships' },
           { key:'admin_dashboard', label: MODULES.admin || 'System Administration', href:'./index.html', description:'System mode and configuration' },
