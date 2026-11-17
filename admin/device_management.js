@@ -4,6 +4,9 @@
   const $ = id => document.getElementById(id);
   const API_BASE=(document.querySelector('meta[name="api-base"]')?.content||'').replace(/\/*$/,'')+'/';
   const CLIENT_ID=document.querySelector('meta[name="google-client-id"]')?.content||'';
+  // EAGLENEST_DEVICE_BORROWING_LOG_V1
+  const borrowing=window.EAGLENEST_DEVICE_BORROWING_V1;
+  if(!borrowing)throw new Error('Device borrowing module failed to load');
   // EAGLENEST_DEVICE_STUDENT_SEARCH_V1
   const studentPicker=window.EAGLENEST_DEVICE_STUDENT_PICKER_V1;
   if(!studentPicker)throw new Error('Device student picker script failed to load');
@@ -66,7 +69,7 @@
     $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Device Inventory</h2><p class="dmMuted dmSmall">A permanent record for every Chromebook. Search by serial, asset tag, or current student.</p></div>${button('google-lookup','Find in Google Admin')}${button('create-device','+ Add device')}${button('export-devices','Export CSV')}${button('export-assignments','Assignment CSV')}</div>
       <div class="dmToolbar"><input id="dmDeviceSearch" type="search" placeholder="Find device or student" value="${h(state.deviceQuery)}"><select id="dmDeviceStatus"><option value="">All statuses</option>${optionList(['available','in_use','needs_repair','under_repair','missing','retired'],state.deviceStatus)}</select></div><div id="dmInventoryRows"></div></section>`;
     const draw=()=>{const q=state.deviceQuery.toLowerCase(),devices=state.devices.filter(d=>(!state.deviceStatus||state.deviceStatus===d.operational_status)&&(!q||[d.asset_tag,d.serial_number,d.model,d.manufacturer,d.current_student_name,d.current_student_osis].join(' ').toLowerCase().includes(q)));
-      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && d.operational_status==='available' && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
+      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && d.operational_status==='available' && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}${d.current_student_osis?button('borrow-log','Log borrowing',d.id):''}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
     let queryVersion=0;
     $('dmDeviceSearch').oninput=async e=>{state.deviceQuery=e.target.value;const v=++queryVersion;draw();
       try{const data=await api('/admin/device-management/devices?limit=150&q='+encodeURIComponent(state.deviceQuery));if(v!==queryVersion||state.tab!=='inventory')return;state.devices=data.devices||[];draw();}
@@ -103,7 +106,7 @@
     return `<h3 class="dmSub">${h(name)} · ${h(data.osis)}</h3><div class="dmCards">${active.length?active.map(a=>`<article class="dmMiniCard"><b>${h(label(a.kind))} · ${h(a.asset_tag||a.serial_number)}</b><p>${h([a.manufacturer,a.model].filter(Boolean).join(' '))}</p><p>${statusBadge(a.operational_status)}</p><p class="dmSmall dmMuted">Issued ${h(nice(a.assigned_at))}</p><div class="dmDetailActions">${button('device','Device history',a.device_id)}${button('return','End / return',a.id)}</div></article>`).join(''):empty('No devices currently issued.')}</div>
       <h3 class="dmSub">All assignments (${history.length})</h3>${history.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Issued</th><th>Type</th><th>Device</th><th>Ended</th><th>Outcome</th><th></th></tr></thead><tbody>${history.map(a=>`<tr><td>${h(nice(a.assigned_at))}</td><td>${h(label(a.kind))}</td><td>${h(a.asset_tag||a.serial_number)}</td><td>${h(nice(a.returned_at))}</td><td>${h(a.end_reason||'Active')}</td><td>${button('device','View',a.device_id)}</td></tr>`).join('')}</tbody></table></div>`:empty('No historical assignments yet.')}
       <h3 class="dmSub">Student-linked issues (${tickets.length})</h3>${tickets.length?`<div class="dmCards">${tickets.map(t=>`<article class="dmMiniCard"><b>${h(t.ticket_number)}</b><p>${h(t.title)}</p><p>${statusBadge(t.status)}</p>${button('ticket','Open ticket',t.id)}</article>`).join('')}</div>`:empty('No device issues linked to this student.')}
-      <h3 class="dmSub">Chronological events</h3>${eventList(data.events||[])}`;
+      ${borrowing.historyShell('student',data.osis)}<h3 class="dmSub">Chronological events</h3>${eventList(data.events||[])}`;
   }
   function eventList(events){return events.length?events.map(e=>{let detail={};try{detail=JSON.parse(e.details_json||'{}')}catch{};const summary=detail.note||detail.resolution||detail.title||detail.reason||detail.student_name||detail.status_to||'';return `<div class="dmEvent"><b>${h(label(e.action))}</b><time>${h(nice(e.at_iso))} · ${h(e.actor_email)}</time><div class="dmSmall dmMuted">${h(summary)}</div></div>`}).join(''):empty('No activity recorded yet.')}
   function showDialog(title,html,action,submitLabel='Save'){
@@ -184,7 +187,7 @@
       <p class="dmMuted">${h([d.manufacturer,d.model].filter(Boolean).join(' '))} · Serial ${h(d.serial_number||'not recorded')}</p>
       <div class="dmPillRow">${statusBadge(d.operational_status)}${statusBadge(d.condition)}${statusBadge(d.device_pool)}</div>
       <p class="dmSmall">Campus: ${h(d.campus||'—')} · Location: ${h(d.last_known_location||'Not confirmed')} ${d.location_confirmed_at?'(updated '+h(nice(d.location_confirmed_at))+')':''}</p>
-      <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&d.operational_status==='available'?button('issue','Assign student',d.id):''}${button('note','Add note',d.id)}</div>
+      <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&d.operational_status==='available'?button('issue','Assign student',d.id):''}${button('note','Add note',d.id)}${active?button('borrow-log','Log borrowing',d.id):''}</div>
       <h3 class="dmSub">Google Admin reference</h3>
       ${googleInfo.linked?`<div class="dmHint"><b>${h(googleInfo.device.model||'ChromeOS device')}</b> · ${h(googleInfo.device.google_status)}
       <p>Serial: ${h(googleInfo.device.serial_number)} · Google asset: ${h(googleInfo.device.asset_tag||'—')}</p>
@@ -195,7 +198,7 @@
       `<p class="dmSmall dmMuted">No Google Admin record linked. ${button('google-lookup','Find by serial')}</p>`}
       <h3 class="dmSub">Assignment history (${details.assignments.length})</h3>${assignmentHTML||empty('No assignments yet.')}
       <h3 class="dmSub">Issues and repairs (${details.tickets.length})</h3>${ticketHTML||empty('No repair tickets yet.')}
-      <h3 class="dmSub">Permanent activity log</h3>${eventList(details.events||[])}`;
+      ${borrowing.historyShell('device',d.id)}<h3 class="dmSub">Permanent activity log</h3>${eventList(details.events||[])}`;
     $('dmDialog').showModal();
     // Retain records in case an assignment-end button is clicked inside the detail dialog.
     state.selectedDevice=details;
@@ -343,6 +346,7 @@
         if($('dmDialog').open)$('dmDialog').close();
         await deviceDetails(id);message('Google Admin metadata refreshed; EagleNEST repair and assignment history unchanged.');return;
       }
+      if(action==='borrow-log')return borrowing.openLog(id);
       if(action==='create-device')return deviceForm();
       if(action==='edit-device'){const d=state.devices.find(x=>x.id===id)||state.selectedDevice?.device;if(!d)throw new Error('Refresh inventory to edit.');$('dmDialog').close();return deviceForm(d)}
       if(action==='create-cart')return cartForm();

@@ -1,0 +1,10 @@
+/* EAGLENEST_DEVICE_BORROWING_LOG_V1 */
+.dmBorrowHistory {margin-top:16px;}
+.dmBorrowEntry {border-top:1px solid var(--border,rgba(128,128,128,.3));padding:12px 0;}
+.dmBorrowTop {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.dmBorrowCheck {display:flex!important;align-items:center;gap:8px;flex-direction:row!important;}
+.dmBorrowCheck input {width:auto!important;flex:0 0 auto;}
+.dmBorrowMatches {max-height:170px;overflow:auto;display:grid;gap:4px;}
+.dmBorrowMatch {cursor:pointer;text-align:left;padding:9px 12px;border-radius:7px;border:1px solid var(--border,rgba(128,128,128,.35));background:transparent;color:inherit;}
+.dmBorrowMatch:hover,.dmBorrowMatch:focus {background:var(--surface-hover,rgba(128,128,128,.14));}
+.dmBorrowDialog {width:min(640px,95vw);}
