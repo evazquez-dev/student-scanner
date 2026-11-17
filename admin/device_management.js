@@ -1,6 +1,7 @@
 /* EAGLENEST_DEVICE_MANAGEMENT_V1 — Sys Admin only, no teacher checkout workflow. */
 (() => {
   'use strict';
+  // EAGLENEST_DEVICE_SCANNER_STATIONS_V1
   const $ = id => document.getElementById(id);
   const API_BASE=(document.querySelector('meta[name="api-base"]')?.content||'').replace(/\/*$/,'')+'/';
   const CLIENT_ID=document.querySelector('meta[name="google-client-id"]')?.content||'';
@@ -26,7 +27,7 @@
     if(!res.ok||!data?.ok)throw new Error(data?.error||`HTTP ${res.status}`);
     return data;
   }
-  const state={tab:'queue',summary:null,devices:[],tickets:[],carts:[],selectedDevice:null,selectedStudent:'',student:null,deviceQuery:'',deviceStatus:'',ticketStatus:'',ticketQuery:'',ready:false};
+  const state={tab:'queue',summary:null,devices:[],tickets:[],carts:[],stations:[],selectedDevice:null,selectedStudent:'',student:null,deviceQuery:'',deviceStatus:'',ticketStatus:'',ticketQuery:'',ready:false};
   const deviceName=d=>(d?.asset_tag||d?.serial_number||d?.id?.slice(0,8)||'Device');
   const statusBadge=(value)=>{const type=['missing','retired','unusable'].includes(value)?'bad':['needs_repair','under_repair','waiting_parts','damaged','reported'].includes(value)?'warn':['available','ready','in_use','closed'].includes(value)?'good':'';return `<span class="dmTag ${type}">${h(label(value||'unknown'))}</span>`};
   const empty=text=>`<div class="dmEmpty">${h(text)}</div>`;
@@ -35,14 +36,15 @@
   const deviceOpts=(selected='',onlyAvailable=false)=>'<option value="">Select device…</option>'+state.devices.filter(d=>!onlyAvailable||(!d.active_assignment_id && !d.home_station_id &&(['available','in_use'].includes(d.operational_status) ||(d.id===selected && ['needs_repair','under_repair'].includes(d.operational_status))))).map(d=>`<option value="${h(d.id)}" ${d.id===selected?'selected':''}>${h(deviceName(d))} · ${h(d.model||d.serial_number||'Chromebook')}</option>`).join('');
   const devicePicker=(selected='',onlyAvailable=false)=>`<label>Find device by asset tag / serial<input type="search" data-device-search="1" placeholder="Search all registered devices…" autocomplete="off"></label><label>Device<select name="device_id" data-device-select="1" required>${deviceOpts(selected,onlyAvailable)}</select></label>`;
   const cartOpts=(selected='')=>'<option value="">No home cart</option>'+state.carts.map(c=>`<option value="${h(c.id)}" ${c.id===selected?'selected':''}>${h(c.code)} (${h(c.room||c.campus||'Cart')})</option>`).join('');
+  const stationOpts=(selected='')=>'<option value="">No scanner station</option>'+state.stations.map(s=>`<option value="${h(s.id)}" ${s.id===selected?'selected':''}>${h(s.label)} (${h(s.room||s.campus||s.code)})</option>`).join('');
   const optionList=(items,selected)=>items.map(k=>`<option value="${h(k)}" ${k===selected?'selected':''}>${h(label(k))}</option>`).join('');
   const field=(text,name,value='',type='text',extra='')=>`<label>${h(text)}<input name="${h(name)}" type="${h(type)}" value="${h(value)}" ${extra}></label>`;
   const selectField=(text,name,opts)=>`<label>${h(text)}<select name="${h(name)}">${opts}</select></label>`;
   const textArea=(text,name,value='')=>`<label>${h(text)}<textarea name="${h(name)}">${h(value)}</textarea></label>`;
   const row=(...items)=>`<div class="dmFormGrid">${items.join('')}</div>`;
   async function load(){
-    const [summary,inventory,tickets,carts]=await Promise.all([api('/admin/device-management/summary'),api('/admin/device-management/devices?limit=150'),api('/admin/device-management/tickets?limit=150'),api('/admin/device-management/carts?limit=150')]);
-    Object.assign(state,{summary,devices:inventory.devices||[],tickets:tickets.tickets||[],carts:carts.carts||[]});
+    const [summary,inventory,tickets,carts,stations]=await Promise.all([api('/admin/device-management/summary'),api('/admin/device-management/devices?limit=150'),api('/admin/device-management/tickets?limit=150'),api('/admin/device-management/carts?limit=150'),api('/admin/device-management/stations?limit=150')]);
+    Object.assign(state,{summary,devices:inventory.devices||[],tickets:tickets.tickets||[],carts:carts.carts||[],stations:stations.stations||[]});
     $('dmStats').innerHTML=[
       ['Registered devices',(summary.device_counts||[]).reduce((n,x)=>n+Number(x.total||0),0)],
       ['Open issues',(summary.ticket_counts||[]).reduce((n,x)=>n+Number(x.total||0),0)],
@@ -52,7 +54,7 @@
   }
   function setTab(tab){state.tab=tab;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));render();}
   function render(){if(!state.ready)return;
-    if(state.tab==='queue')renderQueue();else if(state.tab==='inventory')renderInventory();else if(state.tab==='students')renderStudent();else renderCarts();}
+    if(state.tab==='queue')renderQueue();else if(state.tab==='inventory')renderInventory();else if(state.tab==='students')renderStudent();else if(state.tab==='stations')renderStations();else renderCarts();}
   function renderQueue(){
     const open=state.tickets.filter(t=>t.status!=='closed');
     $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">IT Work Queue</h2><p class="dmMuted dmSmall">Active repair and missing-device tickets. Updates keep their full audit history.</p></div>${button('new-ticket','+ New issue')}${button('export-tickets','Export CSV')}</div>
@@ -69,13 +71,18 @@
   function renderInventory(){
     $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Device Inventory</h2><p class="dmMuted dmSmall">A permanent record for every Chromebook. Search by serial, asset tag, or current student.</p></div>${button('google-lookup','Find in Google Admin')}${button('create-device','+ Add device')}${button('export-devices','Export CSV')}${button('export-assignments','Assignment CSV')}</div>
       <div class="dmToolbar"><input id="dmDeviceSearch" type="search" placeholder="Find device or student" value="${h(state.deviceQuery)}"><select id="dmDeviceStatus"><option value="">All statuses</option>${optionList(['available','in_use','needs_repair','under_repair','missing','retired'],state.deviceStatus)}</select></div><div id="dmInventoryRows"></div></section>`;
-    const draw=()=>{const q=state.deviceQuery.toLowerCase(),devices=state.devices.filter(d=>(!state.deviceStatus||state.deviceStatus===d.operational_status)&&(!q||[d.asset_tag,d.serial_number,d.model,d.manufacturer,d.current_student_name,d.current_student_osis].join(' ').toLowerCase().includes(q)));
-      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && ['available','needs_repair','under_repair'].includes(d.operational_status) && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}${d.current_student_osis?button('borrow-log','Log borrowing',d.id):''}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
+    const draw=()=>{const q=state.deviceQuery.toLowerCase(),devices=state.devices.filter(d=>(!state.deviceStatus||state.deviceStatus===d.operational_status)&&(!q||[d.asset_tag,d.serial_number,d.model,d.manufacturer,d.current_student_name,d.current_student_osis,d.station_code,d.station_label].join(' ').toLowerCase().includes(q)));
+      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.station_label||d.station_code||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && ['available','needs_repair','under_repair'].includes(d.operational_status) && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}${d.current_student_osis?button('borrow-log','Log borrowing',d.id):''}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
     let queryVersion=0;
     $('dmDeviceSearch').oninput=async e=>{state.deviceQuery=e.target.value;const v=++queryVersion;draw();
       try{const data=await api('/admin/device-management/devices?limit=150&q='+encodeURIComponent(state.deviceQuery));if(v!==queryVersion||state.tab!=='inventory')return;state.devices=data.devices||[];draw();}
       catch(err){if(v===queryVersion)showError(err)}
     };$('dmDeviceStatus').onchange=e=>{state.deviceStatus=e.target.value;draw()};draw();
+  }
+  function renderStations(){
+    $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Scanner Stations</h2><p class="dmMuted dmSmall">Permanent homes for dedicated check-in laptops: bathrooms, lunch, front entrance, and other kiosks. These are not student assignments.</p></div>${button('create-station','+ Add station')}</div>
+      ${state.stations.length?`<div class="dmCards">${state.stations.map(s=>`<article class="dmMiniCard"><h3>${h(s.label)}</h3><p class="dmSmall dmMuted">${h(s.code)} · ${h(label(s.purpose))}</p><p class="dmSmall">${h(s.campus||'Campus not specified')} · ${h(s.room||'Room not specified')}</p><p class="dmSmall">${h(s.device_count)} device(s) assigned as home</p><p>${s.flagged_count?statusBadge('needs_repair')+' '+h(s.flagged_count)+' attention needed':'No flagged devices'}</p><div class="dmDetailActions">${button('station','Edit station',s.id)}${button('station-devices','Show devices',s.id)}</div></article>`).join('')}</div>`:empty('No scanner stations yet. Add a station, then select it as the home on a device record.')}
+      </section>`;
   }
   function renderCarts(){
     $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">ChromeCarts</h2><p class="dmSmall dmMuted">Cart membership is a home assignment. No teacher scanning required.</p></div>${button('create-cart','+ Add cart')}</div>
@@ -109,7 +116,7 @@
       <h3 class="dmSub">Student-linked issues (${tickets.length})</h3>${tickets.length?`<div class="dmCards">${tickets.map(t=>`<article class="dmMiniCard"><b>${h(t.ticket_number)}</b><p>${h(t.title)}</p><p>${statusBadge(t.status)}</p>${button('ticket','Open ticket',t.id)}</article>`).join('')}</div>`:empty('No device issues linked to this student.')}
       ${borrowing.historyShell('student',data.osis)}<h3 class="dmSub">Chronological events</h3>${eventList(data.events||[])}`;
   }
-  function eventList(events){return events.length?events.map(e=>{let detail={};try{detail=JSON.parse(e.details_json||'{}')}catch{};const summary=detail.note||detail.resolution||detail.title||detail.reason||detail.student_name||detail.status_to||'';return `<div class="dmEvent"><b>${h(label(e.action))}</b><time>${h(nice(e.at_iso))} · ${h(e.actor_email)}</time><div class="dmSmall dmMuted">${h(summary)}</div></div>`}).join(''):empty('No activity recorded yet.')}
+  function eventList(events){return events.length?events.map(e=>{let detail={};try{detail=JSON.parse(e.details_json||'{}')}catch{};const changedHome=Object.prototype.hasOwnProperty.call(detail,'home_station_id')||Object.prototype.hasOwnProperty.call(detail,'home_cart_id');const oldHome=detail.home_station_id?.from||detail.home_cart_id?.from;const nextHome=detail.home_station_id?.to||detail.home_cart_id?.to;const homeLabel=(id)=>state.stations.find(s=>s.id===id)?.label||state.carts.find(c=>c.id===id)?.code||id||'None';const summary=changedHome?('Home: '+homeLabel(oldHome)+' → '+homeLabel(nextHome)):(detail.note||detail.resolution||detail.title||detail.reason||detail.student_name||detail.status_to||'');return `<div class="dmEvent"><b>${h(label(e.action))}</b><time>${h(nice(e.at_iso))} · ${h(e.actor_email)}</time><div class="dmSmall dmMuted">${h(summary)}</div></div>`}).join(''):empty('No activity recorded yet.')}
   function showDialog(title,html,action,submitLabel='Save'){
     $('dmDialogContent').innerHTML=`<div class="dmDialogHeader"><h2>${h(title)}</h2><button type="button" class="dmButton dmSmall" data-action="close-dialog">✕ Close</button></div><form id="dmForm" class="dmForm" data-save="${h(action)}">${html}<div class="dmDialogActions"><button type="button" class="dmButton" data-action="close-dialog">Cancel</button><button class="dmButton dmPrimary" type="submit">${h(submitLabel)}</button></div><div id="dmFormStatus" role="status" class="dmMuted dmSmall"></div></form>`;
     $('dmDialog').showModal();
@@ -133,15 +140,25 @@
       row(field('Manufacturer','manufacturer',d?.manufacturer),field('Model','model',d?.model))+
       row(field('Campus','campus',d?.campus),selectField('Pool','device_pool',optionList(['student','cart','loaner','spare'],d?.device_pool||'student')))+
       row(selectField('Home ChromeCart','home_cart_id',cartOpts(d?.home_cart_id)),field('Cart slot (optional)','cart_slot',d?.cart_slot||'','number','min="1" max="200"'))+
+      selectField('Home Scanner Station','home_station_id',stationOpts(d?.home_station_id))+
+      `<div class="dmHint">Select one home: a ChromeCart or a Scanner Station. Station laptops remain school equipment and should not be issued to students while assigned to a station.</div>`+
       row(selectField('Physical condition','condition',optionList(['excellent','good','fair','damaged','unusable'],d?.condition||'good')),selectField('Operational status','operational_status',optionList(['available','in_use','needs_repair','under_repair','missing','retired'],d?.operational_status||'available')))+
       row(field('Last confirmed location','last_known_location',d?.last_known_location),field('Device type','device_type',d?.device_type||'chromebook'))+
       row(field('Purchase date','purchase_date',d?.purchase_date,'date'),field('Warranty end','warranty_end',d?.warranty_end,'date'))+textArea('Notes','notes',d?.notes);
-    showDialog(d?'Edit device':'Register Chromebook',(d?`<input type="hidden" name="device_id" value="${h(d.id)}">`:'')+fields,d?'device_update':'device_create');
+    showDialog(d?'Edit device':'Register device',(d?`<input type="hidden" name="device_id" value="${h(d.id)}">`:'')+fields,d?'device_update':'device_create');
+    const form=$('dmForm');
+    form.querySelector('[name="home_cart_id"]').onchange=e=>{if(e.target.value){form.querySelector('[name="home_station_id"]').value='';}};
+    form.querySelector('[name="home_station_id"]').onchange=e=>{if(e.target.value){form.querySelector('[name="home_cart_id"]').value='';form.querySelector('[name="cart_slot"]').value='';}};
   }
   function cartForm(c){showDialog(c?'Edit ChromeCart':'Add ChromeCart',(c?`<input type="hidden" name="cart_id" value="${h(c.id)}">`:'')+
     row(field('Cart code','code',c?.code,'text','required'),field('Label','label',c?.label))+
     row(field('Campus','campus',c?.campus),field('Room','room',c?.room))+
     field('Capacity (0 = unspecified)','capacity',c?.capacity??0,'number','min="0" max="200"')+textArea('Notes','notes',c?.notes),c?'cart_update':'cart_create');}
+  function stationForm(s){showDialog(s?'Edit Scanner Station':'Add Scanner Station',(s?`<input type="hidden" name="station_id" value="${h(s.id)}">`:'')+
+    row(field('Station code','code',s?.code,'text','required'),field('Station name','label',s?.label,'text','required'))+
+    row(selectField('Purpose','purpose',optionList(['bathroom','lunch','entrance','other'],s?.purpose||'bathroom')),field('Campus','campus',s?.campus))+
+    field('Room / physical location','room',s?.room)+textArea('Notes','notes',s?.notes),
+    s?'station_update':'station_create');}
   function assignmentForm(deviceId='',studentOsis='',kind='primary'){
     const chosen=state.devices.find(d=>d.id===deviceId)||
       (state.selectedDevice?.device?.id===deviceId?state.selectedDevice.device:null);
@@ -197,7 +214,8 @@
     $('dmDialogContent').innerHTML=`<div class="dmDialogHeader"><h2>${h(deviceName(d))} · Device Record</h2>${button('close-dialog','Close')}</div>
       <p class="dmMuted">${h([d.manufacturer,d.model].filter(Boolean).join(' '))} · Serial ${h(d.serial_number||'not recorded')}</p>
       <div class="dmPillRow">${statusBadge(d.operational_status)}${statusBadge(d.condition)}${statusBadge(d.device_pool)}</div>
-      <p class="dmSmall">Campus: ${h(d.campus||'—')} · Location: ${h(d.last_known_location||'Not confirmed')} ${d.location_confirmed_at?'(updated '+h(nice(d.location_confirmed_at))+')':''}</p>
+      <p class="dmSmall">Home: ${h(d.home_station_id?(state.stations.find(s=>s.id===d.home_station_id)?.label||'Scanner Station'):(d.home_cart_id?(state.carts.find(c=>c.id===d.home_cart_id)?.code||'ChromeCart'):'None assigned'))} · Campus: ${h(d.campus||'—')}</p>
+      <p class="dmSmall">Last confirmed location: ${h(d.last_known_location||'Not confirmed')} ${d.location_confirmed_at?'(updated '+h(nice(d.location_confirmed_at))+')':''}</p>
       <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&['available','needs_repair','under_repair'].includes(d.operational_status)&&!d.home_station_id?button('issue','Assign student',d.id):''}${button('note','Add note',d.id)}${active?button('borrow-log','Log borrowing',d.id):''}</div>
       <h3 class="dmSub">Google Admin reference</h3>
       ${googleInfo.linked?`<div class="dmHint"><b>${h(googleInfo.device.model||'ChromeOS device')}</b> · ${h(googleInfo.device.google_status)}
@@ -360,6 +378,9 @@
       if(action==='borrow-log')return borrowing.openLog(id);
       if(action==='create-device')return deviceForm();
       if(action==='edit-device'){const d=state.devices.find(x=>x.id===id)||state.selectedDevice?.device;if(!d)throw new Error('Refresh inventory to edit.');$('dmDialog').close();return deviceForm(d)}
+      if(action==='create-station')return stationForm();
+      if(action==='station'){const st=state.stations.find(s=>s.id===id);if(!st)throw new Error('Station not found. Refresh and retry.');if($('dmDialog').open)$('dmDialog').close();return stationForm(st)}
+      if(action==='station-devices'){const data=await api('/admin/device-management/devices?limit=150&station_id='+encodeURIComponent(id));state.deviceQuery='';setTab('inventory');state.deviceStatus='';const st=state.stations.find(x=>x.id===id);const rows=data.devices||[];$('dmDeviceSearch').value=st?.label||'';$('dmInventoryRows').innerHTML=rows.length?`<div class="dmCards">${rows.map(d=>`<div class="dmMiniCard"><b>${h(deviceName(d))}</b><p>${statusBadge(d.operational_status)}</p>${button('device','View device',d.id)}</div>`).join('')}</div>`:empty('This station has no registered devices.');return;}
       if(action==='create-cart')return cartForm();
       if(action==='cart')return cartForm(state.carts.find(c=>c.id===id));
       if(action==='cart-devices'){const data=await api('/admin/device-management/devices?limit=150&cart_id='+encodeURIComponent(id));state.deviceQuery='';setTab('inventory');state.deviceStatus='';const c=state.carts.find(x=>x.id===id);const rows=data.devices||[];$('dmDeviceSearch').value=c?.code||'';$('dmInventoryRows').innerHTML=rows.length?`<div class="dmCards">${rows.map(d=>`<div class="dmMiniCard"><b>${h(deviceName(d))}</b><p>${statusBadge(d.operational_status)}</p>${button('device','View device',d.id)}</div>`).join('')}</div>`:empty('This cart has no registered devices.');return;}
