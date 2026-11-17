@@ -31,7 +31,8 @@
   const statusBadge=(value)=>{const type=['missing','retired','unusable'].includes(value)?'bad':['needs_repair','under_repair','waiting_parts','damaged','reported'].includes(value)?'warn':['available','ready','in_use','closed'].includes(value)?'good':'';return `<span class="dmTag ${type}">${h(label(value||'unknown'))}</span>`};
   const empty=text=>`<div class="dmEmpty">${h(text)}</div>`;
   const button=(action,title,id='',klass='')=>`<button type="button" class="dmButton dmSmall ${klass}" data-action="${h(action)}" ${id?`data-id="${h(id)}"`:''}>${h(title)}</button>`;
-  const deviceOpts=(selected='',onlyAvailable=false)=>'<option value="">Select device…</option>'+state.devices.filter(d=>!onlyAvailable||['available','in_use'].includes(d.operational_status)&&!d.active_assignment_id).map(d=>`<option value="${h(d.id)}" ${d.id===selected?'selected':''}>${h(deviceName(d))} · ${h(d.model||d.serial_number||'Chromebook')}</option>`).join('');
+  // EAGLENEST_REPAIR_OWNERSHIP_V1: An existing under-repair Chromebook can keep a primary owner.
+  const deviceOpts=(selected='',onlyAvailable=false)=>'<option value="">Select device…</option>'+state.devices.filter(d=>!onlyAvailable||(!d.active_assignment_id && !d.home_station_id &&(['available','in_use'].includes(d.operational_status) ||(d.id===selected && ['needs_repair','under_repair'].includes(d.operational_status))))).map(d=>`<option value="${h(d.id)}" ${d.id===selected?'selected':''}>${h(deviceName(d))} · ${h(d.model||d.serial_number||'Chromebook')}</option>`).join('');
   const devicePicker=(selected='',onlyAvailable=false)=>`<label>Find device by asset tag / serial<input type="search" data-device-search="1" placeholder="Search all registered devices…" autocomplete="off"></label><label>Device<select name="device_id" data-device-select="1" required>${deviceOpts(selected,onlyAvailable)}</select></label>`;
   const cartOpts=(selected='')=>'<option value="">No home cart</option>'+state.carts.map(c=>`<option value="${h(c.id)}" ${c.id===selected?'selected':''}>${h(c.code)} (${h(c.room||c.campus||'Cart')})</option>`).join('');
   const optionList=(items,selected)=>items.map(k=>`<option value="${h(k)}" ${k===selected?'selected':''}>${h(label(k))}</option>`).join('');
@@ -69,7 +70,7 @@
     $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Device Inventory</h2><p class="dmMuted dmSmall">A permanent record for every Chromebook. Search by serial, asset tag, or current student.</p></div>${button('google-lookup','Find in Google Admin')}${button('create-device','+ Add device')}${button('export-devices','Export CSV')}${button('export-assignments','Assignment CSV')}</div>
       <div class="dmToolbar"><input id="dmDeviceSearch" type="search" placeholder="Find device or student" value="${h(state.deviceQuery)}"><select id="dmDeviceStatus"><option value="">All statuses</option>${optionList(['available','in_use','needs_repair','under_repair','missing','retired'],state.deviceStatus)}</select></div><div id="dmInventoryRows"></div></section>`;
     const draw=()=>{const q=state.deviceQuery.toLowerCase(),devices=state.devices.filter(d=>(!state.deviceStatus||state.deviceStatus===d.operational_status)&&(!q||[d.asset_tag,d.serial_number,d.model,d.manufacturer,d.current_student_name,d.current_student_osis].join(' ').toLowerCase().includes(q)));
-      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && d.operational_status==='available' && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}${d.current_student_osis?button('borrow-log','Log borrowing',d.id):''}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
+      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && ['available','needs_repair','under_repair'].includes(d.operational_status) && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}${d.current_student_osis?button('borrow-log','Log borrowing',d.id):''}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
     let queryVersion=0;
     $('dmDeviceSearch').oninput=async e=>{state.deviceQuery=e.target.value;const v=++queryVersion;draw();
       try{const data=await api('/admin/device-management/devices?limit=150&q='+encodeURIComponent(state.deviceQuery));if(v!==queryVersion||state.tab!=='inventory')return;state.devices=data.devices||[];draw();}
@@ -142,11 +143,21 @@
     row(field('Campus','campus',c?.campus),field('Room','room',c?.room))+
     field('Capacity (0 = unspecified)','capacity',c?.capacity??0,'number','min="0" max="200"')+textArea('Notes','notes',c?.notes),c?'cart_update':'cart_create');}
   function assignmentForm(deviceId='',studentOsis='',kind='primary'){
-    showDialog('Issue Chromebook / Loaner',devicePicker(deviceId,true)+
-      `<div class="dmHint">Only available, unassigned devices appear here. A student may have one active primary device and additional temporary loaners.</div>`+
+    const chosen=state.devices.find(d=>d.id===deviceId)||
+      (state.selectedDevice?.device?.id===deviceId?state.selectedDevice.device:null);
+    const repairing=Boolean(chosen&&['needs_repair','under_repair'].includes(chosen.operational_status));
+    showDialog(repairing?'Record Primary Student (Under Repair)':'Issue Chromebook / Loaner',devicePicker(deviceId,true)+
+      (repairing?'<div class="dmHint">This Chromebook needs repair. You are recording its official primary student, not issuing a working laptop. Repair status and existing tickets will NOT change.</div>':
+      '<div class="dmHint">Available, unassigned devices can be issued. A student can have one active primary Chromebook and additional loaners.</div>')+
       studentPicker.field({required:true,osis:studentOsis})+
-      selectField('Assignment type','kind',optionList(['primary','loaner','short_term'],kind))+
-      field('Expected return (optional)','expected_return','','date')+textArea('Notes / reason','notes'), 'assignment_issue','Issue device');
+      selectField('Assignment type','kind',repairing?optionList(['primary'],'primary'):optionList(['primary','loaner','short_term'],kind))+
+      field('Expected return (optional)','expected_return','','date')+textArea('Notes / reason','notes'), 'assignment_issue',repairing?'Record primary student':'Issue device');
+    if(chosen && !state.devices.some(d=>d.id===deviceId)){
+      const picker=$('dmForm')?.querySelector('[name="device_id"]');
+      if(picker && ![...picker.options].some(o=>o.value===deviceId))
+        picker.add(new Option(`${deviceName(chosen)} · ${chosen.model||chosen.serial_number||'Chromebook'}`,deviceId));
+      if(picker)picker.value=deviceId;
+    }
   }
   function returnForm(a){showDialog('End assignment / return device',`<input type="hidden" name="assignment_id" value="${h(a.id)}">`+
     `<p>Device <b>${h(a.asset_tag||a.device_id)}</b> · ${h(label(a.kind))} · ${h(a.student_osis)}</p>`+
@@ -187,7 +198,7 @@
       <p class="dmMuted">${h([d.manufacturer,d.model].filter(Boolean).join(' '))} · Serial ${h(d.serial_number||'not recorded')}</p>
       <div class="dmPillRow">${statusBadge(d.operational_status)}${statusBadge(d.condition)}${statusBadge(d.device_pool)}</div>
       <p class="dmSmall">Campus: ${h(d.campus||'—')} · Location: ${h(d.last_known_location||'Not confirmed')} ${d.location_confirmed_at?'(updated '+h(nice(d.location_confirmed_at))+')':''}</p>
-      <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&d.operational_status==='available'?button('issue','Assign student',d.id):''}${button('note','Add note',d.id)}${active?button('borrow-log','Log borrowing',d.id):''}</div>
+      <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&['available','needs_repair','under_repair'].includes(d.operational_status)&&!d.home_station_id?button('issue','Assign student',d.id):''}${button('note','Add note',d.id)}${active?button('borrow-log','Log borrowing',d.id):''}</div>
       <h3 class="dmSub">Google Admin reference</h3>
       ${googleInfo.linked?`<div class="dmHint"><b>${h(googleInfo.device.model||'ChromeOS device')}</b> · ${h(googleInfo.device.google_status)}
       <p>Serial: ${h(googleInfo.device.serial_number)} · Google asset: ${h(googleInfo.device.asset_tag||'—')}</p>
@@ -398,7 +409,8 @@
       if(n!==pickerSearchSeq||!input.isConnected)return;
       const onlyAvailable=form?.dataset.save==='assignment_issue';
       const current=select.value;
-      const devices=(data.devices||[]).filter(d=>!onlyAvailable||(['available','in_use'].includes(d.operational_status)&&!d.active_assignment_id));
+      const primary=form?.dataset.save==='assignment_issue' && form.querySelector('[name="kind"]')?.value==='primary';
+      const devices=(data.devices||[]).filter(d=>!onlyAvailable || (!d.active_assignment_id&&!d.home_station_id && (['available','in_use'].includes(d.operational_status) || (primary&&['needs_repair','under_repair'].includes(d.operational_status)))));
       select.innerHTML='<option value="">Select a matching device…</option>'+devices.map(d=>`<option value="${h(d.id)}">${h(deviceName(d))} · ${h(d.model||d.serial_number||'Chromebook')}</option>`).join('');
       if(devices.some(d=>d.id===current))select.value=current;
       else if(devices.length===1)select.value=devices[0].id;
