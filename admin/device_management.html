@@ -13,6 +13,7 @@
   <script>(()=>{try{document.documentElement.dataset.theme=localStorage.getItem('ss_theme_v1')||((matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark')}catch{}})();</script>
   <script src="./brand.js" defer></script><script src="./nav.js" defer></script>
   <script src="./device_management.js" defer></script>
+<script src="./device_google_cache.js" defer></script>
 </head>
 <body data-module="super_admin">
   <div class="dmShell">
@@ -26,6 +27,8 @@
         <div class="dmActions"><button type="button" data-action="google-lookup" class="dmButton dmPrimary">🔍 Find in Google Admin</button><button type="button" data-action="create-device" class="dmButton">+ Add device</button><button type="button" data-action="new-ticket" class="dmButton">+ Report issue</button><button type="button" id="dmRefresh" class="dmButton">Refresh</button></div>
       </header>
       <div id="dmMessage" class="dmMessage" role="status" aria-live="polite"></div>
+      <section id="dmGoogleCache" class="dmCard" style="margin:14px 0;padding:18px"
+        aria-label="Google Admin reference cache"></section>
       <section id="dmStats" class="dmStats" aria-label="Inventory summary"></section>
       <nav class="dmTabs" aria-label="Device management sections">
         <button data-tab="queue" class="active" type="button">Work Queue</button>
