@@ -393,7 +393,7 @@
     document.getElementById('reqSlot').disabled=false;
     document.getElementById('reqAlternateAt').value=reqLocalDateTimeValue();
     document.getElementById('reqAlternateHost').value=row.advisor_email || access?.email || '';
-    ensureConferenceReqPicker()?.load(row.student_number, (document.getElementById('reqContactAt')?.value || '').slice(0,10));
+    ensureConferenceReqPicker()?.load(row.student_number, (document.getElementById('reqContactAt')?.value || '').slice(0,10), {autoFaSCEventId: String(bundle?.event?.event_id || '')}); // EAGLENEST_FASC_REQUIRED_AUTO_SELECT_V1
     conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome')?.value || '');
     modal.hidden=false;
     await loadRequirementContacts(row);
@@ -532,7 +532,7 @@
     });
     document.getElementById('reqOutcome')?.addEventListener('change', () => conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome').value));
     document.getElementById('reqQuickOutcomes')?.addEventListener('click', () => queueMicrotask(() => conferenceReqPicker?.setOutcome(document.getElementById('reqOutcome')?.value || '')));
-    document.getElementById('reqContactAt')?.addEventListener('change', () => conferenceReqPicker?.load(requirementStudent?.student_number || '', (document.getElementById('reqContactAt').value || '').slice(0,10)));
+    document.getElementById('reqContactAt')?.addEventListener('change', () => conferenceReqPicker?.load(requirementStudent?.student_number || '', (document.getElementById('reqContactAt').value || '').slice(0,10), {autoFaSCEventId: String(bundle?.event?.event_id || '')})); // EAGLENEST_FASC_REQUIRED_AUTO_SELECT_V1
     document.getElementById('reqOutcome')?.addEventListener('change',syncQuickOutcome);
     document.getElementById('reqContactSelect')?.addEventListener('change',renderRequirementContactDetails);
     document.querySelectorAll('[data-req-outcome]').forEach((btn)=>btn.addEventListener('click',()=>{

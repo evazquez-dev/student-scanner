@@ -12,9 +12,16 @@
       '<div class="enReqPanel" hidden></div><div class="enReqHelp">The communication is logged once. Check every requirement actually discussed; checking these does not change its category.</div>';
     const button=host.querySelector('button'), panel=host.querySelector('.enReqPanel'), help=host.querySelector('.enReqHelp');
     let choices=[], selected=new Set(), version=0, practice=false, outcome='Spoke/Connected', loading=false, loadError='', availabilityNote='';
+    let autoFaSCEventId=''; // EAGLENEST_FASC_REQUIRED_AUTO_SELECT_V1
     const qualifies=()=>['Spoke/Connected','Resolved'].includes(outcome);
     function draw() {
       if(!qualifies() || practice) selected.clear();
+      else if(autoFaSCEventId) {
+        // The server already links this conference's FaSC requirement for connected outcomes.
+        // Mirror that rule in the picker without preselecting unrelated campaigns/events.
+        const linked=choices.find(c=>String(c?.fasc_event_id || '')===autoFaSCEventId);
+        if(linked?.campaign_id) selected.add(linked.campaign_id);
+      }
       panel.replaceChildren();
       button.textContent=loading ? 'Checking required communications…' : choices.length ? `Required communications: ${choices.length} available · ${selected.size} selected` : 'No eligible required communications';
       if(!choices.length) {
@@ -24,7 +31,8 @@
       for (const c of choices) {
         const label=document.createElement('label');label.className='enReqItem';
         const check=document.createElement('input');check.type='checkbox';check.checked=selected.has(c.campaign_id);
-        check.disabled=practice || !qualifies();check.addEventListener('change',()=>{
+        const lockedFaSC=!!autoFaSCEventId && String(c.fasc_event_id || '')===autoFaSCEventId;
+        check.disabled=practice || !qualifies() || lockedFaSC;check.addEventListener('change',()=>{
           if(check.checked)selected.add(c.campaign_id);else selected.delete(c.campaign_id);draw();notify();
         });
         const copy=document.createElement('span');
@@ -36,6 +44,7 @@
       }
       if(practice)help.textContent='Practice Mode: required-communication checkboxes are unavailable; no live requirement is fulfilled.';
       else if(!qualifies()) help.textContent='No Answer, voicemail, follow-up attempts and sent messages do not fulfill these discussion-based requirements. Select Spoke/Connected or Resolved to check completed requirements.';
+      else if(autoFaSCEventId && choices.some(c=>String(c.fasc_event_id || '')===autoFaSCEventId)) help.textContent=`This conference's FaSC requirement is linked automatically for Spoke/Connected or Resolved outcomes. You may also select other requirements actually discussed.`;
       else help.textContent='One communication may fulfill multiple requirements. Select only what was actually discussed or resolved. Previously completed items may also be recorded.';
       if (!loading && !loadError && !choices.length && availabilityNote) help.textContent='This list is filtered by the call date, student grade, course/advisory membership and staff permissions.';
     }
@@ -51,9 +60,9 @@
       selectedRows:()=>choices.filter(c=>selected.has(c.campaign_id)),
       all:()=>choices.slice(),
       setOutcome(value){outcome=String(value||'');draw();notify();},
-      clear(){version++;selected.clear();choices=[];practice=false;loading=false;loadError='';availabilityNote='';panel.hidden=true;button.setAttribute('aria-expanded','false');draw();notify();},
-      async load(studentNumber,contactDate){
-        const current=++version;selected.clear();choices=[];practice=false;loading=true;loadError='';availabilityNote='';draw();
+      clear(){version++;selected.clear();choices=[];autoFaSCEventId='';practice=false;loading=false;loadError='';availabilityNote='';panel.hidden=true;button.setAttribute('aria-expanded','false');draw();notify();},
+      async load(studentNumber,contactDate,options={}){
+        const current=++version;selected.clear();choices=[];autoFaSCEventId=String(options?.autoFaSCEventId || '');practice=false;loading=true;loadError='';availabilityNote='';draw();
         if(!studentNumber || !/^\d{4}-\d{2}-\d{2}$/.test(contactDate||'')){ loading=false;loadError='Choose a valid student and communication date.';draw();return; }
         try {
           const data=await fetchData(studentNumber,contactDate);

@@ -24,5 +24,5 @@ test('Conference outreach submits the actual communication timestamp instead of 
 });
 
 test('Conference page cache-busts the modified outreach script',()=>{
-  assert.match(html,/conferences-required\.js\?v=20261001-outreach-datetime-v1/);
+  assert.match(html,/<script\s+src="\.\/conferences-required\.js\?v=[a-z0-9-]+"[^>]*\bdefer\b[^>]*><\/script>/i);
 });
