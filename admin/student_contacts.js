@@ -12,6 +12,8 @@ const PAGE_PARAMS = new URLSearchParams(window.location.search);
 const PAGE_SOURCE = String(PAGE_PARAMS.get('source') || 'student_contacts').trim() || 'student_contacts';
 const PAGE_PROXY_MODE = PAGE_PARAMS.get('proxy') === '1'; // EAGLENEST_FAMILY_COMMUNICATIONS_PROXY_V2
 const PAGE_PREFILL_CATEGORY = String(PAGE_PARAMS.get('category') || '').trim();
+const PAGE_PREFILL_CAMPAIGN_ID = String(PAGE_PARAMS.get('campaign_id') || '').trim(); // EAGLENEST_CAMPAIGN_LOG_PREFILL_V1
+const PAGE_PREFILL_CAMPAIGN_STUDENT = String(PAGE_PARAMS.get('osis') || '').trim();
 const PAGE_PREFILL_CONTACT_ASSOC_ID = String(PAGE_PARAMS.get('contact_assoc_id') || '').trim();
 const PAGE_PREFILL_COMM_METHOD = String(PAGE_PARAMS.get('comm_method') || '').trim();
 const PAGE_PREFILL_COMM_DIRECTION = String(PAGE_PARAMS.get('comm_direction') || '').trim();
@@ -1123,6 +1125,16 @@ const commRequirements = window.EagleNESTRequirementPicker?.create({
   }
 });
 
+// Only preselect the campaign when logging for the student originally linked
+// from Parent & Family Communications. All real eligibility is still returned
+// by the existing server-side requirements/options endpoint.
+function campaignPrefillOptions() {
+  const osis = String(currentStudent?.osis || '').trim();
+  return PAGE_SOURCE === 'communications' && PAGE_PREFILL_CAMPAIGN_ID &&
+    osis && osis === PAGE_PREFILL_CAMPAIGN_STUDENT
+    ? { autoCampaignId: PAGE_PREFILL_CAMPAIGN_ID } : {};
+}
+
 function openCommunication(contact = null, prefill = {}) {
   if (!currentStudent) return;
   if (access?.can?.communication_log !== true) { alert('Communication Logging is not enabled for your account.'); return; }
@@ -1151,7 +1163,7 @@ function openCommunication(contact = null, prefill = {}) {
   commFollowUpAt.value = '';
   commFollowUpOwner.value = access?.email || '';
   commError.hidden = true;
-  commRequirements?.load(currentStudent.osis, (commAt.value || '').slice(0,10));
+  commRequirements?.load(currentStudent.osis, (commAt.value || '').slice(0,10), campaignPrefillOptions());
   commRequirements?.setOutcome(commOutcome.value);
   commBackdrop.hidden = false;
   setTimeout(() => commNotes.focus(), 0);
@@ -1278,7 +1290,7 @@ async function boot() {
   $('closeComm').addEventListener('click', closeCommunication);
   $('cancelComm').addEventListener('click', closeCommunication);
   saveComm.addEventListener('click', saveCommunication);
-  commAt.addEventListener('change', () => commRequirements?.load(currentStudent?.osis || '', (commAt.value || '').slice(0,10)));
+  commAt.addEventListener('change', () => commRequirements?.load(currentStudent?.osis || '', (commAt.value || '').slice(0,10), campaignPrefillOptions()));
   commOutcome.addEventListener('change', () => commRequirements?.setOutcome(commOutcome.value));
   commFollowUp.addEventListener('change', () => {
     followUpFields.hidden = !commFollowUp.checked;
