@@ -23,7 +23,7 @@
     <main id="dmApp" hidden>
       <header class="dmHero dmCard">
         <div><span class="dmEyebrow">EAGLENEST / SYSTEM ADMINISTRATION</span><h1>Device Management</h1><p>Chromebook inventory, permanent student assignment history, loaners, and in-house repairs.</p></div>
-        <div class="dmActions"><button type="button" data-action="create-device" class="dmButton dmPrimary">+ Add device</button><button type="button" data-action="new-ticket" class="dmButton">+ Report issue</button><button type="button" id="dmRefresh" class="dmButton">Refresh</button></div>
+        <div class="dmActions"><button type="button" data-action="google-lookup" class="dmButton dmPrimary">🔍 Find in Google Admin</button><button type="button" data-action="create-device" class="dmButton">+ Add device</button><button type="button" data-action="new-ticket" class="dmButton">+ Report issue</button><button type="button" id="dmRefresh" class="dmButton">Refresh</button></div>
       </header>
       <div id="dmMessage" class="dmMessage" role="status" aria-live="polite"></div>
       <section id="dmStats" class="dmStats" aria-label="Inventory summary"></section>
@@ -37,5 +37,7 @@
     </main>
   </div>
   <dialog id="dmDialog" class="dmDialog"><div id="dmDialogContent"></div></dialog>
+  <!-- EAGLENEST_DEVICE_GOOGLE_ADMIN_V1 -->
+  <dialog id="dmGoogleDialog" class="dmDialog" aria-label="Google Admin device lookup"><div id="dmGoogleBody"></div></dialog>
 </body>
 </html>

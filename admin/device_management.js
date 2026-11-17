@@ -60,7 +60,7 @@
     };$('dmTicketStatus').onchange=e=>{state.ticketStatus=e.target.value;draw()};draw();
   }
   function renderInventory(){
-    $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Device Inventory</h2><p class="dmMuted dmSmall">A permanent record for every Chromebook. Search by serial, asset tag, or current student.</p></div>${button('create-device','+ Add device')}${button('export-devices','Export CSV')}${button('export-assignments','Assignment CSV')}</div>
+    $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Device Inventory</h2><p class="dmMuted dmSmall">A permanent record for every Chromebook. Search by serial, asset tag, or current student.</p></div>${button('google-lookup','Find in Google Admin')}${button('create-device','+ Add device')}${button('export-devices','Export CSV')}${button('export-assignments','Assignment CSV')}</div>
       <div class="dmToolbar"><input id="dmDeviceSearch" type="search" placeholder="Find device or student" value="${h(state.deviceQuery)}"><select id="dmDeviceStatus"><option value="">All statuses</option>${optionList(['available','in_use','needs_repair','under_repair','missing','retired'],state.deviceStatus)}</select></div><div id="dmInventoryRows"></div></section>`;
     const draw=()=>{const q=state.deviceQuery.toLowerCase(),devices=state.devices.filter(d=>(!state.deviceStatus||state.deviceStatus===d.operational_status)&&(!q||[d.asset_tag,d.serial_number,d.model,d.manufacturer,d.current_student_name,d.current_student_osis].join(' ').toLowerCase().includes(q)));
       $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${button('device','Details',d.id)}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
@@ -146,6 +146,7 @@
     textArea('Return notes','notes'),'assignment_end','Record return / end');}
   function newTicketForm(deviceId=''){
     showDialog('New repair / missing-device issue',devicePicker(deviceId)+
+      `<div class="dmHint">Not registered yet? <button type="button" class="dmButton dmSmall" data-action="google-lookup">Find this serial in Google Admin</button></div>`+
       row(selectField('Issue type','category',optionList(['screen','keyboard','power','physical','software','missing','other'],'screen')),selectField('Priority','priority',optionList(['low','normal','high'],'normal')))+
       row(selectField('Device physically with IT?','possession',optionList(['yes','no','unknown'],'unknown')),field('Student OSIS (optional)','student_osis',''))+
       field('Issue title (optional)','title','')+textArea('Reported problem','description'), 'ticket_create','Create ticket');
@@ -161,6 +162,7 @@
     `<div class="dmHint">If retiring a device, first end any active student assignment. A replaced ticket links the devices; primary assignment transfers are recorded separately.</div>`, 'ticket_close','Close ticket');}
   async function deviceDetails(id){
     const details=await api('/admin/device-management/device?id='+encodeURIComponent(id)),d=details.device;
+    const googleInfo=await api('/admin/device-management/google/device?device_id='+encodeURIComponent(id)).catch(()=>({linked:false}));
     const ongoing=(details.tickets||[]).find(t=>t.status!=='closed'),active=(details.assignments||[]).find(a=>!a.returned_at);
     const assignmentHTML=(details.assignments||[]).map(a=>`<div class="dmEvent"><b>${h(label(a.kind))} · ${h(a.student_name||a.student_osis)}</b><time>Issued ${h(nice(a.assigned_at))} · Ended ${h(nice(a.returned_at))}</time><span class="dmMuted dmSmall">${h(a.end_reason||'Currently issued')}</span> ${!a.returned_at?button('return','End assignment',a.id):''}</div>`).join('');
     const ticketHTML=(details.tickets||[]).map(t=>`<div class="dmEvent"><b>${h(t.ticket_number)} · ${h(t.title)}</b><time>${h(nice(t.created_at))} · ${h(t.created_by)}</time>${statusBadge(t.status)} ${button('ticket','View ticket',t.id)}</div>`).join('');
@@ -169,6 +171,14 @@
       <div class="dmPillRow">${statusBadge(d.operational_status)}${statusBadge(d.condition)}${statusBadge(d.device_pool)}</div>
       <p class="dmSmall">Campus: ${h(d.campus||'—')} · Location: ${h(d.last_known_location||'Not confirmed')} ${d.location_confirmed_at?'(updated '+h(nice(d.location_confirmed_at))+')':''}</p>
       <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&d.operational_status==='available'?button('issue','Issue device',d.id):''}${button('note','Add note',d.id)}</div>
+      <h3 class="dmSub">Google Admin reference</h3>
+      ${googleInfo.linked?`<div class="dmHint"><b>${h(googleInfo.device.model||'ChromeOS device')}</b> · ${h(googleInfo.device.google_status)}
+      <p>Serial: ${h(googleInfo.device.serial_number)} · Google asset: ${h(googleInfo.device.asset_tag||'—')}</p>
+      <p>OU: ${h(googleInfo.device.org_unit_path||'—')} · ChromeOS: ${h(googleInfo.device.chromeos_version||'—')} · Last sync: ${h(googleInfo.device.last_sync||'—')}</p>
+      <p>Annotated user: ${h(googleInfo.device.annotated_user||'—')} (not a verified school assignment)</p>
+      <p>Last imported: ${h(nice(googleInfo.last_fetched_at))}</p>
+      ${button('google-refresh','Refresh Google metadata',d.id)}</div>`:
+      `<p class="dmSmall dmMuted">No Google Admin record linked. ${button('google-lookup','Find by serial')}</p>`}
       <h3 class="dmSub">Assignment history (${details.assignments.length})</h3>${assignmentHTML||empty('No assignments yet.')}
       <h3 class="dmSub">Issues and repairs (${details.tickets.length})</h3>${ticketHTML||empty('No repair tickets yet.')}
       <h3 class="dmSub">Permanent activity log</h3>${eventList(details.events||[])}`;
@@ -209,12 +219,116 @@
     document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(href);
     message('Exported '+rows.length+' '+type+' rows.'+(data.truncated?' WARNING: export capped at 10,000 rows.':''));
   }
+  // EAGLENEST_DEVICE_GOOGLE_ADMIN_V1_UI
+  // Google results never directly establish student custody. Import/register is
+  // an explicit Sys Admin action; then issue primary/loaner using existing flows.
+  let googleResults = [];
+  let googleReturnToTicket = false;
+  let googleRequestSeq = 0;
+  function googleDialog() { return $('dmGoogleDialog'); }
+  async function openGoogleLookup(){
+    googleReturnToTicket=Boolean($('dmDialog').open && $('dmForm')?.dataset.save==='ticket_create');
+    googleResults=[];
+    googleDialog().showModal();
+    $('dmGoogleBody').innerHTML=`<div class="dmDialogHeader"><h2>Find Chromebook in Google Admin</h2><button type="button" class="dmButton dmSmall" data-google-close>Close</button></div>
+      <p class="dmSmall dmMuted">Search enrolled and retained deprovisioned ChromeOS records by serial number. Google annotations are not student assignments.</p>
+      <div class="dmInline"><input id="dmGoogleSerial" class="dmInput" aria-label="Chromebook serial number" placeholder="Scan or enter serial number" autocomplete="off">
+      <button type="button" id="dmGoogleSearch" class="dmButton dmPrimary">Search Google</button></div>
+      <p id="dmGoogleStatus" class="dmMuted dmSmall" role="status">Checking connection…</p><div id="dmGoogleMatches"></div>
+      <div class="dmDetailActions"><button type="button" class="dmButton dmSmall" data-google-manual>Register a device manually</button></div>`;
+    const currentSerial=$('dmForm')?.querySelector('[data-device-search]')?.value || '';
+    $('dmGoogleSerial').value=currentSerial;
+    $('dmGoogleSerial').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();void googleSearch();}};
+    $('dmGoogleSearch').onclick=()=>void googleSearch();
+    $('dmGoogleSerial').focus();
+    try{
+      const status=await api('/admin/device-management/google/status');
+      if(!googleDialog().open)return;
+      $('dmGoogleStatus').textContent=status.configured?
+        'Cloudflare credentials configured. Search to verify Google authorization.':
+        'Google credentials not yet configured in Cloudflare. See the overlay README for setup.';
+    }catch(e){if(googleDialog().open)$('dmGoogleStatus').textContent=e.message||String(e);}
+  }
+  async function googleSearch(){
+    const serial=$('dmGoogleSerial')?.value.trim()||'';
+    if(!/^[A-Za-z0-9_.-]{3,100}$/.test(serial)){
+      $('dmGoogleStatus').textContent='Enter at least three serial-number characters (letters, digits, dash, dot or underscore).';return;
+    }
+    const seq=++googleRequestSeq;
+    $('dmGoogleSearch').disabled=true;
+    $('dmGoogleStatus').textContent='Searching Google Admin…';
+    $('dmGoogleMatches').textContent='';
+    try{
+      const found=await api('/admin/device-management/google/lookup?serial='+encodeURIComponent(serial));
+      if(seq!==googleRequestSeq||!googleDialog().open)return;
+      googleResults=found.devices||[];
+      $('dmGoogleStatus').textContent=googleResults.length?
+        `${googleResults.length} matching Google record(s). Choose the correct serial.`:
+        'No Google records found. The device may have been deleted, or it may never have been enrolled in this Workspace.';
+      $('dmGoogleMatches').innerHTML=googleResults.map((d,index)=>`<div class="dmGoogleMatch">
+          <div><strong>${h(d.model||'ChromeOS device')}</strong> ${statusBadge(d.google_status.toLowerCase())}
+          <div class="dmSmall">Serial: <b>${h(d.serial_number)}</b> · Asset: ${h(d.asset_tag||'—')}</div>
+          <div class="dmMuted dmSmall">${h(d.org_unit_path||'No OU')} · Last sync: ${h(d.last_sync||'Unknown')}</div>
+          ${d.annotated_user?`<div class="dmMuted dmSmall">Google annotated user: ${h(d.annotated_user)} (not a confirmed assignment)</div>`:''}
+          ${d.local_device_id?'<div class="dmSmall">Already in EagleNEST inventory</div>':''}
+          </div><button type="button" class="dmButton dmSmall" data-google-pick="${index}">${d.local_device_id?'Select existing':'Import & select'}</button></div>`).join('');
+    }catch(e){if(seq===googleRequestSeq&&googleDialog().open)$('dmGoogleStatus').textContent='Google lookup failed: '+(e.message||String(e));}
+    finally{if(seq===googleRequestSeq&&$('dmGoogleSearch'))$('dmGoogleSearch').disabled=false;}
+  }
+  async function googleChoose(index){
+    const record=googleResults[index];if(!record)return;
+    const buttons=googleDialog().querySelectorAll('[data-google-pick]');
+    buttons.forEach(b=>b.disabled=true);
+    $('dmGoogleStatus').textContent='Confirming selected device with Google and registering its details…';
+    try{
+      const saved=await api('/admin/device-management/google/import','POST',{
+        google_device_id:record.google_device_id,serial_number:record.serial_number
+      });
+      googleDialog().close();
+      await load();
+      const currentlyOpen=$('dmDialog').open && $('dmForm')?.dataset.save==='ticket_create';
+      if(googleReturnToTicket&&currentlyOpen){
+        const picker=$('dmForm').querySelector('[name="device_id"]');
+        if(picker){
+          if(![...picker.options].some(opt=>opt.value===saved.device_id))picker.add(new Option(
+            `${record.asset_tag||record.serial_number} · ${record.model||'Chromebook'}`,saved.device_id));
+          picker.value=saved.device_id;
+        }
+        const search=$('dmForm').querySelector('[data-device-search]');if(search)search.value=record.serial_number;
+        const status=$('dmFormStatus');if(status)status.textContent='Google device selected. Finish the repair ticket below.';
+      }else{
+        if($('dmDialog').open)$('dmDialog').close();
+        newTicketForm(saved.device_id);
+        const picker=$('dmForm').querySelector('[name="device_id"]');
+        if(picker && ![...picker.options].some(opt=>opt.value===saved.device_id))picker.add(new Option(record.serial_number,saved.device_id));
+        if(picker)picker.value=saved.device_id;
+      }
+      message(saved.created?'Chromebook registered from Google Admin.':'Existing Chromebook linked to Google Admin.');
+    }catch(e){$('dmGoogleStatus').textContent='Could not select device: '+(e.message||String(e));}
+    finally{buttons.forEach(b=>b.disabled=false);}
+  }
+  googleDialog().addEventListener('click',event=>{
+    if(event.target.closest('[data-google-close]')){googleDialog().close();return;}
+    if(event.target.closest('[data-google-manual]')){
+      googleDialog().close();if($('dmDialog').open)$('dmDialog').close();deviceForm();return;
+    }
+    const pick=event.target.closest('[data-google-pick]');
+    if(pick)void googleChoose(Number(pick.dataset.googlePick));
+  });
   async function clickAction(event){
     const b=event.target.closest('[data-action]');if(!b)return;
     const action=b.dataset.action,id=b.dataset.id||'';
     try{
       if(action==='close-dialog')return $('dmDialog').close();
       if(action.startsWith('export-'))return await exportCsv(action.slice('export-'.length));
+      if(action==='google-lookup')return openGoogleLookup();
+      if(action==='google-refresh'){
+        const saved=await api('/admin/device-management/google/device?device_id='+encodeURIComponent(id));
+        if(!saved.linked)throw new Error('No Google record linked to this device.');
+        await api('/admin/device-management/google/import','POST',{google_device_id:saved.device.google_device_id,serial_number:saved.device.serial_number});
+        if($('dmDialog').open)$('dmDialog').close();
+        await deviceDetails(id);message('Google Admin metadata refreshed; EagleNEST repair and assignment history unchanged.');return;
+      }
       if(action==='create-device')return deviceForm();
       if(action==='edit-device'){const d=state.devices.find(x=>x.id===id)||state.selectedDevice?.device;if(!d)throw new Error('Refresh inventory to edit.');$('dmDialog').close();return deviceForm(d)}
       if(action==='create-cart')return cartForm();
