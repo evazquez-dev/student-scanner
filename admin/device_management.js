@@ -4,6 +4,9 @@
   const $ = id => document.getElementById(id);
   const API_BASE=(document.querySelector('meta[name="api-base"]')?.content||'').replace(/\/*$/,'')+'/';
   const CLIENT_ID=document.querySelector('meta[name="google-client-id"]')?.content||'';
+  // EAGLENEST_DEVICE_STUDENT_SEARCH_V1
+  const studentPicker=window.EAGLENEST_DEVICE_STUDENT_PICKER_V1;
+  if(!studentPicker)throw new Error('Device student picker script failed to load');
   const h = v => String(v ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const sid=()=>window.EAGLENEST_AUTH?.getSid?.()||'';
   const nice=(value)=>{if(!value)return '—';const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleString('en-US',{dateStyle:'medium',timeStyle:'short',timeZone:'America/New_York'}):String(value)};
@@ -63,7 +66,7 @@
     $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Device Inventory</h2><p class="dmMuted dmSmall">A permanent record for every Chromebook. Search by serial, asset tag, or current student.</p></div>${button('google-lookup','Find in Google Admin')}${button('create-device','+ Add device')}${button('export-devices','Export CSV')}${button('export-assignments','Assignment CSV')}</div>
       <div class="dmToolbar"><input id="dmDeviceSearch" type="search" placeholder="Find device or student" value="${h(state.deviceQuery)}"><select id="dmDeviceStatus"><option value="">All statuses</option>${optionList(['available','in_use','needs_repair','under_repair','missing','retired'],state.deviceStatus)}</select></div><div id="dmInventoryRows"></div></section>`;
     const draw=()=>{const q=state.deviceQuery.toLowerCase(),devices=state.devices.filter(d=>(!state.deviceStatus||state.deviceStatus===d.operational_status)&&(!q||[d.asset_tag,d.serial_number,d.model,d.manufacturer,d.current_student_name,d.current_student_osis].join(' ').toLowerCase().includes(q)));
-      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${button('device','Details',d.id)}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
+      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && d.operational_status==='available' && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
     let queryVersion=0;
     $('dmDeviceSearch').oninput=async e=>{state.deviceQuery=e.target.value;const v=++queryVersion;draw();
       try{const data=await api('/admin/device-management/devices?limit=150&q='+encodeURIComponent(state.deviceQuery));if(v!==queryVersion||state.tab!=='inventory')return;state.devices=data.devices||[];draw();}
@@ -107,11 +110,14 @@
     $('dmDialogContent').innerHTML=`<div class="dmDialogHeader"><h2>${h(title)}</h2><button type="button" class="dmButton dmSmall" data-action="close-dialog">✕ Close</button></div><form id="dmForm" class="dmForm" data-save="${h(action)}">${html}<div class="dmDialogActions"><button type="button" class="dmButton" data-action="close-dialog">Cancel</button><button class="dmButton dmPrimary" type="submit">${h(submitLabel)}</button></div><div id="dmFormStatus" role="status" class="dmMuted dmSmall"></div></form>`;
     $('dmDialog').showModal();
     $('dmForm').onsubmit=submitForm;
+    studentPicker.attach($('dmForm'),api);
   }
   function formData(form){const o={};for(const [key,v] of new FormData(form).entries())o[key]=String(v).trim();return o;}
   async function submitForm(e){e.preventDefault();const form=e.target,action=form.dataset.save,body={...formData(form),action};
     if(action==='cart_create'||action==='cart_update')body.capacity=Number(body.capacity||0);
     if(action==='ticket_update')body.cost_cents=Math.round(Number(body.cost_dollars||0)*100);
+    const studentError=studentPicker.validate(form);
+    if(studentError){$('dmFormStatus').textContent=studentError;return;}
     if(action==='assignment_issue'&&!/^\d{9}$/.test(body.student_osis)){$('dmFormStatus').textContent='Select a valid 9-digit student OSIS.';return;}
     if(action==='ticket_create'&&!body.device_id){$('dmFormStatus').textContent='Choose a device.';return;}
     const btn=form.querySelector('[type="submit"]');btn.disabled=true;$('dmFormStatus').textContent='Saving…';
@@ -135,7 +141,7 @@
   function assignmentForm(deviceId='',studentOsis='',kind='primary'){
     showDialog('Issue Chromebook / Loaner',devicePicker(deviceId,true)+
       `<div class="dmHint">Only available, unassigned devices appear here. A student may have one active primary device and additional temporary loaners.</div>`+
-      field('Student OSIS','student_osis',studentOsis,'text','inputmode="numeric" maxlength="9" pattern="[0-9]{9}" required')+
+      studentPicker.field({required:true,osis:studentOsis})+
       selectField('Assignment type','kind',optionList(['primary','loaner','short_term'],kind))+
       field('Expected return (optional)','expected_return','','date')+textArea('Notes / reason','notes'), 'assignment_issue','Issue device');
   }
@@ -145,10 +151,18 @@
     selectField('Condition on return (optional)','condition_in','<option value="">Not inspected</option>'+optionList(['excellent','good','fair','damaged','unusable'],''))+
     textArea('Return notes','notes'),'assignment_end','Record return / end');}
   function newTicketForm(deviceId=''){
+    // Preselect the recorded assignee, when one exists. This is a ticket
+    // association, not a new or changed Chromebook assignment.
+    const listing=state.devices.find(d=>d.id===deviceId);
+    const active=state.selectedDevice?.device?.id===deviceId
+      ? state.selectedDevice?.assignments?.find(a=>!a.returned_at) : null;
+    const ticketOsis=active?.student_osis||listing?.current_student_osis||'';
+    const ticketStudentName=active?.student_name||listing?.current_student_name||'';
     showDialog('New repair / missing-device issue',devicePicker(deviceId)+
       `<div class="dmHint">Not registered yet? <button type="button" class="dmButton dmSmall" data-action="google-lookup">Find this serial in Google Admin</button></div>`+
       row(selectField('Issue type','category',optionList(['screen','keyboard','power','physical','software','missing','other'],'screen')),selectField('Priority','priority',optionList(['low','normal','high'],'normal')))+
-      row(selectField('Device physically with IT?','possession',optionList(['yes','no','unknown'],'unknown')),field('Student OSIS (optional)','student_osis',''))+
+      selectField('Device physically with IT?','possession',optionList(['yes','no','unknown'],'unknown'))+
+      studentPicker.field({required:false,osis:ticketOsis,name:ticketStudentName})+
       field('Issue title (optional)','title','')+textArea('Reported problem','description'), 'ticket_create','Create ticket');
   }
   function progressForm(t){showDialog('Update '+t.ticket_number,`<input type="hidden" name="ticket_id" value="${h(t.id)}">`+
@@ -170,7 +184,7 @@
       <p class="dmMuted">${h([d.manufacturer,d.model].filter(Boolean).join(' '))} · Serial ${h(d.serial_number||'not recorded')}</p>
       <div class="dmPillRow">${statusBadge(d.operational_status)}${statusBadge(d.condition)}${statusBadge(d.device_pool)}</div>
       <p class="dmSmall">Campus: ${h(d.campus||'—')} · Location: ${h(d.last_known_location||'Not confirmed')} ${d.location_confirmed_at?'(updated '+h(nice(d.location_confirmed_at))+')':''}</p>
-      <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&d.operational_status==='available'?button('issue','Issue device',d.id):''}${button('note','Add note',d.id)}</div>
+      <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&d.operational_status==='available'?button('issue','Assign student',d.id):''}${button('note','Add note',d.id)}</div>
       <h3 class="dmSub">Google Admin reference</h3>
       ${googleInfo.linked?`<div class="dmHint"><b>${h(googleInfo.device.model||'ChromeOS device')}</b> · ${h(googleInfo.device.google_status)}
       <p>Serial: ${h(googleInfo.device.serial_number)} · Google asset: ${h(googleInfo.device.asset_tag||'—')}</p>

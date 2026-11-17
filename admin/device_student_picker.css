@@ -1,0 +1,8 @@
+/* EAGLENEST_DEVICE_STUDENT_PICKER_V1 */
+.dmStudentPicker{display:grid;gap:8px;padding:12px;border:1px solid var(--dm-border);border-radius:12px;background:var(--dm-surface2)}
+.dmStudentPicker label{display:block}
+.dmStudentPicker input[type="search"]{width:100%;margin-top:5px}
+.dmStudentPickerMatches{max-height:185px;overflow:auto;display:flex;flex-wrap:wrap;gap:6px}
+.dmStudentPickerMatches button{font-size:13px;text-align:left}
+.dmStudentPickerFooter{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.dmStudentPickerFooter [role="status"]{min-width:0}
