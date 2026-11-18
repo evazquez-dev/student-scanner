@@ -64,10 +64,18 @@ let legacyNotes=[];
 let linkedSocialWorkReferral=null; // EAGLENEST_SOCIAL_WORK_REFERRALS_V1
 
 function esc(v){return String(v??'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function canManage(){return access?.can?.counselor_notes_manage===true;}
-function isReadOnly(){return access?.view_as?.active===true||access?.view_as?.read_only===true;}
+function canManage(){return !isAdminReviewer()&&access?.can?.counselor_notes_manage===true;}
+function isAdminReviewer(){return String(access?.role||'').trim().toLowerCase()==='admin';} // EAGLENEST_COUNSELOR_ADMIN_REVIEW_V1
+function isReadOnly(){return isAdminReviewer()||access?.view_as?.active===true||access?.view_as?.read_only===true;}
 function availableTeams(){
   const out=[];
+  if(isAdminReviewer()){
+    if(access?.can?.counselor_admin_review!==true)return out;
+    if(access?.can?.counselor_admin_review_college===true)out.push('college');
+    if(access?.can?.counselor_admin_review_social_work===true)out.push('social_work');
+    if(access?.can?.counselor_admin_review_academic===true)out.push('academic');
+    return out;
+  }
   if(access?.can?.counselor_college===true)out.push('college');
   if(access?.can?.counselor_social_work===true)out.push('social_work');
   if(access?.can?.counselor_academic===true)out.push('academic');
@@ -304,7 +312,15 @@ async function boot(){
   if(access?.can?.counselor_dashboard!==true||!availableTeams().length){$('loginOut').textContent='Your account is not assigned to a Counselor Dashboard category.';return;}
 
   $('loginCard').hidden=true;$('app').hidden=false;buildTeamSelector();renderNoteFormForTeam();
-  $('viewerMeta').textContent=`${access.email||'Staff'} • ${availableTeams().map(t=>TEAM_CONFIG[t].label).join(' + ')}${isReadOnly()?' • read-only preview':''}`;$('accessBtn').hidden=!canManage();if(isReadOnly())$('newNoteBtn').disabled=true;
+  const adminReview = isAdminReviewer(); // EAGLENEST_COUNSELOR_ADMIN_REVIEW_V1
+  $('viewerMeta').textContent=`${access.email||'Staff'} • ${availableTeams().map(t=>TEAM_CONFIG[t].label).join(' + ')}${adminReview?' • ADMIN REVIEW — READ ONLY':isReadOnly()?' • read-only preview':''}`;
+  $('accessBtn').hidden=!canManage();
+  $('adminReviewNotice').hidden=!adminReview;
+  if(adminReview){
+    $('scopeLabel').hidden=true; // Team activity only: Admin reviewers don't own counselor notes.
+    $('scopeSelect').value='team';
+    $('newNoteBtn').hidden=true;
+  }else if(isReadOnly())$('newNoteBtn').disabled=true;
 
   $('teamSelect').addEventListener('change',()=>setActiveTeam($('teamSelect').value));
   $('scopeSelect').addEventListener('change',loadDashboard);

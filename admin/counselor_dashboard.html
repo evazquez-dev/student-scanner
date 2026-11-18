@@ -37,12 +37,13 @@
           <h1>Counselor Dashboard</h1>
           <p id="teamSubtitle" class="muted">Ongoing student meeting notes, follow-ups, and recent counseling work.</p>
           <div id="viewerMeta" class="small muted"></div>
+          <div id="adminReviewNotice" class="small muted" hidden>Admin Review — read-only. You can review notes and follow-ups, but cannot create, edit, or resolve them.</div>
         </div>
         <div class="toolbar">
           <label id="teamLabel" class="compactField">Counselor category
             <select id="teamSelect"></select>
           </label>
-          <label class="compactField">View
+          <label id="scopeLabel" class="compactField">View
             <select id="scopeSelect">
               <option value="team">Team activity</option>
               <option value="my">My work</option>
