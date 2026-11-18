@@ -9,7 +9,7 @@ const here=path.dirname(fileURLToPath(import.meta.url));
 const scannerRoot=path.resolve(here,'..');
 const repoRoot=path.resolve(scannerRoot,'..');
 
-test('former morning arrival page is now a read-only super-admin raw scan viewer',()=>{
+test('former morning arrival page is now a read-only admin raw scan viewer',()=>{
   const html=fs.readFileSync(path.join(scannerRoot,'admin/morning_arrival_repair.html'),'utf8');
   const js=fs.readFileSync(path.join(scannerRoot,'admin/morning_arrival_repair.js'),'utf8');
   const nav=fs.readFileSync(path.join(scannerRoot,'admin/nav.js'),'utf8');
@@ -27,7 +27,8 @@ test('former morning arrival page is now a read-only super-admin raw scan viewer
   assert.match(nav,/Raw Scan Data/);
   assert.match(nav,/morning_arrival_repair\.html/);
   assert.match(index,/MORNING_ARRIVAL_REPAIR_PATHS/);
-  assert.match(route,/super_admin_required/);
+  assert.match(route,/base\.data\.role !== 'super_admin' && base\.data\.role !== 'admin'/);
+  assert.match(route,/admin_required/);
   assert.match(route,/req\.method !== 'GET'/);
   assert.match(service,/FROM scan_events/);
   assert.match(service,/student_name/);

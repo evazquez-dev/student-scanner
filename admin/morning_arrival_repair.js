@@ -76,7 +76,7 @@ function exportCsv(){
 }
 async function init(){
   try{
-    access=await req('/admin/access');if(access.role!=='super_admin')throw Error('super_admin_required');
+    access=await req('/admin/access');if(access.role!=='super_admin'&&access.role!=='admin')throw Error('admin_required');
     $('login').hidden=true;$('app').hidden=false;$('who').textContent=`${access.email||'Super admin'} · ${access.role}`;
     await loadMeta();await loadPage(0);
   }catch(e){$('loginStatus').textContent=`Sign in required: ${e.message}`;throw e}

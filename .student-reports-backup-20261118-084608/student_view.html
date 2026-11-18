@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="api-base" content="https://red-cake-77d5.evazquez-3e0.workers.dev/">
+  <meta name="google-client-id" content="690302076971-cmclpgcqko4lhuaetbeacu00ptl9jc4m.apps.googleusercontent.com">
+  <script src="./shared_auth.js"></script>
+
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="../icons/icon-32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="../icons/icon-192.png">
+  <link rel="apple-touch-icon" href="../icons/icon-192.png">
+  <title>EagleNEST — Student Lookup</title>
+  <link rel="stylesheet" href="./nav.css">
+  <script src="./brand.js" defer></script>
+  <script src="./nav.js" defer></script>
+  <script>
+    (function(){
+      try{
+        const saved = localStorage.getItem('ss_theme_v1');
+        const preferred = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.dataset.theme = saved || preferred;
+      }catch{}
+    })();
+  </script>
+  <style>
+    :root{
+      color-scheme:dark;
+      --fg:#e5e7eb;--muted:#94a3b8;--page:#020617;--panel:#0f172a;--panel2:#111827;
+      --control:rgba(2,6,23,.42);--border:rgba(148,163,184,.24);--accent:#4f46e5;
+      --accent2:#7c3aed;--good:#86efac;--bad:#fca5a5;--warn:#fde68a;--info:#93c5fd;
+      --shadow:0 18px 60px rgba(0,0,0,.24)
+    }
+    :root[data-theme="light"]{
+      color-scheme:light;
+      --fg:#0f172a;--muted:#64748b;--page:#f8fafc;--panel:#fff;--panel2:#f8fafc;
+      --control:#fff;--border:rgba(100,116,139,.28);--accent:#4338ca;
+      --accent2:#6d28d9;--good:#166534;--bad:#b91c1c;--warn:#92400e;--info:#1d4ed8;
+      --shadow:0 16px 44px rgba(15,23,42,.08)
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--page);color:var(--fg)}
+    .wrap{max-width:1220px;margin:0 auto;padding:16px}
+    .card{border:1px solid var(--border);background:var(--panel);border-radius:18px;padding:16px;box-shadow:var(--shadow)}
+    #loginCard{max-width:520px;margin:10vh auto 0}
+    h1,h2,h3{margin:0}.muted{color:var(--muted)}.small{font-size:12px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .pageHead{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+    .pageHead p{margin:6px 0 0;max-width:760px}
+    .searchCard{position:relative}.searchRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .suggest{position:relative;flex:1;min-width:min(100%,320px)}
+    .input,select,textarea{width:100%;border:1px solid var(--border);background:var(--control);color:var(--fg);border-radius:12px;padding:10px 12px;font:inherit;outline:none}
+    .input{font-weight:700}.input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+    .menu{position:absolute;top:calc(100% + 6px);left:0;right:0;border-radius:14px;border:1px solid var(--border);background:var(--panel);overflow:auto;z-index:50;box-shadow:var(--shadow);display:none;max-height:340px}
+    .menu button{width:100%;text-align:left;padding:11px 12px;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--fg);cursor:pointer}
+    .menu button:last-child{border-bottom:0}.menu button:hover{background:color-mix(in srgb,var(--accent) 10%,transparent)}
+    .selectedCard{margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+    .studentName{font-size:24px;font-weight:900}.studentMeta{margin-top:4px;color:var(--muted)}
+    .quickActions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid var(--border);background:var(--control);color:var(--fg);border-radius:12px;padding:9px 12px;font:inherit;font-weight:800;cursor:pointer}
+    .btn.primary{background:var(--accent);color:#fff;border-color:transparent}.btn.secondary{background:var(--panel2)}.btn.small{padding:7px 10px;font-size:12px}.btn:disabled{opacity:.48;cursor:not-allowed}
+    .actionStatus{width:100%;min-height:18px}.actionStatus.good{color:var(--good)}.actionStatus.bad{color:var(--bad)}.actionStatus.warn{color:var(--warn)}
+    .emptyCard{margin-top:12px;text-align:center;padding:34px 18px}.emptyCard strong{display:block;font-size:18px;margin-bottom:5px}
+    .readonlyNote{width:100%;padding:9px 11px;border-radius:12px;border:1px solid currentColor;color:var(--warn);margin-top:6px}
+
+    .tabsShell{margin-top:14px}.tabs{display:flex;gap:7px;overflow:auto;padding:4px 2px 10px;scrollbar-width:thin}
+    .tab{white-space:nowrap;border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:999px;padding:9px 13px;font:inherit;font-weight:850;cursor:pointer}
+    .tab[aria-selected="true"]{background:var(--accent);border-color:transparent;color:#fff}.tab .count{font-size:11px;opacity:.85;margin-left:4px}
+    .tabPanel{outline:none}.tabPanel[hidden]{display:none!important}
+    .panelCard{box-shadow:none}.panelHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:13px}.panelHead p{margin:5px 0 0}
+    .overviewGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.statusCard{border:1px solid var(--border);background:var(--panel2);border-radius:16px;padding:14px;min-height:132px}
+    .statusCard h3{font-size:14px;color:var(--muted);margin-bottom:10px}.statusBig{font-size:22px;font-weight:900;line-height:1.15}.statusSub{margin-top:6px;color:var(--muted);line-height:1.4}.statusDetail{margin-top:10px;font-size:12px;color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;padding:4px 8px;border:1px solid currentColor;border-radius:999px;font-size:11px;font-weight:850}.pill.good{color:var(--good)}.pill.warn{color:var(--warn)}.pill.bad{color:var(--bad)}.pill.info{color:var(--info)}
+
+    .list{display:grid;gap:9px}.listItem{border:1px solid var(--border);background:var(--panel2);border-radius:14px;padding:12px}.listItem.current{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+    .listTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.listTitle{font-weight:900}.listMeta{color:var(--muted);font-size:12px;margin-top:4px}.listBody{margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}
+    .scheduleGrid{display:grid;grid-template-columns:100px 150px minmax(180px,1fr) 130px;gap:10px;align-items:center}.scheduleHead{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:850;padding:0 12px 5px}.scheduleRow{border:1px solid var(--border);background:var(--panel2);border-radius:14px;padding:11px 12px}.scheduleRow.current{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+    .attendanceSummary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.summaryChip{border:1px solid var(--border);background:var(--panel2);border-radius:12px;padding:8px 10px;font-size:12px}.summaryChip strong{font-size:16px;margin-right:4px}
+    .loadingState,.emptyState,.errorState{border:1px dashed var(--border);border-radius:14px;padding:24px;text-align:center;color:var(--muted)}.errorState{color:var(--bad)}
+    .inlineActions{display:flex;gap:8px;flex-wrap:wrap}.footerHint{margin-top:12px;color:var(--muted);font-size:12px}
+
+    .backdrop{position:fixed;inset:0;z-index:2147483600;background:rgba(2,6,23,.72);display:flex;align-items:center;justify-content:center;padding:16px}.backdrop[hidden]{display:none!important}
+    .modal{width:min(620px,100%);max-height:92vh;overflow:auto;border:1px solid var(--border);background:var(--panel);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
+    .modalHead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px;border-bottom:1px solid var(--border)}.modalBody{padding:16px}.modalFoot{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 16px;flex-wrap:wrap}
+    .iconBtn{border:0;background:transparent;color:var(--fg);font-size:24px;line-height:1;cursor:pointer;padding:2px 5px}.field{display:block;margin-bottom:13px}.field>span{display:block;font-size:12px;font-weight:800;color:var(--muted);margin:0 0 5px}
+    .contextBox{padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--panel2);margin-bottom:13px;line-height:1.45}.twoCol{display:grid;grid-template-columns:1fr 1fr;gap:10px}.errorText{color:var(--bad);min-height:18px;margin-top:5px}
+
+    /* EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 */
+    .lookupAcademicSummary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:13px}
+    .lookupAcademicCourses{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .lookupAcademicCourse{display:flex;justify-content:space-between;align-items:center;gap:14px;border:1px solid var(--border);background:var(--panel2);border-radius:14px;padding:12px}
+    .lookupAcademicCourse.fail{border-color:color-mix(in srgb,var(--bad) 55%,var(--border))}
+    .lookupAcademicCourse.missing{border-color:color-mix(in srgb,var(--warn) 48%,var(--border))}
+    .lookupAcademicCourseMain{min-width:0}.lookupAcademicGrade{font-size:18px;white-space:nowrap}
+    .academicGood{color:var(--good)}.academicBad{color:var(--bad)}.academicWarn{color:var(--warn)}
+    .lookupAcademicQuality{margin-top:12px}
+
+    @media(max-width:800px){.wrap{padding:10px}.overviewGrid{grid-template-columns:1fr}.selectedCard{align-items:flex-start}.quickActions{width:100%}.quickActions .btn{flex:1}.twoCol{grid-template-columns:1fr}.studentName{font-size:21px}.scheduleGrid{grid-template-columns:84px 1fr}.scheduleGrid>*:nth-child(2){display:none}.scheduleGrid>*:nth-child(4){text-align:right}.scheduleHead{display:none}.scheduleRow{display:grid}.lookupAcademicSummary,.lookupAcademicCourses{grid-template-columns:1fr}}
+  </style>
+  <link rel="stylesheet" href="./eaglenest_grade_bands.css?v=20261103-v1">
+  <script src="./eaglenest_grade_bands.js?v=20261116-source-code-map-v1" defer></script>
+  <link rel="stylesheet" href="./student_photos.css?v=20261105-v1_2">
+</head>
+<body data-module="student_view">
+  <div class="wrap">
+    <section id="loginCard" class="card">
+      <h2>Staff sign-in</h2>
+      <p class="muted">Use your EagleNEST staff account.</p>
+      <div id="g_id_signin"></div>
+      <pre id="loginOut" class="muted" style="white-space:pre-wrap">Loading…</pre>
+    </section>
+
+    <main id="app" hidden>
+      <header class="pageHead">
+        <div>
+          <h1>Student Lookup</h1>
+          <p class="muted">Search any student to see current status, today's schedule and attendance, recent scans, behavior, and communications.</p>
+        </div>
+      </header>
+
+      <section class="card searchCard">
+        <div class="searchRow">
+          <div class="suggest">
+            <input id="q" class="input" placeholder="Search by name, OSIS, or email…" autocomplete="off" aria-label="Search students">
+            <div id="menu" class="menu" role="listbox"></div>
+          </div>
+          <div id="searchStatus" class="muted small">Type at least 2 characters to search.</div>
+        </div>
+      </section>
+
+      <section id="studentCard" class="card selectedCard" hidden>
+        <div class="studentPhotoIdentity">
+          <div id="studentName" class="studentName">—</div>
+          <div id="studentMeta" class="studentMeta mono">—</div>
+        </div>
+        <div class="studentPortrait" aria-label="Student photo">
+          <img id="studentLookupPortraitImage" alt="" hidden>
+          <span id="studentLookupPortraitFallback" class="studentPortraitPlaceholder">No photo</span>
+        </div>
+        <div class="quickActions">
+          <button id="refreshStudentBtn" class="btn secondary" type="button">Refresh</button>
+          <button id="logBehaviorBtn" class="btn primary" type="button">Log Behavior</button>
+          <button id="logCommunicationBtn" class="btn secondary" type="button">Log Communication</button>
+        </div>
+        <div id="actionStatus" class="actionStatus small" aria-live="polite"></div>
+        <div id="readOnlyNote" class="readonlyNote small" hidden>View As is read-only. Student information remains available, but logging actions are disabled.</div>
+      </section>
+
+      <section id="emptyState" class="card emptyCard">
+        <strong>Search for a student</strong>
+        <div class="muted">Their current location is available to every authenticated staff member. Other history is shown according to your existing EagleNEST permissions.</div>
+      </section>
+
+      <section id="tabsShell" class="tabsShell" hidden>
+        <div class="tabs" role="tablist" aria-label="Student information sections">
+          <button id="tabOverview" class="tab" type="button" role="tab" aria-selected="true" aria-controls="panelOverview" data-tab="overview">Overview</button>
+          <button id="tabSchedule" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelSchedule" data-tab="schedule" tabindex="-1">Schedule</button>
+          <button id="tabAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelAttendance" data-tab="attendance" tabindex="-1">Attendance</button>
+          <button id="tabGradesAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelGradesAttendance" data-tab="grades_attendance" tabindex="-1" hidden>Grades &amp; Attendance</button><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
+          <button id="tabScans" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelScans" data-tab="scans" tabindex="-1">Scans <span id="scansCount" class="count"></span></button>
+          <button id="tabBehavior" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelBehavior" data-tab="behavior" tabindex="-1">Behavior <span id="behaviorCount" class="count"></span></button>
+          <button id="tabIncidents" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelIncidents" data-tab="incidents" tabindex="-1">Incidents <span id="incidentsCount" class="count"></span></button>
+          <button id="tabCommunications" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelCommunications" data-tab="communications" tabindex="-1">Communications <span id="communicationsCount" class="count"></span></button>
+          <button id="tabEngagement" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelEngagement" data-tab="engagement" tabindex="-1">Campaigns &amp; Conferences <span id="engagementCount" class="count"></span></button><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 -->
+        </div>
+
+        <section id="panelOverview" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabOverview" data-panel="overview">
+          <div class="panelHead"><div><h2>Current Status</h2><p class="muted small">Live operational context for the selected student.</p></div></div>
+          <div class="overviewGrid">
+            <article class="statusCard">
+              <h3>Current Location</h3>
+              <div id="locLabel" class="statusBig">—</div>
+              <div id="locZone" class="statusSub">—</div>
+              <div id="locUpdated" class="statusDetail">Updated —</div>
+            </article>
+            <article class="statusCard">
+              <h3>Current / Upcoming Class</h3>
+              <div id="currentClass" class="statusBig">—</div>
+              <div id="currentClassMeta" class="statusSub">—</div>
+              <div id="scheduleMode" class="statusDetail">—</div>
+            </article>
+            <article class="statusCard">
+              <h3>Current Attendance</h3>
+              <div id="currentAttendance" class="statusBig">—</div>
+              <div id="currentAttendanceMeta" class="statusSub">—</div>
+              <div id="attendanceTodayMeta" class="statusDetail">—</div>
+            </article>
+            <article class="statusCard">
+              <h3>Class Movement</h3>
+              <div id="currentMovement" class="statusBig">—</div>
+              <div id="currentMovementMeta" class="statusSub">—</div>
+              <div class="statusDetail">ClassSession physical IN/OUT context.</div>
+            </article>
+          </div>
+        </section>
+
+        <section id="panelSchedule" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabSchedule" data-panel="schedule" hidden>
+          <div class="panelHead"><div><h2>Today's Schedule</h2><p class="muted small">Assigned periods from today's live EagleNEST schedule.</p></div></div>
+          <div id="scheduleList"></div>
+        </section>
+
+        <section id="panelAttendance" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabAttendance" data-panel="attendance" hidden>
+          <div class="panelHead"><div><h2>Today's Attendance</h2><p class="muted small">Meeting attendance records currently stored for today's assigned periods.</p></div></div>
+          <div id="attendanceSummary" class="attendanceSummary"></div>
+          <div id="attendanceList" class="list"></div>
+        </section>
+
+        <section id="panelGradesAttendance" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabGradesAttendance" data-panel="grades_attendance" hidden><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
+          <div class="panelHead">
+            <div><h2>Grades &amp; Attendance</h2><p id="lookupAcademicMeta" class="muted small">Current course grades and current marking-period attendance.</p></div>
+            <div class="inlineActions">
+              <a class="btn secondary small" href="./grades.html">Open full Grades &amp; Attendance</a>
+              <button id="refreshGradesAttendanceBtn" class="btn secondary small" type="button">Refresh</button>
+            </div>
+          </div>
+          <div id="lookupAcademicStatus" class="small" aria-live="polite"><div class="loadingState">Open this tab to load grades and attendance.</div></div>
+          <div id="lookupAcademicContent" hidden>
+            <div class="lookupAcademicSummary">
+              <article class="statusCard">
+                <h3>Current Grades</h3>
+                <div id="lookupGradeStatus" class="statusBig">—</div>
+                <div id="lookupGradeDetail" class="statusSub">—</div>
+              </article>
+              <article class="statusCard">
+                <h3>Daily Attendance</h3>
+                <div id="lookupDailyAttendance" class="statusBig">—</div>
+                <div id="lookupDailyDetail" class="statusSub">—</div>
+              </article>
+              <article class="statusCard">
+                <h3>Class On-Time</h3>
+                <div id="lookupMeetingAttendance" class="statusBig">—</div>
+                <div id="lookupMeetingDetail" class="statusSub">—</div>
+              </article>
+            </div>
+            <div class="panelHead"><div><h3>Current Courses</h3><p class="muted small">Zero grades follow EagleNEST policy and display as Not entered.</p></div></div>
+            <div id="lookupAcademicCourses" class="lookupAcademicCourses"></div>
+            <div id="lookupAcademicQuality" class="muted small lookupAcademicQuality"></div>
+          </div>
+        </section>
+
+        <section id="panelScans" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabScans" data-panel="scans" hidden>
+          <div class="panelHead">
+            <div><h2>Recent Scans</h2><p id="scansMeta" class="muted small">Recent 7-day scanner history loads when this tab is opened.</p></div>
+            <button id="refreshScansBtn" class="btn secondary small" type="button">Refresh scans</button>
+          </div>
+          <div id="scansList" class="list"><div class="loadingState">Open this tab to load recent scans.</div></div>
+        </section>
+
+        <section id="panelBehavior" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabBehavior" data-panel="behavior" hidden>
+          <div class="panelHead">
+            <div><h2>Behavior</h2><p id="behaviorMeta" class="muted small">Shows behavior logs you currently have permission to view.</p></div>
+            <button id="refreshBehaviorBtn" class="btn secondary small" type="button">Refresh behavior</button>
+          </div>
+          <div id="behaviorList" class="list"><div class="loadingState">Open this tab to load behavior history.</div></div>
+        </section>
+
+        <!-- EAGLENEST_STUDENT_LOOKUP_INCIDENTS_V2 -->
+        <section id="panelIncidents" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabIncidents" data-panel="incidents" hidden>
+          <div class="panelHead">
+            <div><h2>Incident Reports</h2><p id="incidentsMeta" class="muted small">Incident reports accessible to your account.</p></div>
+            <div class="inlineActions">
+              <label class="small">Status
+                <select id="incidentsStatus" class="input"><option value="all">All</option><option value="open">Open only</option><option value="closed">Resolved / closed</option></select>
+              </label>
+              <button id="refreshIncidentsBtn" class="btn secondary small" type="button">Refresh incidents</button>
+            </div>
+          </div>
+          <div id="incidentsList" class="list"><div class="loadingState">Open this tab to load incident reports.</div></div>
+          <div class="inlineActions" style="margin-top:1rem"><button id="incidentsLoadMore" class="btn secondary small" type="button" hidden>Load more incidents</button></div>
+        </section>
+
+        <section id="panelCommunications" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabCommunications" data-panel="communications" hidden>
+          <div class="panelHead">
+            <div><h2>Communications</h2><p id="communicationsMeta" class="muted small">Recent communications logged for this student.</p></div>
+            <div class="inlineActions">
+              <button id="openContactsBtn" class="btn secondary small" type="button">Open contacts</button>
+              <button id="refreshCommunicationsBtn" class="btn secondary small" type="button">Refresh communications</button>
+            </div>
+          </div>
+          <div id="communicationsList" class="list"><div class="loadingState">Open this tab to load communication history.</div></div>
+        </section>
+
+        <section id="panelEngagement" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabEngagement" data-panel="engagement" hidden>
+          <div class="panelHead">
+            <div><h2>Campaigns &amp; Conferences</h2><p id="engagementMeta" class="muted small">Active required communications and Family &amp; Student Conference events for this student.</p></div>
+            <button id="refreshEngagementBtn" class="btn secondary small" type="button">Refresh</button>
+          </div>
+          <div id="engagementList" class="list"><div class="loadingState">Open this tab to load active campaigns and conference events.</div></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="engagementBackdrop" class="backdrop" hidden><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 -->
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="engagementModalTitle">
+      <header class="modalHead">
+        <div><h2 id="engagementModalTitle">Conference Log / Book</h2><div id="engagementModalStudent" class="muted small"></div></div>
+        <button id="closeEngagementLogBook" class="iconBtn" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modalBody">
+        <div class="contextBox small"><strong>Family contact is part of booking.</strong><div class="muted" style="margin-top:4px">Log the parent/guardian conversation here and optionally choose the appointment slot from the same save.</div></div>
+        <label class="field"><span>Family contact</span><select id="engagementContactSelect"><option value="">No specific contact</option></select></label>
+        <div class="twoCol">
+          <label class="field"><span>Method</span><select id="engagementMethod"><option>Phone</option><option>Email</option><option>Text</option><option>In Person</option><option>Other</option></select></label>
+          <label class="field"><span>Outcome</span><select id="engagementOutcome"><option>Spoke/Connected</option><option>No Answer</option><option>Left Voicemail</option><option>Follow-up Needed</option><option>Resolved</option><option>Other</option></select></label>
+        </div>
+        <label class="field"><span>Communication date &amp; time</span><input id="engagementContactAt" class="input" type="datetime-local" step="60" required><div class="muted small" style="margin-top:5px">Defaults to now. Edit this when logging a conversation later.</div></label><!-- EAGLENEST_STUDENT_LOOKUP_CONFERENCE_DATETIME_V1 -->
+        <label class="field"><span>Appointment</span><select id="engagementSlotSelect"><option value="">Log communication only — do not book yet</option></select></label>
+        <label class="field"><span>Notes</span><textarea id="engagementNotes" class="input" rows="4" maxlength="3200" placeholder="Optional conference outreach notes"></textarea></label>
+        <div id="engagementModalStatus" class="small" aria-live="polite"></div>
+      </div>
+      <footer class="modalFoot">
+        <button id="cancelEngagementLogBook" class="btn secondary" type="button">Cancel</button>
+        <button id="saveEngagementLogBook" class="btn primary" type="button">Save Log / Book</button>
+      </footer>
+    </section>
+  </div>
+
+  <div id="behaviorBackdrop" class="backdrop" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="behaviorTitle">
+      <header class="modalHead">
+        <div><h2 id="behaviorTitle">Log Behavior</h2><div id="behaviorStudent" class="muted small"></div></div>
+        <button id="closeBehavior" class="iconBtn" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modalBody">
+        <div id="behaviorContext" class="contextBox small">Loading behavior options…</div>
+        <label class="field"><span>Behavior category</span><select id="behaviorCategory"></select></label>
+        <label class="field"><span>Behavior</span><select id="behaviorOption"></select></label>
+        <div class="twoCol">
+          <label class="field"><span>Location / room</span><input id="behaviorRoom" class="input" maxlength="120" placeholder="Room, hallway, cafeteria…"></label>
+          <label class="field"><span>Period</span><input id="behaviorPeriod" class="input" maxlength="40" placeholder="PR3, LCH1, passing…"></label>
+        </div>
+        <div id="behaviorError" class="errorText small" aria-live="polite"></div>
+      </div>
+      <footer class="modalFoot">
+        <button id="cancelBehavior" class="btn secondary" type="button">Cancel</button>
+        <button id="saveBehavior" class="btn primary" type="button">Log behavior</button>
+      </footer>
+    </section>
+  </div>
+
+  <script src="./student_view.js?v=20260930-family-communications-proxy-v2" defer></script>
+  <script src="./student_lookup_phase3.js" defer></script>
+  <script src="./student_lookup_incidents.js?v=20261022-incident-v3" defer></script>
+  <script src="./incident_report_editor.js?v=20261022-incident-v3" defer></script>
+  <script src="./student_lookup_grades_attendance.js?v=20261116-term-trends-v1" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
+  <script src="./student_lookup_engagement.js?v=20261001-conference-outreach-datetime-v1" defer></script><!-- EAGLENEST_STUDENT_LOOKUP_ENGAGEMENT_V1 --><!-- EAGLENEST_STUDENT_LOOKUP_CONFERENCE_DATETIME_V1 -->
+  <script src="./student_lookup_calls.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE2 -->
+  <script src="./student_lookup_campus_routing.js" defer></script><!-- EAGLENEST_GRANDSTREAM_PHASE3_2 -->
+  <script src="./student_lookup_mtss.js" defer></script><!-- EAGLENEST_MTSS_V1_STUDENT_LOOKUP -->
+  <script src="./student_photos.js?v=20261105-v1_2" defer></script>
+  <!-- EAGLENEST_DEVICE_MANAGEMENT_V1_LOOKUP -->
+  <script src="./student_lookup_devices.js?v=20261117-v1" defer></script>
+</body>
+</html>

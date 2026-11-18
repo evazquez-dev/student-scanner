@@ -631,7 +631,7 @@
         (it.key === 'gradebook_analytics' && can.grades) ||
         (it.key === 'conference_scheduler' && can.student_contacts) ||
         (it.key === 'attendance_change' && can.excused_apply) ||
-        (it.key === 'morning_arrival_repair' && can.super_admin) || // EAGLENEST_RAW_SCAN_VIEWER_V1
+        (it.key === 'morning_arrival_repair' && can.admin) || // EAGLENEST_RAW_SCAN_VIEWER_V1
         (it.key === 'esas' && !!access?.email)
       );
     };

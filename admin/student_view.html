@@ -101,6 +101,8 @@
   <link rel="stylesheet" href="./eaglenest_grade_bands.css?v=20261103-v1">
   <script src="./eaglenest_grade_bands.js?v=20261116-source-code-map-v1" defer></script>
   <link rel="stylesheet" href="./student_photos.css?v=20261105-v1_2">
+  <!-- EAGLENEST_STUDENT_REPORTS_V1_STYLE -->
+  <link rel="stylesheet" href="./student_reports.css?v=20261118-v1">
 </head>
 <body data-module="student_view">
   <div class="wrap">
@@ -158,6 +160,8 @@
           <button id="tabSchedule" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelSchedule" data-tab="schedule" tabindex="-1">Schedule</button>
           <button id="tabAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelAttendance" data-tab="attendance" tabindex="-1">Attendance</button>
           <button id="tabGradesAttendance" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelGradesAttendance" data-tab="grades_attendance" tabindex="-1" hidden>Grades &amp; Attendance</button><!-- EAGLENEST_STUDENT_LOOKUP_GRADES_ATTENDANCE_V1 -->
+          <!-- EAGLENEST_STUDENT_REPORTS_V1 -->
+          <button id="tabStudentReports" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelStudentReports" data-tab="student_reports" tabindex="-1" hidden>Reports</button>
           <button id="tabScans" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelScans" data-tab="scans" tabindex="-1">Scans <span id="scansCount" class="count"></span></button>
           <button id="tabBehavior" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelBehavior" data-tab="behavior" tabindex="-1">Behavior <span id="behaviorCount" class="count"></span></button>
           <button id="tabIncidents" class="tab" type="button" role="tab" aria-selected="false" aria-controls="panelIncidents" data-tab="incidents" tabindex="-1">Incidents <span id="incidentsCount" class="count"></span></button>
@@ -236,6 +240,33 @@
             <div class="panelHead"><div><h3>Current Courses</h3><p class="muted small">Zero grades follow EagleNEST policy and display as Not entered.</p></div></div>
             <div id="lookupAcademicCourses" class="lookupAcademicCourses"></div>
             <div id="lookupAcademicQuality" class="muted small lookupAcademicQuality"></div>
+          </div>
+        </section>
+
+        <!-- EAGLENEST_STUDENT_REPORTS_V1_PANEL -->
+        <section id="panelStudentReports" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabStudentReports" data-panel="student_reports" hidden>
+          <div class="panelHead"><div><h2>Student Reports</h2>
+            <p class="muted small">Generate the school's bilingual attendance concern letter using completed, official attendance records for the selected student.</p></div></div>
+          <div class="studentReportsControlRow">
+            <label>Report template <select id="studentReportsTemplate" class="input" disabled>
+              <option>Attendance Concern Letter (Level 1 template)</option>
+            </select></label>
+            <label>Reporting period <select id="studentReportsPeriod" class="input" disabled>
+              <option>School year to date — latest completed day</option>
+            </select></label>
+            <label>Letter language <select id="studentReportsLanguage" class="input">
+              <option value="both">English + Spanish</option>
+              <option value="en">English only</option>
+              <option value="es">Spanish only</option>
+            </select></label>
+          </div>
+          <div id="studentReportsStatus" class="studentReportsNotice" role="status" aria-live="polite">Open Reports to retrieve this student's attendance letter.</div>
+          <div id="studentReportsMetrics" class="studentReportsMetrics"></div>
+          <div id="studentReportsPreview" class="studentReportsPreview"></div>
+          <iframe id="studentReportsPaperPreview" title="Attendance letter document preview" sandbox="" loading="lazy"></iframe>
+          <div class="studentReportsActions">
+            <button id="studentReportsRefresh" type="button" class="btn secondary">Refresh report data</button>
+            <button id="studentReportsPrint" type="button" class="btn primary" disabled>Open print-ready letter / Save as PDF</button>
           </div>
         </section>
 
@@ -352,5 +383,7 @@
   <script src="./student_photos.js?v=20261105-v1_2" defer></script>
   <!-- EAGLENEST_DEVICE_MANAGEMENT_V1_LOOKUP -->
   <script src="./student_lookup_devices.js?v=20261117-v1" defer></script>
+  <!-- EAGLENEST_STUDENT_REPORTS_V1_SCRIPT -->
+  <script src="./student_reports.js?v=20261118-v1" defer></script>
 </body>
 </html>

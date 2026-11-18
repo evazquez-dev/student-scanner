@@ -1,0 +1,17 @@
+/* EAGLENEST_STUDENT_REPORTS_V1 — Student Lookup only, self-contained */
+#panelStudentReports .studentReportsControlRow{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:12px 0}
+#panelStudentReports .studentReportsControlRow label{display:flex;flex-direction:column;gap:5px;font-weight:650;min-width:180px}
+#panelStudentReports select{max-width:320px}
+#panelStudentReports .studentReportsNotice{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--panel2);margin:10px 0;line-height:1.55}
+#panelStudentReports .studentReportsNotice[data-kind="error"]{border-color:#c96f72;color:var(--text)}
+#panelStudentReports .studentReportsNotice[data-kind="ok"]{border-color:#538d74}
+#panelStudentReports .studentReportsMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin:12px 0}
+#panelStudentReports .studentReportsMetric{padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--panel2)}
+#panelStudentReports .studentReportsMetric strong{display:block;font-size:1.35rem}
+#panelStudentReports .studentReportsMetric small{color:var(--muted)}
+#panelStudentReports .studentReportsPreview{margin-top:12px;padding:14px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);font-size:.96rem}
+#panelStudentReports .studentReportsPreview p{line-height:1.65}
+#panelStudentReports .studentReportsActions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+#panelStudentReports .studentReportsActions button:disabled{opacity:.5;cursor:not-allowed}
+
+#studentReportsPaperPreview{display:block;margin-top:12px;width:100%;height:560px;background:#fff;border:1px solid var(--border);border-radius:8px}
