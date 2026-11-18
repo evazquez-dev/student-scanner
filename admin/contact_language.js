@@ -340,9 +340,11 @@
       <div id="contactLanguageError" class="contactLanguageError" hidden></div>`;
 
     if(pageModule === 'student_contacts'){
+      // EAGLENEST_CONTACT_LANGUAGE_FASC_PANEL_FIX_V1
+      // FaSC booking also uses .noteLabel; anchor to the actual Notes field.
       const modal = document.querySelector('#commBackdrop .modal');
-      const notes = modal?.querySelector('.noteLabel');
-      if(notes) modal.insertBefore(panel, notes);
+      const notes = document.getElementById('commNotes')?.closest('label');
+      if(modal && notes?.parentElement === modal) modal.insertBefore(panel, notes);
       else modal?.appendChild(panel);
     } else if(pageModule === 'attendance_outreach'){
       const contacts = document.getElementById('contactChoices');
@@ -446,6 +448,23 @@
   function validateLanguageGate(){
     if(!activeContact || !featureAvailable) return true;
     if(!needsPrompt()) return true;
+    // EAGLENEST_CONTACT_LANGUAGE_FASC_GATE_FEEDBACK_V1
+    // Don't block Save invisibly if the required language panel did not mount.
+    if(pageModule === 'student_contacts'){
+      const panel = document.getElementById('contactLanguagePanel');
+      if(!panel?.isConnected || panel.hidden){
+        const message = 'Preferred contact language verification could not be displayed. Refresh Student Contacts and try again.';
+        const error = document.getElementById('commError');
+        if(error){
+          error.textContent = message;
+          error.hidden = false;
+          error.scrollIntoView({ block:'nearest' });
+        } else {
+          window.alert(message);
+        }
+        return false;
+      }
+    }
     if(!languageDecision){
       setPanelError('Choose whether you confirmed the preferred language this time.');
       document.getElementById('contactLanguagePanel')?.scrollIntoView({ block:'nearest', behavior:'smooth' });

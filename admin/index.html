@@ -592,6 +592,37 @@
           <div id="resourceBookingHealthBody" class="pane" aria-live="polite">Loading…</div>
         </section>
 
+        <!-- EAGLENEST_ENROLLMENT_AWARE_ATTENDANCE_V1 -->
+        <section class="card" id="enrollmentAttendanceAdminCard">
+          <h2>Enrollment-aware attendance — controlled rollout</h2>
+          <p class="muted">PowerSchool completed dated membership is the authoritative source for verified non-enrollment. These switches are <strong>off by default</strong>. Run the student comparison and review affected results before activating. No PowerSchool or D1 attendance records are rewritten.</p>
+          <div class="row" style="gap:15px;flex-wrap:wrap;margin:12px 0">
+            <label><input id="enrollFlag_badge_grades" type="checkbox"> Attendance Badge + Grades &amp; Attendance / Dean</label>
+            <label><input id="enrollFlag_incentive_trips" type="checkbox"> Incentive Trip eligibility</label>
+            <label><input id="enrollFlag_outside_lunch_recess" type="checkbox"> Outside Lunch + Recess eligibility</label>
+            <label><input id="enrollFlag_mtss_streaks" type="checkbox"> MTSS streak gap protection</label>
+          </div>
+          <div class="row" style="gap:10px;flex-wrap:wrap">
+            <button class="btn ghost" id="enrollSettingsReload" type="button">Reload switches</button>
+            <button class="btn primary" id="enrollSettingsSave" type="button">Save selected switches</button>
+            <span class="muted" id="enrollAttendanceRevision">Not loaded</span>
+          </div>
+          <p class="muted" id="enrollAttendanceMessage" role="status">Sign in to load enrollment settings.</p>
+          <h3>Enrollment data health</h3>
+          <div class="row" style="gap:9px;align-items:end;flex-wrap:wrap">
+            <label>Start date<br><input type="date" id="enrollmentStart"></label>
+            <label>End date<br><input type="date" id="enrollmentEnd"></label>
+            <button class="btn ghost" id="enrollHealthRefresh" type="button">Inspect membership</button>
+          </div>
+          <pre class="pane" id="enrollmentAttendanceHealth" style="max-height:220px;overflow:auto">No health check run yet.</pre>
+          <h3>Student-level before / after (read-only)</h3>
+          <div class="row" style="gap:9px;align-items:end;flex-wrap:wrap">
+            <label>Student OSIS<br><input id="enrollmentCompareOsis" placeholder="Student number" inputmode="numeric"></label>
+            <button class="btn ghost" id="enrollCompareRun" type="button">Compare calculations</button>
+          </div>
+          <pre class="pane" id="enrollmentAttendanceCompare" style="max-height:280px;overflow:auto">Run a comparison before enabling switches. Date span up to 45 days.</pre>
+        </section>
+
         <!-- EAGLENEST_ATTENDANCE_BADGE_ELIGIBILITY_V1 -->
         <section class="card" id="badgeAttendanceAdminCard">
           <h2>Attendance Badge — eligibility settings</h2>
@@ -821,6 +852,7 @@
 
   <script src="./admin.js?v=20260923-chromecart-sync-health-v1" type="module"></script>
   <script src="./attendance_badge_admin.js?v=20260919-v1" defer></script> <!-- EAGLENEST_ATTENDANCE_BADGE_ELIGIBILITY_V1 -->
+  <script src="./enrollment_attendance_admin.js?v=20261118-v1" defer></script>
   <script src="./student_photo_settings_admin.js?v=20261105-v1_1" defer></script>
 </body>
 </html>
