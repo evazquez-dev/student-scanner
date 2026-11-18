@@ -1,4 +1,4 @@
-/* EAGLENEST_STUDENT_REPORTS_V1
+/* EAGLENEST_STUDENT_REPORTS_V1_1
  * School-year-to-date bilingual attendance letter for CURRENT EagleNEST students.
  * Uses the EXISTING student-scoped Grades & Attendance endpoint; never reads
  * raw scans or grants broader student access. PDF is the browser's Print/Save.
@@ -106,12 +106,18 @@
     const today = escapeHtml(dateFmt(report.generated, lang===SPANISH?'es-ES':'en-US'));
     const sig = logoUrl('student_reports_signature.jpg');
     const logo = logoUrl('student_reports_logo.png');
+    const joinedLate = Boolean(report.enrollmentAdjusted);
+    const joinDate = joinedLate ? dateFmt(report.enrollmentDate,lang===SPANISH?'es-ES':'en-US') : '';
+    const schoolDaysLabel = joinedLate ? (lang===SPANISH ? 'Días escolares desde su ingreso' : 'School days since enrollment') : (lang===SPANISH ? 'Total de días escolares' : 'Total School Days');
+    const absenceScope = joinedLate
+      ? (lang===SPANISH ? `desde que ingresó el ${escapeHtml(joinDate)}` : `since enrolling on ${escapeHtml(joinDate)}`)
+      : (lang===SPANISH ? 'este año escolar' : 'this school year');
     const txt = lang===ENGLISH ? `
       <div class="letter-head"><span>${today}</span><span>Advisor: ${advisor}</span></div>
       <p>Dear parent/guardian of ${name},</p>
-      <p>As a part of our ongoing efforts to support our students’ academic success, we regularly monitor attendance data. We are writing to inform you that your student, ${name}, has been absent ${v.absent} days this school year. We’d like to speak with you about what is causing these absences and how we can help.</p>
+      <p>As a part of our ongoing efforts to support our students’ academic success, we regularly monitor attendance data. We are writing to inform you that your student, ${name}, has been absent ${v.absent} days ${absenceScope}. We’d like to speak with you about what is causing these absences and how we can help.</p>
       <div class="attendance-facts"><b>Attendance Data for ${name}</b><ul>
-        <li>Total School Days: ${v.days}</li><li>Days Attended: ${v.present}</li>
+        <li>${schoolDaysLabel}: ${v.days}</li><li>Days Attended: ${v.present}</li>
         <li>Days Absent: ${v.absent}</li><li>Attendance Rate: ${fmtPct(v.rate)}</li>
         <li>On time Rate: ${fmtPct(v.onTimePct)}</li>
       </ul></div>
@@ -120,9 +126,9 @@
       <div class="letter-signature"><p>Sincerely,</p><img alt="Signature" src="${sig}"><div>Dr.Melissa Melkonian<br>High School Director</div></div>` : `
       <div class="letter-head"><span>${today}</span><span>Tutor: ${advisor}</span></div>
       <p>Estimado padre/tutor de ${name},</p>
-      <p>Como parte de nuestros esfuerzos continuos para apoyar el éxito académico de nuestros estudiantes, monitoreamos periódicamente los datos de asistencia. Le escribimos para informarle que su estudiante, ${name}, ha estado ausente ${v.absent} días este año escolar. Nos gustaría hablar con usted sobre la causa de estas ausencias y cómo podemos ayudar.</p>
+      <p>Como parte de nuestros esfuerzos continuos para apoyar el éxito académico de nuestros estudiantes, monitoreamos periódicamente los datos de asistencia. Le escribimos para informarle que su estudiante, ${name}, ha estado ausente ${v.absent} días ${absenceScope}. Nos gustaría hablar con usted sobre la causa de estas ausencias y cómo podemos ayudar.</p>
       <div class="attendance-facts"><b>Datos de asistencia para ${name}</b><ul>
-        <li>Total de días escolares: ${v.days}</li><li>Días de asistencia: ${v.present}</li>
+        <li>${schoolDaysLabel}: ${v.days}</li><li>Días de asistencia: ${v.present}</li>
         <li>Días de ausencia: ${v.absent}</li><li>Tasa de asistencia: ${fmtPct(v.rate)}</li>
       </ul></div>
       <p>Como usted sabe, la asistencia regular es un componente importante del éxito académico de su estudiante. Los estudiantes se atrasan cuando faltan a la escuela (tanto por razones justificadas como injustificadas) y a menudo escuchamos de padres y tutores que no son conscientes del impacto que la falta de escuela tiene en el rendimiento académico de sus estudiantes.</p>
@@ -172,6 +178,8 @@
          <strong>Advisor:</strong> ${escapeHtml(report.advisor || 'Unavailable')}<br>
          <strong>Reporting period:</strong> ${escapeHtml(report.start)} to ${escapeHtml(report.end)}</p>
       <p>This letter uses total daily absences (excused and unexcused). The on-time rate is arrival to school among days attended, not classroom punctuality. It does not establish eligibility for a Level 1 unexcused-absence intervention.</p>
+      <p><strong>PowerSchool entry date:</strong> ${escapeHtml(report.enrollmentDate || 'Unavailable')}<br>
+         <strong>Attendance window:</strong> ${report.enrollmentAdjusted ? 'Starts at enrollment date' : 'Full school year'}</p>
       <p><strong>Languages:</strong> ${pages.map(l=>l===ENGLISH?'English':'Spanish').join(' + ')}.</p>`;
     const iframe=$('studentReportsPaperPreview');
     if (iframe) iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>${printCss}</style></head><body>${pages.map(l=>htmlPage(l,report,true)).join('')}</body></html>`;
@@ -185,7 +193,7 @@
     setNotice('Loading official school-year-to-date attendance and advisor information…');
     try {
       const [result,advisorResult] = await Promise.all([
-        get(`/admin/grades/attendance/student?osis=${encodeURIComponent(current)}&preset=ytd`),
+        get(`/admin/grades/attendance/student?osis=${encodeURIComponent(current)}&preset=ytd&report_enrollment_scoped=1`),
         get(`/admin/conferences/student_context?osis=${encodeURIComponent(current)}`).catch(()=>null)
       ]);
       if (id!==loadId || current!==studentOsis()) return;
@@ -193,7 +201,10 @@
       const advisor=String(advisorResult?.current_advisor?.advisor_name || '').trim();
       const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(p=>[p.type,p.value]));
       const now=`${parts.year}-${parts.month}-${parts.day}`;
-      data={osis:current,name:getName(),advisor,counts:stats,start:String(result.window?.start||''),end:String(result.window?.end||''),generated:now};
+      data={osis:current,name:getName(),advisor,counts:stats,start:String(result.window?.start||''),
+        end:String(result.window?.end||''),generated:now,
+        enrollmentDate:String(result.window?.entry_date||''),
+        enrollmentAdjusted:result.window?.enrollment_adjusted===true};
       renderPreview(data);
     } catch(e) {
       if (id!==loadId) return;
@@ -201,8 +212,15 @@
       $('studentReportsPreview').innerHTML='';
       $('studentReportsMetrics').innerHTML='';
       $('studentReportsPrint').disabled=true;
+      const errors = {
+        powerschool_entry_date_not_synced:'Entry date not yet included in the nightly PowerSchool push. Update its Apps Script and run Push Contacts to Worker cache now.',
+        powerschool_nightly_student_cache_unavailable:'PowerSchool nightly student cache is unavailable. Verify the contact-cache push.',
+        powerschool_nightly_student_cache_incomplete:'PowerSchool nightly student cache is incomplete. Rerun the Worker cache push.',
+        powerschool_student_not_found:'Student is not in the nightly PowerSchool cache. Check the student identifier.',
+        student_entry_after_completed_attendance:'No completed attendance days exist since this student enrolled.'
+      };
       setNotice(e.status===403?'Your account is not authorized to view this student’s attendance report.':
-        `Unable to load report: ${e.message||e}`, 'error');
+        (errors[e.message] || `Unable to load report: ${e.message||e}`), 'error');
     }
   }
   function printLetter() {
