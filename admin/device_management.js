@@ -271,21 +271,32 @@
   let googleResults = [];
   let googleReturnToTicket = false;
   let googleRequestSeq = 0;
+  let googleLookupMode = 'serial';
+  let googleActiveEmail = '';
+  let googleEmailNextToken = '';
   function googleDialog() { return $('dmGoogleDialog'); }
   async function openGoogleLookup(){
     googleReturnToTicket=Boolean($('dmDialog').open && $('dmForm')?.dataset.save==='ticket_create');
-    googleResults=[];
+    googleResults=[];googleLookupMode='serial';googleActiveEmail='';googleEmailNextToken='';
     googleDialog().showModal();
     $('dmGoogleBody').innerHTML=`<div class="dmDialogHeader"><h2>Find Chromebook in Google Admin</h2><button type="button" class="dmButton dmSmall" data-google-close>Close</button></div>
       <p class="dmSmall dmMuted">Search enrolled and retained deprovisioned ChromeOS records by serial number. Google annotations are not student assignments.</p>
       <div class="dmInline"><input id="dmGoogleSerial" class="dmInput" aria-label="Chromebook serial number" placeholder="Scan or enter serial number" autocomplete="off">
       <button type="button" id="dmGoogleSearch" class="dmButton dmPrimary">Search Google</button></div>
+      <div class="dmInline" style="margin-top:12px;align-items:center;flex-wrap:wrap">
+        <input id="dmGoogleRecentEmail" class="dmInput" type="email" aria-label="Student school email, recent Chromebook users" placeholder="Student email (recent users)" autocomplete="off">
+        <button type="button" id="dmGoogleRecentSearch" class="dmButton">Find devices by email</button></div>
+      <p class="dmSmall dmMuted">Recent-user results are Google login history, not verified ownership. Last sync is not a login time.</p>
       <p id="dmGoogleStatus" class="dmMuted dmSmall" role="status">Checking connection…</p><div id="dmGoogleMatches"></div>
+      <div class="dmDetailActions"><button type="button" id="dmGoogleLoadMore" class="dmButton dmSmall" hidden>Load more matches</button></div>
       <div class="dmDetailActions"><button type="button" class="dmButton dmSmall" data-google-manual>Register a device manually</button></div>`;
     const currentSerial=$('dmForm')?.querySelector('[data-device-search]')?.value || '';
     $('dmGoogleSerial').value=currentSerial;
     $('dmGoogleSerial').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();void googleSearch();}};
     $('dmGoogleSearch').onclick=()=>void googleSearch();
+    $('dmGoogleRecentEmail').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();void googleSearchRecentUser();}};
+    $('dmGoogleRecentSearch').onclick=()=>void googleSearchRecentUser();
+    $('dmGoogleLoadMore').onclick=()=>void googleSearchRecentUser(true);
     $('dmGoogleSerial').focus();
     try{
       const status=await api('/admin/device-management/google/status');
@@ -301,6 +312,7 @@
       $('dmGoogleStatus').textContent='Enter at least three serial-number characters (letters, digits, dash, dot or underscore).';return;
     }
     const seq=++googleRequestSeq;
+    googleLookupMode='serial';googleEmailNextToken='';$('dmGoogleLoadMore').hidden=true;
     $('dmGoogleSearch').disabled=true;
     $('dmGoogleStatus').textContent='Searching Google Admin…';
     $('dmGoogleMatches').textContent='';
@@ -320,6 +332,53 @@
           </div><button type="button" class="dmButton dmSmall" data-google-pick="${index}">${d.local_device_id?'Select existing':'Import & select'}</button></div>`).join('');
     }catch(e){if(seq===googleRequestSeq&&googleDialog().open)$('dmGoogleStatus').textContent='Google lookup failed: '+(e.message||String(e));}
     finally{if(seq===googleRequestSeq&&$('dmGoogleSearch'))$('dmGoogleSearch').disabled=false;}
+  }
+  // EAGLENEST_GOOGLE_RECENT_USER_SEARCH_V1
+  // Email searches use Google's own recent_user filter. The snapshot does not
+  // contain this history, and "Last sync" is NOT a login timestamp.
+  async function googleSearchRecentUser(append=false){
+    const email=String($('dmGoogleRecentEmail')?.value||'').trim().toLowerCase();
+    if(!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(email)||email.length>254){
+      $('dmGoogleStatus').textContent='Enter a complete school email address.';return;
+    }
+    if(append && (!googleEmailNextToken||googleLookupMode!=='recent'||email!==googleActiveEmail))return;
+    const seq=++googleRequestSeq;
+    const cursor=append?googleEmailNextToken:'';
+    if(!append){googleResults=[];googleEmailNextToken='';$('dmGoogleMatches').textContent='';}
+    googleLookupMode='recent';googleActiveEmail=email;
+    $('dmGoogleRecentSearch').disabled=true;
+    $('dmGoogleLoadMore').disabled=true;
+    $('dmGoogleStatus').textContent=append?'Loading more Google matches…':'Searching recent sign-ins across managed Chromebooks…';
+    try{
+      const qs=new URLSearchParams({email});if(cursor)qs.set('page_token',cursor);
+      const found=await api('/admin/device-management/google/recent-user?'+qs);
+      if(seq!==googleRequestSeq||!googleDialog().open)return;
+      const existing=new Set(googleResults.map(d=>d.google_device_id));
+      for(const d of found.devices||[]){if(!existing.has(d.google_device_id)){googleResults.push(d);existing.add(d.google_device_id);}}
+      googleEmailNextToken=String(found.next_page_token||'');
+      $('dmGoogleLoadMore').hidden=!googleEmailNextToken;
+      $('dmGoogleStatus').textContent=googleResults.length?
+        `${googleResults.length} Google-managed Chromebook(s) found for ${email}${googleEmailNextToken?' · more available':''}.`:
+        `No Chromebooks found in Google's recent-user index for ${email}.`;
+      $('dmGoogleMatches').innerHTML=googleResults.map((d,index)=>{
+        const rank=d.recent_user_rank===1?'Most recent recorded user':
+          d.recent_user_rank>1?`Recent user #${d.recent_user_rank}`:'Recent-user match (position unavailable)';
+        return `<div class="dmGoogleMatch">
+          <div><strong>${h(d.model||'ChromeOS device')}</strong> ${statusBadge(String(d.google_status||'').toLowerCase())}
+          <div class="dmSmall">Serial: <b>${h(d.serial_number)}</b> · Asset: ${h(d.asset_tag||'—')}</div>
+          <div class="dmSmall">${h(rank)}${d.most_recent_user?' · Most recent: '+h(d.most_recent_user):''}</div>
+          <div class="dmSmall dmMuted">${h(d.org_unit_path||'No OU')} · Google policy last sync: ${h(d.last_sync||'Unknown')}</div>
+          <div class="dmSmall">${d.local_device_id?'Registered in EagleNEST':'Google-managed; not yet registered in EagleNEST'}</div></div>
+          <button type="button" class="dmButton dmSmall" ${d.local_device_id?`data-google-open="${index}"`:`data-google-pick="${index}"`}>
+            ${d.local_device_id?'View device':'Register in EagleNEST'}
+          </button></div>`;
+      }).join('');
+    }catch(e){
+      if(seq===googleRequestSeq&&googleDialog().open)
+        $('dmGoogleStatus').textContent='Recent-user lookup failed: '+(e.message||String(e));
+    }finally{
+      if(seq===googleRequestSeq){$('dmGoogleRecentSearch').disabled=false;$('dmGoogleLoadMore').disabled=false;}
+    }
   }
   async function googleChoose(index){
     const record=googleResults[index];if(!record)return;
@@ -342,6 +401,9 @@
         }
         const search=$('dmForm').querySelector('[data-device-search]');if(search)search.value=record.serial_number;
         const status=$('dmFormStatus');if(status)status.textContent='Google device selected. Finish the repair ticket below.';
+      }else if(googleLookupMode==='recent'){
+        if($('dmDialog').open)$('dmDialog').close();
+        await deviceDetails(saved.device_id);
       }else{
         if($('dmDialog').open)$('dmDialog').close();
         newTicketForm(saved.device_id);
@@ -357,6 +419,15 @@
     if(event.target.closest('[data-google-close]')){googleDialog().close();return;}
     if(event.target.closest('[data-google-manual]')){
       googleDialog().close();if($('dmDialog').open)$('dmDialog').close();deviceForm();return;
+    }
+    const open=event.target.closest('[data-google-open]');
+    if(open){
+      const record=googleResults[Number(open.dataset.googleOpen)];
+      if(record?.local_device_id){
+        googleDialog().close();if($('dmDialog').open)$('dmDialog').close();
+        void deviceDetails(record.local_device_id).catch(showError);
+      }
+      return;
     }
     const pick=event.target.closest('[data-google-pick]');
     if(pick)void googleChoose(Number(pick.dataset.googlePick));
