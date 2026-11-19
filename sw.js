@@ -1,5 +1,5 @@
 // sw.js
-const VERSION = 'v20.12.0-2026-10-29'; // after-school exit directions kiosk release (network bypass preserved)
+const VERSION = 'v20.13.0-2026-11-19'; // EAGLENEST_BATHROOM_KIOSK_CLEAR_SW_BUMP_V1 (previous v20.12.0-2026-10-29)
 const STATIC_CACHE = `static-${VERSION}`;
 
 const PRECACHE = [

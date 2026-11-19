@@ -90,7 +90,8 @@ test('Reflection Hold ownership is independent of physical state date and physic
   const options = between(reflectionService, 'export async function buildReflectionHoldOptions', 'export async function previewReflectionHold');
   assert.doesNotMatch(options, /String\(state\.date \|\| ''\) !== date/);
 
-  const doBlock = between(worker, 'if (path === "/reflection_hold")', 'if (path === "/update")');
+  // EAGLENEST_REFLECTION_STATIC_SCOPE_FIX_V1: only inspect the Reflection Hold DO branch.
+  const doBlock = between(worker, 'if (path === "/reflection_hold")', 'if (path === "/phone_free_pass_daily")');
   assert.match(doBlock, /after_school_reflection_hold_active/);
   assert.match(doBlock, /already_held/);
   assert.match(doBlock, /not_owned_by_current_user/);

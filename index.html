@@ -463,7 +463,7 @@
               </div>
               <div class="scans-pane" style="max-height: 240px">
                 <table aria-label="Currently IN (Bathroom M)">
-                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Class</th></tr></thead>
+                  <thead><tr><th style="width:30%">Name</th><th style="width:18%">OSIS</th><th style="width:18%">Since</th><th style="width:18%">Class</th><th style="width:16%">Action</th></tr></thead>
                   <tbody id="bathBodyM"></tbody>
                 </table>
               </div>
@@ -477,7 +477,7 @@
               </div>
               <div class="scans-pane" style="max-height: 240px">
                 <table aria-label="Currently IN (Bathroom F)">
-                  <thead><tr><th style="width:40%">Name</th><th style="width:20%">OSIS</th><th style="width:20%">Since</th><th style="width:20%">Class</th></tr></thead>
+                  <thead><tr><th style="width:30%">Name</th><th style="width:18%">OSIS</th><th style="width:18%">Since</th><th style="width:18%">Class</th><th style="width:16%">Action</th></tr></thead>
                   <tbody id="bathBodyF"></tbody>
                 </table>
               </div>
@@ -1561,6 +1561,8 @@
   function bathBucketKeyG(g){ return `${todayKey()}|${(getLocation()||'').toLowerCase()}|${(g||'').toUpperCase()}`; }
   // ---- Bathroom occupancy is GLOBAL (derived from worker StudentLocationDO) ----
   let __BATH_STATE = { ts:0, loc:'', rowsM:[], rowsF:[], capM:BATHROOM_CAPACITY_DEFAULT, capF:BATHROOM_CAPACITY_DEFAULT };
+  const __BATH_CLEAR_PENDING = new Set();
+  let __BATH_GROUP_CLEAR_PENDING = false;
 
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
@@ -1659,14 +1661,16 @@
     if (titleM) titleM.textContent = `Currently IN — ${loc} (M cap ${capM})`;
     if (titleF) titleF.textContent = `Currently IN — ${loc} (F cap ${capF})`;
 
-    function rowHtml(r){
+    function rowHtml(r, gender){
       const when = new Date(r.sinceISO);
       const cls = r.cls || '';
+      const busy = __BATH_CLEAR_PENDING.has(r.osis) || __BATH_GROUP_CLEAR_PENDING;
       return `<tr>
         <td class="name">${esc(r.name || '—')}</td>
         <td class="code">${esc(r.osis || '')}</td>
         <td>${fmtTime(when)}</td>
         <td>${esc(cls || '—')}</td>
+        <td><button type="button" class="bath-student-clear" data-bath-clear-osis="${esc(r.osis)}" data-bath-clear-gender="${gender}" ${busy ? 'disabled' : ''} style="background:#e7f0fe;color:#0b57d0;padding:5px 9px;border-radius:8px;font-size:12px;white-space:nowrap;">${busy ? 'Clearing…' : 'Clear'}</button></td>
       </tr>`;
     }
 
@@ -1688,8 +1692,8 @@
   }
 
     
-    bodyM.innerHTML = rowsM.map(rowHtml).join('');
-    bodyF.innerHTML = rowsF.map(rowHtml).join('');
+    bodyM.innerHTML = rowsM.map(r => rowHtml(r, 'M')).join('');
+    bodyF.innerHTML = rowsF.map(r => rowHtml(r, 'F')).join('');
   }
 
   /* ---------- MINIMAL ADD: manual clear helpers ---------- */
@@ -2000,56 +2004,89 @@
     });
   });
 
-  /* Attach clear buttons to existing endpoints */
-  document.getElementById('bathRefreshBtnM')?.addEventListener('click', async (e)=>{
-    const btn = e.currentTarget; btn.disabled = true; const orig = btn.textContent;
-    btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (M)…');
-    try {
-      const loc = getLocation();
-      await refreshBathState(true);
-      const list = getBathSet('M');
-      if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
-      if (!list.length) { setStatus('Nothing to clear.'); return; }
-  
-      const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'M' }));
-      const res = await apiManualClear(loc, items);
-      await sleep(400);
-      await renderBathList();
-      await sleep(900);
-      await renderBathList();
-      setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (M).`);
-    } catch (err) {
-      setStatus(`Clear failed — ${err.message || err}`);
-    } finally {
-      btn.textContent = orig; btn.disabled = false;
-      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+  // EAGLENEST_BATHROOM_KIOSK_CLEAR_V2: confirmed, per-student and group clears.
+  function bathroomClearErrorMessage(err) {
+    const msg = String(err?.message || err || 'Unknown error');
+    if (/not_in_bathroom|student_has_newer_activity|different_bathroom/.test(msg)) {
+      return 'Student already moved or changed location. The list has been refreshed.';
     }
-  });
-  
-  document.getElementById('bathRefreshBtnF')?.addEventListener('click', async (e)=>{
-    const btn = e.currentTarget; btn.disabled = true; const orig = btn.textContent;
-    btn.textContent = 'Clearing…'; setStatus('Clearing bathroom (F)…');
+    return msg;
+  }
+
+  async function clearBathroomGroup(gender, btn) {
+    if (__BATH_GROUP_CLEAR_PENDING || __BATH_CLEAR_PENDING.size) return;
+    const loc = getLocation();
+    if (!isBathroomLocation(loc)) { setStatus('Not a bathroom location.'); return; }
     try {
-      const loc = getLocation();
       await refreshBathState(true);
-      const list = getBathSet('F');
-      if (!isBathroomLocation(loc)) { throw new Error('Not a bathroom location.'); }
-      if (!list.length) { setStatus('Nothing to clear.'); return; }
-  
-      const items = list.map(r => ({ osis: r.osis, name: r.name, sex: 'F' }));
-      const res = await apiManualClear(loc, items);
-      await sleep(400);
-      await renderBathList();
-      await sleep(900);
-      await renderBathList();
-      setStatus(`Cleared ${res?.cleared ?? 0} student(s) from (F).`);
+      const rows = getBathSet(gender).slice();
+      if (!rows.length) { setStatus('Nothing to clear.'); return; }
+      if (!window.confirm(`Clear all ${rows.length} student(s) from ${loc} (${gender})? They will be marked in the hallway.`)) return;
+      __BATH_GROUP_CLEAR_PENDING = true;
+      for (const r of rows) __BATH_CLEAR_PENDING.add(r.osis);
+      btn.disabled = true;
+      btn.textContent = 'Clearing…';
+      setStatus(`Clearing ${rows.length} bathroom student(s)…`);
+      const res = await apiManualClear(loc, rows.map(r => ({
+        osis: r.osis, name: r.name, sex: gender, expectedUpdatedAt: r.sinceISO
+      })));
+      setStatus(`Cleared ${res.cleared} student(s) from ${loc} (${gender}).`);
     } catch (err) {
-      setStatus(`Clear failed — ${err.message || err}`);
+      setStatus(`Bathroom clear: ${bathroomClearErrorMessage(err)}`);
     } finally {
-      btn.textContent = orig; btn.disabled = false;
-      setTimeout(()=> setStatus('Ready. Scan a card…'), 1200);
+      __BATH_GROUP_CLEAR_PENDING = false;
+      __BATH_CLEAR_PENDING.clear();
+      btn.disabled = false;
+      btn.textContent = 'Clear Bathroom';
+      await renderBathList().catch(() => {});
     }
+  }
+
+  async function clearBathroomStudent(gender, osis, btn) {
+    if (__BATH_GROUP_CLEAR_PENDING || __BATH_CLEAR_PENDING.has(osis)) return;
+    const loc = getLocation();
+    if (!isBathroomLocation(loc)) return;
+    try {
+      await refreshBathState(true);
+      const row = getBathSet(gender).find(r => r.osis === osis);
+      if (!row) {
+        setStatus('Student no longer in this bathroom. List refreshed.');
+        await renderBathList();
+        return;
+      }
+      if (!window.confirm(`Clear ${row.name || row.osis} from ${loc}? They will be marked in the hallway.`)) return;
+      __BATH_CLEAR_PENDING.add(osis);
+      btn.disabled = true;
+      btn.textContent = 'Clearing…';
+      setStatus(`Clearing ${row.name || osis}…`);
+      const res = await apiManualClear(loc, [{
+        osis: row.osis, name: row.name, sex: gender, expectedUpdatedAt: row.sinceISO
+      }]);
+      setStatus(`Cleared ${row.name || osis} from the bathroom (${res.cleared} student).`);
+    } catch (err) {
+      setStatus(`Bathroom clear: ${bathroomClearErrorMessage(err)}`);
+    } finally {
+      __BATH_CLEAR_PENDING.delete(osis);
+      btn.disabled = false;
+      btn.textContent = 'Clear';
+      await renderBathList().catch(() => {});
+    }
+  }
+
+  document.getElementById('bathRefreshBtnM')?.addEventListener('click', e => {
+    clearBathroomGroup('M', e.currentTarget).catch(err => setStatus(String(err)));
   });
+  document.getElementById('bathRefreshBtnF')?.addEventListener('click', e => {
+    clearBathroomGroup('F', e.currentTarget).catch(err => setStatus(String(err)));
+  });
+  for (const tbody of [bodyM, bodyF]) {
+    tbody?.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-bath-clear-osis]');
+      if (!btn) return;
+      clearBathroomStudent(btn.dataset.bathClearGender, btn.dataset.bathClearOsis, btn)
+        .catch(err => setStatus(String(err)));
+    });
+  }
 
   // Console helpers
   window.getBathroomCap = async function(location) {
@@ -2167,7 +2204,7 @@
     const body = new URLSearchParams();
     body.set('action', 'manual_clear');
     body.set('location', location || '');
-    body.set('device_id', event.device_id || DEVICE_ID);
+    body.set('device_id', DEVICE_ID);
     body.set('items_json', JSON.stringify(items || []));
     const r = await fetch(API_BASE, { method:'POST', body });
     const ct = r.headers.get('content-type') || '';
@@ -2175,7 +2212,14 @@
     if (!r.ok || !ct.includes('application/json')) {
       throw new Error(`Manual clear failed (${r.status}): ${text.slice(0,160)}`);
     }
-    return JSON.parse(text);
+    const result = JSON.parse(text);
+    if (!result?.ok) {
+      const firstError = Array.isArray(result?.errors) && result.errors.length
+        ? result.errors.map(e => `${e.osis || '?'}: ${e.error || 'failed'}`).join('; ')
+        : (result?.error || 'unknown');
+      throw new Error(`Cleared ${Number(result?.cleared || 0)} student(s); ${firstError}`);
+    }
+    return result;
   }
   function makeLogId({ whenISO, code }) { return `${whenISO}|${code}|${getLocation()||''}|${DEVICE_ID}`; }
   async function apiDebugLog(sample){
