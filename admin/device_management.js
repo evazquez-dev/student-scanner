@@ -32,6 +32,19 @@
   const statusBadge=(value)=>{const type=['missing','retired','unusable'].includes(value)?'bad':['needs_repair','under_repair','waiting_parts','damaged','reported'].includes(value)?'warn':['available','ready','in_use','closed'].includes(value)?'good':'';return `<span class="dmTag ${type}">${h(label(value||'unknown'))}</span>`};
   const empty=text=>`<div class="dmEmpty">${h(text)}</div>`;
   const button=(action,title,id='',klass='')=>`<button type="button" class="dmButton dmSmall ${klass}" data-action="${h(action)}" ${id?`data-id="${h(id)}"`:''}>${h(title)}</button>`;
+  // EAGLENEST_GOOGLE_ADMIN_DEVICE_LINK_V1
+  // Google Admin exposes a stable ChromeOS device LIST and a serial search URL.
+  // Avoid guessing an undocumented device-detail deep-link or using a device ID
+  // in the list query, which expects serial number (id:SERIAL).
+  const googleAdminDeviceUrl=serial=>{
+    const sn=String(serial||'').trim();
+    if(!/^[A-Za-z0-9._-]{3,100}$/.test(sn))return '';
+    return 'https://admin.google.com/ac/chrome/devices/?q='+encodeURIComponent('id:"'+sn+'"')+'&sf=2&so=2';
+  };
+  const googleAdminDeviceLink=serial=>{
+    const href=googleAdminDeviceUrl(serial);
+    return href?`<a class="dmButton dmSmall" href="${h(href)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;text-decoration:none;margin-top:5px" title="Find this Chromebook by serial in Google Admin; select its serial to open details">Open in Google Admin ↗</a>`:'';
+  };
   // EAGLENEST_REPAIR_OWNERSHIP_V1: An existing under-repair Chromebook can keep a primary owner.
   const deviceOpts=(selected='',onlyAvailable=false)=>'<option value="">Select device…</option>'+state.devices.filter(d=>!onlyAvailable||(!d.active_assignment_id && !d.home_station_id &&(['available','in_use'].includes(d.operational_status) ||(d.id===selected && ['needs_repair','under_repair'].includes(d.operational_status))))).map(d=>`<option value="${h(d.id)}" ${d.id===selected?'selected':''}>${h(deviceName(d))} · ${h(d.model||d.serial_number||'Chromebook')}</option>`).join('');
   const devicePicker=(selected='',onlyAvailable=false)=>`<label>Find device by asset tag / serial<input type="search" data-device-search="1" placeholder="Search all registered devices…" autocomplete="off"></label><label>Device<select name="device_id" data-device-select="1" required>${deviceOpts(selected,onlyAvailable)}</select></label>`;
@@ -72,7 +85,7 @@
     $('dmPane').innerHTML=`<section class="dmPanel"><div class="dmRowHeading"><div><h2 class="dmTitle">Device Inventory</h2><p class="dmMuted dmSmall">A permanent record for every Chromebook. Search by serial, asset tag, or current student.</p></div>${button('google-lookup','Find in Google Admin')}${button('create-device','+ Add device')}${button('export-devices','Export CSV')}${button('export-assignments','Assignment CSV')}</div>
       <div class="dmToolbar"><input id="dmDeviceSearch" type="search" placeholder="Find device or student" value="${h(state.deviceQuery)}"><select id="dmDeviceStatus"><option value="">All statuses</option>${optionList(['available','in_use','needs_repair','under_repair','missing','retired'],state.deviceStatus)}</select></div><div id="dmInventoryRows"></div></section>`;
     const draw=()=>{const q=state.deviceQuery.toLowerCase(),devices=state.devices.filter(d=>(!state.deviceStatus||state.deviceStatus===d.operational_status)&&(!q||[d.asset_tag,d.serial_number,d.model,d.manufacturer,d.current_student_name,d.current_student_osis,d.station_code,d.station_label].join(' ').toLowerCase().includes(q)));
-      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.station_label||d.station_code||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && ['available','needs_repair','under_repair'].includes(d.operational_status) && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}${d.current_student_osis?button('borrow-log','Log borrowing',d.id):''}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
+      $('dmInventoryRows').innerHTML=devices.length?`<div class="dmTableWrap"><table class="dmTable"><thead><tr><th>Device</th><th>Model / Serial</th><th>Student / Home</th><th>Condition</th><th>Status</th><th></th></tr></thead><tbody>${devices.map(d=>`<tr><td><button class="dmLink" data-action="device" data-id="${h(d.id)}">${h(deviceName(d))}</button></td><td>${h([d.manufacturer,d.model].filter(Boolean).join(' ')||'Chromebook')}<div class="dmSmall dmMuted">${h(d.serial_number)}</div></td><td>${h(d.current_student_name||d.current_student_osis||d.station_label||d.station_code||d.cart_code||d.device_pool)}<div class="dmSmall dmMuted">${h(d.assignment_kind||d.last_known_location)}</div></td><td>${statusBadge(d.condition)}</td><td>${statusBadge(d.operational_status)}</td><td>${!d.active_assignment_id && ['available','needs_repair','under_repair'].includes(d.operational_status) && !d.home_station_id?button('issue','Assign student',d.id):''}${button('device','Details',d.id)}${googleAdminDeviceLink(d.serial_number)}${d.current_student_osis?button('borrow-log','Log borrowing',d.id):''}</td></tr>`).join('')}</tbody></table></div>`:empty('No matching devices.');};
     let queryVersion=0;
     $('dmDeviceSearch').oninput=async e=>{state.deviceQuery=e.target.value;const v=++queryVersion;draw();
       try{const data=await api('/admin/device-management/devices?limit=150&q='+encodeURIComponent(state.deviceQuery));if(v!==queryVersion||state.tab!=='inventory')return;state.devices=data.devices||[];draw();}
@@ -218,6 +231,7 @@
       <p class="dmSmall">Last confirmed location: ${h(d.last_known_location||'Not confirmed')} ${d.location_confirmed_at?'(updated '+h(nice(d.location_confirmed_at))+')':''}</p>
       <div class="dmDetailActions">${button('edit-device','Edit details',d.id)}${!ongoing?button('new-ticket','Report issue',d.id):button('ticket','Open issue',ongoing.id)}${!active&&['available','needs_repair','under_repair'].includes(d.operational_status)&&!d.home_station_id?button('issue','Assign student',d.id):''}${button('note','Add note',d.id)}${active?button('borrow-log','Log borrowing',d.id):''}</div>
       <h3 class="dmSub">Google Admin reference</h3>
+      <div class="dmDetailActions">${googleAdminDeviceLink(d.serial_number||googleInfo?.device?.serial_number)}</div>
       ${googleInfo.linked?`<div class="dmHint"><b>${h(googleInfo.device.model||'ChromeOS device')}</b> · ${h(googleInfo.device.google_status)}
       <p>Serial: ${h(googleInfo.device.serial_number)} · Google asset: ${h(googleInfo.device.asset_tag||'—')}</p>
       <p>OU: ${h(googleInfo.device.org_unit_path||'—')} · ChromeOS: ${h(googleInfo.device.chromeos_version||'—')} · Last sync: ${h(googleInfo.device.last_sync||'—')}</p>
@@ -385,6 +399,7 @@
           <div class="dmMuted dmSmall">${h(d.org_unit_path||'No OU')} · Last sync: ${h(d.last_sync||'Unknown')}</div>
           ${d.annotated_user?`<div class="dmMuted dmSmall">Google annotated user: ${h(d.annotated_user)} (not a confirmed assignment)</div>`:''}
           ${d.local_device_id?'<div class="dmSmall">Already in EagleNEST inventory</div>':''}
+           ${googleAdminDeviceLink(d.serial_number)}
           </div><button type="button" class="dmButton dmSmall" data-google-pick="${index}">${d.local_device_id?'Select existing':'Import & select'}</button></div>`).join('');
     }catch(e){if(seq===googleRequestSeq&&googleDialog().open)$('dmGoogleStatus').textContent='Google lookup failed: '+(e.message||String(e));}
     finally{if(seq===googleRequestSeq&&$('dmGoogleSearch'))$('dmGoogleSearch').disabled=false;}
@@ -425,7 +440,8 @@
           <div class="dmSmall">Serial: <b>${h(d.serial_number)}</b> · Asset: ${h(d.asset_tag||'—')}</div>
           <div class="dmSmall">${h(rank)}${d.most_recent_user?' · Most recent: '+h(d.most_recent_student_name?`${d.most_recent_student_name} (${d.most_recent_user})`:d.most_recent_user):''}</div>
           <div class="dmSmall dmMuted">${h(d.org_unit_path||'No OU')} · Google policy last sync: ${h(d.last_sync||'Unknown')}</div>
-          <div class="dmSmall">${d.local_device_id?'Registered in EagleNEST':'Google-managed; not yet registered in EagleNEST'}</div></div>
+          <div class="dmSmall">${d.local_device_id?'Registered in EagleNEST':'Google-managed; not yet registered in EagleNEST'}</div>
+          ${googleAdminDeviceLink(d.serial_number)}</div>
           <button type="button" class="dmButton dmSmall" ${d.local_device_id?`data-google-open="${index}"`:`data-google-pick="${index}"`}>
             ${d.local_device_id?'View device':'Register in EagleNEST'}
           </button></div>`;
