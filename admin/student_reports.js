@@ -18,6 +18,8 @@
   }[c]));
   const studentOsis = () => osis || String(new URL(location.href).searchParams.get('osis') || '').replace(/\D/g, '').slice(0,20);
   const isVisible = () => $('tabStudentReports')?.getAttribute('aria-selected') === 'true';
+  // EAGLENEST_GENERIC_DAILY_ATTENDANCE_REPORT_V1: keep both report templates independent.
+  const isDaily = () => $('studentReportsTemplate')?.value === 'daily';
   const fmtPct = n => Number.isFinite(n) ? `${n.toFixed(1).replace(/\.0$/, '')}%` : '—';
   const dateFmt = (iso, lang='en-US') => {
     const d = new Date(`${iso}T12:00:00Z`);
@@ -54,6 +56,7 @@
   }
   function reset() {
     loadId++;
+    window.EagleNESTDailyAttendanceReport?.reset?.();
     data = null;
     $('studentReportsMetrics').innerHTML = '';
     $('studentReportsPreview').innerHTML = '';
@@ -185,6 +188,7 @@
     if (iframe) iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8"><style>${printCss}</style></head><body>${pages.map(l=>htmlPage(l,report,true)).join('')}</body></html>`;
   }
   async function load(force=false) {
+    if (isDaily()) return window.EagleNESTDailyAttendanceReport?.load(force);
     const current = studentOsis();
     if (!/^\d{5,15}$/.test(current)) return;
     if (data && data.osis===current && !force) { renderPreview(data); return; }
@@ -224,6 +228,7 @@
     }
   }
   function printLetter() {
+    if (isDaily()) return window.EagleNESTDailyAttendanceReport?.print();
     if (!data || $('studentReportsPrint').disabled) return;
     const languages=currentLanguage===BOTH?[ENGLISH,SPANISH]:[currentLanguage];
     const pages=languages.map(l=>htmlPage(l,data,false)).join('');
@@ -239,6 +244,19 @@
   function bind() {
     const tab=$('tabStudentReports');
     if(!tab) return;
+    const selector = $('studentReportsTemplate');
+    selector?.addEventListener('change', () => {
+      const daily = isDaily();
+      const entries = $('studentReportsDailyRowsControl');
+      const language = $('studentReportsLanguageControl');
+      if (entries) entries.hidden = !daily;
+      if (language) language.hidden = daily;
+      $('studentReportsPrint').textContent = daily
+        ? 'Open print-ready daily report / Save as PDF'
+        : 'Open print-ready letter / Save as PDF';
+      reset();
+      if (isVisible()) load(true);
+    });
     tab.addEventListener('click',()=>load());
     $('studentReportsRefresh')?.addEventListener('click',()=>load(true));
     $('studentReportsLanguage')?.addEventListener('change',e=>{currentLanguage=e.target.value; if(data)renderPreview(data);});

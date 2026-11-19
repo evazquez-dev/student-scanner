@@ -246,24 +246,30 @@
         <!-- EAGLENEST_STUDENT_REPORTS_V1_PANEL -->
         <section id="panelStudentReports" class="card panelCard tabPanel" role="tabpanel" aria-labelledby="tabStudentReports" data-panel="student_reports" hidden>
           <div class="panelHead"><div><h2>Student Reports</h2>
-            <p class="muted small">Generate the school's bilingual attendance concern letter using completed, official attendance records for the selected student.</p></div></div>
+            <p class="muted small">Generate an attendance concern letter or a detailed daily attendance report using official student attendance records.</p></div></div>
           <div class="studentReportsControlRow">
-            <label>Report template <select id="studentReportsTemplate" class="input" disabled>
-              <option>Attendance Concern Letter (Level 1 template)</option>
+            <!-- EAGLENEST_GENERIC_DAILY_ATTENDANCE_REPORT_V1 -->
+            <label>Report template <select id="studentReportsTemplate" class="input">
+              <option value="letter">Attendance Concern Letter (Level 1)</option>
+              <option value="daily">Generic Daily Attendance (ISAR)</option>
             </select></label>
             <label>Reporting period <select id="studentReportsPeriod" class="input" disabled>
               <option>School year to date — latest completed day</option>
             </select></label>
-            <label>Letter language <select id="studentReportsLanguage" class="input">
+            <label id="studentReportsLanguageControl">Letter language <select id="studentReportsLanguage" class="input">
               <option value="both">English + Spanish</option>
               <option value="en">English only</option>
               <option value="es">Spanish only</option>
+            </select></label>
+            <label id="studentReportsDailyRowsControl" hidden>Daily rows <select id="studentReportsDailyRows" class="input">
+              <option value="recorded">Recorded arrivals + exceptions</option>
+              <option value="all">All school days</option>
             </select></label>
           </div>
           <div id="studentReportsStatus" class="studentReportsNotice" role="status" aria-live="polite">Open Reports to retrieve this student's attendance letter.</div>
           <div id="studentReportsMetrics" class="studentReportsMetrics"></div>
           <div id="studentReportsPreview" class="studentReportsPreview"></div>
-          <iframe id="studentReportsPaperPreview" title="Attendance letter document preview" sandbox="" loading="lazy"></iframe>
+          <iframe id="studentReportsPaperPreview" title="Student attendance document preview" sandbox="" loading="lazy"></iframe>
           <div class="studentReportsActions">
             <button id="studentReportsRefresh" type="button" class="btn secondary">Refresh report data</button>
             <button id="studentReportsPrint" type="button" class="btn primary" disabled>Open print-ready letter / Save as PDF</button>
@@ -384,6 +390,7 @@
   <!-- EAGLENEST_DEVICE_MANAGEMENT_V1_LOOKUP -->
   <script src="./student_lookup_devices.js?v=20261117-v1" defer></script>
   <!-- EAGLENEST_STUDENT_REPORTS_V1_SCRIPT -->
-  <script src="./student_reports.js?v=20261118-enrollment-v1_1" defer></script>
+  <script src="./student_reports.js?v=20261119-daily-v1" defer></script>
+  <script src="./student_reports_daily.js?v=20261119-daily-v1" defer></script>
 </body>
 </html>
