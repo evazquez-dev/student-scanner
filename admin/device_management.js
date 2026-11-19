@@ -225,6 +225,12 @@
       <p>Last imported: ${h(nice(googleInfo.last_fetched_at))}</p>
       ${button('google-refresh','Refresh Google metadata',d.id)}</div>`:
       `<p class="dmSmall dmMuted">No Google Admin record linked. ${button('google-lookup','Find by serial')}</p>`}
+      <!-- EAGLENEST_DEVICE_GOOGLE_RECENT_USERS_ON_DEMAND_V1 -->
+      <h3 class="dmSub">Recent Google users (on demand)</h3>
+      <p class="dmSmall dmMuted">View recent Google sign-ins for this Chromebook. This does not change student assignments or repair records.</p>
+      ${googleInfo.linked||d.serial_number?`<div class="dmDetailActions">${button('google-recent-users','Load recent users',d.id)}</div>
+      <div id="dmGoogleRecentUsers" class="dmSmall dmMuted" role="status" aria-live="polite">Not loaded. Click the button to request live Google Admin data.</div>`:
+      '<p class="dmSmall dmMuted">Add a serial number or link this Chromebook to Google Admin to look up recent users.</p>'}
       <h3 class="dmSub">Assignment history (${details.assignments.length})</h3>${assignmentHTML||empty('No assignments yet.')}
       <h3 class="dmSub">Issues and repairs (${details.tickets.length})</h3>${ticketHTML||empty('No repair tickets yet.')}
       ${borrowing.historyShell('device',d.id)}<h3 class="dmSub">Permanent activity log</h3>${eventList(details.events||[])}`;
@@ -439,6 +445,30 @@
       if(action==='close-dialog')return $('dmDialog').close();
       if(action.startsWith('export-'))return await exportCsv(action.slice('export-'.length));
       if(action==='google-lookup')return openGoogleLookup();
+      // EAGLENEST_DEVICE_GOOGLE_RECENT_USERS_ON_DEMAND_V1
+      if(action==='google-recent-users'){
+        const panel=$('dmGoogleRecentUsers');
+        if(!panel||state.selectedDevice?.device?.id!==id)return;
+        b.disabled=true;
+        panel.textContent='Loading recent users from Google Admin…';
+        try{
+          const result=await api('/admin/device-management/google/recent-users?device_id='+encodeURIComponent(id));
+          if(!panel.isConnected||!$('dmDialog').open||state.selectedDevice?.device?.id!==id)return;
+          const users=Array.isArray(result.recent_users)?result.recent_users:[];
+          const top=`<p class="dmSmall dmMuted">Checked live: ${h(nice(result.checked_at))} · Google policy last sync: ${h(nice(result.last_sync))}</p>`;
+          panel.innerHTML=top+(users.length?users.map((person,i)=>`<div class="dmEvent">
+            <b>${h(person.email||'Email not supplied by Google')}</b>
+            <div class="dmSmall dmMuted">${i===0?'Most recent recorded user':'Recent user #'+(i+1)}${person.type?' · '+h(label(person.type)):''}</div>
+          </div>`).join(''):
+          '<p class="dmSmall">Google did not return a recent-user list for this device. Device-user tracking may be disabled or unavailable.</p>')+
+          '<p class="dmSmall dmMuted">Order reflects Google-reported sign-ins, not Chromebook ownership. Individual login timestamps are not provided.</p>';
+          b.textContent='Reload recent users';
+        }catch(error){
+          if(panel.isConnected&&state.selectedDevice?.device?.id===id)
+            panel.textContent='Could not load recent users: '+(error?.message||String(error));
+        }finally{if(b.isConnected)b.disabled=false;}
+        return;
+      }
       if(action==='google-refresh'){
         const saved=await api('/admin/device-management/google/device?device_id='+encodeURIComponent(id));
         if(!saved.linked)throw new Error('No Google record linked to this device.');
