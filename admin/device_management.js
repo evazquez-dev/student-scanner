@@ -280,15 +280,63 @@
   let googleLookupMode = 'serial';
   let googleActiveEmail = '';
   let googleEmailNextToken = '';
+  // EAGLENEST_GOOGLE_ROSTER_RECENT_USER_MATCH_V1
+  // Existing Sys Admin roster lookup already searches name, OSIS and email.
+  // Return only suggestions here; never download the entire student roster.
+  let googleStudentMatches=[];
+  let googleStudentSearchSeq=0;
+  async function googleSearchStudentName(){
+    const query=String($('dmGoogleStudentName')?.value||'').trim();
+    const seq=++googleStudentSearchSeq;
+    const list=$('dmGoogleStudentMatches');
+    if(!list)return;
+    googleStudentMatches=[];
+    if(query.length<2){list.textContent='';$('dmGoogleStudentResolved').textContent='';return;}
+    list.textContent='Searching EagleNEST student roster…';
+    $('dmGoogleStudentResolved').textContent='Select a matching student to use their registered email.';
+    try{
+      const found=await api('/admin/device-management/students?q='+encodeURIComponent(query));
+      if(seq!==googleStudentSearchSeq || !googleDialog().open || !list.isConnected)return;
+      googleStudentMatches=Array.isArray(found.students)?found.students:[];
+      list.innerHTML=googleStudentMatches.length?googleStudentMatches.map((student,index)=>
+        `<button type="button" data-google-student-pick="${index}" ${!student.email?'disabled':''}>
+          ${h(student.name||student.osis)} · ${h(student.osis)}
+          <span class="dmMuted dmSmall">${h(student.email||'No email registered')}</span>
+        </button>`).join(''):
+        '<span class="dmMuted dmSmall">No roster matches. Try another name or OSIS.</span>';
+      if(googleStudentMatches.length && !googleStudentMatches.some(student=>student.email))
+        $('dmGoogleStudentResolved').textContent='Matching student(s) have no email in the current roster. You may enter an email manually.';
+    }catch(error){
+      if(seq===googleStudentSearchSeq && list.isConnected)
+        list.textContent='Student lookup failed: '+(error?.message||String(error));
+    }
+  }
+  function googleChooseStudent(index){
+    const student=googleStudentMatches[index];
+    if(!student?.email)return;
+    ++googleStudentSearchSeq;
+    $('dmGoogleRecentEmail').value=String(student.email).trim();
+    $('dmGoogleStudentName').value=String(student.name||student.osis);
+    $('dmGoogleStudentMatches').textContent='';
+    $('dmGoogleStudentResolved').textContent=
+      `Selected ${student.name||student.osis} · OSIS ${student.osis} · ${student.email}`;
+    // Selecting a student is an explicit request: run the Google search now.
+    void googleSearchRecentUser();
+  }
   function googleDialog() { return $('dmGoogleDialog'); }
   async function openGoogleLookup(){
     googleReturnToTicket=Boolean($('dmDialog').open && $('dmForm')?.dataset.save==='ticket_create');
     googleResults=[];googleLookupMode='serial';googleActiveEmail='';googleEmailNextToken='';
+    googleStudentMatches=[];++googleStudentSearchSeq;
     googleDialog().showModal();
     $('dmGoogleBody').innerHTML=`<div class="dmDialogHeader"><h2>Find Chromebook in Google Admin</h2><button type="button" class="dmButton dmSmall" data-google-close>Close</button></div>
       <p class="dmSmall dmMuted">Search enrolled and retained deprovisioned ChromeOS records by serial number. Google annotations are not student assignments.</p>
       <div class="dmInline"><input id="dmGoogleSerial" class="dmInput" aria-label="Chromebook serial number" placeholder="Scan or enter serial number" autocomplete="off">
       <button type="button" id="dmGoogleSearch" class="dmButton dmPrimary">Search Google</button></div>
+      <p class="dmSmall dmMuted" style="margin:12px 0 5px">Find a student by name or OSIS (optional):</p>
+      <input id="dmGoogleStudentName" class="dmInput" type="search" aria-label="Find student by name or OSIS" placeholder="Type a student name or OSIS…" autocomplete="off">
+      <div id="dmGoogleStudentMatches" class="dmSearchSuggestions" role="listbox" aria-label="Matching students"></div>
+      <p id="dmGoogleStudentResolved" class="dmMuted dmSmall" role="status"></p>
       <div class="dmInline" style="margin-top:12px;align-items:center;flex-wrap:wrap">
         <input id="dmGoogleRecentEmail" class="dmInput" type="email" aria-label="Student school email, recent Chromebook users" placeholder="Student email (recent users)" autocomplete="off">
         <button type="button" id="dmGoogleRecentSearch" class="dmButton">Find devices by email</button></div>
@@ -300,6 +348,8 @@
     $('dmGoogleSerial').value=currentSerial;
     $('dmGoogleSerial').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();void googleSearch();}};
     $('dmGoogleSearch').onclick=()=>void googleSearch();
+    $('dmGoogleStudentName').oninput=()=>void googleSearchStudentName();
+    $('dmGoogleRecentEmail').oninput=()=>{$('dmGoogleStudentResolved').textContent='';};
     $('dmGoogleRecentEmail').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();void googleSearchRecentUser();}};
     $('dmGoogleRecentSearch').onclick=()=>void googleSearchRecentUser();
     $('dmGoogleLoadMore').onclick=()=>void googleSearchRecentUser(true);
@@ -363,16 +413,17 @@
       for(const d of found.devices||[]){if(!existing.has(d.google_device_id)){googleResults.push(d);existing.add(d.google_device_id);}}
       googleEmailNextToken=String(found.next_page_token||'');
       $('dmGoogleLoadMore').hidden=!googleEmailNextToken;
+      const matchingLabel=found.student_name?`${found.student_name} (${email})`:email;
       $('dmGoogleStatus').textContent=googleResults.length?
-        `${googleResults.length} Google-managed Chromebook(s) found for ${email}${googleEmailNextToken?' · more available':''}.`:
-        `No Chromebooks found in Google's recent-user index for ${email}.`;
+        `${googleResults.length} Google-managed Chromebook(s) found for ${matchingLabel}${googleEmailNextToken?' · more available':''}.`:
+        `No Chromebooks found in Google's recent-user index for ${matchingLabel}.`;
       $('dmGoogleMatches').innerHTML=googleResults.map((d,index)=>{
         const rank=d.recent_user_rank===1?'Most recent recorded user':
           d.recent_user_rank>1?`Recent user #${d.recent_user_rank}`:'Recent-user match (position unavailable)';
         return `<div class="dmGoogleMatch">
           <div><strong>${h(d.model||'ChromeOS device')}</strong> ${statusBadge(String(d.google_status||'').toLowerCase())}
           <div class="dmSmall">Serial: <b>${h(d.serial_number)}</b> · Asset: ${h(d.asset_tag||'—')}</div>
-          <div class="dmSmall">${h(rank)}${d.most_recent_user?' · Most recent: '+h(d.most_recent_user):''}</div>
+          <div class="dmSmall">${h(rank)}${d.most_recent_user?' · Most recent: '+h(d.most_recent_student_name?`${d.most_recent_student_name} (${d.most_recent_user})`:d.most_recent_user):''}</div>
           <div class="dmSmall dmMuted">${h(d.org_unit_path||'No OU')} · Google policy last sync: ${h(d.last_sync||'Unknown')}</div>
           <div class="dmSmall">${d.local_device_id?'Registered in EagleNEST':'Google-managed; not yet registered in EagleNEST'}</div></div>
           <button type="button" class="dmButton dmSmall" ${d.local_device_id?`data-google-open="${index}"`:`data-google-pick="${index}"`}>
@@ -435,6 +486,8 @@
       }
       return;
     }
+    const studentPick=event.target.closest('[data-google-student-pick]');
+    if(studentPick){googleChooseStudent(Number(studentPick.dataset.googleStudentPick));return;}
     const pick=event.target.closest('[data-google-pick]');
     if(pick)void googleChoose(Number(pick.dataset.googlePick));
   });
@@ -457,7 +510,8 @@
           const users=Array.isArray(result.recent_users)?result.recent_users:[];
           const top=`<p class="dmSmall dmMuted">Checked live: ${h(nice(result.checked_at))} · Google policy last sync: ${h(nice(result.last_sync))}</p>`;
           panel.innerHTML=top+(users.length?users.map((person,i)=>`<div class="dmEvent">
-            <b>${h(person.email||'Email not supplied by Google')}</b>
+            <b>${person.student_name?h(person.student_name)+' · ':''}${h(person.email||'Email not supplied by Google')}</b>
+            ${person.student_osis?`<div class="dmSmall dmMuted">Matched EagleNEST student · OSIS ${h(person.student_osis)}</div>`:''}
             <div class="dmSmall dmMuted">${i===0?'Most recent recorded user':'Recent user #'+(i+1)}${person.type?' · '+h(label(person.type)):''}</div>
           </div>`).join(''):
           '<p class="dmSmall">Google did not return a recent-user list for this device. Device-user tracking may be disabled or unavailable.</p>')+
