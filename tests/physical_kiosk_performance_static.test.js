@@ -51,7 +51,9 @@ test('authoritative class scans do not re-read/rewrite ClassSession and post-sta
   assert.match(handler, /classSessionAlreadyAuthoritative/);
   // EAGLENEST_ATTENDANCE_AFTER_SCAN_BATCH3_YESNO_V3: first physical check-in is a ClassSession-owned action.
   assert.match(handler, /"class_first", "class_repeat", "class_back", "class_physical_checkin", "class_out", "class_cancelled", "class_superseded"/);
-  assert.match(handler, /if \(!classSessionAlreadyAuthoritative\)/);
+  // EAGLENEST_EARLY_DISMISSAL_FRONT_ENTRANCE_GUARD_V1: a preserved departure scan
+  // must not project a phantom ClassSession location change.
+  assert.match(handler, /if \(!classSessionAlreadyAuthoritative && actionResult\?\.action !== "early_dismissal_scan_preserved"\)/);
   assert.match(handler, /markClassSession: false/);
   assert.match(handler, /Promise\.all\(\[projectionTask, attendanceTask, logTask\]\)/);
 });

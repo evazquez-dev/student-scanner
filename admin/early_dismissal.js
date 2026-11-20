@@ -24,6 +24,7 @@
   let ACCESS = null;
   let ROWS = [];
   let CAN_UNDO = false;
+  let CAN_REVIEW = false; // EAGLENEST_EARLY_DISMISSAL_PAGE_REVIEW_V1
   let BUSY_TOKEN = '';
 
   function show(el){ if (el) el.style.display = ''; }
@@ -123,6 +124,7 @@
     $('activeCount').textContent = String(data?.counts?.active ?? 0);
     $('changedCount').textContent = String(data?.counts?.changed ?? 0);
     $('undoneCount').textContent = String(data?.counts?.undone ?? 0);
+    $('returnedCount').textContent = String(data?.counts?.returned ?? 0);
   }
 
   function statusTag(row){
@@ -130,6 +132,7 @@
     if (s === 'active') return '<span class="tag active">Active</span>';
     if (s === 'changed') return '<span class="tag changed">Changed</span>';
     if (s === 'undone') return '<span class="tag undone">Undone</span>';
+    if (s === 'returned') return '<span class="tag returned">Returned</span>';
     return `<span class="tag">${esc(s || '-')}</span>`;
   }
 
@@ -160,9 +163,22 @@
       const token = String(row.token || '');
       const undoable = canUndoRow(row);
       const busy = BUSY_TOKEN && BUSY_TOKEN === token;
-      const action = undoable
-        ? `<button class="danger undoBtn" type="button" data-token="${esc(token)}"${busy ? ' disabled' : ''}>${busy ? 'Undoing...' : 'Undo'}</button>`
+      const controls = [];
+      if (undoable) controls.push(`<button class="danger undoBtn" type="button" data-token="${esc(token)}"${busy ? ' disabled' : ''}>${busy ? 'Working...' : 'Undo'}</button>`);
+      if (CAN_REVIEW && row.can_review && token) {
+        if (row.status === 'changed') {
+          controls.push(`<button class="reviewBtn" type="button" data-action="ignore_scan" data-token="${esc(token)}"${busy ? ' disabled' : ''}>Ignore Later Scan</button>`);
+        }
+        controls.push(`<button class="reviewBtn" type="button" data-action="confirm_return" data-token="${esc(token)}"${busy ? ' disabled' : ''}>Confirm Returned</button>`);
+      }
+      const action = controls.length
+        ? `<div class="reviewActions">${controls.join('')}</div>`
         : `<span class="muted">${CAN_UNDO ? esc(row.undo_blocked_reason || '-') : 'View only'}</span>`;
+      const reviewNote = row.review_action === 'ignored_scan'
+        ? `<div class="muted">Later entrance scan ignored for Live Location${row.reviewed_by ? ` by ${esc(row.reviewed_by)}` : ''}</div>`
+        : row.review_action === 'returned'
+          ? `<div class="muted">Staff confirmed ${esc(fmtDateTime(row.reviewed_at))}</div>`
+          : '';
       const location = row.current_label
         ? `<div>${esc(row.current_label)}</div><div class="muted mono">${esc(row.current_source || '')}</div>`
         : '<span class="muted">-</span>';
@@ -170,7 +186,7 @@
         <td><strong>${esc(row.name || '-')}</strong><div class="muted mono">${esc(row.osis || '')}</div></td>
         <td><div>${esc(fmtDateTime(row.dismissal_when_iso || row.created_at))}</div><div class="muted mono">${esc(row.dismissal_when_iso || '')}</div></td>
         <td>${esc(row.reason || '-')}</td>
-        <td>${statusTag(row)}${row.used_at ? `<div class="muted mono">${esc(fmtDateTime(row.used_at))}</div><div class="muted">${esc(row.used_by||'')}</div>` : ''}</td>
+        <td>${statusTag(row)}${reviewNote}${row.used_at ? `<div class="muted mono">${esc(fmtDateTime(row.used_at))}</div><div class="muted">${esc(row.used_by||'')}</div>` : ''}</td>
         <td>${location}</td>
         <td>${action}</td>
       </tr>`;
@@ -194,6 +210,7 @@
       if (!resp.ok || !data?.ok) throw new Error(data?.error || `early_dismissals_http_${resp.status}`);
       ROWS = Array.isArray(data.rows) ? data.rows : [];
       CAN_UNDO = !!data.can_undo;
+      CAN_REVIEW = !!data.can_review;
       renderCounts(data);
       renderRows();
       setStatus(ROWS.length ? `${ROWS.length} early dismissal record(s).` : 'No early dismissals for today.');
@@ -237,6 +254,44 @@
     } catch (err) {
       setStatus(err?.message || String(err), true);
       await refresh();
+    } finally {
+      BUSY_TOKEN = '';
+      renderRows();
+    }
+  }
+
+
+  async function reviewDismissal(token, action){
+    const row = ROWS.find((r) => String(r.token || '') === String(token || ''));
+    if (!row || !CAN_REVIEW || !row.can_review) return;
+    if (!['ignore_scan', 'confirm_return'].includes(action)) return;
+    const label = `${row.name || 'this student'}${row.osis ? ` (${row.osis})` : ''}`;
+    const message = action === 'ignore_scan'
+      ? `Keep ${label} OFF CAMPUS and ignore the later entrance scan for Live Location? The original scan stays in the audit history.`
+      : `Confirm that ${label} has PHYSICALLY RETURNED to the building? This ends dismissal protection and restores an on-campus location.`;
+    if (!window.confirm(message)) return;
+    BUSY_TOKEN = String(token || '');
+    renderRows();
+    setStatus(action === 'ignore_scan' ? 'Preserving early dismissal...' : 'Confirming re-entry...');
+    try {
+      const resp = await adminFetch('/admin/early_dismissals/review', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, action })
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data?.ok) throw new Error(data?.error || `review_http_${resp.status}`);
+      await refresh();
+      const auditWarning = data.review_audit_saved !== true
+        ? ` Warning: correction applied, but audit receipt needs attention (${data.review_audit_error || 'not confirmed'}).`
+        : '';
+      setStatus(action === 'ignore_scan'
+        ? `Preserved off-campus dismissal for ${label}. Later scan remains recorded.${auditWarning}`
+        : `Confirmed return for ${label}. Live location: ${data.current_label || 'on campus'}.${auditWarning}`,
+        !!auditWarning);
+    } catch (err) {
+      await refresh();
+      setStatus(err?.message || String(err), true);
     } finally {
       BUSY_TOKEN = '';
       renderRows();
@@ -295,6 +350,13 @@
       if (!btn) return;
       const token = String(btn.getAttribute('data-token') || '').trim();
       if (token) undoDismissal(token);
+    });
+    document.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.reviewBtn');
+      if (!btn) return;
+      const token = String(btn.getAttribute('data-token') || '').trim();
+      const action = String(btn.getAttribute('data-action') || '').trim();
+      if (token && action) reviewDismissal(token, action);
     });
 
     try {
